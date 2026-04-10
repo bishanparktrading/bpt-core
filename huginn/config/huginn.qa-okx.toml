@@ -24,3 +24,9 @@ stream_id = 2003    # Huginn → Fenrir  (MdSubscriptionAck, heartbeats)
 [metrics]
 host = "0.0.0.0"  # Allow Prometheus to scrape from the monitoring host in QA
 port = 9102
+
+[logging]
+level             = "info"
+dir               = "logs"
+flush_level       = "warn"
+flush_interval_ms = 1000    # 1 s periodic flush for high-volume MD service

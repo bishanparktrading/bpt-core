@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <yggdrasil/aeron/stream_config.h>
+#include <yggdrasil/logging.h>
 
 namespace huginn::config {
 
@@ -54,11 +55,6 @@ struct AdapterConfig {
     uint32_t so_rcvbuf_bytes{0};
 };
 
-struct LoggingConfig {
-    std::string level{"info"};  // trace | debug | info | warn | error | critical | off
-    std::string dir{"logs"};
-};
-
 struct Settings {
     std::string environment;             // "prod" | "qa" | "dev" — logged at startup, validated against exchange_cfg
     std::vector<std::string> exchanges;  // exchanges to activate from exchange_config (e.g. ["OKX", "BINANCE"])
@@ -71,7 +67,7 @@ struct Settings {
     // Interval (ms) between MdServiceHeartbeat messages on the ack/hb stream.
     uint32_t service_heartbeat_interval_ms{5000};
 
-    LoggingConfig logging;
+    ygg::logging::LogConfig logging;
 
     // Prometheus metrics endpoint.
     // Restrict host to "127.0.0.1" in prod to prevent exposure to external networks.

@@ -61,3 +61,9 @@ correlation_id = 2001
 
 [metrics]
 port = 9104
+
+[logging]
+level             = "info"
+dir               = "logs"
+flush_level       = "warn"
+flush_interval_ms = 0       # flush on warn+ only; set >0 for periodic flush in prod

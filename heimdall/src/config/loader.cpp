@@ -5,6 +5,7 @@
 #include <unordered_set>
 
 #include "heimdall/config/settings.h"
+#include <yggdrasil/logging_toml.h>
 
 namespace heimdall::config {
 
@@ -111,10 +112,8 @@ Settings load(const std::string& path) {
         s.heimdall.adapters.push_back(std::move(ac));
     }
 
-    if (auto* l = root["logging"].as_table()) {
-        if (auto v = (*l)["level"].value<std::string>()) s.logging.level = *v;
-        if (auto v = (*l)["dir"].value<std::string>()) s.logging.dir = *v;
-    }
+    if (auto* l = root["logging"].as_table())
+        s.logging = ygg::logging::from_toml(*l);
 
     if (auto* m = root["metrics"].as_table())
         if (auto v = (*m)["port"].value<int64_t>()) s.metrics_port = static_cast<uint16_t>(*v);

@@ -35,3 +35,9 @@ max_orders_per_second = 10
 
 [metrics]
 port = 9103
+
+[logging]
+level             = "info"
+dir               = "logs"
+flush_level       = "warn"
+flush_interval_ms = 0

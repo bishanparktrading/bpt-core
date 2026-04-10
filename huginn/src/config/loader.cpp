@@ -1,4 +1,5 @@
 #include "huginn/config/settings.h"
+#include <yggdrasil/logging_toml.h>
 
 #include <fmt/ranges.h>
 #include <spdlog/spdlog.h>
@@ -124,12 +125,8 @@ Settings load(const std::string& path) {
     if (auto v = root["service_heartbeat_interval_ms"].value<int64_t>())
         s.service_heartbeat_interval_ms = static_cast<uint32_t>(*v);
 
-    if (auto* l = root["logging"].as_table()) {
-        if (auto v = (*l)["level"].value<std::string>())
-            s.logging.level = *v;
-        if (auto v = (*l)["dir"].value<std::string>())
-            s.logging.dir = *v;
-    }
+    if (auto* l = root["logging"].as_table())
+        s.logging = ygg::logging::from_toml(*l);
 
     if (auto* m = root["metrics"].as_table()) {
         if (auto v = (*m)["port"].value<int64_t>())

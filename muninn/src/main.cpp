@@ -31,8 +31,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    ygg::logging::init("muninn", settings.logging.dir, ygg::logging::level_from_string(settings.logging.level));
-    spdlog::flush_every(std::chrono::seconds(1));
+    ygg::logging::init("muninn", settings.logging);
     ygg::util::TscClock::calibrate();
     spdlog::info("Starting Muninn Reference Data Service...");
 

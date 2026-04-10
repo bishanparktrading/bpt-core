@@ -36,3 +36,9 @@ local_path = "/opt/bpt/data/instrument_mapping.json"
 
 [metrics]
 port = 9101
+
+[logging]
+level             = "info"
+dir               = "logs"
+flush_level       = "warn"
+flush_interval_ms = 1000

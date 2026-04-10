@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <vector>
 #include <yggdrasil/aeron/stream_config.h>
+#include <yggdrasil/logging.h>
 
 // Forward declaration for ScheduleConfig::configured_exchanges_mask conversion.
 
@@ -105,15 +106,10 @@ struct FenrirConfig {
     StrategyConfig strategy;
 };
 
-struct LoggingConfig {
-    std::string level{"info"};  // trace | debug | info | warn | error | critical | off
-    std::string dir{"logs"};
-};
-
 struct AppConfig {
     AeronConfig aeron;
     FenrirConfig fenrir;
-    LoggingConfig logging;
+    ygg::logging::LogConfig logging;
     int metrics_port{9104};
     bool backtest_mode{false};  // When true, Fenrir gates on BacktestControl ticks from Jormungandr
 

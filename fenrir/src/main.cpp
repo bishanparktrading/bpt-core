@@ -23,7 +23,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    ygg::logging::init("fenrir", app_cfg.logging.dir, ygg::logging::level_from_string(app_cfg.logging.level));
+    ygg::logging::init("fenrir", app_cfg.logging);
 
     ::aeron::Context aeron_ctx;
     if (!app_cfg.aeron.media_driver_dir.empty())

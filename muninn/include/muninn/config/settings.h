@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <yggdrasil/aeron/stream_config.h>
+#include <yggdrasil/logging.h>
 
 namespace muninn::config {
 
@@ -40,11 +41,6 @@ struct InstrumentMappingConfig {
     } s3;
 };
 
-struct LoggingConfig {
-    std::string level{"info"};  // trace | debug | info | warn | error | critical | off
-    std::string dir{"logs"};
-};
-
 struct Settings {
     std::string environment;             // "prod" | "qa" | "dev" — logged at startup, validated against exchange_config
     std::vector<std::string> exchanges;  // exchanges to activate from exchange_config (e.g. ["OKX", "BINANCE"])
@@ -69,7 +65,7 @@ struct Settings {
     uint32_t instrument_poll_interval_s{3600};
 
     InstrumentMappingConfig instrument_mapping;
-    LoggingConfig logging;
+    ygg::logging::LogConfig logging;
 
     uint16_t metrics_port{9101};
 };

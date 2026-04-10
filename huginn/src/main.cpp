@@ -23,8 +23,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    ygg::logging::init("huginn", cfg.logging.dir, ygg::logging::level_from_string(cfg.logging.level));
-    spdlog::flush_every(std::chrono::seconds(1));
+    ygg::logging::init("huginn", cfg.logging);
     ygg::util::TscClock::calibrate();
 
     auto aeron = ygg::aeron::connect(cfg.aeron.media_driver_dir);

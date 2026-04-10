@@ -1,64 +1,88 @@
 #pragma once
 
-// yggdrasil/logging.h — Shared logger initialisation for all Fenrir services.
+// yggdrasil/logging.h — Shared logger config and initialisation for all services.
 //
 // Usage (in main, before any spdlog calls):
 //   ygg::logging::init("fenrir");
-//   ygg::logging::init("heimdall", "logs", spdlog::level::debug);
+//
+//   ygg::logging::LogConfig cfg;
+//   cfg.level = "debug";
+//   cfg.flush_interval_ms = 1000;
+//   ygg::logging::init("fenrir", cfg);
+//
+// To load config from a TOML table, include <yggdrasil/logging_toml.h> instead.
 
 #include <spdlog/async.h>
-#include <spdlog/logger.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
+
+#include <cstdint>
+#include <filesystem>
 #include <string>
+#include <vector>
 
 namespace ygg::logging {
 
-// Convert a log level string to the spdlog enum.  Returns info on unknown input.
+struct LogConfig {
+    std::string log_dir           = "logs";
+    std::string level             = "info";   // trace/debug/info/warn/error/critical/off
+    std::string flush_level       = "warn";   // flush-on threshold (>= this level triggers sync flush)
+    bool        console           = true;
+    bool        file              = true;
+    uint32_t    async_queue_size  = 8192;     // ring buffer depth for the async logger
+    uint32_t    async_threads     = 1;
+    bool        block_on_overflow = false;    // false = discard_new (prefer for hot paths)
+    uint32_t    max_file_size_mb  = 10;
+    uint32_t    max_files         = 3;        // number of rotated files to retain
+    std::string pattern;                      // empty = spdlog default pattern
+    uint32_t    flush_interval_ms = 0;        // 0 = flush-on-level only; >0 also flushes periodically
+};
+
 inline spdlog::level::level_enum level_from_string(const std::string& s) {
-    if (s == "trace")
-        return spdlog::level::trace;
-    if (s == "debug")
-        return spdlog::level::debug;
-    if (s == "info")
-        return spdlog::level::info;
-    if (s == "warn" || s == "warning")
-        return spdlog::level::warn;
-    if (s == "error")
-        return spdlog::level::err;
-    if (s == "critical")
-        return spdlog::level::critical;
-    if (s == "off")
-        return spdlog::level::off;
+    if (s == "trace")                    return spdlog::level::trace;
+    if (s == "debug")                    return spdlog::level::debug;
+    if (s == "info")                     return spdlog::level::info;
+    if (s == "warn" || s == "warning")   return spdlog::level::warn;
+    if (s == "error")                    return spdlog::level::err;
+    if (s == "critical")                 return spdlog::level::critical;
+    if (s == "off")                      return spdlog::level::off;
     return spdlog::level::info;
 }
 
-// Initialise an async spdlog logger with a rotating file sink and a colour
-// console sink.  Sets it as the spdlog default logger.
-//
-// - service_name : used as the logger name and as the log filename stem
-//                  (e.g. "fenrir" → logs/fenrir.log)
-// - log_dir      : directory for the rotating file (default "logs")
-// - level        : minimum log level (default info)
-inline void init(const std::string& service_name,
-                 const std::string& log_dir = "logs",
-                 spdlog::level::level_enum level = spdlog::level::info) {
-    spdlog::init_thread_pool(8192, 1);
+inline void init(const std::string& service_name, const LogConfig& cfg = {}) {
+    spdlog::init_thread_pool(cfg.async_queue_size, cfg.async_threads);
 
-    auto console = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-    auto file = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(log_dir + "/" + service_name + ".log",
-                                                                       10 * 1024 * 1024,  // 10 MB per file
-                                                                       3                  // keep 3 rotated files
-    );
+    std::vector<spdlog::sink_ptr> sinks;
 
-    auto logger = std::make_shared<spdlog::async_logger>(service_name,
-                                                         spdlog::sinks_init_list{console, file},
-                                                         spdlog::thread_pool(),
-                                                         spdlog::async_overflow_policy::discard_new);
+    if (cfg.console)
+        sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
 
-    logger->set_level(level);
-    logger->flush_on(level);
+    if (cfg.file) {
+        std::filesystem::create_directories(cfg.log_dir);
+        sinks.push_back(std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
+            cfg.log_dir + "/" + service_name + ".log",
+            static_cast<std::size_t>(cfg.max_file_size_mb) * 1024 * 1024,
+            cfg.max_files));
+    }
+
+    auto policy = cfg.block_on_overflow
+        ? spdlog::async_overflow_policy::block
+        : spdlog::async_overflow_policy::discard_new;
+
+    auto logger = std::make_shared<spdlog::async_logger>(
+        service_name, sinks.begin(), sinks.end(),
+        spdlog::thread_pool(), policy);
+
+    logger->set_level(level_from_string(cfg.level));
+    logger->flush_on(level_from_string(cfg.flush_level));
+
+    if (!cfg.pattern.empty())
+        logger->set_pattern(cfg.pattern);
+
+    if (cfg.flush_interval_ms > 0)
+        spdlog::flush_every(std::chrono::milliseconds(cfg.flush_interval_ms));
+
     spdlog::set_default_logger(logger);
 }
 

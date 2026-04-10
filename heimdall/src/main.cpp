@@ -33,8 +33,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    ygg::logging::init("heimdall", cfg.logging.dir,
-                       ygg::logging::level_from_string(cfg.logging.level));
+    ygg::logging::init("heimdall", cfg.logging);
     spdlog::info("[Heimdall] Starting — Odin's spear always hits its mark.");
 
     Aws::SDKOptions aws_options;

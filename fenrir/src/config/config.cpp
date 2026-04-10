@@ -4,6 +4,7 @@
 #include <fmt/format.h>
 #include <stdexcept>
 #include <toml++/toml.hpp>
+#include <yggdrasil/logging_toml.h>
 
 namespace fenrir {
 namespace config {
@@ -153,12 +154,8 @@ AppConfig AppConfig::load(const std::string& path) {
     if (auto v = cfg["backtest_mode"].value<bool>())
         app_cfg.backtest_mode = *v;
 
-    if (auto* l = cfg["logging"].as_table()) {
-        if (auto v = (*l)["level"].value<std::string>())
-            app_cfg.logging.level = *v;
-        if (auto v = (*l)["dir"].value<std::string>())
-            app_cfg.logging.dir = *v;
-    }
+    if (auto* l = cfg["logging"].as_table())
+        app_cfg.logging = ygg::logging::from_toml(*l);
 
     if (auto* m = cfg["metrics"].as_table())
         if (auto v = (*m)["port"].value<int64_t>())
