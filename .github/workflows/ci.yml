@@ -90,21 +90,22 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
 
       # Save caches immediately after configure — before build can fail.
-      # actions/cache/save is a no-op if the key already exists, so safe to
-      # call unconditionally alongside the restore steps above.
+      # Keys are suffixed with run_id so concurrent runs don't collide trying
+      # to write the same key. Restore uses prefix matching (restore-keys) so
+      # it picks up any previously saved entry regardless of the run_id suffix.
       - name: Save vcpkg binary packages
         uses: actions/cache/save@v4
         if: always() && steps.vcpkg-pkgs-cache.outputs.cache-hit != 'true'
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
-          key: vcpkg-pkgs-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          key: vcpkg-pkgs-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
 
       - name: Save FetchContent (Aeron + fast_float)
         uses: actions/cache/save@v4
         if: always() && steps.deps-cache.outputs.cache-hit != 'true'
         with:
           path: build/_deps
-          key: cmake-deps-${{ runner.os }}-${{ hashFiles('CMakeLists.txt') }}
+          key: cmake-deps-${{ runner.os }}-${{ hashFiles('CMakeLists.txt') }}-${{ github.run_id }}
 
       - name: Build
         run: cmake --build build -j$(nproc)
