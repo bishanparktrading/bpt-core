@@ -1,0 +1,104 @@
+#include "heimdall/adapter/binance/binance_exec_parser.h"
+
+#include <bifrost_protocol/ExchangeId.h>
+#include <bifrost_protocol/ExecStatus.h>
+#include <bifrost_protocol/FeeCurrency.h>
+#include <bifrost_protocol/OrderSide.h>
+#include <bifrost_protocol/OrderType.h>
+#include <bifrost_protocol/RejectReason.h>
+#include <spdlog/spdlog.h>
+
+#include <boost/json.hpp>
+#include <string>
+
+namespace heimdall::adapter {
+
+namespace json = boost::json;
+
+static constexpr double kScale = 1e8;
+
+static bifrost::protocol::FeeCurrency::Value parse_fee_currency(const std::string& asset) {
+    using FC = bifrost::protocol::FeeCurrency;
+    if (asset == "BTC") return FC::BTC;
+    if (asset == "ETH") return FC::ETH;
+    if (asset == "BNB") return FC::BNB;
+    if (asset == "USDT") return FC::USDT;
+    return FC::USDT;
+}
+
+void BinanceExecParser::register_order(const std::string& cloid, uint64_t order_id) {
+    std::lock_guard<std::mutex> lk(mu_);
+    cloid_to_order_id_[cloid] = order_id;
+}
+
+void BinanceExecParser::handle_execution_report(const json::object& obj, uint64_t recv_ns) {
+    auto eit = obj.find("e");
+    if (eit == obj.end()) return;
+    if (std::string(eit->value().as_string()) != "executionReport") return;
+
+    std::string exec_type = std::string(obj.at("X").as_string());
+    std::string cloid = std::string(obj.at("c").as_string());
+
+    uint64_t order_id = 0;
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        auto it = cloid_to_order_id_.find(cloid);
+        if (it != cloid_to_order_id_.end()) order_id = it->second;
+    }
+    if (order_id == 0) {
+        spdlog::warn("[Heimdall] BinanceExecParser: unknown cloid={}", cloid);
+        return;
+    }
+
+    using ES = bifrost::protocol::ExecStatus;
+    using OS = bifrost::protocol::OrderSide;
+    using OT = bifrost::protocol::OrderType;
+    using RR = bifrost::protocol::RejectReason;
+
+    ExecEvent ev{};
+    ev.order_id = order_id;
+    ev.exchange_order_id = static_cast<uint64_t>(obj.at("i").as_int64());
+    ev.exchange_id = bifrost::protocol::ExchangeId::BINANCE;
+    ev.instrument_id = 0;
+    ev.local_ts_ns = recv_ns;
+
+    std::string side_str = std::string(obj.at("S").as_string());
+    ev.side = (side_str == "BUY") ? OS::BUY : OS::SELL;
+
+    std::string type_str = std::string(obj.at("o").as_string());
+    if (type_str == "MARKET")
+        ev.order_type = OT::MARKET;
+    else if (type_str == "LIMIT_MAKER")
+        ev.order_type = OT::POST_ONLY;
+    else
+        ev.order_type = OT::LIMIT;
+
+    ev.price = static_cast<int64_t>(std::stod(std::string(obj.at("p").as_string())) * kScale);
+    ev.filled_qty = static_cast<uint64_t>(std::stod(std::string(obj.at("z").as_string())) * kScale);
+    uint64_t total_qty =
+        static_cast<uint64_t>(std::stod(std::string(obj.at("q").as_string())) * kScale);
+    ev.remaining_qty = total_qty > ev.filled_qty ? total_qty - ev.filled_qty : 0;
+
+    ev.fee = static_cast<int64_t>(std::stod(std::string(obj.at("n").as_string())) * kScale);
+    ev.fee_currency = parse_fee_currency(std::string(obj.at("N").as_string()));
+
+    ev.exchange_ts_ns = static_cast<uint64_t>(obj.at("T").as_int64()) * 1000000ULL;
+    ev.reject_reason = RR::OK;
+
+    if (exec_type == "NEW") {
+        ev.status = ES::ACKED;
+    } else if (exec_type == "TRADE") {
+        ev.status = (ev.remaining_qty == 0) ? ES::FILLED : ES::PARTIAL;
+    } else if (exec_type == "CANCELED" || exec_type == "EXPIRED") {
+        ev.status = ES::CANCELLED;
+    } else if (exec_type == "REJECTED") {
+        ev.status = ES::REJECTED;
+        ev.reject_reason = RR::EXCHANGE_ERROR;
+    } else {
+        return;  // ignore PENDING_CANCEL and other types
+    }
+
+    if (on_exec_event) on_exec_event(ev);
+}
+
+}  // namespace heimdall::adapter

@@ -1,0 +1,42 @@
+# Instance config — QA environment (demo trading, testnet endpoints).
+# Switch to muninn.prod.toml for live trading.
+environment = "qa"
+exchange_config = "config/exchanges/testnet.toml"
+exchanges = ["OKX"]
+instrument_poll_interval_s = 3600
+
+[aeron]
+media_driver_dir = "/dev/shm/aeron-bifrost"
+
+[aeron.snapshot]
+channel = "aeron:ipc"
+stream_id = 1001    # Muninn → Fenrir (RefDataSnapshot)
+
+[aeron.delta]
+channel = "aeron:ipc"
+stream_id = 1002    # Muninn → Fenrir (RefDataDelta)
+
+[aeron.control]
+channel = "aeron:ipc"
+stream_id = 1003    # Fenrir → Muninn (RefDataSubscriptionRequest)
+
+[aeron.fee_schedule]
+channel = "aeron:ipc"
+stream_id = 1004    # Muninn → Fenrir (FeeSchedule)
+
+[aeron.muninn_status]
+channel = "aeron:ipc"
+stream_id = 1006    # Muninn → Fenrir (RefDataReady, RefDataError)
+
+[instrument_mapping]
+local_path = "/opt/bpt/data/instrument_mapping.json"
+
+[instrument_mapping.s3]
+bucket = "bpt-data-dev"
+region = "ap-southeast-1"
+
+[instrument_mapping.s3.keys]
+okx = "instrument-mapping/current/okx.json"
+
+[metrics]
+port = 9101

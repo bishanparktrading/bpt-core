@@ -1,0 +1,49 @@
+# Exchange adapter endpoints — TESTNET / demo trading
+# Source of truth for testnet exchange connectivity.
+# Edit this file when adding a new exchange or changing an endpoint.
+# Credentials are loaded from AWS Secrets Manager at startup using secret_name.
+# Local dev (BPT_ENV=local): reads ~/.bpt-secrets/<secret_name>.json instead.
+
+[[adapters]]
+exchange    = "BINANCE"
+secret_name = "bpt/testnet/BINANCE"
+testnet     = true
+rest_host   = "testnet.binance.vision"
+rest_port   = "443"
+ws_host     = "testnet.binance.vision"
+ws_port     = "443"
+ws_path     = "/ws"
+use_tls     = true
+
+[[adapters]]
+exchange    = "OKX"
+secret_name = "bpt/testnet/OKX"
+testnet     = true
+rest_host   = "my.okx.com"
+rest_port   = "443"
+ws_host     = "wseeapap.okx.com"
+ws_port     = "8443"
+ws_path     = "/ws/v5/private"
+use_tls     = true
+
+[[adapters]]
+exchange    = "HYPERLIQUID"
+secret_name = "bpt/testnet/HYPERLIQUID"
+testnet     = false
+rest_host   = "api.hyperliquid.xyz"
+rest_port   = "443"
+ws_host     = "api.hyperliquid.xyz"
+ws_port     = "443"
+ws_path     = "/ws"
+use_tls     = true
+
+[[adapters]]
+exchange    = "DERIBIT"
+secret_name = "bpt/testnet/DERIBIT"
+testnet     = true
+rest_host   = "test.deribit.com"
+rest_port   = "443"
+ws_host     = "test.deribit.com"
+ws_port     = "443"
+ws_path     = "/ws/api/v2"
+use_tls     = true

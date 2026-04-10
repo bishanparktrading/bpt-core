@@ -1,0 +1,9 @@
+# SBE code-gen tool — download via scripts/download-sbe-tool.sh
+tools/*.jar
+
+# CMake build artefacts
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake

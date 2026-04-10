@@ -1,0 +1,34 @@
+# Exchange adapter endpoints — TESTNET / demo trading
+# Source of truth for testnet exchange connectivity.
+# Edit this file when adding a new exchange or changing an endpoint.
+
+[[adapters]]
+exchange = "BINANCE"
+ws_host = "stream.binance.com"
+ws_port = "9443"
+ws_path = "/stream"
+use_tls = true
+
+[[adapters]]
+exchange = "OKX"
+ws_host = "wseeapap.okx.com"
+ws_port = "8443"
+ws_path = "/ws/v5/public"
+use_tls = true
+ws_read_timeout_ms = 5000
+
+[[adapters]]
+exchange = "HYPERLIQUID"
+ws_host = "api.hyperliquid.xyz"
+ws_port = "443"
+ws_path = "/ws"
+use_tls = true
+
+[[adapters]]
+exchange = "DERIBIT"
+ws_host = "test.deribit.com"
+ws_port = "443"
+ws_path = "/ws/api/v2"
+use_tls = true
+ws_read_timeout_ms = 5000
+# Credentials: DERIBIT_CLIENT_ID, DERIBIT_CLIENT_SECRET

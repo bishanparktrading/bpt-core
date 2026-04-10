@@ -1,0 +1,19 @@
+{
+    "name": "bpt-core",
+    "version-string": "0.1.0",
+    "dependencies": [
+        "fmt",
+        "spdlog",
+        "tomlplusplus",
+        {"name": "boost-beast",  "default-features": false},
+        {"name": "boost-asio",   "default-features": false},
+        {"name": "boost-json",   "default-features": false},
+        {"name": "boost-system", "default-features": false},
+        "simdjson",
+        "openssl",
+        "nlohmann-json",
+        "gtest",
+        {"name": "prometheus-cpp", "features": ["pull"]},
+        {"name": "aws-sdk-cpp", "default-features": false, "features": ["s3", "secretsmanager"]}
+    ]
+}

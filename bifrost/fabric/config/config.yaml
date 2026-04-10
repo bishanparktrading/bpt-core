@@ -1,0 +1,22 @@
+# Bifrost Media Driver Configuration
+
+aeron:
+  directory: "/dev/shm/aeron-bifrost"
+  threading_mode: "DEDICATED"   # SHARED, SHARED_NETWORK, DEDICATED
+  idle_strategy: "BUSY_SPIN"    # BUSY_SPIN, YIELDING, SLEEPING, SLEEPING:<nanos>
+  dir_delete_on_start: true
+  dir_delete_on_shutdown: true
+
+  heartbeat_interval_sec: 10
+  # OKX WS reconnect takes ~8s (5s sleep + connect + SSL + WS handshake).
+  # Default client liveness timeout (10s) is too tight — extend to 20s.
+  # publicationUnblockTimeoutNs must be > clientLivenessTimeoutNs, so extend
+  # that to 40s as well (Aeron default is 15s).
+  client_liveness_timeout_ns: 20000000000
+  publication_unblock_timeout_ns: 40000000000
+
+logger:
+  level: "info"
+
+metrics:
+  port: 9100

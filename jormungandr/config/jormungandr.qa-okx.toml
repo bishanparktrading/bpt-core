@@ -1,0 +1,46 @@
+environment = "qa"
+
+[simulation]
+start              = "2026-01-01T00:00:00Z"
+end                = "2026-01-31T23:59:59Z"
+allow_partial_data = false
+
+[simulation.latency]
+cex_base_ms           = 2
+hyperliquid_base_ms   = 200
+hyperliquid_jitter_ms = 50
+
+[data]
+local_cache = "/opt/bpt/data/backtest-cache"
+
+[aeron]
+media_driver_dir = "/dev/shm/aeron-qa"
+
+[aeron.backtest_ack]
+channel   = "aeron:ipc"
+stream_id = 9001
+
+[aeron.backtest_control]
+channel   = "aeron:ipc"
+stream_id = 9002
+
+# Instruments must match exchange-native symbols in the Parquet files.
+# They must also be a subset of what Fenrir's strategy is configured to trade.
+[[instruments]]
+exchange = "OKX"
+symbol   = "BTC-USDT-SWAP"
+
+[[instruments]]
+exchange = "OKX"
+symbol   = "ETH-USDT-SWAP"
+
+[endpoints]
+okx_md_port    = 9101
+okx_order_port = 9111
+
+[logging]
+level = "info"
+dir   = "logs"
+
+[metrics]
+port = 9105

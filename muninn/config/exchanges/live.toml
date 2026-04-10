@@ -1,0 +1,32 @@
+# Exchange adapter endpoints — LIVE trading
+# Source of truth for live exchange connectivity.
+# Edit this file when adding a new exchange or changing an endpoint.
+# Credentials are loaded from AWS Secrets Manager at startup using secret_name.
+# Local dev (BPT_ENV=local): reads ~/.bpt-secrets/<secret_name>.json instead.
+
+[[adapters]]
+exchange    = "BINANCE"
+secret_name = "bpt/prod/BINANCE"
+rest_host   = "api.binance.com"
+rest_port   = "443"
+ws_host     = "fstream.binance.com"
+ws_port     = "443"
+use_tls     = true
+
+[[adapters]]
+exchange    = "OKX"
+secret_name = "bpt/prod/OKX"
+rest_host   = "www.okx.com"
+rest_port   = "443"
+ws_host     = "ws.okx.com"
+ws_port     = "8443"
+use_tls     = true
+
+[[adapters]]
+exchange    = "HYPERLIQUID"
+secret_name = "bpt/prod/HYPERLIQUID"
+rest_host   = "api.hyperliquid.xyz"
+rest_port   = "443"
+ws_host     = "api.hyperliquid.xyz"
+ws_port     = "443"
+use_tls     = true

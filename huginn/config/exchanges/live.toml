@@ -1,0 +1,36 @@
+# Exchange adapter endpoints — LIVE market data
+# Source of truth for live exchange connectivity.
+# Edit this file when adding a new exchange or changing an endpoint.
+# MD uses public WebSocket feeds — no credentials required.
+#
+# Per-adapter tuning knobs (all optional; defaults shown):
+#   ws_connect_timeout_ms = 30000  # deadline for entire connect sequence: DNS+TCP+TLS+WS upgrade
+#   ws_read_timeout_ms    = 5000   # per-iteration I/O timeout (ms); keep short so ping/liveness fire on schedule
+#   ws_ping_interval_ms   = 25000  # OKX only: text-frame "ping" interval (ms)
+#   ws_liveness_timeout_ms= 60000  # reconnect if no message received for this long (ms)
+#   io_thread_cpu         = -1     # pin IO thread to this CPU core (-1 = no pinning)
+#   so_rcvbuf_bytes       = 0      # socket receive buffer size (0 = OS default)
+
+[[adapters]]
+exchange = "BINANCE"
+ws_host = "stream.binance.com"
+ws_port = "9443"
+ws_path = "/stream"
+use_tls = true
+
+[[adapters]]
+exchange = "OKX"
+ws_host = "ws.okx.com"
+ws_port = "8443"
+ws_path = "/ws/v5/public"
+use_tls = true
+ws_read_timeout_ms = 5000
+ws_ping_interval_ms = 25000
+ws_liveness_timeout_ms = 60000
+
+[[adapters]]
+exchange = "HYPERLIQUID"
+ws_host = "api.hyperliquid.xyz"
+ws_port = "443"
+ws_path = "/ws"
+use_tls = true

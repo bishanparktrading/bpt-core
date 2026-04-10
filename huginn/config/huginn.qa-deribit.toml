@@ -1,0 +1,25 @@
+# Instance config — QA environment, Deribit testnet.
+environment = "qa"
+exchange_config = "config/exchanges/testnet.toml"
+exchanges = ["DERIBIT"]
+subscription_heartbeat_interval_ms = 5000
+service_heartbeat_interval_ms = 5000
+
+[aeron]
+media_driver_dir = "/dev/shm/aeron-bifrost"
+
+[aeron.control]
+channel = "aeron:ipc"
+stream_id = 2001
+
+[aeron.data]
+channel = "aeron:ipc"
+stream_id = 2002
+
+[aeron.ack_hb]
+channel = "aeron:ipc"
+stream_id = 2003
+
+[metrics]
+host = "0.0.0.0"  # Allow Prometheus to scrape from the monitoring host in QA
+port = 9102

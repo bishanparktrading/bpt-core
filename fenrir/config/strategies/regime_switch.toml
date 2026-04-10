@@ -1,0 +1,58 @@
+[fenrir.strategy]
+type = "RegimeSwitchStrategy"
+enabled = true
+instruments = ["BTC/USDT:SPOT"]
+md_exchanges = ["OKX"]
+
+[fenrir.strategy.venue_exec.OKX]
+enabled = true
+latency_budget_us = 5000
+order_type = "LIMIT"
+tif = "GTC"
+max_retries = 3
+
+[fenrir.strategy.risk]
+max_position_usd = 2000.0
+max_order_size_usd = 500.0
+max_daily_loss_usd = 200.0
+max_open_orders = 20
+
+[fenrir.strategy.schedule]
+require_refdata_ready = true
+md_staleness_threshold_ms = 5000
+max_refdata_staleness_ns = 300000000000
+configured_exchanges = ["OKX"]
+
+[fenrir.strategy.params]
+# ── Time bars ────────────────────────────────────────────────────────
+bar_interval_s = 1.0
+
+# ── Hurst exponent ───────────────────────────────────────────────────
+hurst_window = 300
+hurst_eval_ticks = 50
+mean_revert_threshold = 0.43
+trend_threshold = 0.57
+hysteresis = 0.05
+min_regime_dwell = 30
+
+# ── Grid strategy (mean-reverting regime) ────────────────────────────
+grid_levels = 3
+grid_spacing_bps = 20.0
+grid_qty_usd = 750.0
+grid_max_position_usd = 500.0
+grid_recenter_bps = 50.0
+
+# ── Momentum strategy (trending regime) ──────────────────────────────
+ema_fast_period = 12
+ema_slow_period = 26
+atr_period = 14
+atr_stop_multiplier = 10.0
+atr_target_multiplier = 15.0
+momentum_qty_usd = 200.0
+
+# ── Order book depth ─────────────────────────────────────────────────
+order_book_depth = 5    # 0 = BBO only, 5 = top-5 levels from Huginn
+
+# ── Execution ────────────────────────────────────────────────────────
+aggress_bps = 10.0
+max_spread_bps = 30.0

@@ -1,0 +1,64 @@
+---
+Language: Cpp
+BasedOnStyle: Google
+
+# Indentation
+IndentWidth: 4
+ContinuationIndentWidth: 4
+AccessModifierOffset: -4
+NamespaceIndentation: None
+
+# Line length — wider than Google's 80 to accommodate Aeron/SBE verbosity
+ColumnLimit: 120
+
+# Braces — attach style (Google default), but always add braces
+BreakBeforeBraces: Attach
+
+# Alignment
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignTrailingComments: true
+
+# Includes
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Aeron headers
+  - Regex: '<Aeron.*|<concurrent/.*|<FragmentAssembler'
+    Priority: 2
+  # bifrost_protocol SBE headers
+  - Regex: '<bifrost_protocol/.*'
+    Priority: 3
+  # System / STL
+  - Regex: '<.*'
+    Priority: 4
+  # Project headers
+  - Regex: '".*'
+    Priority: 1
+
+# Pointer/reference alignment
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# Function arguments
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+BinPackArguments: false
+BinPackParameters: false
+
+# Short constructs — keep simple lambdas and ifs on one line
+AllowShortLambdasOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Inline
+
+# Constructors
+BreakConstructorInitializers: BeforeColon
+PackConstructorInitializers: CurrentLine
+
+# Trailing commas — cleaner diffs
+InsertTrailingCommas: None
+
+# Empty lines
+MaxEmptyLinesToKeep: 1
+KeepEmptyLinesAtTheStartOfBlocks: false

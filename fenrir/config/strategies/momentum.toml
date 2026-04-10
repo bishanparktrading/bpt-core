@@ -1,0 +1,43 @@
+[fenrir.strategy]
+type = "MomentumStrategy"
+enabled = true
+instruments = ["BTC/USDT:SPOT", "ETH/USDT:SPOT", "SOL/USDT:SPOT", "BNB/USDT:SPOT", "XRP/USDT:SPOT"]
+md_exchanges = ["OKX"]
+
+[fenrir.strategy.venue_exec.BINANCE]
+enabled = false
+latency_budget_us = 1000
+order_type = "MARKET"
+tif = "GTC"
+max_retries = 3
+
+[fenrir.strategy.venue_exec.OKX]
+enabled = true
+latency_budget_us = 1000
+order_type = "LIMIT"
+tif = "IOC"    # IOC cancels immediately if not filled — keeps open_orders low
+max_retries = 3
+
+[fenrir.strategy.venue_exec.HYPERLIQUID]
+enabled = false              # DEX path not yet wired — on-chain latency 200ms+
+latency_budget_us = 200000
+order_type = "MARKET"        # Limit orders impractical at DEX latency
+tif = "IOC"
+max_retries = 1
+
+[fenrir.strategy.risk]
+max_position_usd = 10000.0
+max_order_size_usd = 1000.0
+max_daily_loss_usd = 500.0
+max_open_orders = 10
+
+[fenrir.strategy.schedule]
+require_refdata_ready = true
+md_staleness_threshold_ms = 5000
+max_refdata_staleness_ns = 300000000000
+configured_exchanges = ["OKX"]
+
+[fenrir.strategy.params]
+lookback = 20
+entry_threshold = 0.00001    # lowered for testnet pipeline verification
+cooldown_ms = 1000

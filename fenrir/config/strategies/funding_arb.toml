@@ -1,0 +1,45 @@
+[fenrir.strategy]
+type = "FundingArbStrategy"
+enabled = true
+instruments = ["BTC/USDT:SPOT", "BTC/USDT:PERPETUAL"]
+md_exchanges = ["OKX"]
+
+[fenrir.strategy.venue_exec.OKX]
+enabled = true
+latency_budget_us = 5000
+order_type = "LIMIT"
+tif = "IOC"
+max_retries = 3
+
+[fenrir.strategy.risk]
+max_position_usd = 5000.0
+max_order_size_usd = 2500.0
+max_daily_loss_usd = 200.0
+max_open_orders = 8
+
+[fenrir.strategy.schedule]
+require_refdata_ready = true
+md_staleness_threshold_ms = 5000
+max_refdata_staleness_ns = 300000000000
+configured_exchanges = ["OKX"]
+
+[fenrir.strategy.params]
+# ── Base assets to pair (SPOT + PERP resolved automatically) ─────────
+base_assets = ["BTC"]
+
+# ── Funding rate thresholds ──────────────────────────────────────────
+min_funding_rate_bps = 5
+exit_funding_rate_bps = 2
+min_stable_periods = 3
+min_time_before_funding_min = 5
+
+# ── Position sizing ──────────────────────────────────────────────────
+target_notional_usd = 1000.0
+
+# ── Risk ─────────────────────────────────────────────────────────────
+max_basis_loss_bps = 50.0
+
+# ── Execution ────────────────────────────────────────────────────────
+eval_interval_s = 30
+order_timeout_s = 60
+aggress_bps = 10.0

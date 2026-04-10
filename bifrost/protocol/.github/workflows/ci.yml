@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  compile-check:
+    name: Compile check (C++17)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile generated headers
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror \
+              -I generated/cpp \
+              ci/compile_check.cpp -o /dev/null
