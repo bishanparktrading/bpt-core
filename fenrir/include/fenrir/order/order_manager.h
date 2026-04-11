@@ -80,8 +80,8 @@ private:
     // Guarantees uniqueness across process restarts without any persistent state.
     static uint64_t make_session_base() {
         const uint64_t ts = static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::seconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count());
+            std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch())
+                .count());
         return ts << 32;
     }
     std::atomic<uint64_t> next_order_id_{make_session_base() + 1};

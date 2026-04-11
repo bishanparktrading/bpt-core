@@ -9,8 +9,8 @@
 #include <cstring>
 #include <ctime>
 #include <muninn/refdata/instrument.h>
-#include <spdlog/spdlog.h>
 #include <x86intrin.h>
+#include <yggdrasil/logging.h>
 
 namespace muninn::messaging {
 
@@ -34,7 +34,7 @@ inline void aeron_offer(aeron::Publication& pub,
         if (r < 0) {
             _mm_pause();
             if (++spins == kAeronMaxSpins) {
-                spdlog::warn("[Aeron] Backpressure spin limit reached — dropping {}", context);
+                ygg::log::warn("[Aeron] Backpressure spin limit reached — dropping {}", context);
                 return;
             }
         }

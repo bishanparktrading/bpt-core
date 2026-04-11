@@ -12,7 +12,6 @@
 #include <chrono>
 #include <future>
 #include <map>
-#include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -57,7 +56,7 @@ MuninnApp::MuninnApp(config::Settings settings,
         s3_fetcher_.emplace(
             mapping::InstrumentMappingS3Fetcher::Config{im_cfg.s3.bucket, im_cfg.s3.region, im_cfg.s3.keys});
         if (!s3_fetcher_->fetch(im_cfg.local_path))
-            spdlog::warn("[Muninn] S3 fetch failed — attempting to load cached local file");
+            ygg::log::warn("[Muninn] S3 fetch failed — attempting to load cached local file");
     }
 
     instrument_mapping_->load(im_cfg.local_path);
@@ -99,7 +98,7 @@ MuninnApp::MuninnApp(config::Settings settings,
             adapter =
                 std::make_unique<adapter::DeribitRefDataAdapter>(cfg, exchange_creds, registry_, instrument_mapping_);
         } else {
-            spdlog::error("[Muninn] Unknown exchange '{}' in config — skipping", cfg.exchange);
+            ygg::log::error("[Muninn] Unknown exchange '{}' in config — skipping", cfg.exchange);
             continue;
         }
 
@@ -121,7 +120,9 @@ MuninnApp::MuninnApp(config::Settings settings,
     if (adapters_.empty())
         throw std::runtime_error("[Muninn] No adapters configured — nothing to serve.");
 
-    spdlog::info("[Muninn] Ready — listening on {} stream {}", settings_.control.channel, settings_.control.stream_id);
+    ygg::log::info("[Muninn] Ready — listening on {} stream {}",
+                   settings_.control.channel,
+                   settings_.control.stream_id);
 }
 
 void MuninnApp::run() {
@@ -134,7 +135,7 @@ void MuninnApp::run() {
         std::vector<std::future<void>> futures;
         futures.reserve(adapters_.size());
         for (auto& adapter : adapters_) {
-            spdlog::info("[Muninn] Fetching snapshot for {}...", adapter->exchange_name());
+            ygg::log::info("[Muninn] Fetching snapshot for {}...", adapter->exchange_name());
             futures.push_back(std::async(std::launch::async, [&adapter]() { adapter->fetchSnapshot(); }));
         }
         for (std::size_t i = 0; i < adapters_.size(); ++i) {
@@ -143,9 +144,9 @@ void MuninnApp::run() {
                 exchanges_loaded |= exchange_id_to_bit(adapters_[i]->exchange_id());
                 fee_schedules_loaded = true;
                 metrics_.exchange_ready(adapters_[i]->exchange_name()).Set(1.0);
-                spdlog::info("[Muninn] Snapshot complete for {}", adapters_[i]->exchange_name());
+                ygg::log::info("[Muninn] Snapshot complete for {}", adapters_[i]->exchange_name());
             } catch (const std::exception& e) {
-                spdlog::error("[Muninn] Snapshot failed for {}: {}", adapters_[i]->exchange_name(), e.what());
+                ygg::log::error("[Muninn] Snapshot failed for {}: {}", adapters_[i]->exchange_name(), e.what());
                 status_pub_->publish_error(bifrost::protocol::RefDataErrorType::SNAPSHOT_FAILED,
                                            adapters_[i]->exchange_id());
                 metrics_.snapshot_failure(adapters_[i]->exchange_name()).Increment();
@@ -156,7 +157,7 @@ void MuninnApp::run() {
     for (auto& adapter : adapters_) {
         if (adapter->isReady()) {
             adapter->subscribeDeltas();
-            spdlog::info("[Muninn] Delta subscriptions started for {}", adapter->exchange_name());
+            ygg::log::info("[Muninn] Delta subscriptions started for {}", adapter->exchange_name());
         }
     }
 
@@ -178,9 +179,9 @@ void MuninnApp::run() {
 
     while (ygg::signal::is_running()) {
         int fragments = control_sub_->poll([this](const messaging::RefdataRequest& request) {
-            spdlog::info("[Muninn] Request correlation_id={} filters={}",
-                         request.correlation_id,
-                         request.instruments.size());
+            ygg::log::info("[Muninn] Request correlation_id={} filters={}",
+                           request.correlation_id,
+                           request.instruments.size());
             sub_manager_.upsert(request);
             snapshot_pub_->publish(*registry_, request, delta_pub_->current_sequence());
             metrics_.requests_served_total->Increment();
@@ -210,9 +211,9 @@ void MuninnApp::run() {
                         delta_pub_->publish_delta(bifrost::protocol::DeltaUpdateType::MODIFY, inst);
                         ++delta_count;
                     });
-                    spdlog::info("[Muninn] Republished {} instrument deltas after mapping refresh", delta_count);
+                    ygg::log::info("[Muninn] Republished {} instrument deltas after mapping refresh", delta_count);
                 } catch (const std::exception& e) {
-                    spdlog::error("[Muninn] Mapping reload failed after S3 refresh: {}", e.what());
+                    ygg::log::error("[Muninn] Mapping reload failed after S3 refresh: {}", e.what());
                 }
             }
             last_mapping_refresh = now;
@@ -226,9 +227,9 @@ void MuninnApp::run() {
                     adapter->fetchInstrumentListing();
                     metrics_.listing_refresh(adapter->exchange_name()).Increment();
                 } catch (const std::exception& e) {
-                    spdlog::error("[Muninn] Instrument listing refresh failed for {}: {}",
-                                  adapter->exchange_name(),
-                                  e.what());
+                    ygg::log::error("[Muninn] Instrument listing refresh failed for {}: {}",
+                                    adapter->exchange_name(),
+                                    e.what());
                     status_pub_->publish_error(bifrost::protocol::RefDataErrorType::SNAPSHOT_FAILED,
                                                adapter->exchange_id());
                 }
@@ -244,7 +245,7 @@ void MuninnApp::run() {
         adapter->stop();
 
     metrics_.shutdown();
-    spdlog::info("[Muninn] Shutdown complete.");
+    ygg::log::info("[Muninn] Shutdown complete.");
 }
 
 }  // namespace muninn

@@ -2,7 +2,7 @@
 
 #include <bifrost_protocol/TradeSide.h>
 
-#include <spdlog/spdlog.h>
+#include <yggdrasil/logging.h>
 #include <yggdrasil/util/tsc_clock.h>
 
 namespace huginn::adapter {
@@ -104,7 +104,7 @@ void DeribitParser::parse(std::string_view payload,
         uint64_t lat_ns = ygg::util::TscClock::now_mono_ns() - parse_start_ns;
         decode_lat_.record(lat_ns);
         if (++tick_count_ <= 20 || tick_count_ % 500 == 0)
-            spdlog::info("Deribit BBO decode: {}ns tick={}", lat_ns, tick_count_);
+            ygg::log::info("Deribit BBO decode: {}ns tick={}", lat_ns, tick_count_);
         pub.publish(bbo);
         return;
     }
@@ -151,10 +151,10 @@ void DeribitParser::parse(std::string_view payload,
                 std::string sym_key(symbol);
                 auto lcid_it = last_change_id_.find(sym_key);
                 if (lcid_it != last_change_id_.end() && lcid_it->second != prev_change_id) {
-                    spdlog::warn("DeribitParser: book gap for {} (expected={} got={}), resubscribing",
-                                 sym_key,
-                                 lcid_it->second,
-                                 prev_change_id);
+                    ygg::log::warn("DeribitParser: book gap for {} (expected={} got={}), resubscribing",
+                                   sym_key,
+                                   lcid_it->second,
+                                   prev_change_id);
                     last_change_id_.erase(lcid_it);
                     subs_.requeue(sym_key);
                     return;

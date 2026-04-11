@@ -6,10 +6,10 @@
 #include <bifrost_protocol/OrderSide.h>
 #include <bifrost_protocol/OrderType.h>
 #include <bifrost_protocol/RejectReason.h>
-#include <spdlog/spdlog.h>
 
 #include <boost/json.hpp>
 #include <string>
+#include <yggdrasil/logging.h>
 
 namespace heimdall::adapter {
 
@@ -19,10 +19,14 @@ static constexpr double kScale = 1e8;
 
 static bifrost::protocol::FeeCurrency::Value parse_fee_currency(const std::string& asset) {
     using FC = bifrost::protocol::FeeCurrency;
-    if (asset == "BTC") return FC::BTC;
-    if (asset == "ETH") return FC::ETH;
-    if (asset == "BNB") return FC::BNB;
-    if (asset == "USDT") return FC::USDT;
+    if (asset == "BTC")
+        return FC::BTC;
+    if (asset == "ETH")
+        return FC::ETH;
+    if (asset == "BNB")
+        return FC::BNB;
+    if (asset == "USDT")
+        return FC::USDT;
     return FC::USDT;
 }
 
@@ -33,8 +37,10 @@ void BinanceExecParser::register_order(const std::string& cloid, uint64_t order_
 
 void BinanceExecParser::handle_execution_report(const json::object& obj, uint64_t recv_ns) {
     auto eit = obj.find("e");
-    if (eit == obj.end()) return;
-    if (std::string(eit->value().as_string()) != "executionReport") return;
+    if (eit == obj.end())
+        return;
+    if (std::string(eit->value().as_string()) != "executionReport")
+        return;
 
     std::string exec_type = std::string(obj.at("X").as_string());
     std::string cloid = std::string(obj.at("c").as_string());
@@ -43,10 +49,11 @@ void BinanceExecParser::handle_execution_report(const json::object& obj, uint64_
     {
         std::lock_guard<std::mutex> lk(mu_);
         auto it = cloid_to_order_id_.find(cloid);
-        if (it != cloid_to_order_id_.end()) order_id = it->second;
+        if (it != cloid_to_order_id_.end())
+            order_id = it->second;
     }
     if (order_id == 0) {
-        spdlog::warn("[Heimdall] BinanceExecParser: unknown cloid={}", cloid);
+        ygg::log::warn("[Heimdall] BinanceExecParser: unknown cloid={}", cloid);
         return;
     }
 
@@ -75,8 +82,7 @@ void BinanceExecParser::handle_execution_report(const json::object& obj, uint64_
 
     ev.price = static_cast<int64_t>(std::stod(std::string(obj.at("p").as_string())) * kScale);
     ev.filled_qty = static_cast<uint64_t>(std::stod(std::string(obj.at("z").as_string())) * kScale);
-    uint64_t total_qty =
-        static_cast<uint64_t>(std::stod(std::string(obj.at("q").as_string())) * kScale);
+    uint64_t total_qty = static_cast<uint64_t>(std::stod(std::string(obj.at("q").as_string())) * kScale);
     ev.remaining_qty = total_qty > ev.filled_qty ? total_qty - ev.filled_qty : 0;
 
     ev.fee = static_cast<int64_t>(std::stod(std::string(obj.at("n").as_string())) * kScale);
@@ -98,7 +104,8 @@ void BinanceExecParser::handle_execution_report(const json::object& obj, uint64_
         return;  // ignore PENDING_CANCEL and other types
     }
 
-    if (on_exec_event) on_exec_event(ev);
+    if (on_exec_event)
+        on_exec_event(ev);
 }
 
 }  // namespace heimdall::adapter

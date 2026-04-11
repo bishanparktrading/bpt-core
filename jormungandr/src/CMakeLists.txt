@@ -19,11 +19,10 @@ target_include_directories(jormungandr_lib PUBLIC
 )
 
 target_link_libraries(jormungandr_lib PUBLIC
-    aeron_client
     yggdrasil
     bifrost::protocol
+    aeron_client
     fmt::fmt
-    spdlog::spdlog
     tomlplusplus::tomlplusplus
     Boost::system
     Boost::json

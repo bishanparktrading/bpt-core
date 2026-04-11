@@ -4,7 +4,6 @@
 #include "surtr/pricing/forward_curve.h"
 #include "surtr/pricing/iv_solver.h"
 
-#include <spdlog/spdlog.h>
 
 namespace surtr::surface {
 

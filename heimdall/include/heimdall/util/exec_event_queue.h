@@ -3,10 +3,10 @@
 // Typed lock-free SPSC ring buffer for ExecEvent.
 // One queue per adapter: adapter IO thread pushes, main poll thread pops.
 
+#include "heimdall/adapter/common/i_order_adapter.h"
+
 #include <atomic>
 #include <cstddef>
-
-#include "heimdall/adapter/common/i_order_adapter.h"
 
 namespace heimdall::util {
 
@@ -20,7 +20,8 @@ public:
     // Producer thread only.
     [[nodiscard]] bool try_push(const adapter::ExecEvent& ev) noexcept {
         const std::size_t h = head_.load(std::memory_order_relaxed);
-        if (h - tail_.load(std::memory_order_acquire) >= N) return false;
+        if (h - tail_.load(std::memory_order_acquire) >= N)
+            return false;
         slots_[h & (N - 1)] = ev;
         head_.store(h + 1, std::memory_order_release);
         return true;
@@ -30,7 +31,8 @@ public:
     template <typename Fn>
     bool try_pop(Fn&& fn) noexcept {
         const std::size_t t = tail_.load(std::memory_order_relaxed);
-        if (head_.load(std::memory_order_acquire) == t) return false;
+        if (head_.load(std::memory_order_acquire) == t)
+            return false;
         fn(slots_[t & (N - 1)]);
         tail_.store(t + 1, std::memory_order_release);
         return true;

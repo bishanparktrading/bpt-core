@@ -22,23 +22,27 @@ double bits_to_double(uint64_t bits) noexcept {
 }
 
 uint64_t current_second() noexcept {
-    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(
-                                     std::chrono::system_clock::now().time_since_epoch())
-                                     .count());
+    return static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
 }
 
 }  // namespace
 
-RiskChecker::RiskChecker(double max_order_size_usd, double max_notional_per_order_usd,
-                         uint32_t max_open_orders_per_venue, uint32_t max_orders_per_second)
+RiskChecker::RiskChecker(double max_order_size_usd,
+                         double max_notional_per_order_usd,
+                         uint32_t max_open_orders_per_venue,
+                         uint32_t max_orders_per_second)
     : max_order_size_usd_bits_(double_to_bits(max_order_size_usd)),
       max_notional_bits_(double_to_bits(max_notional_per_order_usd)),
       max_open_orders_per_venue_(max_open_orders_per_venue),
       max_orders_per_second_(max_orders_per_second) {}
 
 std::expected<void, bifrost::protocol::RejectReason::Value> RiskChecker::check(
-    bifrost::protocol::ExchangeId::Value exchange, uint64_t /*instrument_id*/, int64_t price,
-    uint64_t quantity, uint64_t order_id) {
+    bifrost::protocol::ExchangeId::Value exchange,
+    uint64_t /*instrument_id*/,
+    int64_t price,
+    uint64_t quantity,
+    uint64_t order_id) {
     using RR = bifrost::protocol::RejectReason;
 
     // 1. Kill switch check
@@ -62,7 +66,9 @@ std::expected<void, bifrost::protocol::RejectReason::Value> RiskChecker::check(
     uint64_t window = rate_window_s_.load(std::memory_order_relaxed);
     if (window != now_s) {
         // New second — try to reset the window.
-        if (rate_window_s_.compare_exchange_strong(window, now_s, std::memory_order_acq_rel,
+        if (rate_window_s_.compare_exchange_strong(window,
+                                                   now_s,
+                                                   std::memory_order_acq_rel,
                                                    std::memory_order_relaxed)) {
             orders_this_window_.store(0, std::memory_order_relaxed);
         }
@@ -108,7 +114,9 @@ void RiskChecker::on_order_closed(bifrost::protocol::ExchangeId::Value exchange)
     uint32_t prev = open_orders_[venue_idx].load(std::memory_order_relaxed);
     // Avoid underflow
     while (prev > 0) {
-        if (open_orders_[venue_idx].compare_exchange_weak(prev, prev - 1, std::memory_order_relaxed,
+        if (open_orders_[venue_idx].compare_exchange_weak(prev,
+                                                          prev - 1,
+                                                          std::memory_order_relaxed,
                                                           std::memory_order_relaxed))
             break;
     }
@@ -140,7 +148,8 @@ void RiskChecker::set_max_orders_per_second(uint32_t v) noexcept {
 
 uint32_t RiskChecker::total_open_orders() const noexcept {
     uint32_t total = 0;
-    for (int i = 0; i < kMaxVenues; ++i) total += open_orders_[i].load(std::memory_order_relaxed);
+    for (int i = 0; i < kMaxVenues; ++i)
+        total += open_orders_[i].load(std::memory_order_relaxed);
     return total;
 }
 

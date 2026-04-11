@@ -8,7 +8,6 @@
 
 #include <functional>
 #include <memory>
-#include <spdlog/spdlog.h>
 
 namespace muninn::messaging {
 

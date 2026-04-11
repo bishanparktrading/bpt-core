@@ -5,8 +5,8 @@
 #include <bifrost_protocol/MessageHeader.h>
 #include <bifrost_protocol/RefDataSubscriptionRequest.h>
 
-#include <spdlog/spdlog.h>
 #include <yggdrasil/aeron/aeron_utils.h>
+#include <yggdrasil/logging.h>
 
 namespace muninn::messaging {
 
@@ -23,7 +23,7 @@ RefdataControlSubscriber::RefdataControlSubscriber(std::shared_ptr<aeron::Aeron>
 
         if (static_cast<std::size_t>(length) <
             MessageHeader::encodedLength() + RefDataSubscriptionRequest::sbeBlockLength()) {
-            spdlog::warn("Control: short fragment ({} bytes), ignoring", length);
+            ygg::log::warn("Control: short fragment ({} bytes), ignoring", length);
             return;
         }
 
@@ -32,7 +32,7 @@ RefdataControlSubscriber::RefdataControlSubscriber(std::shared_ptr<aeron::Aeron>
 
         MessageHeader hdr(data, buf_len);
         if (hdr.templateId() != RefDataSubscriptionRequest::sbeTemplateId()) {
-            spdlog::warn("Control: unexpected templateId {}, ignoring", hdr.templateId());
+            ygg::log::warn("Control: unexpected templateId {}, ignoring", hdr.templateId());
             return;
         }
 

@@ -17,16 +17,13 @@ public:
     explicit BinanceParser(std::shared_ptr<mapping::InstrumentMappingLoader> mapping);
 
     // GET /api/v3/exchangeInfo
-    std::vector<refdata::Instrument> parse_spot_exchange_info(const std::string& body,
-                                                              uint64_t collected_ts) const;
+    std::vector<refdata::Instrument> parse_spot_exchange_info(const std::string& body, uint64_t collected_ts) const;
 
     // GET /fapi/v1/exchangeInfo
-    std::vector<refdata::Instrument> parse_futures_exchange_info(const std::string& body,
-                                                                 uint64_t collected_ts) const;
+    std::vector<refdata::Instrument> parse_futures_exchange_info(const std::string& body, uint64_t collected_ts) const;
 
     // GET /sapi/v1/asset/tradeFee
-    std::vector<refdata::FeeScheduleState> parse_trade_fee(const std::string& body,
-                                                           uint64_t collected_ts) const;
+    std::vector<refdata::FeeScheduleState> parse_trade_fee(const std::string& body, uint64_t collected_ts) const;
 
 private:
     std::shared_ptr<mapping::InstrumentMappingLoader> mapping_;

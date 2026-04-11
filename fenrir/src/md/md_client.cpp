@@ -11,10 +11,10 @@
 
 #include <chrono>
 #include <cstring>
-#include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <thread>
 #include <x86intrin.h>
+#include <yggdrasil/logging.h>
 #include <yggdrasil/util/tsc_clock.h>
 
 namespace fenrir::md {
@@ -57,7 +57,7 @@ MdClient::MdClient(std::shared_ptr<aeron::Aeron> aeron,
             handle_data_fragment(buf, offset, length, hdr);
         });
 
-    spdlog::info("MdClient connected: ctrl={} data={} ack_hb={}", control_stream, data_stream, ack_hb_stream);
+    ygg::log::info("MdClient connected: ctrl={} data={} ack_hb={}", control_stream, data_stream, ack_hb_stream);
 }
 
 void MdClient::subscribe(uint64_t correlation_id, const std::vector<InstrumentDesc>& instruments) {
@@ -90,7 +90,7 @@ void MdClient::subscribe(uint64_t correlation_id, const std::vector<InstrumentDe
     while (ctrl_pub_->offer(ab, 0, static_cast<aeron::util::index_t>(buf_size)) < 0)
         _mm_pause();
 
-    spdlog::info("MdClient: subscription sent correlation_id={} instruments={}", correlation_id, n);
+    ygg::log::info("MdClient: subscription sent correlation_id={} instruments={}", correlation_id, n);
 }
 
 void MdClient::handle_data_fragment(aeron::AtomicBuffer& buffer,
@@ -107,10 +107,10 @@ void MdClient::handle_data_fragment(aeron::AtomicBuffer& buffer,
 
     static uint64_t frag_count = 0;
     if (++frag_count <= 5) {
-        spdlog::info("[MdClient] fragment: templateId={} expected_bbo={} length={}",
-                     hdr.templateId(),
-                     MdMarketData::sbeTemplateId(),
-                     length);
+        ygg::log::info("[MdClient] fragment: templateId={} expected_bbo={} length={}",
+                       hdr.templateId(),
+                       MdMarketData::sbeTemplateId(),
+                       length);
     }
 
     switch (hdr.templateId()) {
@@ -182,7 +182,9 @@ void MdClient::handle_ack_hb_fragment(aeron::AtomicBuffer& buffer,
                           hdr.blockLength(),
                           hdr.version(),
                           static_cast<std::size_t>(length));
-        spdlog::info("MdClient: ack instrument_id={} status={}", msg.instrumentId(), static_cast<int>(msg.ackStatus()));
+        ygg::log::info("MdClient: ack instrument_id={} status={}",
+                       msg.instrumentId(),
+                       static_cast<int>(msg.ackStatus()));
     }
     // MdSubscriptionHeartbeat silently consumed — used by a watchdog if needed
 }
@@ -197,10 +199,10 @@ int MdClient::poll(int fragment_limit) {
     static uint64_t total_data_frags = 0;
     total_data_frags += data_frags;
     if (++data_poll_count % 100000 == 0) {
-        spdlog::info("[MdClient] poll stats: polls={} data_frags_total={} connected={}",
-                     data_poll_count,
-                     total_data_frags,
-                     data_sub_->isConnected());
+        ygg::log::info("[MdClient] poll stats: polls={} data_frags_total={} connected={}",
+                       data_poll_count,
+                       total_data_frags,
+                       data_sub_->isConnected());
     }
 
     total += ack_hb_sub_->poll(

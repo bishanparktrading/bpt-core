@@ -5,7 +5,6 @@
 #include <boost/beast/websocket.hpp>
 #include <chrono>
 #include <fmt/format.h>
-#include <spdlog/spdlog.h>
 #include <yggdrasil/util/tsc_clock.h>
 #include <yggdrasil/ws/ws_connect.h>
 
@@ -19,7 +18,7 @@ OkxAdapter::OkxAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messagi
     : AdapterBase(cfg, std::move(md_pub)),
       parser_(subs_) {}
 
-void OkxAdapter::send_instrument_subs(ygg::ws::WsStream& ws, const std::string& symbol, uint8_t depth) {
+void OkxAdapter::send_instrument_subs(ygg::ws::AnyWsStream& ws, const std::string& symbol, uint8_t depth) {
     // Channel selection:
     //   depth 0  → bbo-tbt (tick-by-tick BBO)
     //   depth ≤5 → books5  (top-5 levels)
@@ -41,39 +40,52 @@ void OkxAdapter::send_instrument_subs(ygg::ws::WsStream& ws, const std::string& 
     }
 }
 
-std::unique_ptr<ygg::ws::WsStream> OkxAdapter::connect_and_subscribe() {
-    spdlog::info("OkxAdapter connecting {}:{}{}", cfg_.ws_host, cfg_.ws_port, cfg_.ws_path);
-    auto ws = ygg::ws::ws_connect(ioc_,
-                                  ssl_ctx_,
-                                  cfg_.ws_host,
-                                  cfg_.ws_port,
-                                  cfg_.ws_path,
-                                  cfg_.so_rcvbuf_bytes,
-                                  cfg_.ws_connect_timeout_ms);
+std::unique_ptr<ygg::ws::AnyWsStream> OkxAdapter::connect_and_subscribe() {
+    ygg::log::info("OkxAdapter connecting {}:{}{} (tls={})", cfg_.ws_host, cfg_.ws_port, cfg_.ws_path, cfg_.use_tls);
+
+    std::unique_ptr<ygg::ws::AnyWsStream> any;
+    if (cfg_.use_tls) {
+        auto ws = ygg::ws::ws_connect(ioc_,
+                                      ssl_ctx_,
+                                      cfg_.ws_host,
+                                      cfg_.ws_port,
+                                      cfg_.ws_path,
+                                      cfg_.so_rcvbuf_bytes,
+                                      cfg_.ws_connect_timeout_ms);
+        any = std::make_unique<ygg::ws::AnyWsStream>(std::move(ws));
+    } else {
+        auto ws = ygg::ws::ws_connect_plain(ioc_,
+                                            cfg_.ws_host,
+                                            cfg_.ws_port,
+                                            cfg_.ws_path,
+                                            cfg_.so_rcvbuf_bytes,
+                                            cfg_.ws_connect_timeout_ms);
+        any = std::make_unique<ygg::ws::AnyWsStream>(std::move(ws));
+    }
 
     // OKX requires text frames; Beast defaults to binary.
-    ws->text(true);
+    any->text(true);
 
     // OKX keepalive must use text-frame "ping" messages, not WebSocket control
     // pings — disable Beast's built-in pings to prevent silent disconnects.
-    ws->set_option(websocket::stream_base::timeout{
+    any->set_option(websocket::stream_base::timeout{
         websocket::stream_base::none(),  // connect timeout handled in ws_connect
         websocket::stream_base::none(),  // no idle timeout — managed manually via ping/liveness
         false                            // no Beast keep-alive pings
     });
 
-    spdlog::info("OkxAdapter connected, subscribing instruments");
+    ygg::log::info("OkxAdapter connected, subscribing instruments");
 
     // Drain pending so the read loop does not re-send what we're about to subscribe.
     subs_.take_pending();
 
     for (const auto& [id, entry] : subs_.snapshot())
-        send_instrument_subs(*ws, entry.symbol, entry.depth);
+        send_instrument_subs(*any, entry.symbol, entry.depth);
 
-    return ws;
+    return any;
 }
 
-void OkxAdapter::read_loop(ygg::ws::WsStream& ws) {
+void OkxAdapter::read_loop(ygg::ws::AnyWsStream& ws) {
     const auto ping_interval = std::chrono::milliseconds(cfg_.ws_ping_interval_ms);
     const auto liveness = std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms);
 
@@ -87,7 +99,7 @@ void OkxAdapter::read_loop(ygg::ws::WsStream& ws) {
         // If expires_after were set after the writes, a stale expired timer from
         // the previous iteration's read timeout would cause the first write to
         // fail immediately with beast::error::timeout.
-        beast::get_lowest_layer(ws).expires_after(std::chrono::milliseconds(cfg_.ws_read_timeout_ms));
+        ws.expires_after(std::chrono::milliseconds(cfg_.ws_read_timeout_ms));
 
         auto now = std::chrono::steady_clock::now();
 
@@ -100,14 +112,14 @@ void OkxAdapter::read_loop(ygg::ws::WsStream& ws) {
         // If no message (including pong) has arrived within the liveness window,
         // the exchange is no longer responding — reconnect.
         if (now - last_recv >= liveness) {
-            spdlog::warn("OkxAdapter: no data for {}ms, reconnecting", cfg_.ws_liveness_timeout_ms);
+            ygg::log::warn("OkxAdapter: no data for {}ms, reconnecting", cfg_.ws_liveness_timeout_ms);
             throw std::runtime_error("liveness timeout");
         }
 
         // Send subscribe frames for any instruments added since connect.
         for (const auto& entry : subs_.take_pending()) {
             send_instrument_subs(ws, entry.symbol, entry.depth);
-            spdlog::info("OkxAdapter: runtime subscribe {} depth={}", entry.symbol, entry.depth);
+            ygg::log::info("OkxAdapter: runtime subscribe {} depth={}", entry.symbol, entry.depth);
         }
 
         beast::error_code ec;

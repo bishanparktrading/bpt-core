@@ -8,17 +8,17 @@
 #include <bifrost_protocol/ExecStatus.h>
 #include <bifrost_protocol/ExecutionReport.h>
 #include <bifrost_protocol/FeeCurrency.h>
-#include <bifrost_protocol/OrderGatewayHeartbeat.h>
 #include <bifrost_protocol/MessageHeader.h>
 #include <bifrost_protocol/ModifyOrder.h>
 #include <bifrost_protocol/NewOrder.h>
+#include <bifrost_protocol/OrderGatewayHeartbeat.h>
 #include <bifrost_protocol/OrderSide.h>
 #include <bifrost_protocol/OrderType.h>
 #include <bifrost_protocol/RejectReason.h>
 #include <bifrost_protocol/TimeInForce.h>
-#include <gtest/gtest.h>
 
 #include <cstring>
+#include <gtest/gtest.h>
 
 namespace {
 
@@ -125,7 +125,9 @@ TEST(NewOrderTest, PostOnlyWithFOK) {
 
 // ── CancelOrder (id=11) ──────────────────────────────────────────────────────
 
-TEST(CancelOrderTest, TemplateId) { EXPECT_EQ(CancelOrder::sbeTemplateId(), 11u); }
+TEST(CancelOrderTest, TemplateId) {
+    EXPECT_EQ(CancelOrder::sbeTemplateId(), 11u);
+}
 
 TEST(CancelOrderTest, EncodeDecodeAllFields) {
     constexpr std::size_t kSz = MessageHeader::encodedLength() + CancelOrder::sbeBlockLength();
@@ -150,17 +152,16 @@ TEST(CancelOrderTest, EncodeDecodeAllFields) {
 
 // ── CancelAll (id=12) ────────────────────────────────────────────────────────
 
-TEST(CancelAllTest, TemplateId) { EXPECT_EQ(CancelAll::sbeTemplateId(), 12u); }
+TEST(CancelAllTest, TemplateId) {
+    EXPECT_EQ(CancelAll::sbeTemplateId(), 12u);
+}
 
 TEST(CancelAllTest, AllVenues) {
     constexpr std::size_t kSz = MessageHeader::encodedLength() + CancelAll::sbeBlockLength();
     char buf[kSz]{};
 
     CancelAll msg;
-    msg.wrapAndApplyHeader(buf, 0, kSz)
-        .exchangeId(ExchangeId::ALL)
-        .instrumentId(0ULL)
-        .timestampNs(111ULL);
+    msg.wrapAndApplyHeader(buf, 0, kSz).exchangeId(ExchangeId::ALL).instrumentId(0ULL).timestampNs(111ULL);
 
     MessageHeader hdr(buf, kSz);
     CancelAll dec;
@@ -176,10 +177,7 @@ TEST(CancelAllTest, SpecificVenueAndInstrument) {
     char buf[kSz]{};
 
     CancelAll msg;
-    msg.wrapAndApplyHeader(buf, 0, kSz)
-        .exchangeId(ExchangeId::BINANCE)
-        .instrumentId(42ULL)
-        .timestampNs(222ULL);
+    msg.wrapAndApplyHeader(buf, 0, kSz).exchangeId(ExchangeId::BINANCE).instrumentId(42ULL).timestampNs(222ULL);
 
     MessageHeader hdr(buf, kSz);
     CancelAll dec;
@@ -191,7 +189,9 @@ TEST(CancelAllTest, SpecificVenueAndInstrument) {
 
 // ── ModifyOrder (id=13) ──────────────────────────────────────────────────────
 
-TEST(ModifyOrderTest, TemplateId) { EXPECT_EQ(ModifyOrder::sbeTemplateId(), 13u); }
+TEST(ModifyOrderTest, TemplateId) {
+    EXPECT_EQ(ModifyOrder::sbeTemplateId(), 13u);
+}
 
 TEST(ModifyOrderTest, EncodeDecodeAllFields) {
     constexpr std::size_t kSz = MessageHeader::encodedLength() + ModifyOrder::sbeBlockLength();
@@ -220,7 +220,9 @@ TEST(ModifyOrderTest, EncodeDecodeAllFields) {
 
 // ── ExecutionReport (id=14) ──────────────────────────────────────────────────
 
-TEST(ExecutionReportTest, TemplateId) { EXPECT_EQ(ExecutionReport::sbeTemplateId(), 14u); }
+TEST(ExecutionReportTest, TemplateId) {
+    EXPECT_EQ(ExecutionReport::sbeTemplateId(), 14u);
+}
 
 TEST(ExecutionReportTest, EncodeDecodeFilledReport) {
     constexpr std::size_t kSz = MessageHeader::encodedLength() + ExecutionReport::sbeBlockLength();
@@ -352,7 +354,9 @@ TEST(ExecutionReportTest, AllExecStatusValues) {
 
 // ── OrderGatewayHeartbeat (id=15) ─────────────────────────────────────────────────
 
-TEST(OrderGatewayHeartbeatTest, TemplateId) { EXPECT_EQ(OrderGatewayHeartbeat::sbeTemplateId(), 15u); }
+TEST(OrderGatewayHeartbeatTest, TemplateId) {
+    EXPECT_EQ(OrderGatewayHeartbeat::sbeTemplateId(), 15u);
+}
 
 TEST(OrderGatewayHeartbeatTest, EncodeDecodeAllFields) {
     constexpr std::size_t kSz = MessageHeader::encodedLength() + OrderGatewayHeartbeat::sbeBlockLength();
@@ -380,11 +384,7 @@ TEST(OrderGatewayHeartbeatTest, AllDisconnected) {
     char buf[kSz]{};
 
     OrderGatewayHeartbeat msg;
-    msg.wrapAndApplyHeader(buf, 0, kSz)
-        .serviceId(1u)
-        .timestampNs(1ULL)
-        .ordersInFlight(0u)
-        .exchangeStatus(0x00u);
+    msg.wrapAndApplyHeader(buf, 0, kSz).serviceId(1u).timestampNs(1ULL).ordersInFlight(0u).exchangeStatus(0x00u);
 
     MessageHeader hdr(buf, kSz);
     OrderGatewayHeartbeat dec;

@@ -1,9 +1,11 @@
 #include "muninn/mapping/instrument_mapping_loader.h"
 
 #include <fstream>
+#include <mutex>
 #include <nlohmann/json.hpp>
-#include <spdlog/spdlog.h>
+#include <shared_mutex>
 #include <stdexcept>
+#include <yggdrasil/logging.h>
 
 namespace muninn::mapping {
 
@@ -53,11 +55,11 @@ void InstrumentMappingLoader::load(const std::string& path) {
         instrument_count_ = count;
     }
 
-    spdlog::info("[InstrumentMapping] Loaded {} instruments, exported_at={}", count, exported_at);
+    ygg::log::info("[InstrumentMapping] Loaded {} instruments, exported_at={}", count, exported_at);
 }
 
-std::optional<uint32_t> InstrumentMappingLoader::try_resolve_canonical_id(
-    uint8_t exchange_id, const std::string& exchange_symbol) const {
+std::optional<uint32_t> InstrumentMappingLoader::try_resolve_canonical_id(uint8_t exchange_id,
+                                                                          const std::string& exchange_symbol) const {
     std::string key = std::to_string(exchange_id) + "_" + exchange_symbol;
     std::shared_lock lock(mutex_);
     auto it = forward_.find(key);
@@ -66,11 +68,10 @@ std::optional<uint32_t> InstrumentMappingLoader::try_resolve_canonical_id(
     return it->second;
 }
 
-uint32_t InstrumentMappingLoader::resolve_canonical_id(uint8_t exchange_id,
-                                                        const std::string& exchange_symbol) const {
+uint32_t InstrumentMappingLoader::resolve_canonical_id(uint8_t exchange_id, const std::string& exchange_symbol) const {
     auto result = try_resolve_canonical_id(exchange_id, exchange_symbol);
     if (!result) {
-        spdlog::warn("[InstrumentMapping] No canonical ID for exchange={} symbol={}", exchange_id, exchange_symbol);
+        ygg::log::warn("[InstrumentMapping] No canonical ID for exchange={} symbol={}", exchange_id, exchange_symbol);
         return UNKNOWN_INSTRUMENT;
     }
     return *result;
@@ -80,12 +81,12 @@ std::string InstrumentMappingLoader::resolve_symbol(uint32_t canonical_id, uint8
     std::shared_lock lock(mutex_);
     auto it = reverse_.find(canonical_id);
     if (it == reverse_.end()) {
-        spdlog::warn("[InstrumentMapping] No reverse entry for canonical_id={}", canonical_id);
+        ygg::log::warn("[InstrumentMapping] No reverse entry for canonical_id={}", canonical_id);
         return {};
     }
     auto sit = it->second.exchanges.find(exchange_id);
     if (sit == it->second.exchanges.end()) {
-        spdlog::warn("[InstrumentMapping] No symbol for canonical_id={} exchange={}", canonical_id, exchange_id);
+        ygg::log::warn("[InstrumentMapping] No symbol for canonical_id={} exchange={}", canonical_id, exchange_id);
         return {};
     }
     return sit->second;

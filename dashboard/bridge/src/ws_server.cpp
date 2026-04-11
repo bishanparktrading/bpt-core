@@ -1,0 +1,179 @@
+#include "bridge/ws_server.h"
+
+#include <boost/asio/strand.hpp>
+#include <boost/beast/core.hpp>
+#include <boost/beast/websocket.hpp>
+#include <deque>
+#include <yggdrasil/logging.h>
+
+namespace bridge {
+
+namespace beast = boost::beast;
+namespace websocket = beast::websocket;
+namespace net = boost::asio;
+using tcp = net::ip::tcp;
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  WsSession — one per connected client
+// ─────────────────────────────────────────────────────────────────────────────
+class WsSession : public std::enable_shared_from_this<WsSession> {
+public:
+    WsSession(tcp::socket&& socket, WsServer& server)
+        : ws_(std::move(socket)), server_(server) {}
+
+    void run() {
+        ws_.set_option(websocket::stream_base::timeout::suggested(beast::role_type::server));
+        ws_.set_option(websocket::stream_base::decorator(
+            [](websocket::response_type& res) { res.set(beast::http::field::server, "bpt-bridge"); }));
+
+        ws_.async_accept([self = shared_from_this()](beast::error_code ec) {
+            if (ec) {
+                ygg::log::warn("[WsSession] accept failed: {}", ec.message());
+                return;
+            }
+            self->server_.add_session(self);
+            self->do_read();
+        });
+    }
+
+    // Queue a message for writing.  Called from the IO thread via post().
+    void enqueue(std::shared_ptr<const std::string> msg) {
+        queue_.push_back(std::move(msg));
+        if (queue_.size() == 1) do_write();
+    }
+
+    void close() {
+        beast::error_code ec;
+        ws_.close(websocket::close_code::normal, ec);
+    }
+
+private:
+    void do_read() {
+        // We don't expect inbound messages, but we need to keep reading to
+        // detect client-side disconnects.
+        ws_.async_read(buffer_,
+            [self = shared_from_this()](beast::error_code ec, std::size_t /*bytes*/) {
+                if (ec == websocket::error::closed || ec) {
+                    self->server_.remove_session(self);
+                    return;
+                }
+                self->buffer_.consume(self->buffer_.size());
+                self->do_read();
+            });
+    }
+
+    void do_write() {
+        ws_.text(true);
+        ws_.async_write(net::buffer(*queue_.front()),
+            [self = shared_from_this()](beast::error_code ec, std::size_t /*bytes*/) {
+                if (ec) {
+                    self->server_.remove_session(self);
+                    return;
+                }
+                self->queue_.pop_front();
+                if (!self->queue_.empty()) self->do_write();
+            });
+    }
+
+    websocket::stream<beast::tcp_stream> ws_;
+    WsServer& server_;
+    beast::flat_buffer buffer_;
+    std::deque<std::shared_ptr<const std::string>> queue_;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  WsServer
+// ─────────────────────────────────────────────────────────────────────────────
+WsServer::WsServer(uint16_t port)
+    : port_(port), acceptor_(io_ctx_) {}
+
+WsServer::~WsServer() {
+    stop();
+}
+
+void WsServer::start() {
+    beast::error_code ec;
+    tcp::endpoint endpoint{tcp::v4(), port_};
+
+    acceptor_.open(endpoint.protocol(), ec);
+    if (ec) { ygg::log::error("[WsServer] open: {}", ec.message()); return; }
+
+    acceptor_.set_option(net::socket_base::reuse_address(true), ec);
+    acceptor_.bind(endpoint, ec);
+    if (ec) { ygg::log::error("[WsServer] bind {}: {}", port_, ec.message()); return; }
+
+    acceptor_.listen(net::socket_base::max_listen_connections, ec);
+    if (ec) { ygg::log::error("[WsServer] listen: {}", ec.message()); return; }
+
+    ygg::log::info("[WsServer] listening on :{}", port_);
+    do_accept();
+
+    io_thread_ = std::thread([this] {
+        try {
+            io_ctx_.run();
+        } catch (const std::exception& e) {
+            ygg::log::error("[WsServer] io_context crashed: {}", e.what());
+        }
+    });
+}
+
+void WsServer::stop() {
+    if (!io_thread_.joinable()) return;
+
+    net::post(io_ctx_, [this] {
+        beast::error_code ec;
+        acceptor_.close(ec);
+        std::lock_guard<std::mutex> lock(sessions_mutex_);
+        for (auto& s : sessions_) s->close();
+        sessions_.clear();
+    });
+
+    io_ctx_.stop();
+    if (io_thread_.joinable()) io_thread_.join();
+}
+
+void WsServer::do_accept() {
+    acceptor_.async_accept([this](beast::error_code ec, tcp::socket socket) {
+        // operation_aborted is the only non-retryable error — it fires when
+        // the acceptor is being closed during shutdown.  Anything else is a
+        // transient per-connection error (client RST, handshake failure, etc.)
+        // — log and keep accepting.
+        if (ec == net::error::operation_aborted) return;
+
+        if (ec) {
+            ygg::log::warn("[WsServer] accept: {}", ec.message());
+        } else {
+            std::make_shared<WsSession>(std::move(socket), *this)->run();
+        }
+
+        // Re-arm unconditionally so a single bad client can't kill the loop.
+        do_accept();
+    });
+}
+
+void WsServer::broadcast(std::string message) {
+    auto msg = std::make_shared<const std::string>(std::move(message));
+    // Hop onto the IO thread so session.enqueue() is always called from the
+    // same thread — no need for per-session mutexes.
+    net::post(io_ctx_, [this, msg] {
+        std::vector<std::shared_ptr<WsSession>> snapshot;
+        {
+            std::lock_guard<std::mutex> lock(sessions_mutex_);
+            snapshot.reserve(sessions_.size());
+            for (auto& s : sessions_) snapshot.push_back(s);
+        }
+        for (auto& s : snapshot) s->enqueue(msg);
+    });
+}
+
+void WsServer::add_session(std::shared_ptr<WsSession> session) {
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    sessions_.insert(std::move(session));
+}
+
+void WsServer::remove_session(const std::shared_ptr<WsSession>& session) {
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    sessions_.erase(session);
+}
+
+}  // namespace bridge

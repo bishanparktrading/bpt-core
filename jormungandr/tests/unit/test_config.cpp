@@ -1,10 +1,9 @@
 // Unit tests for jormungandr::config::load()
 #include "jormungandr/config/settings.h"
 
-#include <gtest/gtest.h>
-
 #include <filesystem>
 #include <fstream>
+#include <gtest/gtest.h>
 #include <string>
 
 namespace fs = std::filesystem;
@@ -59,7 +58,7 @@ port = 9105
     auto s = jormungandr::config::load(path.string());
 
     EXPECT_EQ(s.simulation.start, "2026-01-01T00:00:00Z");
-    EXPECT_EQ(s.simulation.end,   "2026-01-31T23:59:59Z");
+    EXPECT_EQ(s.simulation.end, "2026-01-31T23:59:59Z");
     EXPECT_FALSE(s.simulation.allow_partial_data);
     EXPECT_EQ(s.simulation.latency.cex_base_ms, 2u);
     EXPECT_EQ(s.simulation.latency.hyperliquid_base_ms, 200u);
@@ -73,9 +72,9 @@ port = 9105
 
     ASSERT_EQ(s.instruments.size(), 2u);
     EXPECT_EQ(s.instruments[0].exchange, "BINANCE");
-    EXPECT_EQ(s.instruments[0].symbol,   "BTCUSDT");
+    EXPECT_EQ(s.instruments[0].symbol, "BTCUSDT");
     EXPECT_EQ(s.instruments[1].exchange, "OKX");
-    EXPECT_EQ(s.instruments[1].symbol,   "BTC-USDT-SWAP");
+    EXPECT_EQ(s.instruments[1].symbol, "BTC-USDT-SWAP");
 
     EXPECT_EQ(s.logging.level, "debug");
     EXPECT_EQ(s.metrics_port, 9105u);

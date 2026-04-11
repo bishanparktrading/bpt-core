@@ -1,10 +1,10 @@
 #pragma once
 
+#include "heimdall/adapter/common/i_order_adapter.h"
+
 #include <boost/json.hpp>
 #include <cstdint>
 #include <functional>
-
-#include "heimdall/adapter/common/i_order_adapter.h"
 
 namespace heimdall::adapter {
 

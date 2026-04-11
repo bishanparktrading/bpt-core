@@ -60,11 +60,11 @@ protected:
 
     // Establish the WebSocket connection and send all initial subscribe frames.
     // Return nullptr if no subscriptions exist yet (run() will retry after 100ms).
-    virtual std::unique_ptr<ygg::ws::WsStream> connect_and_subscribe() = 0;
+    virtual std::unique_ptr<ygg::ws::AnyWsStream> connect_and_subscribe() = 0;
 
     // Run the synchronous message-receive loop.  Call push_frame() for each
     // data message.  Throw on any fatal error to trigger a reconnect.
-    virtual void read_loop(ygg::ws::WsStream& ws) = 0;
+    virtual void read_loop(ygg::ws::AnyWsStream& ws) = 0;
 
     // Called by the publisher thread for each frame dequeued from frame_queue_.
     // Implementations call their parser then md_pub_ publish methods.

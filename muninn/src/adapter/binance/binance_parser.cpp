@@ -4,9 +4,10 @@
 
 #include <bifrost_protocol/ExchangeId.h>
 #include <bifrost_protocol/InstrumentType.h>
+
 #include <cmath>
 #include <nlohmann/json.hpp>
-#include <spdlog/spdlog.h>
+#include <yggdrasil/logging.h>
 
 using json = nlohmann::json;
 
@@ -17,8 +18,8 @@ namespace {
 refdata::InstrumentType binance_to_inst_type(const std::string& contract_type) {
     if (contract_type == "PERPETUAL")
         return refdata::InstrumentType::PERP;
-    if (contract_type == "CURRENT_QUARTER" || contract_type == "NEXT_QUARTER" ||
-        contract_type == "CURRENT_MONTH" || contract_type == "NEXT_MONTH")
+    if (contract_type == "CURRENT_QUARTER" || contract_type == "NEXT_QUARTER" || contract_type == "CURRENT_MONTH" ||
+        contract_type == "NEXT_MONTH")
         return refdata::InstrumentType::FUTURE;
     return refdata::InstrumentType::UNKNOWN;
 }
@@ -52,7 +53,7 @@ BinanceParser::BinanceParser(std::shared_ptr<mapping::InstrumentMappingLoader> m
     : mapping_(std::move(mapping)) {}
 
 std::vector<refdata::Instrument> BinanceParser::parse_spot_exchange_info(const std::string& body,
-                                                                          uint64_t collected_ts) const {
+                                                                         uint64_t collected_ts) const {
     auto j = json::parse(body);
     std::vector<refdata::Instrument> result;
 
@@ -86,12 +87,12 @@ std::vector<refdata::Instrument> BinanceParser::parse_spot_exchange_info(const s
         result.push_back(std::move(inst));
     }
 
-    spdlog::info("[BinanceParser] Parsed {} spot instruments from exchangeInfo", result.size());
+    ygg::log::info("[BinanceParser] Parsed {} spot instruments from exchangeInfo", result.size());
     return result;
 }
 
 std::vector<refdata::Instrument> BinanceParser::parse_futures_exchange_info(const std::string& body,
-                                                                              uint64_t collected_ts) const {
+                                                                            uint64_t collected_ts) const {
     auto j = json::parse(body);
     std::vector<refdata::Instrument> result;
 
@@ -130,12 +131,12 @@ std::vector<refdata::Instrument> BinanceParser::parse_futures_exchange_info(cons
         result.push_back(std::move(inst));
     }
 
-    spdlog::info("[BinanceParser] Parsed {} futures/perp instruments from fapi exchangeInfo", result.size());
+    ygg::log::info("[BinanceParser] Parsed {} futures/perp instruments from fapi exchangeInfo", result.size());
     return result;
 }
 
 std::vector<refdata::FeeScheduleState> BinanceParser::parse_trade_fee(const std::string& body,
-                                                                       uint64_t collected_ts) const {
+                                                                      uint64_t collected_ts) const {
     auto j = json::parse(body);
     std::vector<refdata::FeeScheduleState> result;
     if (!j.is_array())

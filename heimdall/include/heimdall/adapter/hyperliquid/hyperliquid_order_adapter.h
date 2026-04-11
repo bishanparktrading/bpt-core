@@ -1,12 +1,12 @@
 #pragma once
 
-#include <memory>
-#include <string>
-
 #include "heimdall/adapter/common/credentials.h"
 #include "heimdall/adapter/common/order_adapter_base.h"
 #include "heimdall/adapter/hyperliquid/hyperliquid_exec_parser.h"
 #include "heimdall/adapter/hyperliquid/hyperliquid_signer.h"
+
+#include <memory>
+#include <string>
 
 namespace heimdall::adapter {
 
@@ -22,19 +22,15 @@ public:
     HyperliquidOrderAdapter(const config::AdapterConfig& cfg, const ExchangeCredentials& creds);
 
     void send_new_order(const bifrost::protocol::NewOrder& order) override;
-    void send_cancel(const bifrost::protocol::CancelOrder& cancel,
-                     const std::string& native_symbol) override;
+    void send_cancel(const bifrost::protocol::CancelOrder& cancel, const std::string& native_symbol) override;
     void send_cancel_all(uint64_t instrument_id) override;
-    void send_modify(const bifrost::protocol::ModifyOrder& modify,
-                     const std::string& native_symbol) override;
+    void send_modify(const bifrost::protocol::ModifyOrder& modify, const std::string& native_symbol) override;
 
     [[nodiscard]] bifrost::protocol::ExchangeId::Value exchange_id() const override {
         return bifrost::protocol::ExchangeId::HYPERLIQUID;
     }
     [[nodiscard]] const char* exchange_name() const override { return "HYPERLIQUID"; }
-    [[nodiscard]] bool is_connected() const override {
-        return enabled_ && connected_.load(std::memory_order_relaxed);
-    }
+    [[nodiscard]] bool is_connected() const override { return enabled_ && connected_.load(std::memory_order_relaxed); }
 
     AccountSnapshotData fetch_account_snapshot(uint64_t correlation_id) override;
 

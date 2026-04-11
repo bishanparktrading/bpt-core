@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aeron.h>
+
 #include <bifrost_protocol/BacktestCommand.h>
 
 #include <cstdint>
@@ -15,8 +16,7 @@ public:
 
     // Encodes a BacktestControl message and offers it on the publication.
     // Spins on back-pressure for up to ~1 s then throws.
-    void send(bifrost::protocol::BacktestCommand::Value cmd, uint64_t tick_seq,
-              uint64_t simulation_ts);
+    void send(bifrost::protocol::BacktestCommand::Value cmd, uint64_t tick_seq, uint64_t simulation_ts);
 
 private:
     std::shared_ptr<aeron::Publication> pub_;

@@ -4,6 +4,7 @@
 
 #include <bifrost_protocol/ExchangeId.h>
 #include <bifrost_protocol/InstrumentType.h>
+
 #include <cstdio>
 #include <gtest/gtest.h>
 #include <memory>
@@ -153,8 +154,8 @@ TEST(OKXParser, SpotParsedCorrectly) {
 
 TEST(OKXParser, ErrorCodeReturnsEmpty) {
     OKXParser parser(make_mapping());
-    auto result = parser.parse_instruments(
-        R"({"code":"50001","msg":"Service temporarily unavailable","data":[]})", "SWAP", 0u);
+    auto result =
+        parser.parse_instruments(R"({"code":"50001","msg":"Service temporarily unavailable","data":[]})", "SWAP", 0u);
     EXPECT_TRUE(result.empty());
 }
 
@@ -185,7 +186,7 @@ TEST(OKXParser, TradeFeeParsedAsBps) {
     EXPECT_EQ(result[0].exchange_id, bifrost::protocol::ExchangeId::OKX);
     EXPECT_EQ(result[0].instrument_id, 0u);  // 0 = exchange-wide
     EXPECT_EQ(result[0].instrument_type, bifrost::protocol::InstrumentType::SPOT);
-    EXPECT_EQ(result[0].maker_fee_bps, -8);   // rebate
+    EXPECT_EQ(result[0].maker_fee_bps, -8);  // rebate
     EXPECT_EQ(result[0].taker_fee_bps, 10);
     EXPECT_EQ(result[0].updated_ts, 42u);
 
@@ -206,8 +207,7 @@ TEST(OKXParser, TradeFeeErrorCodeReturnsEmpty) {
 // ---------------------------------------------------------------------------
 
 TEST(OKXAuthHeaders, ContainsRequiredFields) {
-    auto headers = okx_auth_headers("my-key", "my-secret", "my-pass", "GET",
-                                    "/api/v5/account/trade-fee?instType=SPOT");
+    auto headers = okx_auth_headers("my-key", "my-secret", "my-pass", "GET", "/api/v5/account/trade-fee?instType=SPOT");
 
     std::unordered_map<std::string, std::string> hmap;
     for (const auto& [k, v] : headers)
@@ -221,7 +221,11 @@ TEST(OKXAuthHeaders, ContainsRequiredFields) {
 }
 
 TEST(OKXAuthHeaders, SimulatedFlagAddsHeader) {
-    auto headers = okx_auth_headers("key", "secret", "pass", "GET", "/api/v5/test",
+    auto headers = okx_auth_headers("key",
+                                    "secret",
+                                    "pass",
+                                    "GET",
+                                    "/api/v5/test",
                                     /*simulated=*/true);
 
     bool found = false;

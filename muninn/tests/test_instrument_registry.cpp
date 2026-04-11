@@ -1,14 +1,16 @@
-#include "muninn/registry/instrument_registry.h"
 #include "muninn/refdata/instrument.h"
 #include "muninn/refdata/types.h"
+#include "muninn/registry/instrument_registry.h"
 
 #include <gtest/gtest.h>
 
 using namespace muninn::registry;
 using namespace muninn::refdata;
 
-static Instrument make_instrument(uint64_t uid, const std::string& venue,
-                                  const std::string& symbol, InstrumentType type) {
+static Instrument make_instrument(uint64_t uid,
+                                  const std::string& venue,
+                                  const std::string& symbol,
+                                  InstrumentType type) {
     Instrument inst{};
     inst.inst_uid = uid;
     inst.venue = venue;
@@ -99,7 +101,7 @@ TEST(InstrumentRegistry, Remove) {
 TEST(InstrumentRegistry, GetAllReturnsAll) {
     InstrumentRegistry reg;
     reg.add(make_instrument(100101u, "BINANCE", "BTCUSDT", InstrumentType::PERP));
-    reg.add(make_instrument(100102u, "OKX",     "BTC-USDT-SWAP", InstrumentType::PERP));
+    reg.add(make_instrument(100102u, "OKX", "BTC-USDT-SWAP", InstrumentType::PERP));
     reg.add(make_instrument(200101u, "BINANCE", "BTCUSDT", InstrumentType::SPOT));
 
     auto all = reg.getAll();

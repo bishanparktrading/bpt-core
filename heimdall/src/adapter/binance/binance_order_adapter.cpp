@@ -1,5 +1,7 @@
 #include "heimdall/adapter/binance/binance_order_adapter.h"
 
+#include "heimdall/adapter/common/credentials.h"
+
 #include <bifrost_protocol/ExchangeId.h>
 #include <bifrost_protocol/ExecStatus.h>
 #include <bifrost_protocol/FeeCurrency.h>
@@ -7,9 +9,6 @@
 #include <bifrost_protocol/OrderType.h>
 #include <bifrost_protocol/RejectReason.h>
 #include <bifrost_protocol/TimeInForce.h>
-#include <openssl/hmac.h>
-#include <openssl/sha.h>
-#include <spdlog/spdlog.h>
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -22,11 +21,11 @@
 #include <boost/json.hpp>
 #include <chrono>
 #include <iomanip>
+#include <openssl/hmac.h>
+#include <openssl/sha.h>
 #include <sstream>
 #include <stdexcept>
 #include <string>
-
-#include "heimdall/adapter/common/credentials.h"
 
 namespace heimdall::adapter {
 
@@ -44,8 +43,12 @@ static constexpr double kScale = 1e8;
 static std::string hmac_sha256_hex(const std::string& key, const std::string& data) {
     unsigned char digest[EVP_MAX_MD_SIZE];
     unsigned int digest_len = 0;
-    HMAC(EVP_sha256(), key.data(), static_cast<int>(key.size()),
-         reinterpret_cast<const unsigned char*>(data.data()), static_cast<int>(data.size()), digest,
+    HMAC(EVP_sha256(),
+         key.data(),
+         static_cast<int>(key.size()),
+         reinterpret_cast<const unsigned char*>(data.data()),
+         static_cast<int>(data.size()),
+         digest,
          &digest_len);
 
     std::ostringstream oss;
@@ -56,33 +59,40 @@ static std::string hmac_sha256_hex(const std::string& key, const std::string& da
 
 static bifrost::protocol::FeeCurrency::Value parse_fee_currency(const std::string& asset) {
     using FC = bifrost::protocol::FeeCurrency;
-    if (asset == "BTC") return FC::BTC;
-    if (asset == "ETH") return FC::ETH;
-    if (asset == "BNB") return FC::BNB;
-    if (asset == "USDT") return FC::USDT;
+    if (asset == "BTC")
+        return FC::BTC;
+    if (asset == "ETH")
+        return FC::ETH;
+    if (asset == "BNB")
+        return FC::BNB;
+    if (asset == "USDT")
+        return FC::USDT;
     return FC::USDT;
 }
 
-BinanceOrderAdapter::BinanceOrderAdapter(const config::AdapterConfig& cfg,
-                                         const ExchangeCredentials& creds)
-    : OrderAdapterBase(cfg), api_key_(creds.api_key), secret_key_(creds.secret_key) {
+BinanceOrderAdapter::BinanceOrderAdapter(const config::AdapterConfig& cfg, const ExchangeCredentials& creds)
+    : OrderAdapterBase(cfg),
+      api_key_(creds.api_key),
+      secret_key_(creds.secret_key) {
     parser_.on_exec_event = [this](const ExecEvent& ev) {
         if (!exec_queue_.try_push(ev))
-            spdlog::error("[Binance] exec_queue full — dropped ExecEvent order_id={}", ev.order_id);
+            ygg::log::error("[Binance] exec_queue full — dropped ExecEvent order_id={}", ev.order_id);
     };
 }
 
 std::string BinanceOrderAdapter::sign_query(const std::string& params) const {
-    uint64_t ts_ms = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
-                                               std::chrono::system_clock::now().time_since_epoch())
-                                               .count());
+    uint64_t ts_ms = static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count());
     std::string full = params + "&timestamp=" + std::to_string(ts_ms);
     std::string sig = hmac_sha256_hex(secret_key_, full);
     return full + "&signature=" + sig;
 }
 
-std::string BinanceOrderAdapter::https_request(const std::string& method, const std::string& path,
-                                               const std::string& body, bool with_api_key) {
+std::string BinanceOrderAdapter::https_request(const std::string& method,
+                                               const std::string& path,
+                                               const std::string& body,
+                                               bool with_api_key) {
     net::io_context ioc;
     ssl::context ssl_ctx(ssl::context::tls_client);
     ssl_ctx.set_default_verify_paths();
@@ -112,7 +122,8 @@ std::string BinanceOrderAdapter::https_request(const std::string& method, const 
     req.set(http::field::host, cfg_.rest_host);
     req.set(http::field::user_agent, "heimdall/0.1");
     req.set(http::field::content_type, "application/x-www-form-urlencoded");
-    if (with_api_key) req.set("X-MBX-APIKEY", api_key_);
+    if (with_api_key)
+        req.set("X-MBX-APIKEY", api_key_);
     req.body() = body;
     req.prepare_payload();
 
@@ -132,7 +143,8 @@ std::string BinanceOrderAdapter::create_listen_key() {
     std::string resp = https_request("POST", "/api/v3/userDataStream", "", true);
     try {
         auto root = json::parse(resp);
-        if (!root.is_object()) return "";
+        if (!root.is_object())
+            return "";
         if (root.as_object().contains("listenKey"))
             return std::string(root.as_object().at("listenKey").as_string());
     } catch (const std::exception&) {
@@ -151,18 +163,19 @@ void BinanceOrderAdapter::delete_listen_key(const std::string& listen_key) {
 
 void BinanceOrderAdapter::handle_user_data_message(const std::string& payload, uint64_t recv_ns) {
     auto root = json::parse(payload);
-    if (!root.is_object()) return;
+    if (!root.is_object())
+        return;
     parser_.handle_execution_report(root.as_object(), recv_ns);
 }
 
 void BinanceOrderAdapter::connect_and_run() {
-    spdlog::info("[Heimdall] BinanceOrderAdapter: creating listen key");
+    ygg::log::info("[Heimdall] BinanceOrderAdapter: creating listen key");
     listen_key_ = create_listen_key();
     if (listen_key_.empty()) {
         // Listen key endpoint gone (e.g. testnet 410) — fall back to REST-only
         // mode. ExecReports are emitted synchronously from send_new_order REST
         // responses.
-        spdlog::warn(
+        ygg::log::warn(
             "[Heimdall] BinanceOrderAdapter: no listen key — REST-only "
             "mode (exec reports from order response)");
         connected_.store(true, std::memory_order_relaxed);
@@ -171,13 +184,12 @@ void BinanceOrderAdapter::connect_and_run() {
         return;
     }
 
-    spdlog::info("[Heimdall] BinanceOrderAdapter: connecting WS for user data stream");
+    ygg::log::info("[Heimdall] BinanceOrderAdapter: connecting WS for user data stream");
 
     const std::string ws_path = cfg_.ws_path + "/" + listen_key_;
 
     tcp::resolver resolver(ioc_);
-    auto ws =
-        std::make_unique<websocket::stream<beast::ssl_stream<beast::tcp_stream>>>(ioc_, ssl_ctx_);
+    auto ws = std::make_unique<websocket::stream<beast::ssl_stream<beast::tcp_stream>>>(ioc_, ssl_ctx_);
 
     auto results = resolver.resolve(cfg_.ws_host, cfg_.ws_port);
     beast::get_lowest_layer(*ws).connect(results);
@@ -186,13 +198,12 @@ void BinanceOrderAdapter::connect_and_run() {
         throw std::runtime_error("SSL_set_tlsext_host_name failed");
     ws->next_layer().handshake(ssl::stream_base::client);
 
-    ws->set_option(websocket::stream_base::decorator([](websocket::request_type& req) {
-        req.set(boost::beast::http::field::user_agent, "heimdall/0.1");
-    }));
+    ws->set_option(websocket::stream_base::decorator(
+        [](websocket::request_type& req) { req.set(boost::beast::http::field::user_agent, "heimdall/0.1"); }));
     ws->handshake(cfg_.ws_host, ws_path);
 
     connected_.store(true, std::memory_order_relaxed);
-    spdlog::info("[Heimdall] BinanceOrderAdapter: connected");
+    ygg::log::info("[Heimdall] BinanceOrderAdapter: connected");
 
     last_ping_ = std::chrono::steady_clock::now();
 
@@ -214,12 +225,11 @@ void BinanceOrderAdapter::connect_and_run() {
             buf.consume(buf.size());
             continue;
         }
-        if (ec) throw beast::system_error(ec);
+        if (ec)
+            throw beast::system_error(ec);
 
-        uint64_t recv_ns =
-            static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
-        handle_user_data_message(
-            std::string(static_cast<const char*>(buf.data().data()), buf.data().size()), recv_ns);
+        uint64_t recv_ns = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
+        handle_user_data_message(std::string(static_cast<const char*>(buf.data().data()), buf.data().size()), recv_ns);
         buf.consume(buf.size());
     }
 
@@ -260,10 +270,9 @@ void BinanceOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& orde
             break;
     }
 
-    std::string params =
-        "symbol=" + exchange_symbol + "&side=" + side_str + "&type=" + type_str +
-        "&quantity=" + std::to_string(static_cast<double>(order.quantity()) / kScale) +
-        "&newClientOrderId=" + cloid;
+    std::string params = "symbol=" + exchange_symbol + "&side=" + side_str + "&type=" + type_str +
+                         "&quantity=" + std::to_string(static_cast<double>(order.quantity()) / kScale) +
+                         "&newClientOrderId=" + cloid;
 
     if (order.orderType() != OT::MARKET) {
         params += "&timeInForce=" + tif_str;
@@ -274,13 +283,13 @@ void BinanceOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& orde
 
     try {
         std::string resp = https_request("POST", "/api/v3/order?" + signed_params, "", true);
-        spdlog::debug("[Heimdall] BinanceOrderAdapter: new order resp={}", resp);
+        ygg::log::debug("[Heimdall] BinanceOrderAdapter: new order resp={}", resp);
 
-        uint64_t recv_ns =
-            static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
+        uint64_t recv_ns = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
 
         auto root = json::parse(resp);
-        if (!root.is_object()) return;
+        if (!root.is_object())
+            return;
         const auto& obj = root.as_object();
 
         using ES = bifrost::protocol::ExecStatus;
@@ -298,12 +307,13 @@ void BinanceOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& orde
         // Binance error response has "code" field (negative integer)
         if (auto code_it = obj.find("code"); code_it != obj.end()) {
             auto msg_it = obj.find("msg");
-            std::string msg =
-                (msg_it != obj.end()) ? std::string(msg_it->value().as_string()) : "?";
-            spdlog::error(
+            std::string msg = (msg_it != obj.end()) ? std::string(msg_it->value().as_string()) : "?";
+            ygg::log::error(
                 "[Heimdall] BinanceOrderAdapter: exchange rejected order={} "
                 "code={} msg={}",
-                order.orderId(), code_it->value().as_int64(), msg);
+                order.orderId(),
+                code_it->value().as_int64(),
+                msg);
             ExecEvent rej;
             rej.order_id = order.orderId();
             rej.exchange_id = bifrost::protocol::ExchangeId::BINANCE;
@@ -315,7 +325,7 @@ void BinanceOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& orde
             rej.status = ES::REJECTED;
             rej.reject_reason = RR::EXCHANGE_ERROR;
             if (!exec_queue_.try_push(rej))
-                spdlog::error("[Binance] exec_queue full — dropped rejection order_id={}", rej.order_id);
+                ygg::log::error("[Binance] exec_queue full — dropped rejection order_id={}", rej.order_id);
             return;
         }
 
@@ -325,12 +335,9 @@ void BinanceOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& orde
         ev.side = (order.side() == OS::BUY) ? OS::BUY : OS::SELL;
         ev.order_type = order.orderType();
 
-        ev.price =
-            static_cast<int64_t>(std::stod(std::string(obj.at("price").as_string())) * kScale);
-        ev.filled_qty = static_cast<uint64_t>(
-            std::stod(std::string(obj.at("executedQty").as_string())) * kScale);
-        uint64_t total_qty =
-            static_cast<uint64_t>(std::stod(std::string(obj.at("origQty").as_string())) * kScale);
+        ev.price = static_cast<int64_t>(std::stod(std::string(obj.at("price").as_string())) * kScale);
+        ev.filled_qty = static_cast<uint64_t>(std::stod(std::string(obj.at("executedQty").as_string())) * kScale);
+        uint64_t total_qty = static_cast<uint64_t>(std::stod(std::string(obj.at("origQty").as_string())) * kScale);
         ev.remaining_qty = total_qty > ev.filled_qty ? total_qty - ev.filled_qty : 0;
 
         if (auto tsit = obj.find("transactTime"); tsit != obj.end())
@@ -344,8 +351,7 @@ void BinanceOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& orde
         if (auto fit = obj.find("fills"); fit != obj.end() && fit->value().is_array()) {
             for (const auto& fill : fit->value().as_array()) {
                 const auto& f = fill.as_object();
-                ev.fee += static_cast<int64_t>(
-                    std::stod(std::string(f.at("commission").as_string())) * kScale);
+                ev.fee += static_cast<int64_t>(std::stod(std::string(f.at("commission").as_string())) * kScale);
                 if (auto fcit = f.find("commissionAsset"); fcit != f.end())
                     ev.fee_currency = parse_fee_currency(std::string(fcit->value().as_string()));
             }
@@ -366,41 +372,38 @@ void BinanceOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& orde
         }
 
         if (!exec_queue_.try_push(ev))
-            spdlog::error("[Binance] exec_queue full — dropped ExecEvent order_id={}", ev.order_id);
+            ygg::log::error("[Binance] exec_queue full — dropped ExecEvent order_id={}", ev.order_id);
 
     } catch (const std::exception& e) {
-        spdlog::error("[Heimdall] BinanceOrderAdapter: send_new_order failed: {}", e.what());
+        ygg::log::error("[Heimdall] BinanceOrderAdapter: send_new_order failed: {}", e.what());
         // Emit a rejection so the risk open-orders counter is decremented
-        uint64_t ts =
-            static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
+        uint64_t ts = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
         ExecEvent rej;
         rej.order_id = order.orderId();
         rej.exchange_id = bifrost::protocol::ExchangeId::BINANCE;
         rej.instrument_id = 0;
         rej.local_ts_ns = ts;
         rej.exchange_ts_ns = ts;
-        rej.side = (order.side() == bifrost::protocol::OrderSide::BUY)
-                       ? bifrost::protocol::OrderSide::BUY
-                       : bifrost::protocol::OrderSide::SELL;
+        rej.side = (order.side() == bifrost::protocol::OrderSide::BUY) ? bifrost::protocol::OrderSide::BUY
+                                                                       : bifrost::protocol::OrderSide::SELL;
         rej.order_type = order.orderType();
         rej.status = bifrost::protocol::ExecStatus::REJECTED;
         rej.reject_reason = bifrost::protocol::RejectReason::EXCHANGE_ERROR;
         if (!exec_queue_.try_push(rej))
-            spdlog::error("[Binance] exec_queue full — dropped rejection order_id={}", rej.order_id);
+            ygg::log::error("[Binance] exec_queue full — dropped rejection order_id={}", rej.order_id);
     }
 }
 
-void BinanceOrderAdapter::send_cancel(const bifrost::protocol::CancelOrder& cancel,
-                                      const std::string& native_symbol) {
+void BinanceOrderAdapter::send_cancel(const bifrost::protocol::CancelOrder& cancel, const std::string& native_symbol) {
     std::string cloid = "G" + std::to_string(cancel.orderId());
     std::string params = "symbol=" + native_symbol + "&origClientOrderId=" + cloid;
     std::string signed_params = sign_query(params);
 
     try {
         std::string resp = https_request("DELETE", "/api/v3/order?" + signed_params, "", true);
-        spdlog::debug("[Heimdall] BinanceOrderAdapter: cancel resp={}", resp);
+        ygg::log::debug("[Heimdall] BinanceOrderAdapter: cancel resp={}", resp);
     } catch (const std::exception& e) {
-        spdlog::error("[Heimdall] BinanceOrderAdapter: send_cancel failed: {}", e.what());
+        ygg::log::error("[Heimdall] BinanceOrderAdapter: send_cancel failed: {}", e.what());
     }
 }
 
@@ -409,14 +412,13 @@ void BinanceOrderAdapter::send_cancel_all(uint64_t instrument_id) {
     // CancelAll with instrument_id=0 means all — Binance requires symbol per
     // cancel-all The main loop will call this per-instrument; for now log a
     // warning.
-    spdlog::warn(
+    ygg::log::warn(
         "[Heimdall] BinanceOrderAdapter: send_cancel_all called with "
         "instrument_id={}",
         instrument_id);
 }
 
-void BinanceOrderAdapter::send_modify(const bifrost::protocol::ModifyOrder& modify,
-                                      const std::string& native_symbol) {
+void BinanceOrderAdapter::send_modify(const bifrost::protocol::ModifyOrder& modify, const std::string& native_symbol) {
     // Binance does not have a native modify — cancel + replace.
     // Cancel existing order, then send a new one.
     std::string cloid = "G" + std::to_string(modify.orderId());
@@ -429,25 +431,23 @@ void BinanceOrderAdapter::send_modify(const bifrost::protocol::ModifyOrder& modi
         // Place new order with updated price/qty
         std::string new_cloid = "G" + std::to_string(modify.orderId()) + "m";
         std::string new_params =
-            "symbol=" + native_symbol +
-            "&side=BUY" +  // side not in ModifyOrder; must be retrieved from state
-            "&type=LIMIT" +
-            "&quantity=" + std::to_string(static_cast<double>(modify.newQuantity()) / kScale) +
-            "&price=" + std::to_string(static_cast<double>(modify.newPrice()) / kScale) +
-            "&timeInForce=GTC" + "&newClientOrderId=" + new_cloid;
+            "symbol=" + native_symbol + "&side=BUY" +  // side not in ModifyOrder; must be retrieved from state
+            "&type=LIMIT" + "&quantity=" + std::to_string(static_cast<double>(modify.newQuantity()) / kScale) +
+            "&price=" + std::to_string(static_cast<double>(modify.newPrice()) / kScale) + "&timeInForce=GTC" +
+            "&newClientOrderId=" + new_cloid;
         std::string signed_new = sign_query(new_params);
         https_request("POST", "/api/v3/order?" + signed_new, "", true);
     } catch (const std::exception& e) {
-        spdlog::error("[Heimdall] BinanceOrderAdapter: send_modify failed: {}", e.what());
+        ygg::log::error("[Heimdall] BinanceOrderAdapter: send_modify failed: {}", e.what());
     }
 }
 
 AccountSnapshotData BinanceOrderAdapter::fetch_account_snapshot(uint64_t correlation_id) {
     using namespace std::chrono;
-    const uint64_t ts_ns = static_cast<uint64_t>(
-        duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count());
-    const uint64_t ts_ms = static_cast<uint64_t>(
-        duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
+    const uint64_t ts_ns =
+        static_cast<uint64_t>(duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count());
+    const uint64_t ts_ms =
+        static_cast<uint64_t>(duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
 
     // GET /fapi/v2/account — futures/perp account balance and open positions.
     std::string params = "timestamp=" + std::to_string(ts_ms);
@@ -461,46 +461,48 @@ AccountSnapshotData BinanceOrderAdapter::fetch_account_snapshot(uint64_t correla
 
     try {
         auto root = json::parse(resp);
-        if (!root.is_object()) return snap;
+        if (!root.is_object())
+            return snap;
         const auto& obj = root.as_object();
 
         if (obj.contains("availableBalance"))
-            snap.available_balance_e8 = static_cast<int64_t>(
-                std::round(std::stod(std::string(obj.at("availableBalance").as_string())) * 1e8));
+            snap.available_balance_e8 =
+                static_cast<int64_t>(std::round(std::stod(std::string(obj.at("availableBalance").as_string())) * 1e8));
         if (obj.contains("totalWalletBalance"))
             snap.total_equity_e8 = static_cast<int64_t>(
                 std::round(std::stod(std::string(obj.at("totalWalletBalance").as_string())) * 1e8));
         if (obj.contains("totalUnrealizedProfit"))
-            snap.total_equity_e8 += static_cast<int64_t>(std::round(
-                std::stod(std::string(obj.at("totalUnrealizedProfit").as_string())) * 1e8));
+            snap.total_equity_e8 += static_cast<int64_t>(
+                std::round(std::stod(std::string(obj.at("totalUnrealizedProfit").as_string())) * 1e8));
 
         if (obj.contains("positions") && obj.at("positions").is_array()) {
             for (const auto& p : obj.at("positions").as_array()) {
-                if (!p.is_object()) continue;
+                if (!p.is_object())
+                    continue;
                 const auto& po = p.as_object();
                 const double pos_amt = std::stod(std::string(po.at("positionAmt").as_string()));
-                if (pos_amt == 0.0) continue;
+                if (pos_amt == 0.0)
+                    continue;
 
                 AccountPosition ap;
                 ap.exchange_symbol = std::string(po.at("symbol").as_string());
                 ap.net_qty_e8 = static_cast<int64_t>(std::round(pos_amt * 1e8));
                 if (po.contains("entryPrice"))
-                    ap.avg_entry_price_e8 = static_cast<int64_t>(
-                        std::round(std::stod(std::string(po.at("entryPrice").as_string())) * 1e8));
+                    ap.avg_entry_price_e8 =
+                        static_cast<int64_t>(std::round(std::stod(std::string(po.at("entryPrice").as_string())) * 1e8));
                 if (po.contains("unrealizedProfit"))
-                    ap.unrealized_pnl_e8 = static_cast<int64_t>(std::round(
-                        std::stod(std::string(po.at("unrealizedProfit").as_string())) * 1e8));
+                    ap.unrealized_pnl_e8 = static_cast<int64_t>(
+                        std::round(std::stod(std::string(po.at("unrealizedProfit").as_string())) * 1e8));
                 snap.positions.push_back(std::move(ap));
             }
         }
     } catch (const std::exception& e) {
-        spdlog::error("[Heimdall] BinanceOrderAdapter: failed to parse account snapshot: {}",
-                      e.what());
+        ygg::log::error("[Heimdall] BinanceOrderAdapter: failed to parse account snapshot: {}", e.what());
     }
 
-    spdlog::info(
-        "[Heimdall] BinanceOrderAdapter: account snapshot fetched — balance={:.2f} positions={}",
-        static_cast<double>(snap.available_balance_e8) / 1e8, snap.positions.size());
+    ygg::log::info("[Heimdall] BinanceOrderAdapter: account snapshot fetched — balance={:.2f} positions={}",
+                   static_cast<double>(snap.available_balance_e8) / 1e8,
+                   snap.positions.size());
     return snap;
 }
 

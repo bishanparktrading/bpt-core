@@ -11,10 +11,10 @@
 #include <bifrost_protocol/OrderSide.h>
 #include <bifrost_protocol/OrderType.h>
 #include <bifrost_protocol/RejectReason.h>
-#include <gtest/gtest.h>
 
 #include <boost/json.hpp>
 #include <cstring>
+#include <gtest/gtest.h>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -52,10 +52,14 @@ struct CapturedExecEvent {
 // Produces a CapturedExecEvent from a Binance executionReport WS message.
 
 static FeeCurrency::Value parse_fee_currency_binance(const std::string& asset) {
-    if (asset == "BTC") return FeeCurrency::BTC;
-    if (asset == "ETH") return FeeCurrency::ETH;
-    if (asset == "BNB") return FeeCurrency::BNB;
-    if (asset == "USDT") return FeeCurrency::USDT;
+    if (asset == "BTC")
+        return FeeCurrency::BTC;
+    if (asset == "ETH")
+        return FeeCurrency::ETH;
+    if (asset == "BNB")
+        return FeeCurrency::BNB;
+    if (asset == "USDT")
+        return FeeCurrency::USDT;
     return FeeCurrency::USDT;
 }
 
@@ -67,19 +71,23 @@ public:
     void process(std::string_view payload, uint64_t recv_ns) {
         last_event_.reset();
         auto root = json::parse(payload);
-        if (!root.is_object()) return;
+        if (!root.is_object())
+            return;
         const auto& obj = root.as_object();
 
         auto eit = obj.find("e");
-        if (eit == obj.end()) return;
+        if (eit == obj.end())
+            return;
         std::string event_type = std::string(eit->value().as_string());
-        if (event_type != "executionReport") return;
+        if (event_type != "executionReport")
+            return;
 
         std::string exec_type = std::string(obj.at("X").as_string());
         std::string cloid = std::string(obj.at("c").as_string());
 
         auto id_it = cloid_map_.find(cloid);
-        if (id_it == cloid_map_.end()) return;
+        if (id_it == cloid_map_.end())
+            return;
 
         CapturedExecEvent ev;
         ev.order_id = id_it->second;
@@ -100,10 +108,8 @@ public:
             ev.order_type = OrderType::LIMIT;
 
         ev.price = static_cast<int64_t>(std::stod(std::string(obj.at("p").as_string())) * kScale);
-        ev.filled_qty =
-            static_cast<uint64_t>(std::stod(std::string(obj.at("z").as_string())) * kScale);
-        uint64_t total_qty =
-            static_cast<uint64_t>(std::stod(std::string(obj.at("q").as_string())) * kScale);
+        ev.filled_qty = static_cast<uint64_t>(std::stod(std::string(obj.at("z").as_string())) * kScale);
+        uint64_t total_qty = static_cast<uint64_t>(std::stod(std::string(obj.at("q").as_string())) * kScale);
         ev.remaining_qty = total_qty > ev.filled_qty ? total_qty - ev.filled_qty : 0;
 
         ev.fee = static_cast<int64_t>(std::stod(std::string(obj.at("n").as_string())) * kScale);
@@ -287,10 +293,14 @@ TEST(BinanceExecNormaliserTest, FeeCurrencyMapping) {
 // Mirrors the logic in OKXOrderAdapter::handle_message() for "orders" channel.
 
 static FeeCurrency::Value parse_fee_ccy_okx(const std::string& ccy) {
-    if (ccy == "BTC") return FeeCurrency::BTC;
-    if (ccy == "ETH") return FeeCurrency::ETH;
-    if (ccy == "USDT") return FeeCurrency::USDT;
-    if (ccy == "USD") return FeeCurrency::USD;
+    if (ccy == "BTC")
+        return FeeCurrency::BTC;
+    if (ccy == "ETH")
+        return FeeCurrency::ETH;
+    if (ccy == "USDT")
+        return FeeCurrency::USDT;
+    if (ccy == "USD")
+        return FeeCurrency::USD;
     return FeeCurrency::USDT;
 }
 
@@ -302,31 +312,37 @@ public:
     void process(std::string_view payload, uint64_t recv_ns) {
         last_event_.reset();
         auto root = json::parse(payload);
-        if (!root.is_object()) return;
+        if (!root.is_object())
+            return;
         const auto& obj = root.as_object();
 
-        if (obj.find("event") != obj.end()) return;
-        if (obj.find("data") == obj.end()) return;
+        if (obj.find("event") != obj.end())
+            return;
+        if (obj.find("data") == obj.end())
+            return;
 
         auto arg_it = obj.find("arg");
-        if (arg_it == obj.end()) return;
+        if (arg_it == obj.end())
+            return;
         const auto& arg = arg_it->value().as_object();
         std::string channel = std::string(arg.at("channel").as_string());
-        if (channel != "orders") return;
+        if (channel != "orders")
+            return;
 
         const auto& data = obj.at("data").as_array();
-        if (data.empty()) return;
+        if (data.empty())
+            return;
 
         for (const auto& item : data) {
             const auto& d = item.as_object();
             std::string cloid = std::string(d.at("clOrdId").as_string());
             auto id_it = cloid_map_.find(cloid);
-            if (id_it == cloid_map_.end()) continue;
+            if (id_it == cloid_map_.end())
+                continue;
 
             CapturedExecEvent ev;
             ev.order_id = id_it->second;
-            ev.exchange_order_id =
-                static_cast<uint64_t>(std::stoull(std::string(d.at("ordId").as_string())));
+            ev.exchange_order_id = static_cast<uint64_t>(std::stoull(std::string(d.at("ordId").as_string())));
             ev.exchange_id = ExchangeId::OKX;
             ev.local_ts_ns = recv_ns;
             ev.reject_reason = RejectReason::OK;
@@ -342,12 +358,9 @@ public:
             else
                 ev.order_type = OrderType::LIMIT;
 
-            ev.price =
-                static_cast<int64_t>(std::stod(std::string(d.at("px").as_string())) * kScale);
-            ev.filled_qty =
-                static_cast<uint64_t>(std::stod(std::string(d.at("fillSz").as_string())) * kScale);
-            uint64_t total_qty =
-                static_cast<uint64_t>(std::stod(std::string(d.at("sz").as_string())) * kScale);
+            ev.price = static_cast<int64_t>(std::stod(std::string(d.at("px").as_string())) * kScale);
+            ev.filled_qty = static_cast<uint64_t>(std::stod(std::string(d.at("fillSz").as_string())) * kScale);
+            uint64_t total_qty = static_cast<uint64_t>(std::stod(std::string(d.at("sz").as_string())) * kScale);
             ev.remaining_qty = total_qty > ev.filled_qty ? total_qty - ev.filled_qty : 0;
 
             ev.fee = static_cast<int64_t>(std::stod(std::string(d.at("fee").as_string())) * kScale);
@@ -355,8 +368,7 @@ public:
 
             if (auto ts_it = d.find("uTime"); ts_it != d.end())
                 ev.exchange_ts_ns =
-                    static_cast<uint64_t>(std::stoull(std::string(ts_it->value().as_string()))) *
-                    1'000'000ULL;
+                    static_cast<uint64_t>(std::stoull(std::string(ts_it->value().as_string()))) * 1'000'000ULL;
             else
                 ev.exchange_ts_ns = recv_ns;
 

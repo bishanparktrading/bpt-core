@@ -5,7 +5,6 @@
 #include <boost/beast/websocket.hpp>
 #include <chrono>
 #include <fmt/format.h>
-#include <spdlog/spdlog.h>
 #include <yggdrasil/util/tsc_clock.h>
 #include <yggdrasil/ws/ws_connect.h>
 
@@ -29,7 +28,7 @@ std::chrono::milliseconds DeribitAdapter::reconnect_delay() const {
     return std::chrono::seconds(2);
 }
 
-void DeribitAdapter::send_subscribe_rpc(ygg::ws::WsStream& ws, const std::string& symbol, uint8_t depth) {
+void DeribitAdapter::send_subscribe_rpc(ygg::ws::AnyWsStream& ws, const std::string& symbol, uint8_t depth) {
     const std::string book_channel =
         (depth == 0) ? fmt::format("quote.{}", symbol) : fmt::format("book.{}.100ms", symbol);
 
@@ -40,25 +39,26 @@ void DeribitAdapter::send_subscribe_rpc(ygg::ws::WsStream& ws, const std::string
         book_channel);
     ws.write(net::buffer(req));
 
-    spdlog::info("DeribitAdapter: subscribed {} depth={}", symbol, depth);
+    ygg::log::info("DeribitAdapter: subscribed {} depth={}", symbol, depth);
 }
 
-void DeribitAdapter::send_test_response(ygg::ws::WsStream& ws) {
+void DeribitAdapter::send_test_response(ygg::ws::AnyWsStream& ws) {
     auto resp = fmt::format(R"({{"jsonrpc":"2.0","id":{},"method":"public/test","params":{{}}}})",
                             rpc_id_.fetch_add(1, std::memory_order_relaxed));
     ws.write(net::buffer(resp));
-    spdlog::debug("DeribitAdapter: responded to test_request");
+    ygg::log::debug("DeribitAdapter: responded to test_request");
 }
 
-std::unique_ptr<ygg::ws::WsStream> DeribitAdapter::connect_and_subscribe() {
-    spdlog::info("DeribitAdapter connecting {}:{}{}", cfg_.ws_host, cfg_.ws_port, cfg_.ws_path);
-    auto ws = ygg::ws::ws_connect(ioc_,
-                                  ssl_ctx_,
-                                  cfg_.ws_host,
-                                  cfg_.ws_port,
-                                  cfg_.ws_path,
-                                  cfg_.so_rcvbuf_bytes,
-                                  cfg_.ws_connect_timeout_ms);
+std::unique_ptr<ygg::ws::AnyWsStream> DeribitAdapter::connect_and_subscribe() {
+    ygg::log::info("DeribitAdapter connecting {}:{}{}", cfg_.ws_host, cfg_.ws_port, cfg_.ws_path);
+    auto tls_ws = ygg::ws::ws_connect(ioc_,
+                                      ssl_ctx_,
+                                      cfg_.ws_host,
+                                      cfg_.ws_port,
+                                      cfg_.ws_path,
+                                      cfg_.so_rcvbuf_bytes,
+                                      cfg_.ws_connect_timeout_ms);
+    auto ws = std::make_unique<ygg::ws::AnyWsStream>(std::move(tls_ws));
 
     ws->text(true);
     ws->set_option(websocket::stream_base::timeout{
@@ -67,7 +67,7 @@ std::unique_ptr<ygg::ws::WsStream> DeribitAdapter::connect_and_subscribe() {
         false                            // no Beast keep-alive pings
     });
 
-    spdlog::info("DeribitAdapter connected");
+    ygg::log::info("DeribitAdapter connected");
 
     // Enable Deribit heartbeat — CRITICAL: Deribit disconnects within 30s if
     // test_request is not answered with public/test.
@@ -76,7 +76,7 @@ std::unique_ptr<ygg::ws::WsStream> DeribitAdapter::connect_and_subscribe() {
             fmt::format(R"({{"jsonrpc":"2.0","id":{},"method":"public/set_heartbeat","params":{{"interval":30}}}})",
                         rpc_id_.fetch_add(1, std::memory_order_relaxed));
         ws->write(net::buffer(hb_req));
-        spdlog::info("DeribitAdapter: heartbeat enabled (interval=30s)");
+        ygg::log::info("DeribitAdapter: heartbeat enabled (interval=30s)");
     }
 
     // Clear stale order book gap state before receiving new snapshots.
@@ -91,7 +91,7 @@ std::unique_ptr<ygg::ws::WsStream> DeribitAdapter::connect_and_subscribe() {
     return ws;
 }
 
-void DeribitAdapter::read_loop(ygg::ws::WsStream& ws) {
+void DeribitAdapter::read_loop(ygg::ws::AnyWsStream& ws) {
     beast::flat_buffer buf;
     const auto liveness = std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms);
     auto last_recv = std::chrono::steady_clock::now();
@@ -100,7 +100,7 @@ void DeribitAdapter::read_loop(ygg::ws::WsStream& ws) {
         // Reset timer first — covers all writes below (test_request response,
         // subscribe frames) as well as the read.  A prior read timeout leaves
         // the timer expired; any write before the next expires_after would fail.
-        beast::get_lowest_layer(ws).expires_after(std::chrono::milliseconds(cfg_.ws_read_timeout_ms));
+        ws.expires_after(std::chrono::milliseconds(cfg_.ws_read_timeout_ms));
 
         // Respond to heartbeat test_request if the publisher thread flagged one.
         // The WS write must happen on the IO thread that owns the ygg::ws::WsStream.
@@ -118,7 +118,7 @@ void DeribitAdapter::read_loop(ygg::ws::WsStream& ws) {
         if (ec == beast::error::timeout) {
             buf.consume(buf.size());
             if (std::chrono::steady_clock::now() - last_recv >= liveness) {
-                spdlog::warn("DeribitAdapter: no data for {}ms, reconnecting", cfg_.ws_liveness_timeout_ms);
+                ygg::log::warn("DeribitAdapter: no data for {}ms, reconnecting", cfg_.ws_liveness_timeout_ms);
                 throw std::runtime_error("liveness timeout");
             }
             continue;

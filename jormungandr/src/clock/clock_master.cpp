@@ -1,70 +1,67 @@
 #include "jormungandr/clock/clock_master.h"
 
-#include <bifrost_protocol/BacktestCommand.h>
-#include <spdlog/spdlog.h>
-
-#include <stdexcept>
-#include <string>
-
 #include "jormungandr/data/orderbook_record.h"
 #include "jormungandr/data/trade_record.h"
 #include "jormungandr/exchange/okx_md_server.h"
 #include "jormungandr/results/results_collector.h"
 
+#include <bifrost_protocol/BacktestCommand.h>
+
+#include <format>
+#include <stdexcept>
+
 namespace jormungandr::clock {
 
-using bifrost::protocol::BacktestCommand;
-
-ClockMaster::ClockMaster(data::DataLoader& loader, exchange::BinanceMdServer* binance_server,
+ClockMaster::ClockMaster(data::DataLoader& loader,
+                         exchange::BinanceMdServer* binance_server,
                          exchange::OkxMdServer* okx_server,
                          matching::MatchingEngine* matching_engine,
                          results::ResultsCollector* results,
-                         messaging::BacktestControlPublisher& ctrl_pub,
-                         messaging::BacktestAckSubscriber& ack_sub,
-                         std::chrono::milliseconds ack_timeout)
+                         messaging::BacktestControlPublisher* ctrl_pub,
+                         messaging::BacktestAckSubscriber* ack_sub)
     : loader_(loader),
       binance_server_(binance_server),
       okx_server_(okx_server),
       matching_engine_(matching_engine),
       results_(results),
       ctrl_pub_(ctrl_pub),
-      ack_sub_(ack_sub),
-      ack_timeout_(ack_timeout) {}
+      ack_sub_(ack_sub) {}
 
 void ClockMaster::run() {
-    // ── Phase 1: handshake ─────────────────────────────────────────────────
-    spdlog::info("[ClockMaster] Sending START to Fenrir");
-    ctrl_pub_.send(BacktestCommand::Value::START, 0, 0);
+    using bifrost::protocol::BacktestCommand;
 
-    if (!ack_sub_.wait_for(0, ack_timeout_)) {
-        throw std::runtime_error("[ClockMaster] Fenrir did not ack START within " +
-                                 std::to_string(ack_timeout_.count()) + " ms");
+    // Handshake: confirm Fenrir is up and ready before releasing any ticks.
+    if (ctrl_pub_) {
+        ygg::log::info("[ClockMaster] Tick-gating enabled — sending handshake to Fenrir");
+        ctrl_pub_->send(BacktestCommand::START, 0, 0);
+        if (!ack_sub_->wait_for(0, kAckTimeout))
+            throw std::runtime_error("[ClockMaster] Handshake ack timed out — is Fenrir running?");
+        ygg::log::info("[ClockMaster] Handshake ack received, starting tick loop");
     }
-    spdlog::info("[ClockMaster] Fenrir ready, driving ticks");
 
-    // ── Phase 2: tick loop ─────────────────────────────────────────────────
     uint64_t seq = 0;
-    uint64_t last_ts = 0;
 
     while (auto event = loader_.next()) {
         dispatch(*event);
-        last_ts = event->timestamp_ns;
-
         ++seq;
-        ctrl_pub_.send(BacktestCommand::Value::START, seq, last_ts);
 
-        if (!ack_sub_.wait_for(seq, ack_timeout_)) {
-            throw std::runtime_error("[ClockMaster] Ack timeout at tick " + std::to_string(seq) +
-                                     ", simulationTs=" + std::to_string(last_ts));
+        if (ctrl_pub_) {
+            ctrl_pub_->send(BacktestCommand::START, seq, event->timestamp_ns);
+            if (!ack_sub_->wait_for(seq, kAckTimeout))
+                throw std::runtime_error(
+                    std::format("[ClockMaster] Ack timed out at seq={} ts={}", seq, event->timestamp_ns));
         }
 
         if (seq % 100'000 == 0)
-            spdlog::debug("[ClockMaster] {} ticks processed, last_ts={}", seq, last_ts);
+            ygg::log::debug("[ClockMaster] {} ticks processed, last_ts={}", seq, event->timestamp_ns);
     }
 
-    // ── Phase 3: shutdown ──────────────────────────────────────────────────
-    spdlog::info("[ClockMaster] Data exhausted after {} ticks. Sending STOP.", seq);
-    ctrl_pub_.send(BacktestCommand::Value::STOP, seq, last_ts);
+    if (ctrl_pub_) {
+        ctrl_pub_->send(BacktestCommand::STOP, seq, 0);
+        ygg::log::info("[ClockMaster] Sent STOP to Fenrir");
+    }
+
+    ygg::log::info("[ClockMaster] Data exhausted after {} ticks.", seq);
 }
 
 void ClockMaster::dispatch(const data::MarketEvent& event) {
@@ -73,17 +70,19 @@ void ClockMaster::dispatch(const data::MarketEvent& event) {
                                       : std::get<data::OrderBookRecord>(event.payload).exchange;
 
     if (exchange == "BINANCE") {
-        if (binance_server_) binance_server_->push(event);
+        if (binance_server_)
+            binance_server_->push(event);
     } else if (exchange == "OKX") {
-        if (okx_server_) okx_server_->push(event);
+        if (okx_server_)
+            okx_server_->push(event);
     } else {
-        // HYPERLIQUID server will be wired in once that adapter is built.
-        spdlog::warn("[ClockMaster] No WS server for exchange '{}' — event dropped", exchange);
+        ygg::log::warn("[ClockMaster] No WS server for exchange '{}' — event dropped", exchange);
     }
 
-    // Always update the matching engine and results collector, regardless of exchange.
-    if (matching_engine_) matching_engine_->on_market_event(event);
-    if (results_) results_->on_market_event(event);
+    if (matching_engine_)
+        matching_engine_->on_market_event(event);
+    if (results_)
+        results_->on_market_event(event);
 }
 
 }  // namespace jormungandr::clock

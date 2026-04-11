@@ -6,8 +6,8 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
-#include <spdlog/spdlog.h>
 #include <thread>
+#include <yggdrasil/logging.h>
 
 namespace surtr::messaging {
 
@@ -28,9 +28,9 @@ VolSurfacePublisher::VolSurfacePublisher(std::shared_ptr<aeron::Aeron> aeron,
     }
 
     if (!pub_) {
-        spdlog::error("[VolSurfacePublisher] Failed to find publication on {} stream {}", channel, stream_id);
+        ygg::log::error("[VolSurfacePublisher] Failed to find publication on {} stream {}", channel, stream_id);
     } else {
-        spdlog::info("[VolSurfacePublisher] Publication ready on {} stream {}", channel, stream_id);
+        ygg::log::info("[VolSurfacePublisher] Publication ready on {} stream {}", channel, stream_id);
     }
 }
 

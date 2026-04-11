@@ -6,7 +6,7 @@
 #include <bifrost_protocol/OrderType.h>
 
 #include <cmath>
-#include <spdlog/spdlog.h>
+#include <yggdrasil/logging.h>
 
 using bifrost::protocol::OrderSide;
 using bifrost::protocol::OrderType;
@@ -24,12 +24,12 @@ uint64_t OrderManager::place_order(uint64_t instrument_id,
                                    double quantity) {
     const auto inst = cache_.get(instrument_id);
     if (!inst) {
-        spdlog::warn("[OrderMgr] Rejected: instrument_id={} not in refdata cache", instrument_id);
+        ygg::log::warn("[OrderMgr] Rejected: instrument_id={} not in refdata cache", instrument_id);
         return 0;
     }
 
     if (inst->status != refdata::InstrumentStatus::ACTIVE) {
-        spdlog::warn("[OrderMgr] Rejected: instrument {} is not ACTIVE", inst->symbol);
+        ygg::log::warn("[OrderMgr] Rejected: instrument {} is not ACTIVE", inst->symbol);
         return 0;
     }
 
@@ -51,11 +51,11 @@ uint64_t OrderManager::place_order(uint64_t instrument_id,
     }
 
     if (quantity <= 0.0) {
-        spdlog::warn("[OrderMgr] Rejected: quantity <= 0 after lot normalisation for {}", inst->symbol);
+        ygg::log::warn("[OrderMgr] Rejected: quantity <= 0 after lot normalisation for {}", inst->symbol);
         return 0;
     }
     if (order_type != OrderType::MARKET && price <= 0.0) {
-        spdlog::warn("[OrderMgr] Rejected: price <= 0 for non-MARKET order on {}", inst->symbol);
+        ygg::log::warn("[OrderMgr] Rejected: price <= 0 for non-MARKET order on {}", inst->symbol);
         return 0;
     }
 

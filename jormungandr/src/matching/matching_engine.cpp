@@ -1,12 +1,11 @@
 #include "jormungandr/matching/matching_engine.h"
 
-#include <spdlog/spdlog.h>
+#include "jormungandr/data/orderbook_record.h"
+#include "jormungandr/data/trade_record.h"
 
 #include <algorithm>
 #include <format>
-
-#include "jormungandr/data/orderbook_record.h"
-#include "jormungandr/data/trade_record.h"
+#include <yggdrasil/logging.h>
 
 namespace jormungandr::matching {
 
@@ -42,7 +41,8 @@ void MatchingEngine::on_market_event(const data::MarketEvent& event) {
     }
 
     for (auto& fill : fills)
-        if (fill_cb_) fill_cb_(fill);
+        if (fill_cb_)
+            fill_cb_(fill);
 }
 
 // ── Order submission ──────────────────────────────────────────────────────────
@@ -59,41 +59,44 @@ OpenOrder MatchingEngine::submit_order(OpenOrder order) {
             if (it != books_.end()) {
                 fill_market(order, it->second, fills);
             } else {
-                spdlog::warn("[MatchingEngine] No book for {}/{} — market order unfilled",
-                             order.exchange, order.symbol);
+                ygg::log::warn("[MatchingEngine] No book for {}/{} — market order unfilled",
+                               order.exchange,
+                               order.symbol);
             }
         } else {
             pending_[key(order.exchange, order.symbol)].push_back(order);
-            spdlog::debug("[MatchingEngine] Queued LIMIT {} {} {} @ {}", order.symbol,
-                          (order.side == OrderSide::BUY ? "BUY" : "SELL"), order.quantity,
-                          order.price);
+            ygg::log::debug("[MatchingEngine] Queued LIMIT {} {} {} @ {}",
+                            order.symbol,
+                            (order.side == OrderSide::BUY ? "BUY" : "SELL"),
+                            order.quantity,
+                            order.price);
         }
     }
 
     for (auto& fill : fills)
-        if (fill_cb_) fill_cb_(fill);
+        if (fill_cb_)
+            fill_cb_(fill);
 
     return order;
 }
 
-bool MatchingEngine::cancel_order(const std::string& exchange, const std::string& symbol,
-                                  const std::string& order_id) {
+bool MatchingEngine::cancel_order(const std::string& exchange, const std::string& symbol, const std::string& order_id) {
     std::lock_guard lock(mutex_);
     auto it = pending_.find(key(exchange, symbol));
-    if (it == pending_.end()) return false;
+    if (it == pending_.end())
+        return false;
 
     auto& v = it->second;
-    auto pos = std::find_if(v.begin(), v.end(),
-                            [&](const OpenOrder& o) { return o.order_id == order_id; });
-    if (pos == v.end()) return false;
+    auto pos = std::find_if(v.begin(), v.end(), [&](const OpenOrder& o) { return o.order_id == order_id; });
+    if (pos == v.end())
+        return false;
     v.erase(pos);
     return true;
 }
 
 // ── Matching logic ────────────────────────────────────────────────────────────
 
-void MatchingEngine::fill_market(OpenOrder& order, const data::OrderBookRecord& book,
-                                 std::vector<FillReport>& out) {
+void MatchingEngine::fill_market(OpenOrder& order, const data::OrderBookRecord& book, std::vector<FillReport>& out) {
     double remaining = order.quantity - order.filled_qty;
 
     for (int lvl = 0; lvl < data::kOrderBookDepth && remaining > 1e-12; ++lvl) {
@@ -106,7 +109,8 @@ void MatchingEngine::fill_market(OpenOrder& order, const data::OrderBookRecord& 
             level_sz = book.bid_sz[lvl];
         }
 
-        if (level_px <= 0.0 || level_sz <= 0.0) break;
+        if (level_px <= 0.0 || level_sz <= 0.0)
+            break;
 
         double fill_qty = std::min(remaining, level_sz);
         order.filled_qty += fill_qty;
@@ -130,26 +134,32 @@ void MatchingEngine::fill_market(OpenOrder& order, const data::OrderBookRecord& 
     }
 
     if (remaining > 1e-12) {
-        spdlog::warn("[MatchingEngine] Market order {} partially filled: {}/{} — book too thin",
-                     order.order_id, order.filled_qty, order.quantity);
+        ygg::log::warn("[MatchingEngine] Market order {} partially filled: {}/{} — book too thin",
+                       order.order_id,
+                       order.filled_qty,
+                       order.quantity);
     }
 }
 
-void MatchingEngine::fill_crossing_limits(const std::string& book_key,
-                                          std::vector<FillReport>& out) {
+void MatchingEngine::fill_crossing_limits(const std::string& book_key, std::vector<FillReport>& out) {
     auto bit = books_.find(book_key);
-    if (bit == books_.end()) return;
+    if (bit == books_.end())
+        return;
     const auto& book = bit->second;
 
-    if (book.bid_px[0] <= 0.0 && book.ask_px[0] <= 0.0) return;
+    if (book.bid_px[0] <= 0.0 && book.ask_px[0] <= 0.0)
+        return;
 
     auto pit = pending_.find(book_key);
-    if (pit == pending_.end()) return;
+    if (pit == pending_.end())
+        return;
     auto& orders = pit->second;
 
-    orders.erase(std::remove_if(orders.begin(), orders.end(),
+    orders.erase(std::remove_if(orders.begin(),
+                                orders.end(),
                                 [&](OpenOrder& order) {
-                                    if (order.type != OrderType::LIMIT) return false;
+                                    if (order.type != OrderType::LIMIT)
+                                        return false;
 
                                     double fill_px = 0.0;
                                     if (order.side == OrderSide::BUY) {
@@ -162,7 +172,8 @@ void MatchingEngine::fill_crossing_limits(const std::string& book_key,
                                             fill_px = book.bid_px[0];
                                     }
 
-                                    if (fill_px <= 0.0) return false;
+                                    if (fill_px <= 0.0)
+                                        return false;
 
                                     double fill_qty = order.quantity - order.filled_qty;
                                     order.filled_qty = order.quantity;

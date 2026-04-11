@@ -23,7 +23,6 @@ add_library(huginn_lib
 target_link_libraries(huginn_lib PUBLIC
     yggdrasil
     fmt::fmt
-    spdlog::spdlog
     FastFloat::fast_float
     tomlplusplus::tomlplusplus
     Boost::system

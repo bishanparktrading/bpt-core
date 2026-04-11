@@ -1,50 +1,55 @@
 #include "heimdall/app/heimdall_app.h"
 
+#include "heimdall/adapter/binance/binance_order_adapter.h"
+#include "heimdall/adapter/deribit/deribit_order_adapter.h"
+#include "heimdall/adapter/hyperliquid/hyperliquid_order_adapter.h"
+#include "heimdall/adapter/okx/okx_order_adapter.h"
+
 #include <bifrost_protocol/ExchangeId.h>
-#include <spdlog/spdlog.h>
-#include <x86intrin.h>
-#include <yggdrasil/signal.h>
-#include <yggdrasil/util/thread_pin.h>
-#include <yggdrasil/util/tsc_clock.h>
 
 #include <chrono>
 #include <map>
 #include <string>
 #include <thread>
-
-#include "heimdall/adapter/binance/binance_order_adapter.h"
-#include "heimdall/adapter/deribit/deribit_order_adapter.h"
-#include "heimdall/adapter/hyperliquid/hyperliquid_order_adapter.h"
-#include "heimdall/adapter/okx/okx_order_adapter.h"
+#include <x86intrin.h>
+#include <yggdrasil/signal.h>
+#include <yggdrasil/util/thread_pin.h>
+#include <yggdrasil/util/tsc_clock.h>
 
 using namespace std::chrono_literals;
 using bifrost::protocol::ExchangeId;
 
 namespace heimdall {
 
-HeimdallApp::HeimdallApp(config::Settings cfg, std::shared_ptr<aeron::Aeron> aeron,
+HeimdallApp::HeimdallApp(config::Settings cfg,
+                         std::shared_ptr<aeron::Aeron> aeron,
                          std::map<std::string, adapter::ExchangeCredentials> creds)
     : cfg_(std::move(cfg)),
       aeron_(aeron),
       metrics_(cfg_.metrics_port),
-      risk_checker_(
-          cfg_.heimdall.risk.max_order_size_usd, cfg_.heimdall.risk.max_notional_per_order_usd,
-          cfg_.heimdall.risk.max_open_orders_per_venue, cfg_.heimdall.risk.max_orders_per_second) {
+      risk_checker_(cfg_.heimdall.risk.max_order_size_usd,
+                    cfg_.heimdall.risk.max_notional_per_order_usd,
+                    cfg_.heimdall.risk.max_open_orders_per_venue,
+                    cfg_.heimdall.risk.max_orders_per_second) {
     risk_checker_.set_trading_enabled(cfg_.heimdall.risk.trading_enabled);
 
-    exec_pub_ = std::make_shared<messaging::ExecReportPublisher>(
-        aeron, cfg_.aeron.exec_report.channel, cfg_.aeron.exec_report.stream_id);
-    hb_pub_ = std::make_shared<messaging::HeartbeatPublisher>(aeron, cfg_.aeron.heartbeat.channel,
+    exec_pub_ = std::make_shared<messaging::ExecReportPublisher>(aeron,
+                                                                 cfg_.aeron.exec_report.channel,
+                                                                 cfg_.aeron.exec_report.stream_id);
+    hb_pub_ = std::make_shared<messaging::HeartbeatPublisher>(aeron,
+                                                              cfg_.aeron.heartbeat.channel,
                                                               cfg_.aeron.heartbeat.stream_id);
-    account_snap_pub_ = std::make_shared<messaging::AccountSnapshotPublisher>(
-        aeron, cfg_.aeron.account_snapshot.channel, cfg_.aeron.account_snapshot.stream_id);
-    order_sub_ = std::make_shared<messaging::OrderSubscriber>(aeron, cfg_.aeron.order.channel,
-                                                              cfg_.aeron.order.stream_id);
+    account_snap_pub_ = std::make_shared<messaging::AccountSnapshotPublisher>(aeron,
+                                                                              cfg_.aeron.account_snapshot.channel,
+                                                                              cfg_.aeron.account_snapshot.stream_id);
+    order_sub_ =
+        std::make_shared<messaging::OrderSubscriber>(aeron, cfg_.aeron.order.channel, cfg_.aeron.order.stream_id);
 
     for (const auto& a_cfg : cfg_.heimdall.adapters) {
         if (a_cfg.testnet)
-            spdlog::warn("[Heimdall] *** TESTNET MODE *** adapter={} host={}", a_cfg.exchange,
-                         a_cfg.rest_host.empty() ? a_cfg.ws_host : a_cfg.rest_host);
+            ygg::log::warn("[Heimdall] *** TESTNET MODE *** adapter={} host={}",
+                           a_cfg.exchange,
+                           a_cfg.rest_host.empty() ? a_cfg.ws_host : a_cfg.rest_host);
 
         const auto& exchange_creds = [&]() -> const adapter::ExchangeCredentials& {
             static const adapter::ExchangeCredentials empty{};
@@ -62,17 +67,16 @@ HeimdallApp::HeimdallApp(config::Settings cfg, std::shared_ptr<aeron::Aeron> aer
         } else if (a_cfg.exchange == "HYPERLIQUID") {
             adapter = std::make_shared<adapter::HyperliquidOrderAdapter>(a_cfg, exchange_creds);
         } else {
-            spdlog::warn("[Heimdall] Unknown exchange in config: {}", a_cfg.exchange);
+            ygg::log::warn("[Heimdall] Unknown exchange in config: {}", a_cfg.exchange);
             continue;
         }
 
         adapter->start();
         adapters_.push_back(std::move(adapter));
-        spdlog::info("[Heimdall] Started adapter: {}", a_cfg.exchange);
+        ygg::log::info("[Heimdall] Started adapter: {}", a_cfg.exchange);
     }
 
-    processor_ = std::make_unique<order::OrderProcessor>(*exec_pub_, state_mgr_, risk_checker_,
-                                                         metrics_, adapters_);
+    processor_ = std::make_unique<order::OrderProcessor>(*exec_pub_, state_mgr_, risk_checker_, metrics_, adapters_);
 
     order_sub_->on_new_order = [this](const bifrost::protocol::NewOrder& o) {
         processor_->on_new_order(o);
@@ -86,57 +90,54 @@ HeimdallApp::HeimdallApp(config::Settings cfg, std::shared_ptr<aeron::Aeron> aer
     order_sub_->on_modify = [this](const bifrost::protocol::ModifyOrder& m) {
         processor_->on_modify(m);
     };
-    order_sub_->on_account_snapshot_request =
-        [this](const bifrost::protocol::AccountSnapshotRequest& req) {
-            const auto exchange_id = req.exchangeId();
-            const uint64_t correlation_id = req.correlationId();
+    order_sub_->on_account_snapshot_request = [this](const bifrost::protocol::AccountSnapshotRequest& req) {
+        const auto exchange_id = req.exchangeId();
+        const uint64_t correlation_id = req.correlationId();
 
-            // Find the matching adapter and dispatch the blocking REST fetch to a
-            // dedicated thread so the poll loop is not stalled.
-            for (auto& adapter : adapters_) {
-                if (adapter->exchange_id() != exchange_id) continue;
-                std::thread([this, adapter, exchange_id, correlation_id]() {
-                    try {
-                        auto snap = adapter->fetch_account_snapshot(correlation_id);
-                        account_snap_pub_->publish(snap);
-                    } catch (const std::exception& e) {
-                        spdlog::error("[Heimdall] AccountSnapshot fetch failed for exchange={}: {}",
-                                      bifrost::protocol::ExchangeId::c_str(exchange_id), e.what());
-                        // Publish empty snapshot so Fenrir's gate doesn't hang.
-                        adapter::AccountSnapshotData empty;
-                        empty.exchange_id = exchange_id;
-                        empty.correlation_id = correlation_id;
-                        empty.timestamp_ns = static_cast<uint64_t>(
-                            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                std::chrono::system_clock::now().time_since_epoch())
-                                .count());
-                        account_snap_pub_->publish(empty);
-                    }
-                }).detach();
-                return;
-            }
-            spdlog::warn("[Heimdall] AccountSnapshotRequest for unconfigured exchange={}",
-                         bifrost::protocol::ExchangeId::c_str(exchange_id));
-        };
+        // Find the matching adapter and dispatch the blocking REST fetch to a
+        // dedicated thread so the poll loop is not stalled.
+        for (auto& adapter : adapters_) {
+            if (adapter->exchange_id() != exchange_id)
+                continue;
+            std::thread([this, adapter, exchange_id, correlation_id]() {
+                try {
+                    auto snap = adapter->fetch_account_snapshot(correlation_id);
+                    account_snap_pub_->publish(snap);
+                } catch (const std::exception& e) {
+                    ygg::log::error("[Heimdall] AccountSnapshot fetch failed for exchange={}: {}",
+                                    bifrost::protocol::ExchangeId::c_str(exchange_id),
+                                    e.what());
+                    // Publish empty snapshot so Fenrir's gate doesn't hang.
+                    adapter::AccountSnapshotData empty;
+                    empty.exchange_id = exchange_id;
+                    empty.correlation_id = correlation_id;
+                    empty.timestamp_ns = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                                                   std::chrono::system_clock::now().time_since_epoch())
+                                                                   .count());
+                    account_snap_pub_->publish(empty);
+                }
+            }).detach();
+            return;
+        }
+        ygg::log::warn("[Heimdall] AccountSnapshotRequest for unconfigured exchange={}",
+                       bifrost::protocol::ExchangeId::c_str(exchange_id));
+    };
 
-    spdlog::info("[Heimdall] Ready — polling order stream {}", cfg_.aeron.order.stream_id);
+    ygg::log::info("[Heimdall] Ready — polling order stream {}", cfg_.aeron.order.stream_id);
 }
 
 void HeimdallApp::run() {
     ygg::util::TscClock::calibrate();
     ygg::util::pin_thread_to_cpu(cfg_.heimdall.poll_cpu, "poll");
 
-    const uint64_t hb_interval_ns =
-        static_cast<uint64_t>(cfg_.heimdall.heartbeat_interval_ms) * 1'000'000ULL;
-    const uint64_t stale_timeout_ns =
-        static_cast<uint64_t>(cfg_.heimdall.stale_order_timeout_ms) * 1'000'000ULL;
+    const uint64_t hb_interval_ns = static_cast<uint64_t>(cfg_.heimdall.heartbeat_interval_ms) * 1'000'000ULL;
+    const uint64_t stale_timeout_ns = static_cast<uint64_t>(cfg_.heimdall.stale_order_timeout_ms) * 1'000'000ULL;
     uint64_t last_hb_ns = ygg::util::TscClock::now_epoch_ns();
 
     while (ygg::signal::is_running()) {
         // Drain exec events from all adapter SPSC queues first — lowest latency path.
         for (auto& a : adapters_)
-            a->drain_exec_events(
-                [this](const adapter::ExecEvent& ev) { processor_->on_exec_event(ev); });
+            a->drain_exec_events([this](const adapter::ExecEvent& ev) { processor_->on_exec_event(ev); });
 
         int fragments = order_sub_->poll(10);
 
@@ -168,13 +169,15 @@ void HeimdallApp::run() {
             last_hb_ns = now_ns;
         }
 
-        if (fragments == 0) _mm_pause();
+        if (fragments == 0)
+            _mm_pause();
     }
 
-    for (auto& a : adapters_) a->stop();
+    for (auto& a : adapters_)
+        a->stop();
 
     metrics_.shutdown();
-    spdlog::info("[Heimdall] Shutting down");
+    ygg::log::info("[Heimdall] Shutting down");
 }
 
 }  // namespace heimdall

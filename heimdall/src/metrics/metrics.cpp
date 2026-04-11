@@ -10,10 +10,7 @@ HeimdallMetrics::HeimdallMetrics(uint16_t port) {
     exposer = std::make_unique<prometheus::Exposer>("0.0.0.0:" + std::to_string(port));
     exposer->RegisterCollectable(registry);
 
-    auto& h = prometheus::BuildGauge()
-                  .Name("heimdall_healthy")
-                  .Help("1 if Heimdall is running")
-                  .Register(*registry);
+    auto& h = prometheus::BuildGauge().Name("heimdall_healthy").Help("1 if Heimdall is running").Register(*registry);
     healthy = &h.Add({});
     healthy->Set(1.0);
 
@@ -49,11 +46,10 @@ HeimdallMetrics::HeimdallMetrics(uint16_t port) {
                             .Help("Total execution reports received per exchange and status")
                             .Register(*registry);
 
-    order_ack_rtt_fam =
-        &prometheus::BuildHistogram()
-             .Name("heimdall_order_ack_rtt_ns")
-             .Help("Order acknowledgement RTT: time from NewOrder sent to first exec report (ns)")
-             .Register(*registry);
+    order_ack_rtt_fam = &prometheus::BuildHistogram()
+                             .Name("heimdall_order_ack_rtt_ns")
+                             .Help("Order acknowledgement RTT: time from NewOrder sent to first exec report (ns)")
+                             .Register(*registry);
 }
 
 }  // namespace heimdall::metrics

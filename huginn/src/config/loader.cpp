@@ -1,10 +1,9 @@
 #include "huginn/config/settings.h"
-#include <yggdrasil/logging_toml.h>
 
 #include <fmt/ranges.h>
-#include <spdlog/spdlog.h>
 #include <toml++/toml.hpp>
 #include <unordered_set>
+#include <yggdrasil/logging_toml.h>
 
 namespace huginn::config {
 
@@ -48,12 +47,12 @@ Settings load(const std::string& path) {
         const bool path_has_testnet = exchange_config_path.find("testnet") != std::string::npos;
         if ((s.environment == "prod" && path_has_testnet) ||
             ((s.environment == "qa" || s.environment == "dev") && path_has_live))
-            spdlog::warn("environment = \"{}\" but exchange_config = \"{}\" — possible misconfiguration",
-                         s.environment,
-                         exchange_config_path);
+            ygg::log::warn("environment = \"{}\" but exchange_config = \"{}\" — possible misconfiguration",
+                           s.environment,
+                           exchange_config_path);
     }
 
-    spdlog::info("Environment: {}", s.environment.empty() ? "(not set)" : s.environment);
+    ygg::log::info("Environment: {}", s.environment.empty() ? "(not set)" : s.environment);
 
     // Read the exchanges filter from the instance config.
     std::unordered_set<std::string> exchange_filter;
@@ -62,7 +61,7 @@ Settings load(const std::string& path) {
             if (auto v = elem.value<std::string>())
                 exchange_filter.insert(*v);
         s.exchanges = {exchange_filter.begin(), exchange_filter.end()};
-        spdlog::info("Exchange filter: [{}]", fmt::join(s.exchanges, ", "));
+        ygg::log::info("Exchange filter: [{}]", fmt::join(s.exchanges, ", "));
     }
 
     if (auto* aeron = root["aeron"].as_table()) {
@@ -111,11 +110,11 @@ Settings load(const std::string& path) {
 
         // Validate required connectivity fields — fail fast rather than crash at connect time.
         if (ac.ws_host.empty() || ac.ws_port.empty() || ac.ws_path.empty()) {
-            spdlog::error("Adapter {} missing required ws_host/ws_port/ws_path — skipping", exchange_name);
+            ygg::log::error("Adapter {} missing required ws_host/ws_port/ws_path — skipping", exchange_name);
             continue;
         }
         if (!ac.use_tls)
-            spdlog::warn("Adapter {} has use_tls=false — TLS is enforced regardless; update config", exchange_name);
+            ygg::log::warn("Adapter {} has use_tls=false — TLS is enforced regardless; update config", exchange_name);
 
         s.adapters.push_back(std::move(ac));
     }

@@ -1,5 +1,8 @@
 #pragma once
 
+#include "heimdall/adapter/common/account_snapshot_data.h"
+#include "heimdall/order/order_state_manager.h"
+
 #include <bifrost_protocol/CancelOrder.h>
 #include <bifrost_protocol/ExchangeId.h>
 #include <bifrost_protocol/ExecStatus.h>
@@ -13,9 +16,6 @@
 #include <cstdint>
 #include <functional>
 #include <string>
-
-#include "heimdall/adapter/common/account_snapshot_data.h"
-#include "heimdall/order/order_state_manager.h"
 
 namespace heimdall::adapter {
 
@@ -48,11 +48,9 @@ public:
 
     // Place, cancel, modify orders.  Thread-safe — called from the hot-path thread.
     virtual void send_new_order(const bifrost::protocol::NewOrder& order) = 0;
-    virtual void send_cancel(const bifrost::protocol::CancelOrder& cancel,
-                             const std::string& native_symbol) = 0;
+    virtual void send_cancel(const bifrost::protocol::CancelOrder& cancel, const std::string& native_symbol) = 0;
     virtual void send_cancel_all(uint64_t instrument_id) = 0;
-    virtual void send_modify(const bifrost::protocol::ModifyOrder& modify,
-                             const std::string& native_symbol) = 0;
+    virtual void send_modify(const bifrost::protocol::ModifyOrder& modify, const std::string& native_symbol) = 0;
 
     [[nodiscard]] virtual bifrost::protocol::ExchangeId::Value exchange_id() const = 0;
     [[nodiscard]] virtual const char* exchange_name() const = 0;

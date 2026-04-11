@@ -9,7 +9,6 @@
 #include <bifrost_protocol/TimeInForce.h>
 
 #include <cmath>
-#include <spdlog/spdlog.h>
 
 using bifrost::protocol::ExchangeId;
 using bifrost::protocol::ExecStatus;
@@ -70,7 +69,7 @@ ShortVolStrategy::ShortVolStrategy(uint64_t correlation_id,
                 underlyings_.push_back(*v);
     }
 
-    spdlog::info(
+    ygg::log::info(
         "[ShortVol] iv_rv_threshold={:.3f} exit={:.3f} delta_range=[{:.2f},{:.2f}] "
         "expiry_range=[{:.1f}d,{:.1f}d] eval_interval={:.1f}s rv_window={}",
         iv_rv_threshold_,
@@ -84,7 +83,7 @@ ShortVolStrategy::ShortVolStrategy(uint64_t correlation_id,
 }
 
 void ShortVolStrategy::start() {
-    spdlog::info("[ShortVol] Strategy started");
+    ygg::log::info("[ShortVol] Strategy started");
 
     // Subscribe to perp BBO for delta-hedging + option BBO for Surtr vol surface computation.
     // Surtr passively reads stream 2002, so we subscribe to options here to drive Huginn.
@@ -95,10 +94,10 @@ void ShortVolStrategy::start() {
                 auto inst = refdata_.cache().get(state.perp_instrument_id);
                 if (inst) {
                     subs.push_back({state.perp_instrument_id, inst->exchange, inst->symbol});
-                    spdlog::info("[ShortVol] Subscribing perp BBO: {} id={} symbol={}",
-                                 state.underlying,
-                                 state.perp_instrument_id,
-                                 inst->symbol);
+                    ygg::log::info("[ShortVol] Subscribing perp BBO: {} id={} symbol={}",
+                                   state.underlying,
+                                   state.perp_instrument_id,
+                                   inst->symbol);
                 }
             }
         }
@@ -123,7 +122,7 @@ void ShortVolStrategy::start() {
             subs.push_back({inst.instrument_id, inst.exchange, inst.symbol});
             ++option_count;
         }
-        spdlog::info("[ShortVol] Subscribing {} option instruments for vol surface", option_count);
+        ygg::log::info("[ShortVol] Subscribing {} option instruments for vol surface", option_count);
 
         if (!subs.empty()) {
             md_client_->subscribe(correlation_id_, subs);
@@ -177,12 +176,12 @@ void ShortVolStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
 
         instrument_to_key_[inst.instrument_id] = key;
 
-        spdlog::info("[ShortVol] Discovered perp for {}: id={} exchange={} tick={} lot={}",
-                     inst.base_currency,
-                     inst.instrument_id,
-                     inst.exchange,
-                     inst.tick_size,
-                     inst.lot_size);
+        ygg::log::info("[ShortVol] Discovered perp for {}: id={} exchange={} tick={} lot={}",
+                       inst.base_currency,
+                       inst.instrument_id,
+                       inst.exchange,
+                       inst.tick_size,
+                       inst.lot_size);
     }
 
     // Also discover option instruments for our lookups.
@@ -208,7 +207,7 @@ void ShortVolStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
         instrument_to_key_[inst.instrument_id] = key;
     }
 
-    spdlog::info("[ShortVol] Snapshot processed: {} underlyings tracked", states_.size());
+    ygg::log::info("[ShortVol] Snapshot processed: {} underlyings tracked", states_.size());
 }
 
 void ShortVolStrategy::on_delta(const refdata::Instrument& inst,
@@ -266,7 +265,7 @@ void ShortVolStrategy::on_vol_surface(bifrost::protocol::VolSurface& surface) {
 
     auto state_it = states_.find(key);
     if (state_it == states_.end()) {
-        spdlog::info("[ShortVol] VolSurface key not found: {}", key);
+        ygg::log::info("[ShortVol] VolSurface key not found: {}", key);
         return;
     }
     auto& state = state_it->second;
@@ -296,19 +295,19 @@ void ShortVolStrategy::on_vol_surface(bifrost::protocol::VolSurface& surface) {
         instrument_to_key_[pt.instrumentId()] = key;
     }
 
-    spdlog::info("[ShortVol] VolSurface {} options={} rv_ready={} perp_bid={:.2f}",
-                 state.underlying,
-                 point_count,
-                 state.rv_estimator.ready(),
-                 state.perp_bid);
+    ygg::log::info("[ShortVol] VolSurface {} options={} rv_ready={} perp_bid={:.2f}",
+                   state.underlying,
+                   point_count,
+                   state.rv_estimator.ready(),
+                   state.perp_bid);
 
     recompute_greeks(state);
 
     const uint64_t now_ns = surface.timestampNs();
     if (now_ns - state.last_eval_ns >= eval_interval_ns_) {
-        spdlog::info("[ShortVol] Evaluating {} rv={:.4f}",
-                     state.underlying,
-                     state.rv_estimator.ready() ? state.rv_estimator.realized_vol() : 0.0);
+        ygg::log::info("[ShortVol] Evaluating {} rv={:.4f}",
+                       state.underlying,
+                       state.rv_estimator.ready() ? state.rv_estimator.realized_vol() : 0.0);
         evaluate(state, now_ns);
         state.last_eval_ns = now_ns;
     }
@@ -338,12 +337,12 @@ void ShortVolStrategy::on_exec_report(const bifrost::protocol::ExecutionReport& 
 
         if (is_perp) {
             state.perp_position_qty += signed_qty;
-            spdlog::info("[ShortVol] Perp fill: {} {} qty={:.6f} price={:.2f} pos={:.6f}",
-                         state.underlying,
-                         is_buy ? "BUY" : "SELL",
-                         fill_qty,
-                         fill_price,
-                         state.perp_position_qty);
+            ygg::log::info("[ShortVol] Perp fill: {} {} qty={:.6f} price={:.2f} pos={:.6f}",
+                           state.underlying,
+                           is_buy ? "BUY" : "SELL",
+                           fill_qty,
+                           fill_price,
+                           state.perp_position_qty);
         } else {
             const uint64_t inst_id = rpt.instrumentId();
             auto opt_it = state.options.find(inst_id);
@@ -351,13 +350,13 @@ void ShortVolStrategy::on_exec_report(const bifrost::protocol::ExecutionReport& 
                 auto& leg = opt_it->second;
                 leg.position_qty += signed_qty;
                 leg.entry_price = fill_price;
-                spdlog::info("[ShortVol] Option fill: {} {} K={:.0f} qty={:.6f} price={:.4f} pos={:.6f}",
-                             state.underlying,
-                             is_buy ? "BUY" : "SELL",
-                             leg.strike,
-                             fill_qty,
-                             fill_price,
-                             leg.position_qty);
+                ygg::log::info("[ShortVol] Option fill: {} {} K={:.0f} qty={:.6f} price={:.4f} pos={:.6f}",
+                               state.underlying,
+                               is_buy ? "BUY" : "SELL",
+                               leg.strike,
+                               fill_qty,
+                               fill_price,
+                               leg.position_qty);
             }
 
             recompute_greeks(state);
@@ -369,17 +368,17 @@ void ShortVolStrategy::on_exec_report(const bifrost::protocol::ExecutionReport& 
         const auto src = rpt.rejectSource();
         const bool gateway_reject = (src == RejectSource::GATEWAY || src == RejectSource::RISK);
         if (gateway_reject)
-            spdlog::error("[ShortVol] {} order_id={} REJECTED reason={} source={}",
-                          state.underlying,
-                          oid,
-                          bifrost::protocol::RejectReason::c_str(rpt.rejectReason()),
-                          bifrost::protocol::RejectSource::c_str(src));
+            ygg::log::error("[ShortVol] {} order_id={} REJECTED reason={} source={}",
+                            state.underlying,
+                            oid,
+                            bifrost::protocol::RejectReason::c_str(rpt.rejectReason()),
+                            bifrost::protocol::RejectSource::c_str(src));
         else
-            spdlog::warn("[ShortVol] {} order_id={} REJECTED reason={} source={}",
-                         state.underlying,
-                         oid,
-                         bifrost::protocol::RejectReason::c_str(rpt.rejectReason()),
-                         bifrost::protocol::RejectSource::c_str(src));
+            ygg::log::warn("[ShortVol] {} order_id={} REJECTED reason={} source={}",
+                           state.underlying,
+                           oid,
+                           bifrost::protocol::RejectReason::c_str(rpt.rejectReason()),
+                           bifrost::protocol::RejectSource::c_str(src));
     }
 
     if (status == ExecStatus::FILLED || status == ExecStatus::CANCELLED || status == ExecStatus::REJECTED) {
@@ -399,7 +398,7 @@ void ShortVolStrategy::on_exec_report(const bifrost::protocol::ExecutionReport& 
 
 void ShortVolStrategy::evaluate(UnderlyingState& state, uint64_t now_ns) {
     if (!order_mgr_) {
-        spdlog::debug("[ShortVol] eval: no order_mgr");
+        ygg::log::debug("[ShortVol] eval: no order_mgr");
         return;
     }
     if (state.perp_bid <= 0.0 || state.perp_ask <= 0.0) {
@@ -420,22 +419,22 @@ void ShortVolStrategy::evaluate(UnderlyingState& state, uint64_t now_ns) {
 
         if (leg.time_to_expiry < min_time_to_expiry_ || leg.time_to_expiry > max_time_to_expiry_) {
             if (log_detail)
-                spdlog::info("[ShortVol] eval skip {}: T={:.2f}d outside [{:.1f},{:.1f}]",
-                             inst_id,
-                             leg.time_to_expiry * 365.0,
-                             min_time_to_expiry_ * 365.0,
-                             max_time_to_expiry_ * 365.0);
+                ygg::log::info("[ShortVol] eval skip {}: T={:.2f}d outside [{:.1f},{:.1f}]",
+                               inst_id,
+                               leg.time_to_expiry * 365.0,
+                               min_time_to_expiry_ * 365.0,
+                               max_time_to_expiry_ * 365.0);
             continue;
         }
 
         const double abs_delta = std::abs(leg.delta);
         if (abs_delta < min_abs_delta_ || abs_delta > max_abs_delta_) {
             if (log_detail)
-                spdlog::info("[ShortVol] eval skip {}: delta={:.4f} outside [{:.2f},{:.2f}]",
-                             inst_id,
-                             leg.delta,
-                             min_abs_delta_,
-                             max_abs_delta_);
+                ygg::log::info("[ShortVol] eval skip {}: delta={:.4f} outside [{:.2f},{:.2f}]",
+                               inst_id,
+                               leg.delta,
+                               min_abs_delta_,
+                               max_abs_delta_);
             continue;
         }
 
@@ -463,7 +462,7 @@ void ShortVolStrategy::evaluate(UnderlyingState& state, uint64_t now_ns) {
             const double aggress_offset = spread * aggress_bps_ / 10000.0;
             const double limit_price = leg.bid_price - aggress_offset;
 
-            spdlog::info(
+            ygg::log::info(
                 "[ShortVol] SELL {} {} K={:.0f} iv={:.3f} rv={:.3f} spread={:.3f} "
                 "qty={:.6f} price={:.4f}",
                 state.underlying,
@@ -491,7 +490,7 @@ void ShortVolStrategy::evaluate(UnderlyingState& state, uint64_t now_ns) {
             const double limit_price = leg.ask_price + aggress_offset;
             const double qty = std::abs(leg.position_qty);
 
-            spdlog::info(
+            ygg::log::info(
                 "[ShortVol] BUY-TO-CLOSE {} {} K={:.0f} iv={:.3f} rv={:.3f} "
                 "qty={:.6f} price={:.4f}",
                 state.underlying,
@@ -546,7 +545,7 @@ void ShortVolStrategy::rebalance_hedge(UnderlyingState& state, uint64_t /*now_ns
         price = std::round(price / state.perp_tick_size) * state.perp_tick_size;
     }
 
-    spdlog::info(
+    ygg::log::info(
         "[ShortVol] HEDGE {} perp {} qty={:.6f} price={:.2f} "
         "portfolio_delta={:.4f} target_perp={:.4f}",
         state.underlying,

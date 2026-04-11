@@ -54,8 +54,12 @@ public:
     [[nodiscard]] OrderState* get_mut(uint64_t order_id);
 
     // Update lifecycle. Returns false if order not found.
-    bool update(uint64_t order_id, OrderLifecycle new_lifecycle, uint64_t exchange_order_id,
-                uint64_t filled_qty, uint64_t remaining_qty, uint64_t timestamp_ns);
+    bool update(uint64_t order_id,
+                OrderLifecycle new_lifecycle,
+                uint64_t exchange_order_id,
+                uint64_t filled_qty,
+                uint64_t remaining_qty,
+                uint64_t timestamp_ns);
 
     // Remove a terminal order (FILLED, CANCELLED, REJECTED).
     void remove(uint64_t order_id);
@@ -71,8 +75,7 @@ public:
     template <typename Fn>
     void for_each_open(Fn&& fn) {
         for (auto& [id, state] : orders_) {
-            if (state.lifecycle == OrderLifecycle::PENDING ||
-                state.lifecycle == OrderLifecycle::ACKED ||
+            if (state.lifecycle == OrderLifecycle::PENDING || state.lifecycle == OrderLifecycle::ACKED ||
                 state.lifecycle == OrderLifecycle::PARTIALLY_FILLED) {
                 fn(state);
             }
@@ -83,8 +86,7 @@ public:
     template <typename Fn>
     void check_stale(uint64_t now_ns, uint64_t timeout_ns, Fn&& fn) {
         for (auto& [id, state] : orders_) {
-            if (state.lifecycle == OrderLifecycle::ACKED &&
-                now_ns - state.last_update_ns > timeout_ns) {
+            if (state.lifecycle == OrderLifecycle::ACKED && now_ns - state.last_update_ns > timeout_ns) {
                 fn(state);
             }
         }

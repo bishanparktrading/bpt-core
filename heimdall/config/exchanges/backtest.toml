@@ -1,0 +1,26 @@
+# Exchange adapter endpoints — BACKTEST mode
+# Points to Jormungandr's local order WS servers instead of real exchanges.
+# use_tls = false: Jormungandr serves plain TCP WebSocket (no TLS).
+# No credentials needed — Jormungandr's order servers are unauthenticated.
+
+[[adapters]]
+exchange    = "BINANCE"
+secret_name = ""
+testnet     = false
+rest_host   = "127.0.0.1"
+rest_port   = "18110"
+ws_host     = "127.0.0.1"
+ws_port     = "18110"
+ws_path     = "/ws"
+use_tls     = false
+
+[[adapters]]
+exchange    = "OKX"
+secret_name = ""
+testnet     = false
+rest_host   = "127.0.0.1"
+rest_port   = "18111"
+ws_host     = "127.0.0.1"
+ws_port     = "18111"
+ws_path     = "/ws/v5/private"
+use_tls     = false

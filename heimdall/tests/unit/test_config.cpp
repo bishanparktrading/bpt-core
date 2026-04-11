@@ -1,12 +1,11 @@
 // Unit tests for heimdall::config::load() — no network, no Aeron.
-#include <gtest/gtest.h>
+#include "heimdall/config/settings.h"
 
 #include <filesystem>
 #include <fstream>
+#include <gtest/gtest.h>
 #include <stdexcept>
 #include <string>
-
-#include "heimdall/config/settings.h"
 
 namespace fs = std::filesystem;
 
@@ -168,7 +167,8 @@ exchange = "HYPERLIQUID"
 
     ASSERT_EQ(s.heimdall.adapters.size(), 2u);
     std::vector<std::string> loaded;
-    for (const auto& a : s.heimdall.adapters) loaded.push_back(a.exchange);
+    for (const auto& a : s.heimdall.adapters)
+        loaded.push_back(a.exchange);
     EXPECT_TRUE(std::find(loaded.begin(), loaded.end(), "OKX") != loaded.end());
     EXPECT_TRUE(std::find(loaded.begin(), loaded.end(), "BINANCE") != loaded.end());
 }

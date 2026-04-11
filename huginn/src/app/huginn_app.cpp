@@ -11,7 +11,6 @@
 #include <bifrost_protocol/MessageHeader.h>
 
 #include <chrono>
-#include <spdlog/spdlog.h>
 #include <thread>
 #include <yggdrasil/aeron/aeron_utils.h>
 #include <yggdrasil/signal.h>
@@ -43,7 +42,7 @@ HuginnApp::HuginnApp(config::Settings cfg, std::shared_ptr<aeron::Aeron> aeron)
         } else if (a_cfg.exchange == "DERIBIT") {
             adapter = std::make_shared<adapter::DeribitAdapter>(a_cfg, md_pub_);
         } else {
-            spdlog::warn("Unknown exchange in config: {}", a_cfg.exchange);
+            ygg::log::warn("Unknown exchange in config: {}", a_cfg.exchange);
             continue;
         }
 
@@ -71,7 +70,7 @@ HuginnApp::HuginnApp(config::Settings cfg, std::shared_ptr<aeron::Aeron> aeron)
         sub_mgr_.add_adapter(std::move(adapter));
     }
 
-    spdlog::info("Huginn ready — polling control stream {}", cfg_.aeron.control.stream_id);
+    ygg::log::info("Huginn ready — polling control stream {}", cfg_.aeron.control.stream_id);
 }
 
 void HuginnApp::run() {
@@ -105,7 +104,7 @@ void HuginnApp::run() {
                           hdr.version(),
                           static_cast<std::size_t>(length));
 
-        spdlog::info("Received MdSubscribeBatch correlation_id={}", msg.correlationId());
+        ygg::log::info("Received MdSubscribeBatch correlation_id={}", msg.correlationId());
         sub_mgr_.apply_batch(msg, ack_pub_);
         metrics_.subscription_batches_total->Increment();
     });
@@ -147,7 +146,7 @@ void HuginnApp::run() {
 
     sub_mgr_.stop_all();
     metrics_.shutdown();
-    spdlog::info("Huginn shutting down");
+    ygg::log::info("Huginn shutting down");
 }
 
 }  // namespace huginn

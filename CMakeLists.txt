@@ -33,9 +33,19 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(fast_float)
 
+# Quill — low-latency async logger (formats on backend thread, ~3-10ns hot path)
+# QUILL_FMT_EXTERNAL: reuse the vcpkg fmt already in the build, avoiding ODR issues.
+set(QUILL_FMT_EXTERNAL ON  CACHE BOOL "" FORCE)
+set(QUILL_NO_EXCEPTIONS  OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    quill
+    GIT_REPOSITORY https://github.com/odygrd/quill.git
+    GIT_TAG        v8.1.0
+)
+FetchContent_MakeAvailable(quill)
+
 # ── vcpkg dependencies (resolved once, available to all subdirectories) ───────
 find_package(fmt            REQUIRED)
-find_package(spdlog         REQUIRED)
 find_package(tomlplusplus   CONFIG REQUIRED)
 find_package(OpenSSL        REQUIRED)
 find_package(Boost          REQUIRED COMPONENTS system json)
@@ -63,3 +73,4 @@ add_subdirectory(heimdall)
 add_subdirectory(muninn)
 add_subdirectory(surtr)
 add_subdirectory(jormungandr)
+add_subdirectory(dashboard/bridge)

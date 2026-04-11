@@ -1,9 +1,10 @@
 // Unit tests for RiskChecker — all pure logic, no network, no Aeron.
+#include "heimdall/risk/risk_checker.h"
+
 #include <bifrost_protocol/ExchangeId.h>
 #include <bifrost_protocol/RejectReason.h>
-#include <gtest/gtest.h>
 
-#include "heimdall/risk/risk_checker.h"
+#include <gtest/gtest.h>
 
 using namespace heimdall::risk;
 using EX = bifrost::protocol::ExchangeId;

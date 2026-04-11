@@ -9,7 +9,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <spdlog/spdlog.h>
 
 using bifrost::protocol::ExchangeId;
 using bifrost::protocol::ExecStatus;
@@ -66,24 +65,24 @@ HmmStrategy::HmmStrategy(uint64_t correlation_id,
       refdata_(refdata),
       md_client_(md),
       order_mgr_(order_mgr) {
-    spdlog::info("[HMM] confidence={:.2f} min_dwell={} bar={:.1f}s depth={}",
-                 confidence_threshold_,
-                 min_dwell_bars_,
-                 bar_interval_ns_ / 1e9,
-                 order_book_depth_);
-    spdlog::info("[HMM] momentum: ema={}/{} atr={} stop={:.1f}x target={:.1f}x qty_usd={:.0f}",
-                 ema_fast_period_,
-                 ema_slow_period_,
-                 atr_period_,
-                 atr_stop_mult_,
-                 atr_target_mult_,
-                 momentum_qty_usd_);
-    spdlog::info("[HMM] reversion: dev={:.1f}x_atr close={:.1f}x_atr stop={:.1f}x_atr qty_usd={:.0f}",
-                 vwap_deviation_atr_,
-                 vwap_close_atr_,
-                 vwap_stop_atr_,
-                 reversion_qty_usd_);
-    spdlog::info(
+    ygg::log::info("[HMM] confidence={:.2f} min_dwell={} bar={:.1f}s depth={}",
+                   confidence_threshold_,
+                   min_dwell_bars_,
+                   bar_interval_ns_ / 1e9,
+                   order_book_depth_);
+    ygg::log::info("[HMM] momentum: ema={}/{} atr={} stop={:.1f}x target={:.1f}x qty_usd={:.0f}",
+                   ema_fast_period_,
+                   ema_slow_period_,
+                   atr_period_,
+                   atr_stop_mult_,
+                   atr_target_mult_,
+                   momentum_qty_usd_);
+    ygg::log::info("[HMM] reversion: dev={:.1f}x_atr close={:.1f}x_atr stop={:.1f}x_atr qty_usd={:.0f}",
+                   vwap_deviation_atr_,
+                   vwap_close_atr_,
+                   vwap_stop_atr_,
+                   reversion_qty_usd_);
+    ygg::log::info(
         "[HMM] mm: gamma={:.2f} k={:.2f} horizon={:.1f}s qty_usd={:.0f} "
         "max_inv_usd={:.0f} requote_ms={} min_spread={:.1f}bps",
         mm_gamma_,
@@ -130,7 +129,7 @@ void HmmStrategy::start() {
 
 void HmmStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
     if (!state_.empty()) {
-        spdlog::debug("[HMM] Ignoring duplicate snapshot ({} instruments)", cache.size());
+        ygg::log::debug("[HMM] Ignoring duplicate snapshot ({} instruments)", cache.size());
         return;
     }
 
@@ -156,15 +155,15 @@ void HmmStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
         st.tick_size = inst->tick_size;
         st.lot_size = inst->lot_size;
 
-        spdlog::info("[HMM] Instrument [{}] {} @ {} tick={} lot={}",
-                     id,
-                     inst->symbol,
-                     inst->exchange,
-                     inst->tick_size,
-                     inst->lot_size);
+        ygg::log::info("[HMM] Instrument [{}] {} @ {} tick={} lot={}",
+                       id,
+                       inst->symbol,
+                       inst->exchange,
+                       inst->tick_size,
+                       inst->lot_size);
         state_.emplace(id, std::move(st));
     }
-    spdlog::info("[HMM] Resolved {} instrument(s)", state_.size());
+    ygg::log::info("[HMM] Resolved {} instrument(s)", state_.size());
 
     if (!md_client_)
         return;
@@ -219,9 +218,9 @@ void HmmStrategy::on_bbo(const bifrost::protocol::MdMarketData& tick) {
     if (st.warming_up || st.transitioning) {
         // Transition timeout: force-complete after 10 s.
         if (st.transitioning && st.last_bbo_ns - st.transition_start_ns > kTransitionTimeoutNs) {
-            spdlog::warn("[HMM] {} transition timeout — force completing ({} pending cancels)",
-                         st.symbol,
-                         st.pending_cancels.size());
+            ygg::log::warn("[HMM] {} transition timeout — force completing ({} pending cancels)",
+                           st.symbol,
+                           st.pending_cancels.size());
             for (uint64_t oid : st.pending_cancels)
                 order_to_instrument_.erase(oid);
             st.pending_cancels.clear();
@@ -395,7 +394,7 @@ void HmmStrategy::on_bar_close(InstrumentState& st) {
             break;
     }
 
-    spdlog::debug(
+    ygg::log::debug(
         "[HMM] {} regime={} conf={:.2f} dwell={} mid={:.2f} "
         "atr={:.4f} ewma_vol={:.6f} spread={:.1f}bps",
         st.symbol,
@@ -446,16 +445,16 @@ void HmmStrategy::evaluate_regime(InstrumentState& st) {
     if (confidence < confidence_threshold_ || st.regime_dwell < min_dwell_bars_)
         return;
 
-    spdlog::info("[HMM] {} regime {} → {} (conf={:.3f} α=[{:.2f},{:.2f},{:.2f},{:.2f}] dwell={})",
-                 st.symbol,
-                 HmmFilter::state_name(st.regime),
-                 HmmFilter::state_name(dominant),
-                 confidence,
-                 st.hmm.alpha()[0],
-                 st.hmm.alpha()[1],
-                 st.hmm.alpha()[2],
-                 st.hmm.alpha()[3],
-                 st.regime_dwell);
+    ygg::log::info("[HMM] {} regime {} → {} (conf={:.3f} α=[{:.2f},{:.2f},{:.2f},{:.2f}] dwell={})",
+                   st.symbol,
+                   HmmFilter::state_name(st.regime),
+                   HmmFilter::state_name(dominant),
+                   confidence,
+                   st.hmm.alpha()[0],
+                   st.hmm.alpha()[1],
+                   st.hmm.alpha()[2],
+                   st.hmm.alpha()[3],
+                   st.regime_dwell);
 
     begin_transition(st, dominant);
 }
@@ -508,10 +507,10 @@ void HmmStrategy::check_transition_complete(InstrumentState& st) {
                                        static_cast<double>(std::abs(net)) / kQtyScale);
         if (st.close_order_id != 0) {
             st.closing_position = true;
-            spdlog::info("[HMM] {} closing position (net={}) before entering {}",
-                         st.symbol,
-                         net,
-                         HmmFilter::state_name(st.target_regime));
+            ygg::log::info("[HMM] {} closing position (net={}) before entering {}",
+                           st.symbol,
+                           net,
+                           HmmFilter::state_name(st.target_regime));
             return;
         }
     }
@@ -524,7 +523,7 @@ void HmmStrategy::check_transition_complete(InstrumentState& st) {
     st.has_momentum_position = false;
     st.has_reversion_position = false;
 
-    spdlog::info("[HMM] {} now in regime {}", st.symbol, HmmFilter::state_name(st.regime));
+    ygg::log::info("[HMM] {} now in regime {}", st.symbol, HmmFilter::state_name(st.regime));
 
     if (st.regime == HmmFilter::State::HIGH_VOL)
         mm_quote(st);
@@ -572,12 +571,12 @@ void HmmStrategy::momentum_check_signal(InstrumentState& st) {
     st.momentum_side = side;
     st.momentum_order_id = send_order(st, side, OrderType::LIMIT, TimeInForce::IOC, price, qty);
 
-    spdlog::info("[HMM] {} momentum {} signal: ema_fast={:.4f} ema_slow={:.4f} atr={:.4f}",
-                 st.symbol,
-                 trend_up ? "BUY" : "SELL",
-                 st.ema_fast,
-                 st.ema_slow,
-                 st.bar_atr);
+    ygg::log::info("[HMM] {} momentum {} signal: ema_fast={:.4f} ema_slow={:.4f} atr={:.4f}",
+                   st.symbol,
+                   trend_up ? "BUY" : "SELL",
+                   st.ema_fast,
+                   st.ema_slow,
+                   st.bar_atr);
 }
 
 void HmmStrategy::momentum_check_exit(InstrumentState& st, double mid) {
@@ -612,12 +611,12 @@ void HmmStrategy::momentum_check_exit(InstrumentState& st, double mid) {
     }
 
     if (should_exit) {
-        spdlog::info("[HMM] {} momentum exit: {} mid={:.2f} stop={:.2f} target={:.2f}",
-                     st.symbol,
-                     reason,
-                     mid,
-                     st.momentum_stop,
-                     st.momentum_target);
+        ygg::log::info("[HMM] {} momentum exit: {} mid={:.2f} stop={:.2f} target={:.2f}",
+                       st.symbol,
+                       reason,
+                       mid,
+                       st.momentum_stop,
+                       st.momentum_target);
         momentum_close_position(st);
     }
 }
@@ -667,7 +666,7 @@ void HmmStrategy::reversion_check_signal(InstrumentState& st) {
         (side == OrderSide::SELL) ? mid + vwap_stop_atr_ * st.bar_atr : mid - vwap_stop_atr_ * st.bar_atr;
     st.reversion_order_id = send_order(st, side, OrderType::LIMIT, TimeInForce::IOC, price, qty);
 
-    spdlog::info(
+    ygg::log::info(
         "[HMM] {} vwap reversion {}: mid={:.4f} vwap={:.4f} dev={:.4f} "
         "thr={:.4f} stop={:.4f}",
         st.symbol,
@@ -711,7 +710,7 @@ void HmmStrategy::reversion_check_exit(InstrumentState& st, double mid) {
     }
 
     if (should_exit) {
-        spdlog::info("[HMM] {} reversion exit: {} mid={:.4f} vwap={:.4f}", st.symbol, reason, mid, wvap);
+        ygg::log::info("[HMM] {} reversion exit: {} mid={:.4f} vwap={:.4f}", st.symbol, reason, mid, wvap);
         reversion_close_position(st);
     }
 }
@@ -790,14 +789,14 @@ void HmmStrategy::mm_quote(InstrumentState& st) {
     }
 
     st.mm_last_quote_ns = st.last_bbo_ns;
-    spdlog::debug("[HMM] {} mm: bid={:.4f} ask={:.4f} res={:.4f} hs={:.4f} q={:.6f} σ_T={:.6f}",
-                  st.symbol,
-                  new_bid,
-                  new_ask,
-                  reservation,
-                  half_spread,
-                  q,
-                  sigma_T);
+    ygg::log::debug("[HMM] {} mm: bid={:.4f} ask={:.4f} res={:.4f} hs={:.4f} q={:.6f} σ_T={:.6f}",
+                    st.symbol,
+                    new_bid,
+                    new_ask,
+                    reservation,
+                    half_spread,
+                    q,
+                    sigma_T);
 }
 
 void HmmStrategy::mm_cancel_quotes(InstrumentState& st) {
@@ -830,18 +829,18 @@ void HmmStrategy::on_exec_report(const bifrost::protocol::ExecutionReport& rpt) 
         return;
 
     if (status == ExecStatus::REJECTED) {
-        spdlog::warn("[HMM] {} order_id={} REJECTED reason={} source={}",
-                     st.symbol,
-                     order_id,
-                     bifrost::protocol::RejectReason::c_str(rpt.rejectReason()),
-                     bifrost::protocol::RejectSource::c_str(rpt.rejectSource()));
+        ygg::log::warn("[HMM] {} order_id={} REJECTED reason={} source={}",
+                       st.symbol,
+                       order_id,
+                       bifrost::protocol::RejectReason::c_str(rpt.rejectReason()),
+                       bifrost::protocol::RejectSource::c_str(rpt.rejectSource()));
     } else {
-        spdlog::info("[HMM] {} order_id={} {} filled={:.6f}@{:.4f}",
-                     st.symbol,
-                     order_id,
-                     bifrost::protocol::ExecStatus::c_str(status),
-                     static_cast<double>(rpt.filledQty()) / kQtyScale,
-                     static_cast<double>(rpt.price()) / kPriceScale);
+        ygg::log::info("[HMM] {} order_id={} {} filled={:.6f}@{:.4f}",
+                       st.symbol,
+                       order_id,
+                       bifrost::protocol::ExecStatus::c_str(status),
+                       static_cast<double>(rpt.filledQty()) / kQtyScale,
+                       static_cast<double>(rpt.price()) / kPriceScale);
     }
 
     if (status == ExecStatus::FILLED || status == ExecStatus::PARTIAL)
@@ -859,9 +858,9 @@ void HmmStrategy::on_exec_report(const bifrost::protocol::ExecutionReport& rpt) 
         if (!gw_reject) {
             if (++st.consecutive_rejects >= 3) {
                 st.reject_cooldown_until_ns = st.last_bbo_ns + 30'000'000'000ULL;
-                spdlog::warn("[HMM] {} 30s reject cooldown after {} consecutive rejects",
-                             st.symbol,
-                             st.consecutive_rejects);
+                ygg::log::warn("[HMM] {} 30s reject cooldown after {} consecutive rejects",
+                               st.symbol,
+                               st.consecutive_rejects);
             }
         }
     } else {
@@ -886,7 +885,7 @@ void HmmStrategy::on_exec_report(const bifrost::protocol::ExecutionReport& rpt) 
                 if (st.has_momentum_position) {
                     st.has_momentum_position = false;
                     st.momentum_order_id = 0;
-                    spdlog::info("[HMM] {} momentum position closed", st.symbol);
+                    ygg::log::info("[HMM] {} momentum position closed", st.symbol);
                 } else {
                     st.has_momentum_position = true;
                     const double entry = static_cast<double>(rpt.price()) / kPriceScale;
@@ -898,12 +897,12 @@ void HmmStrategy::on_exec_report(const bifrost::protocol::ExecutionReport& rpt) 
                         st.momentum_stop = entry + atr_stop_mult_ * st.bar_atr;
                         st.momentum_target = entry - atr_target_mult_ * st.bar_atr;
                     }
-                    spdlog::info("[HMM] {} momentum entered {} entry={:.4f} stop={:.4f} target={:.4f}",
-                                 st.symbol,
-                                 st.momentum_side == OrderSide::BUY ? "LONG" : "SHORT",
-                                 entry,
-                                 st.momentum_stop,
-                                 st.momentum_target);
+                    ygg::log::info("[HMM] {} momentum entered {} entry={:.4f} stop={:.4f} target={:.4f}",
+                                   st.symbol,
+                                   st.momentum_side == OrderSide::BUY ? "LONG" : "SHORT",
+                                   entry,
+                                   st.momentum_stop,
+                                   st.momentum_target);
                 }
             } else {
                 st.momentum_order_id = 0;
@@ -917,10 +916,10 @@ void HmmStrategy::on_exec_report(const bifrost::protocol::ExecutionReport& rpt) 
                 if (st.has_reversion_position) {
                     st.has_reversion_position = false;
                     st.reversion_order_id = 0;
-                    spdlog::info("[HMM] {} reversion position closed", st.symbol);
+                    ygg::log::info("[HMM] {} reversion position closed", st.symbol);
                 } else {
                     st.has_reversion_position = true;
-                    spdlog::info("[HMM] {} reversion entered", st.symbol);
+                    ygg::log::info("[HMM] {} reversion entered", st.symbol);
                 }
             } else {
                 st.reversion_order_id = 0;
@@ -931,15 +930,15 @@ void HmmStrategy::on_exec_report(const bifrost::protocol::ExecutionReport& rpt) 
     else if (st.regime == HmmFilter::State::HIGH_VOL) {
         if (order_id == st.mm_bid_id) {
             if (status == ExecStatus::FILLED)
-                spdlog::info("[HMM] {} mm bid filled @ {:.4f}",
-                             st.symbol,
-                             static_cast<double>(rpt.price()) / kPriceScale);
+                ygg::log::info("[HMM] {} mm bid filled @ {:.4f}",
+                               st.symbol,
+                               static_cast<double>(rpt.price()) / kPriceScale);
             st.mm_bid_id = 0;
         } else if (order_id == st.mm_ask_id) {
             if (status == ExecStatus::FILLED)
-                spdlog::info("[HMM] {} mm ask filled @ {:.4f}",
-                             st.symbol,
-                             static_cast<double>(rpt.price()) / kPriceScale);
+                ygg::log::info("[HMM] {} mm ask filled @ {:.4f}",
+                               st.symbol,
+                               static_cast<double>(rpt.price()) / kPriceScale);
             st.mm_ask_id = 0;
         }
     }
@@ -982,13 +981,13 @@ uint64_t HmmStrategy::send_order(InstrumentState& st,
         return 0;
 
     order_to_instrument_[order_id] = st.instrument_id;
-    spdlog::info("[HMM] {} {} {} @ {:.4f} qty={:.6f} → order_id={}",
-                 st.symbol,
-                 side == OrderSide::BUY ? "BUY" : "SELL",
-                 tif == TimeInForce::GTC ? "GTC" : "IOC",
-                 price,
-                 qty,
-                 order_id);
+    ygg::log::info("[HMM] {} {} {} @ {:.4f} qty={:.6f} → order_id={}",
+                   st.symbol,
+                   side == OrderSide::BUY ? "BUY" : "SELL",
+                   tif == TimeInForce::GTC ? "GTC" : "IOC",
+                   price,
+                   qty,
+                   order_id);
     return order_id;
 }
 

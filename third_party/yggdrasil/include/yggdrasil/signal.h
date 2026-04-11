@@ -7,7 +7,7 @@
 //   while (ygg::signal::is_running()) { ... }
 
 #include <csignal>
-#include <spdlog/spdlog.h>
+#include <yggdrasil/logging.h>
 
 namespace ygg::signal {
 
@@ -19,9 +19,9 @@ inline volatile std::sig_atomic_t g_running = 1;
 
 inline void handler(int signum) {
     detail::g_running = 0;
-    // spdlog async logging from a signal handler is not strictly signal-safe,
+    // Async logging from a signal handler is not strictly signal-safe,
     // but is acceptable here since we are already shutting down.
-    spdlog::info("Signal {} received, shutting down...", signum);
+    ygg::log::info("Signal {} received, shutting down...", signum);
 }
 
 // Register SIGINT and SIGTERM handlers.  Call once at the top of main.

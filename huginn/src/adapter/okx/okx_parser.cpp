@@ -4,7 +4,7 @@
 #include <bifrost_protocol/TradeSide.h>
 
 #include <cmath>
-#include <spdlog/spdlog.h>
+#include <yggdrasil/logging.h>
 #include <yggdrasil/util/parse_double.h>
 #include <yggdrasil/util/tsc_clock.h>
 
@@ -28,7 +28,7 @@ void OkxParser::parse(std::string_view payload,
         bool has_event = !doc.find_field_unordered("event").get_string().get(event_sv);
         doc.rewind();
         if (has_event) {
-            spdlog::info("OKX event: {}", event_sv);
+            ygg::log::info("OKX event: {}", event_sv);
             return;
         }
     }
@@ -131,7 +131,7 @@ void OkxParser::handle_bbo(simdjson::ondemand::object& entry,
     uint64_t lat_ns = ygg::util::TscClock::now_mono_ns() - parse_start_ns;
     decode_lat_.record(lat_ns);
     if (++tick_count_ <= 20 || tick_count_ % 500 == 0)
-        spdlog::info("OKX BBO decode: {}ns tick={}", lat_ns, tick_count_);
+        ygg::log::info("OKX BBO decode: {}ns tick={}", lat_ns, tick_count_);
     pub.publish(bbo);
 }
 
@@ -198,7 +198,7 @@ void OkxParser::handle_book(simdjson::ondemand::object& entry,
     uint64_t lat_ns = ygg::util::TscClock::now_mono_ns() - parse_start_ns;
     decode_lat_.record(lat_ns);
     if (++tick_count_ <= 20 || tick_count_ % 500 == 0)
-        spdlog::info("OKX book decode: {}ns tick={}", lat_ns, tick_count_);
+        ygg::log::info("OKX book decode: {}ns tick={}", lat_ns, tick_count_);
 
     md::MdBbo bbo{recv_ns,
                   instrument_id,

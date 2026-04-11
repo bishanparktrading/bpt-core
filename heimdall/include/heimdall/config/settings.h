@@ -1,11 +1,10 @@
 #pragma once
 
-#include <yggdrasil/aeron/stream_config.h>
-#include <yggdrasil/logging.h>
-
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <yggdrasil/aeron/stream_config.h>
+#include <yggdrasil/logging.h>
 
 namespace heimdall::config {
 
@@ -47,10 +46,9 @@ struct HeimdallConfig {
 };
 
 struct Settings {
-    std::string environment;  // "prod" | "qa" | "dev" — logged at startup, validated against
-                              // exchange_config
-    std::vector<std::string>
-        exchanges;  // exchanges to activate from exchange_config (e.g. ["OKX", "BINANCE"])
+    std::string environment;             // "prod" | "qa" | "dev" — logged at startup, validated against
+                                         // exchange_config
+    std::vector<std::string> exchanges;  // exchanges to activate from exchange_config (e.g. ["OKX", "BINANCE"])
     AeronConfig aeron;
     HeimdallConfig heimdall;
     ygg::logging::LogConfig logging;

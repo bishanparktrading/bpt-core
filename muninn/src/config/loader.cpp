@@ -1,10 +1,9 @@
 #include "muninn/config/settings.h"
-#include <yggdrasil/logging_toml.h>
 
 #include <fmt/ranges.h>
-#include <spdlog/spdlog.h>
 #include <toml++/toml.hpp>
 #include <unordered_set>
+#include <yggdrasil/logging_toml.h>
 
 namespace muninn::config {
 
@@ -24,7 +23,7 @@ ygg::config::StreamConfig load_stream(const toml::table* t, std::string default_
 }  // namespace
 
 Settings load(const std::string& path) {
-    spdlog::info("Loading configuration from: {}", path);
+    ygg::log::info("Loading configuration from: {}", path);
 
     toml::table root = toml::parse_file(path);
 
@@ -50,12 +49,12 @@ Settings load(const std::string& path) {
         const bool path_has_testnet = exchange_config_path.find("testnet") != std::string::npos;
         if ((settings.environment == "prod" && path_has_testnet) ||
             ((settings.environment == "qa" || settings.environment == "dev") && path_has_live))
-            spdlog::warn("environment = \"{}\" but exchange_config = \"{}\" — possible misconfiguration",
-                         settings.environment,
-                         exchange_config_path);
+            ygg::log::warn("environment = \"{}\" but exchange_config = \"{}\" — possible misconfiguration",
+                           settings.environment,
+                           exchange_config_path);
     }
 
-    spdlog::info("Environment: {}", settings.environment.empty() ? "(not set)" : settings.environment);
+    ygg::log::info("Environment: {}", settings.environment.empty() ? "(not set)" : settings.environment);
 
     // Read the exchanges filter from the instance config.
     std::unordered_set<std::string> exchange_filter;
@@ -64,7 +63,7 @@ Settings load(const std::string& path) {
             if (auto v = elem.value<std::string>())
                 exchange_filter.insert(*v);
         settings.exchanges = {exchange_filter.begin(), exchange_filter.end()};
-        spdlog::info("Exchange filter: [{}]", fmt::join(settings.exchanges, ", "));
+        ygg::log::info("Exchange filter: [{}]", fmt::join(settings.exchanges, ", "));
     }
 
     if (auto* aeron = root["aeron"].as_table()) {

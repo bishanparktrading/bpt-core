@@ -1,5 +1,7 @@
 #pragma once
 
+#include "heimdall/refdata/instrument.h"
+
 #include <bifrost_protocol/DeltaUpdateType.h>
 #include <bifrost_protocol/RefDataDelta.h>
 #include <bifrost_protocol/RefDataSnapshot.h>
@@ -7,8 +9,6 @@
 #include <optional>
 #include <unordered_map>
 #include <vector>
-
-#include "heimdall/refdata/instrument.h"
 
 namespace heimdall::refdata {
 

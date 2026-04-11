@@ -1,7 +1,7 @@
 #include "huginn/messaging/md_publisher.h"
 
-#include <spdlog/spdlog.h>
 #include <yggdrasil/aeron/aeron_utils.h>
+#include <yggdrasil/logging.h>
 
 namespace huginn::messaging {
 
@@ -40,7 +40,7 @@ void MdPublisher::offer(const char* buf, std::size_t len, uint64_t instrument_id
     if (publication_->offer(ab, 0, static_cast<aeron::util::index_t>(len)) < 0) {
         uint64_t d = drops_.fetch_add(1, std::memory_order_relaxed) + 1;
         if (d <= 5 || d % 1000 == 0)
-            spdlog::warn("[MdPublisher] {} dropped (backpressure): id={} drops={}", label, instrument_id, d);
+            ygg::log::warn("[MdPublisher] {} dropped (backpressure): id={} drops={}", label, instrument_id, d);
     }
 }
 

@@ -29,13 +29,13 @@ protected:
     // 2 s back-off — Deribit is slower to recover than CEXs.
     std::chrono::milliseconds reconnect_delay() const override;
 
-    std::unique_ptr<ygg::ws::WsStream> connect_and_subscribe() override;
-    void read_loop(ygg::ws::WsStream& ws) override;
+    std::unique_ptr<ygg::ws::AnyWsStream> connect_and_subscribe() override;
+    void read_loop(ygg::ws::AnyWsStream& ws) override;
     void parse_frame(std::string_view payload, uint64_t recv_ns) override;
 
 private:
-    void send_subscribe_rpc(ygg::ws::WsStream& ws, const std::string& symbol, uint8_t depth);
-    void send_test_response(ygg::ws::WsStream& ws);
+    void send_subscribe_rpc(ygg::ws::AnyWsStream& ws, const std::string& symbol, uint8_t depth);
+    void send_test_response(ygg::ws::AnyWsStream& ws);
 
     DeribitParser parser_;
     std::atomic<uint64_t> rpc_id_{1};

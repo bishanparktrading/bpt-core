@@ -1,13 +1,13 @@
 #pragma once
 
+#include "jormungandr/data/market_event.h"
+#include "jormungandr/matching/open_order.h"
+
 #include <functional>
 #include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include "jormungandr/data/market_event.h"
-#include "jormungandr/matching/open_order.h"
 
 namespace jormungandr::matching {
 
@@ -36,16 +36,14 @@ public:
     OpenOrder submit_order(OpenOrder order);
 
     // Returns true if the order was found and cancelled.
-    bool cancel_order(const std::string& exchange, const std::string& symbol,
-                      const std::string& order_id);
+    bool cancel_order(const std::string& exchange, const std::string& symbol, const std::string& order_id);
 
 private:
     static std::string key(const std::string& exchange, const std::string& symbol);
 
     // Fills a MARKET order against the book; appends fill reports to out.
     // Caller must hold mutex_.
-    void fill_market(OpenOrder& order, const data::OrderBookRecord& book,
-                     std::vector<FillReport>& out);
+    void fill_market(OpenOrder& order, const data::OrderBookRecord& book, std::vector<FillReport>& out);
 
     // Scans pending limit orders for key and fills crossing ones; appends to out.
     // Caller must hold mutex_.

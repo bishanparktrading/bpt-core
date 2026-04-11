@@ -15,7 +15,6 @@
 #include <boost/beast/ssl.hpp>
 #include <cmath>
 #include <nlohmann/json.hpp>
-#include <spdlog/spdlog.h>
 #include <sstream>
 #include <stdexcept>
 #include <yggdrasil/util/tsc_clock.h>
@@ -83,7 +82,7 @@ DeribitRefDataAdapter::DeribitRefDataAdapter(const config::AdapterConfig& cfg,
       client_id_(creds.client_id),
       client_secret_(creds.client_secret) {
     if (client_id_.empty() || client_secret_.empty()) {
-        spdlog::warn(
+        ygg::log::warn(
             "[DeribitRefData] Deribit credentials not set — "
             "private endpoints (fee tiers) will not be available; "
             "using per-instrument fees from get_instruments instead.");
@@ -198,13 +197,13 @@ void DeribitRefDataAdapter::parse_instruments(const std::string& body, uint64_t 
     auto j = json::parse(body);
 
     if (j.contains("error")) {
-        spdlog::error("[DeribitRefData] get_instruments error: {}", j["error"].value("message", "unknown"));
+        ygg::log::error("[DeribitRefData] get_instruments error: {}", j["error"].value("message", "unknown"));
         return;
     }
 
     const auto& result = j["result"];
     if (!result.is_array()) {
-        spdlog::error("[DeribitRefData] get_instruments result is not an array");
+        ygg::log::error("[DeribitRefData] get_instruments result is not an array");
         return;
     }
 
@@ -282,14 +281,14 @@ void DeribitRefDataAdapter::parse_instruments(const std::string& body, uint64_t 
         if (on_fee_schedule)
             on_fee_schedule(fs);
     }
-    spdlog::info("[DeribitRefData] Loaded {} active instruments from get_instruments", loaded);
+    ygg::log::info("[DeribitRefData] Loaded {} active instruments from get_instruments", loaded);
 }
 
 // ---------------------------------------------------------------------------
 // fetchSnapshot — blocking
 // ---------------------------------------------------------------------------
 void DeribitRefDataAdapter::fetchSnapshot() {
-    spdlog::info("[DeribitRefData] Starting snapshot fetch...");
+    ygg::log::info("[DeribitRefData] Starting snapshot fetch...");
 
     const std::string host = cfg_.rest_host.empty() ? "test.deribit.com" : cfg_.rest_host;
     const std::string port = cfg_.rest_port;
@@ -312,21 +311,21 @@ void DeribitRefDataAdapter::fetchSnapshot() {
                 auto body = http_post_jsonrpc(host, port, "public/get_instruments", params.dump(), tls);
                 parse_instruments(body, ts);
             } catch (const std::exception& e) {
-                spdlog::error("[DeribitRefData] Failed to fetch {} {} instruments: {}", currency, kind, e.what());
+                ygg::log::error("[DeribitRefData] Failed to fetch {} {} instruments: {}", currency, kind, e.what());
                 // Continue — try remaining currency/kind combos.
             }
         }
     }
 
     ready_.store(true, std::memory_order_release);
-    spdlog::info("[DeribitRefData] Snapshot complete. Registry has {} instruments.", registry_->count());
+    ygg::log::info("[DeribitRefData] Snapshot complete. Registry has {} instruments.", registry_->count());
 }
 
 // ---------------------------------------------------------------------------
 // fetchInstrumentListing — called hourly
 // ---------------------------------------------------------------------------
 void DeribitRefDataAdapter::fetchInstrumentListing() {
-    spdlog::info("[DeribitRefData] Hourly instrument listing refresh...");
+    ygg::log::info("[DeribitRefData] Hourly instrument listing refresh...");
     const uint64_t ts = now_ns();
     const std::string host = cfg_.rest_host.empty() ? "test.deribit.com" : cfg_.rest_host;
 
@@ -345,7 +344,7 @@ void DeribitRefDataAdapter::fetchInstrumentListing() {
                     http_post_jsonrpc(host, cfg_.rest_port, "public/get_instruments", params.dump(), cfg_.use_tls);
                 parse_instruments(body, ts);
             } catch (const std::exception& e) {
-                spdlog::error("[DeribitRefData] Hourly {} {} refresh failed: {}", currency, kind, e.what());
+                ygg::log::error("[DeribitRefData] Hourly {} {} refresh failed: {}", currency, kind, e.what());
             }
         }
     }

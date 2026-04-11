@@ -10,9 +10,9 @@
 
 #include <chrono>
 #include <cstring>
-#include <spdlog/spdlog.h>
 #include <string>
 #include <thread>
+#include <yggdrasil/logging.h>
 
 namespace surtr::refdata {
 
@@ -56,20 +56,20 @@ RefdataSubscriber::RefdataSubscriber(std::shared_ptr<aeron::Aeron> aeron,
     }
 
     if (snapshot_sub_) {
-        spdlog::info("[RefdataSubscriber] Snapshot subscription ready");
+        ygg::log::info("[RefdataSubscriber] Snapshot subscription ready");
         snap_assembler_ = std::make_unique<aeron::FragmentAssembler>(
             [this](aeron::AtomicBuffer& buffer,
                    aeron::util::index_t offset,
                    aeron::util::index_t length,
                    aeron::Header& header) { on_snapshot_fragment(buffer, offset, length, header); });
     } else {
-        spdlog::error("[RefdataSubscriber] Failed to create snapshot subscription");
+        ygg::log::error("[RefdataSubscriber] Failed to create snapshot subscription");
     }
 
     if (delta_sub_)
-        spdlog::info("[RefdataSubscriber] Delta subscription ready");
+        ygg::log::info("[RefdataSubscriber] Delta subscription ready");
     else
-        spdlog::error("[RefdataSubscriber] Failed to create delta subscription");
+        ygg::log::error("[RefdataSubscriber] Failed to create delta subscription");
 }
 
 int RefdataSubscriber::poll(int fragment_limit) {
@@ -128,19 +128,19 @@ void RefdataSubscriber::on_snapshot_fragment(const aeron::concurrent::AtomicBuff
                 .exchange = exchange_str,
                 .exchange_id = exchange_from_string(exchange_str),
             };
-            spdlog::info("[RefdataSubscriber] Perp instrument: {} id={} exchange={}",
-                         underlying_str,
-                         instruments.instrumentId(),
-                         exchange_str);
+            ygg::log::info("[RefdataSubscriber] Perp instrument: {} id={} exchange={}",
+                           underlying_str,
+                           instruments.instrumentId(),
+                           exchange_str);
             if (on_perp_)
                 on_perp_(pi);
             continue;
         }
 
         if (instruments.instrumentType() != InstrumentType::OPTION) {
-            spdlog::info("[RefdataSubscriber] Skipping instrument type={} id={}",
-                         static_cast<int>(instruments.instrumentType()),
-                         instruments.instrumentId());
+            ygg::log::info("[RefdataSubscriber] Skipping instrument type={} id={}",
+                           static_cast<int>(instruments.instrumentType()),
+                           instruments.instrumentId());
             continue;
         }
         ++option_count;
@@ -161,7 +161,7 @@ void RefdataSubscriber::on_snapshot_fragment(const aeron::concurrent::AtomicBuff
         if (on_option_)
             on_option_(oi);
     }
-    spdlog::info("[RefdataSubscriber] Snapshot: {} total instruments, {} options", total_count, option_count);
+    ygg::log::info("[RefdataSubscriber] Snapshot: {} total instruments, {} options", total_count, option_count);
 }
 
 void RefdataSubscriber::on_delta_fragment(const aeron::concurrent::AtomicBuffer& buffer,

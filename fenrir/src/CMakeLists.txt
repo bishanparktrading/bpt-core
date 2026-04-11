@@ -30,7 +30,6 @@ target_link_libraries(fenrir_lib PUBLIC
     aeron_client
     bifrost::protocol
     fmt::fmt
-    spdlog::spdlog
     tomlplusplus::tomlplusplus
     Threads::Threads
 )

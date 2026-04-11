@@ -2,9 +2,10 @@
 
 #include <bifrost_protocol/ExchangeId.h>
 #include <bifrost_protocol/InstrumentType.h>
+
 #include <cmath>
 #include <nlohmann/json.hpp>
-#include <spdlog/spdlog.h>
+#include <yggdrasil/logging.h>
 
 using json = nlohmann::json;
 
@@ -13,8 +14,7 @@ namespace muninn::adapter {
 HyperliquidParser::HyperliquidParser(std::shared_ptr<mapping::InstrumentMappingLoader> mapping)
     : mapping_(std::move(mapping)) {}
 
-std::vector<refdata::Instrument> HyperliquidParser::parse_meta(const std::string& body,
-                                                                uint64_t collected_ts) const {
+std::vector<refdata::Instrument> HyperliquidParser::parse_meta(const std::string& body, uint64_t collected_ts) const {
     auto j = json::parse(body);
     const auto& universe = j.value("universe", json::array());
 
@@ -48,16 +48,16 @@ std::vector<refdata::Instrument> HyperliquidParser::parse_meta(const std::string
         result.push_back(std::move(inst));
     }
 
-    spdlog::info("[HyperliquidParser] Parsed {} perpetual instruments from /info meta", result.size());
+    ygg::log::info("[HyperliquidParser] Parsed {} perpetual instruments from /info meta", result.size());
     return result;
 }
 
 std::vector<refdata::FeeScheduleState> HyperliquidParser::parse_user_fees(const std::string& body,
-                                                                           uint64_t collected_ts) const {
+                                                                          uint64_t collected_ts) const {
     auto j = json::parse(body);
     const auto& sched = j.value("feeSchedule", json{});
     if (sched.is_null() || !sched.is_object()) {
-        spdlog::warn("[HyperliquidParser] userFees response missing feeSchedule");
+        ygg::log::warn("[HyperliquidParser] userFees response missing feeSchedule");
         return {};
     }
 

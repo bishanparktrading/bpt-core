@@ -1,14 +1,14 @@
 #pragma once
 
+#include "heimdall/adapter/common/credentials.h"
+#include "heimdall/adapter/common/order_adapter_base.h"
+#include "heimdall/adapter/deribit/deribit_exec_parser.h"
+
 #include <atomic>
 #include <functional>
 #include <mutex>
 #include <string>
 #include <vector>
-
-#include "heimdall/adapter/common/credentials.h"
-#include "heimdall/adapter/common/order_adapter_base.h"
-#include "heimdall/adapter/deribit/deribit_exec_parser.h"
 
 namespace heimdall::adapter {
 
@@ -27,19 +27,15 @@ public:
     DeribitOrderAdapter(const config::AdapterConfig& cfg, const ExchangeCredentials& creds);
 
     void send_new_order(const bifrost::protocol::NewOrder& order) override;
-    void send_cancel(const bifrost::protocol::CancelOrder& cancel,
-                     const std::string& native_symbol) override;
+    void send_cancel(const bifrost::protocol::CancelOrder& cancel, const std::string& native_symbol) override;
     void send_cancel_all(uint64_t instrument_id) override;
-    void send_modify(const bifrost::protocol::ModifyOrder& modify,
-                     const std::string& native_symbol) override;
+    void send_modify(const bifrost::protocol::ModifyOrder& modify, const std::string& native_symbol) override;
 
     [[nodiscard]] bifrost::protocol::ExchangeId::Value exchange_id() const override {
         return bifrost::protocol::ExchangeId::DERIBIT;
     }
     [[nodiscard]] const char* exchange_name() const override { return "DERIBIT"; }
-    [[nodiscard]] bool is_connected() const override {
-        return connected_.load(std::memory_order_relaxed);
-    }
+    [[nodiscard]] bool is_connected() const override { return connected_.load(std::memory_order_relaxed); }
 
     AccountSnapshotData fetch_account_snapshot(uint64_t correlation_id) override;
 

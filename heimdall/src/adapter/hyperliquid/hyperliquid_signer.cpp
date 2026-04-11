@@ -1,15 +1,14 @@
 #include "heimdall/adapter/hyperliquid/hyperliquid_signer.h"
 
+#include <algorithm>
+#include <cstdlib>
+#include <cstring>
+#include <iomanip>
 #include <openssl/bn.h>
 #include <openssl/core_names.h>
 #include <openssl/ecdsa.h>
 #include <openssl/evp.h>
 #include <openssl/param_build.h>
-
-#include <algorithm>
-#include <cstdlib>
-#include <cstring>
-#include <iomanip>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -26,11 +25,10 @@ namespace heimdall::adapter {
 namespace keccak_impl {
 
 static const uint64_t RC[24] = {
-    0x0000000000000001ULL, 0x0000000000008082ULL, 0x800000000000808aULL, 0x8000000080008000ULL,
-    0x000000000000808bULL, 0x0000000080000001ULL, 0x8000000080008081ULL, 0x8000000000008009ULL,
-    0x000000000000008aULL, 0x0000000000000088ULL, 0x0000000080008009ULL, 0x000000008000000aULL,
-    0x000000008000808bULL, 0x800000000000008bULL, 0x8000000000008089ULL, 0x8000000000008003ULL,
-    0x8000000000008002ULL, 0x8000000000000080ULL, 0x000000000000800aULL, 0x800000008000000aULL,
+    0x0000000000000001ULL, 0x0000000000008082ULL, 0x800000000000808aULL, 0x8000000080008000ULL, 0x000000000000808bULL,
+    0x0000000080000001ULL, 0x8000000080008081ULL, 0x8000000000008009ULL, 0x000000000000008aULL, 0x0000000000000088ULL,
+    0x0000000080008009ULL, 0x000000008000000aULL, 0x000000008000808bULL, 0x800000000000008bULL, 0x8000000000008089ULL,
+    0x8000000000008003ULL, 0x8000000000008002ULL, 0x8000000000000080ULL, 0x000000000000800aULL, 0x800000008000000aULL,
     0x8000000080008081ULL, 0x8000000000008080ULL, 0x0000000080000001ULL, 0x8000000080008008ULL,
 };
 
@@ -42,7 +40,9 @@ static const int PI[24] = {
     10, 7, 11, 17, 18, 3, 5, 16, 8, 21, 24, 4, 15, 23, 19, 13, 12, 2, 20, 14, 22, 9, 6, 1,
 };
 
-static inline uint64_t rotl64(uint64_t x, int n) { return (x << n) | (x >> (64 - n)); }
+static inline uint64_t rotl64(uint64_t x, int n) {
+    return (x << n) | (x >> (64 - n));
+}
 
 static void keccak_f1600(uint64_t st[25]) {
     for (int round = 0; round < 24; ++round) {
@@ -52,9 +52,11 @@ static void keccak_f1600(uint64_t st[25]) {
             bc[i] = st[i] ^ st[i + 5] ^ st[i + 10] ^ st[i + 15] ^ st[i + 20];
 
         uint64_t t[5];
-        for (int i = 0; i < 5; ++i) t[i] = bc[(i + 4) % 5] ^ rotl64(bc[(i + 1) % 5], 1);
+        for (int i = 0; i < 5; ++i)
+            t[i] = bc[(i + 4) % 5] ^ rotl64(bc[(i + 1) % 5], 1);
 
-        for (int i = 0; i < 25; ++i) st[i] ^= t[i % 5];
+        for (int i = 0; i < 25; ++i)
+            st[i] ^= t[i % 5];
 
         // Rho + Pi
         uint64_t last = st[1];
@@ -68,8 +70,10 @@ static void keccak_f1600(uint64_t st[25]) {
         // Chi
         for (int i = 0; i < 25; i += 5) {
             uint64_t tmp[5];
-            for (int j = 0; j < 5; ++j) tmp[j] = st[i + j];
-            for (int j = 0; j < 5; ++j) st[i + j] = tmp[j] ^ (~tmp[(j + 1) % 5] & tmp[(j + 2) % 5]);
+            for (int j = 0; j < 5; ++j)
+                tmp[j] = st[i + j];
+            for (int j = 0; j < 5; ++j)
+                st[i + j] = tmp[j] ^ (~tmp[(j + 1) % 5] & tmp[(j + 2) % 5]);
         }
 
         // Iota
@@ -127,9 +131,12 @@ static std::string bytes_to_hex(const uint8_t* data, std::size_t len) {
 }
 
 static uint8_t hex_nibble(char c) {
-    if (c >= '0' && c <= '9') return static_cast<uint8_t>(c - '0');
-    if (c >= 'a' && c <= 'f') return static_cast<uint8_t>(c - 'a' + 10);
-    if (c >= 'A' && c <= 'F') return static_cast<uint8_t>(c - 'A' + 10);
+    if (c >= '0' && c <= '9')
+        return static_cast<uint8_t>(c - '0');
+    if (c >= 'a' && c <= 'f')
+        return static_cast<uint8_t>(c - 'a' + 10);
+    if (c >= 'A' && c <= 'F')
+        return static_cast<uint8_t>(c - 'A' + 10);
     throw std::runtime_error("Invalid hex character");
 }
 
@@ -138,10 +145,10 @@ static uint8_t hex_nibble(char c) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 HyperliquidSigner::HyperliquidSigner(std::string_view hex) {
-    if (hex.empty()) throw std::runtime_error("HyperliquidSigner: private key is empty");
+    if (hex.empty())
+        throw std::runtime_error("HyperliquidSigner: private key is empty");
     if (hex.size() != 64)
-        throw std::runtime_error(
-            "HyperliquidSigner: private key must be exactly 64 hex characters (32 bytes)");
+        throw std::runtime_error("HyperliquidSigner: private key must be exactly 64 hex characters (32 bytes)");
 
     for (std::size_t i = 0; i < 32; ++i)
         key_[i] = static_cast<uint8_t>((hex_nibble(hex[i * 2]) << 4) | hex_nibble(hex[i * 2 + 1]));
@@ -150,10 +157,13 @@ HyperliquidSigner::HyperliquidSigner(std::string_view hex) {
 HyperliquidSigner::~HyperliquidSigner() {
     // Zero out the key — use volatile to prevent compiler optimization
     volatile uint8_t* p = key_.data();
-    for (std::size_t i = 0; i < key_.size(); ++i) p[i] = 0;
+    for (std::size_t i = 0; i < key_.size(); ++i)
+        p[i] = 0;
 }
 
-uint64_t HyperliquidSigner::next_nonce() noexcept { return ++nonce_; }
+uint64_t HyperliquidSigner::next_nonce() noexcept {
+    return ++nonce_;
+}
 
 std::array<uint8_t, 32> HyperliquidSigner::keccak256(const uint8_t* data, std::size_t len) const {
     std::array<uint8_t, 32> out{};
@@ -164,26 +174,36 @@ std::array<uint8_t, 32> HyperliquidSigner::keccak256(const uint8_t* data, std::s
 SignedTransaction HyperliquidSigner::ecdsa_sign(const std::array<uint8_t, 32>& hash) const {
     // Build secp256k1 private key using the OpenSSL 3.0 EVP_PKEY API.
     BIGNUM* priv_bn = BN_bin2bn(key_.data(), 32, nullptr);
-    if (!priv_bn) throw std::runtime_error("BN_bin2bn failed");
+    if (!priv_bn)
+        throw std::runtime_error("BN_bin2bn failed");
 
     OSSL_PARAM_BLD* bld = OSSL_PARAM_BLD_new();
-    if (!bld) { BN_free(priv_bn); throw std::runtime_error("OSSL_PARAM_BLD_new failed"); }
+    if (!bld) {
+        BN_free(priv_bn);
+        throw std::runtime_error("OSSL_PARAM_BLD_new failed");
+    }
     OSSL_PARAM_BLD_push_utf8_string(bld, OSSL_PKEY_PARAM_GROUP_NAME, "secp256k1", 0);
     OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_PRIV_KEY, priv_bn);
     OSSL_PARAM* params = OSSL_PARAM_BLD_to_param(bld);
     OSSL_PARAM_BLD_free(bld);
     BN_free(priv_bn);
-    if (!params) throw std::runtime_error("OSSL_PARAM_BLD_to_param failed");
+    if (!params)
+        throw std::runtime_error("OSSL_PARAM_BLD_to_param failed");
 
     EVP_PKEY_CTX* kctx = EVP_PKEY_CTX_new_from_name(nullptr, "EC", nullptr);
-    if (!kctx) { OSSL_PARAM_free(params); throw std::runtime_error("EVP_PKEY_CTX_new_from_name failed"); }
+    if (!kctx) {
+        OSSL_PARAM_free(params);
+        throw std::runtime_error("EVP_PKEY_CTX_new_from_name failed");
+    }
     if (EVP_PKEY_fromdata_init(kctx) <= 0) {
-        EVP_PKEY_CTX_free(kctx); OSSL_PARAM_free(params);
+        EVP_PKEY_CTX_free(kctx);
+        OSSL_PARAM_free(params);
         throw std::runtime_error("EVP_PKEY_fromdata_init failed");
     }
     EVP_PKEY* pkey = nullptr;
     if (EVP_PKEY_fromdata(kctx, &pkey, EVP_PKEY_KEYPAIR, params) <= 0) {
-        EVP_PKEY_CTX_free(kctx); OSSL_PARAM_free(params);
+        EVP_PKEY_CTX_free(kctx);
+        OSSL_PARAM_free(params);
         throw std::runtime_error("EVP_PKEY_fromdata failed");
     }
     EVP_PKEY_CTX_free(kctx);
@@ -191,9 +211,13 @@ SignedTransaction HyperliquidSigner::ecdsa_sign(const std::array<uint8_t, 32>& h
 
     // Sign the pre-hashed digest — produces a DER-encoded ECDSA signature.
     EVP_PKEY_CTX* sctx = EVP_PKEY_CTX_new(pkey, nullptr);
-    if (!sctx) { EVP_PKEY_free(pkey); throw std::runtime_error("EVP_PKEY_CTX_new failed"); }
+    if (!sctx) {
+        EVP_PKEY_free(pkey);
+        throw std::runtime_error("EVP_PKEY_CTX_new failed");
+    }
     if (EVP_PKEY_sign_init(sctx) <= 0) {
-        EVP_PKEY_CTX_free(sctx); EVP_PKEY_free(pkey);
+        EVP_PKEY_CTX_free(sctx);
+        EVP_PKEY_free(pkey);
         throw std::runtime_error("EVP_PKEY_sign_init failed");
     }
 
@@ -201,7 +225,8 @@ SignedTransaction HyperliquidSigner::ecdsa_sign(const std::array<uint8_t, 32>& h
     EVP_PKEY_sign(sctx, nullptr, &sig_len, hash.data(), hash.size());
     std::vector<uint8_t> sig_der(sig_len);
     if (EVP_PKEY_sign(sctx, sig_der.data(), &sig_len, hash.data(), hash.size()) <= 0) {
-        EVP_PKEY_CTX_free(sctx); EVP_PKEY_free(pkey);
+        EVP_PKEY_CTX_free(sctx);
+        EVP_PKEY_free(pkey);
         throw std::runtime_error("EVP_PKEY_sign failed");
     }
     EVP_PKEY_CTX_free(sctx);
@@ -210,7 +235,8 @@ SignedTransaction HyperliquidSigner::ecdsa_sign(const std::array<uint8_t, 32>& h
     // Decode DER to extract r and s.
     const uint8_t* p = sig_der.data();
     ECDSA_SIG* sig = d2i_ECDSA_SIG(nullptr, &p, static_cast<long>(sig_len));
-    if (!sig) throw std::runtime_error("d2i_ECDSA_SIG failed");
+    if (!sig)
+        throw std::runtime_error("d2i_ECDSA_SIG failed");
 
     const BIGNUM* r_bn;
     const BIGNUM* s_bn;
@@ -259,8 +285,7 @@ SignedTransaction HyperliquidSigner::sign_order(const OrderSignParams& params) {
     //
     // Domain separator for HL mainnet (chain 1337):
     static const char kDomainStr[] = "EIP712Domain(string name,string version,uint256 chainId)";
-    auto ds_type_hash =
-        keccak256(reinterpret_cast<const uint8_t*>(kDomainStr), sizeof(kDomainStr) - 1);
+    auto ds_type_hash = keccak256(reinterpret_cast<const uint8_t*>(kDomainStr), sizeof(kDomainStr) - 1);
 
     static const char kName[] = "Exchange";
     static const char kVersion[] = "1";
@@ -286,11 +311,9 @@ SignedTransaction HyperliquidSigner::sign_order(const OrderSignParams& params) {
     static const char kOrderTypeStr[] =
         "Order(string coin,bool isBuy,uint64 limitPx,uint64 sz,bool "
         "reduceOnly,uint64 cloid,uint64 nonce)";
-    auto order_type_hash =
-        keccak256(reinterpret_cast<const uint8_t*>(kOrderTypeStr), sizeof(kOrderTypeStr) - 1);
+    auto order_type_hash = keccak256(reinterpret_cast<const uint8_t*>(kOrderTypeStr), sizeof(kOrderTypeStr) - 1);
 
-    auto coin_hash =
-        keccak256(reinterpret_cast<const uint8_t*>(params.coin.data()), params.coin.size());
+    auto coin_hash = keccak256(reinterpret_cast<const uint8_t*>(params.coin.data()), params.coin.size());
 
     // Encode order fields as 32-byte ABI values
     auto encode_bool = [](bool b) -> std::array<uint8_t, 32> {
@@ -342,8 +365,7 @@ SignedTransaction HyperliquidSigner::sign_cancel(const std::string& coin, uint64
     uint64_t n = next_nonce();
 
     static const char kDomainStr[] = "EIP712Domain(string name,string version,uint256 chainId)";
-    auto ds_type_hash =
-        keccak256(reinterpret_cast<const uint8_t*>(kDomainStr), sizeof(kDomainStr) - 1);
+    auto ds_type_hash = keccak256(reinterpret_cast<const uint8_t*>(kDomainStr), sizeof(kDomainStr) - 1);
 
     static const char kName[] = "Exchange";
     static const char kVersion[] = "1";
@@ -361,8 +383,7 @@ SignedTransaction HyperliquidSigner::sign_cancel(const std::string& coin, uint64
     auto domain_separator = keccak256(domain_enc.data(), domain_enc.size());
 
     static const char kCancelTypeStr[] = "Cancel(string coin,uint64 oid,uint64 nonce)";
-    auto cancel_type_hash =
-        keccak256(reinterpret_cast<const uint8_t*>(kCancelTypeStr), sizeof(kCancelTypeStr) - 1);
+    auto cancel_type_hash = keccak256(reinterpret_cast<const uint8_t*>(kCancelTypeStr), sizeof(kCancelTypeStr) - 1);
     auto coin_hash = keccak256(reinterpret_cast<const uint8_t*>(coin.data()), coin.size());
 
     auto encode_u64 = [](uint64_t v) -> std::array<uint8_t, 32> {

@@ -3,10 +3,9 @@
 
 #include <arrow/api.h>
 #include <arrow/io/api.h>
+#include <filesystem>
 #include <gtest/gtest.h>
 #include <parquet/arrow/writer.h>
-
-#include <filesystem>
 #include <string>
 #include <unistd.h>
 #include <vector>
@@ -24,9 +23,9 @@ static void write_trades_parquet(const std::string& path,
                                  const std::vector<int8_t>& side) {
     int64_t n = static_cast<int64_t>(ts.size());
 
-    arrow::Int64Builder  ts_b;
+    arrow::Int64Builder ts_b;
     arrow::DoubleBuilder px_b, qty_b;
-    arrow::Int8Builder   side_b;
+    arrow::Int8Builder side_b;
 
     ASSERT_TRUE(ts_b.AppendValues(reinterpret_cast<const int64_t*>(ts.data()), n).ok());
     ASSERT_TRUE(px_b.AppendValues(px.data(), n).ok());
@@ -40,19 +39,17 @@ static void write_trades_parquet(const std::string& path,
     ASSERT_TRUE(side_b.Finish(&side_arr).ok());
 
     auto schema = arrow::schema({arrow::field("timestamp_ns", arrow::int64()),
-                                  arrow::field("price", arrow::float64()),
-                                  arrow::field("quantity", arrow::float64()),
-                                  arrow::field("side", arrow::int8())});
+                                 arrow::field("price", arrow::float64()),
+                                 arrow::field("quantity", arrow::float64()),
+                                 arrow::field("side", arrow::int8())});
 
     auto table = arrow::Table::Make(schema, {ts_arr, px_arr, qty_arr, side_arr});
 
     auto sink = *arrow::io::FileOutputStream::Open(path);
-    ASSERT_TRUE(
-        parquet::arrow::WriteTable(*table, arrow::default_memory_pool(), sink, n).ok());
+    ASSERT_TRUE(parquet::arrow::WriteTable(*table, arrow::default_memory_pool(), sink, n).ok());
 }
 
-static void write_orderbook_parquet(const std::string& path,
-                                    const std::vector<uint64_t>& ts) {
+static void write_orderbook_parquet(const std::string& path, const std::vector<uint64_t>& ts) {
     int64_t n = static_cast<int64_t>(ts.size());
 
     arrow::Int64Builder ts_b;
@@ -60,16 +57,14 @@ static void write_orderbook_parquet(const std::string& path,
     std::shared_ptr<arrow::Array> ts_arr;
     ASSERT_TRUE(ts_b.Finish(&ts_arr).ok());
 
-    std::vector<std::shared_ptr<arrow::Field>>  fields = {
-        arrow::field("timestamp_ns", arrow::int64())};
+    std::vector<std::shared_ptr<arrow::Field>> fields = {arrow::field("timestamp_ns", arrow::int64())};
     std::vector<std::shared_ptr<arrow::Array>> arrays = {ts_arr};
 
     for (int lvl = 1; lvl <= kOrderBookDepth; ++lvl) {
         std::string sfx = std::to_string(lvl);
-        for (const std::string& col :
-             {"bid_px_", "bid_sz_", "ask_px_", "ask_sz_"}) {
+        for (const std::string& col : {"bid_px_", "bid_sz_", "ask_px_", "ask_sz_"}) {
             arrow::DoubleBuilder b;
-            std::vector<double>  vals(n, static_cast<double>(lvl));
+            std::vector<double> vals(n, static_cast<double>(lvl));
             ASSERT_TRUE(b.AppendValues(vals.data(), n).ok());
             std::shared_ptr<arrow::Array> arr;
             ASSERT_TRUE(b.Finish(&arr).ok());
@@ -79,9 +74,8 @@ static void write_orderbook_parquet(const std::string& path,
     }
 
     auto table = arrow::Table::Make(arrow::schema(fields), arrays);
-    auto sink  = *arrow::io::FileOutputStream::Open(path);
-    ASSERT_TRUE(
-        parquet::arrow::WriteTable(*table, arrow::default_memory_pool(), sink, n).ok());
+    auto sink = *arrow::io::FileOutputStream::Open(path);
+    ASSERT_TRUE(parquet::arrow::WriteTable(*table, arrow::default_memory_pool(), sink, n).ok());
 }
 
 // ── Fixture ───────────────────────────────────────────────────────────────────
@@ -93,8 +87,7 @@ protected:
     void SetUp() override {
         // Include PID so concurrent gtest_discover_tests processes don't share
         // the same directory and race on SetUp/TearDown.
-        cache_dir_ = fs::temp_directory_path() /
-                     ("jormungandr_dl_test_" + std::to_string(getpid()));
+        cache_dir_ = fs::temp_directory_path() / ("jormungandr_dl_test_" + std::to_string(getpid()));
         fs::remove_all(cache_dir_);
         fs::create_directories(cache_dir_);
     }
@@ -102,8 +95,10 @@ protected:
     void TearDown() override { fs::remove_all(cache_dir_); }
 
     // Creates the directory tree and returns the full file path.
-    std::string make_dir(const std::string& kind, const std::string& exchange,
-                         const std::string& symbol, const std::string& date) {
+    std::string make_dir(const std::string& kind,
+                         const std::string& exchange,
+                         const std::string& symbol,
+                         const std::string& date) {
         fs::path dir = cache_dir_ / kind / exchange / symbol;
         fs::create_directories(dir);
         return (dir / (date + ".parquet")).string();
@@ -115,12 +110,11 @@ protected:
         return cfg;
     }
 
-    SimulationConfig sim_cfg(const std::string& start, const std::string& end,
-                              bool partial = false) const {
+    SimulationConfig sim_cfg(const std::string& start, const std::string& end, bool partial = false) const {
         SimulationConfig cfg;
-        cfg.start               = start;
-        cfg.end                 = end;
-        cfg.allow_partial_data  = partial;
+        cfg.start = start;
+        cfg.end = end;
+        cfg.allow_partial_data = partial;
         return cfg;
     }
 };
@@ -138,7 +132,8 @@ TEST_F(DataLoaderTest, ReturnsTradeEvents) {
     DataLoader loader(data_cfg(), sim_cfg("2026-01-01", "2026-01-01"), {inst});
 
     std::vector<MarketEvent> events;
-    while (auto ev = loader.next()) events.push_back(*ev);
+    while (auto ev = loader.next())
+        events.push_back(*ev);
 
     ASSERT_EQ(events.size(), 3u);
     EXPECT_EQ(events[0].timestamp_ns, 1000u);
@@ -165,7 +160,8 @@ TEST_F(DataLoaderTest, MergesMultipleInstrumentsInOrder) {
     DataLoader loader(data_cfg(), sim_cfg("2026-01-01", "2026-01-01"), {btc, eth});
 
     std::vector<uint64_t> tss;
-    while (auto ev = loader.next()) tss.push_back(ev->timestamp_ns);
+    while (auto ev = loader.next())
+        tss.push_back(ev->timestamp_ns);
 
     ASSERT_EQ(tss.size(), 6u);
     EXPECT_TRUE(std::is_sorted(tss.begin(), tss.end()));
@@ -183,7 +179,8 @@ TEST_F(DataLoaderTest, SpansMultipleDays) {
     DataLoader loader(data_cfg(), sim_cfg("2026-01-01", "2026-01-02"), {inst});
 
     int count = 0;
-    while (loader.next()) ++count;
+    while (loader.next())
+        ++count;
     EXPECT_EQ(count, 4);  // 1 trade + 1 ob per day × 2 days
 }
 
@@ -215,7 +212,8 @@ TEST_F(DataLoaderTest, AllowPartialDataSkipsMissingFiles) {
     EXPECT_NO_THROW(loader.validate());
 
     int count = 0;
-    while (loader.next()) ++count;
+    while (loader.next())
+        ++count;
     EXPECT_EQ(count, 1);  // only the trade event
 }
 

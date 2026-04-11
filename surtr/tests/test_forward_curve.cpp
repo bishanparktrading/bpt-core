@@ -1,8 +1,7 @@
 #include "surtr/pricing/forward_curve.h"
 
-#include <gtest/gtest.h>
-
 #include <cmath>
+#include <gtest/gtest.h>
 
 namespace surtr::pricing {
 

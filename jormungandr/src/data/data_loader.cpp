@@ -1,14 +1,12 @@
 #include "jormungandr/data/data_loader.h"
 
+#include <algorithm>
 #include <arrow/api.h>
 #include <arrow/io/api.h>
-#include <parquet/arrow/reader.h>
-#include <spdlog/spdlog.h>
-
-#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <format>
+#include <parquet/arrow/reader.h>
 #include <stdexcept>
 #include <vector>
 
@@ -29,8 +27,10 @@ static sys_days parse_date(const std::string& iso8601) {
 
 static std::string format_date(sys_days d) {
     year_month_day ymd{d};
-    return std::format("{:04d}-{:02d}-{:02d}", static_cast<int>(ymd.year()),
-                       static_cast<unsigned>(ymd.month()), static_cast<unsigned>(ymd.day()));
+    return std::format("{:04d}-{:02d}-{:02d}",
+                       static_cast<int>(ymd.year()),
+                       static_cast<unsigned>(ymd.month()),
+                       static_cast<unsigned>(ymd.day()));
 }
 
 // ── Arrow helpers ─────────────────────────────────────────────────────────────
@@ -38,40 +38,34 @@ static std::string format_date(sys_days d) {
 static std::shared_ptr<arrow::Table> read_parquet_table(const std::string& path) {
     auto result = arrow::io::ReadableFile::Open(path);
     if (!result.ok())
-        throw std::runtime_error("Failed to open Parquet file: " + path + " — " +
-                                 result.status().ToString());
+        throw std::runtime_error("Failed to open Parquet file: " + path + " — " + result.status().ToString());
 
     parquet::arrow::FileReaderBuilder builder;
     auto open_status = builder.Open(*result);
     if (!open_status.ok())
-        throw std::runtime_error("Failed to open Parquet reader: " + path + " — " +
-                                 open_status.ToString());
+        throw std::runtime_error("Failed to open Parquet reader: " + path + " — " + open_status.ToString());
 
     std::unique_ptr<parquet::arrow::FileReader> reader;
     auto build_status = builder.Build(&reader);
     if (!build_status.ok())
-        throw std::runtime_error("Failed to build Parquet reader: " + path + " — " +
-                                 build_status.ToString());
+        throw std::runtime_error("Failed to build Parquet reader: " + path + " — " + build_status.ToString());
 
     std::shared_ptr<arrow::Table> table;
     auto status = reader->ReadTable(&table);
     if (!status.ok())
-        throw std::runtime_error("Failed to read Parquet table: " + path + " — " +
-                                 status.ToString());
+        throw std::runtime_error("Failed to read Parquet table: " + path + " — " + status.ToString());
 
     return table;
 }
 
-static const arrow::Int64Array* get_int64_column(const arrow::Table& table,
-                                                 const std::string& name) {
+static const arrow::Int64Array* get_int64_column(const arrow::Table& table, const std::string& name) {
     auto col = table.GetColumnByName(name);
     if (!col || col->num_chunks() == 0)
         throw std::runtime_error("Missing column '" + name + "' in Parquet file");
     return static_cast<const arrow::Int64Array*>(col->chunk(0).get());
 }
 
-static const arrow::DoubleArray* get_double_column(const arrow::Table& table,
-                                                   const std::string& name) {
+static const arrow::DoubleArray* get_double_column(const arrow::Table& table, const std::string& name) {
     auto col = table.GetColumnByName(name);
     if (!col || col->num_chunks() == 0)
         throw std::runtime_error("Missing column '" + name + "' in Parquet file");
@@ -87,7 +81,8 @@ static const arrow::Int8Array* get_int8_column(const arrow::Table& table, const 
 
 // ── DataLoader ────────────────────────────────────────────────────────────────
 
-DataLoader::DataLoader(const config::DataConfig& data_cfg, const config::SimulationConfig& sim_cfg,
+DataLoader::DataLoader(const config::DataConfig& data_cfg,
+                       const config::SimulationConfig& sim_cfg,
                        const std::vector<config::InstrumentConfig>& instruments)
     : local_cache_(data_cfg.local_cache),
       allow_partial_data_(sim_cfg.allow_partial_data),
@@ -102,16 +97,12 @@ DataLoader::DataLoader(const config::DataConfig& data_cfg, const config::Simulat
     }
 }
 
-std::string DataLoader::trades_path(const std::string& exchange, const std::string& symbol,
-                                    sys_days day) const {
-    return local_cache_ + "/trades/" + exchange + "/" + symbol + "/" + format_date(day) +
-           ".parquet";
+std::string DataLoader::trades_path(const std::string& exchange, const std::string& symbol, sys_days day) const {
+    return local_cache_ + "/trades/" + exchange + "/" + symbol + "/" + format_date(day) + ".parquet";
 }
 
-std::string DataLoader::orderbook_path(const std::string& exchange, const std::string& symbol,
-                                       sys_days day) const {
-    return local_cache_ + "/orderbook/" + exchange + "/" + symbol + "/" + format_date(day) +
-           ".parquet";
+std::string DataLoader::orderbook_path(const std::string& exchange, const std::string& symbol, sys_days day) const {
+    return local_cache_ + "/orderbook/" + exchange + "/" + symbol + "/" + format_date(day) + ".parquet";
 }
 
 void DataLoader::validate() {
@@ -122,23 +113,27 @@ void DataLoader::validate() {
             auto tp = trades_path(inst.instrument.exchange, inst.instrument.symbol, d);
             auto op = orderbook_path(inst.instrument.exchange, inst.instrument.symbol, d);
 
-            if (!fs::exists(tp)) missing.push_back(tp);
-            if (!fs::exists(op)) missing.push_back(op);
+            if (!fs::exists(tp))
+                missing.push_back(tp);
+            if (!fs::exists(op))
+                missing.push_back(op);
         }
     }
 
     if (missing.empty()) {
-        spdlog::info("[DataLoader] All data files present");
+        ygg::log::info("[DataLoader] All data files present");
         return;
     }
 
     if (allow_partial_data_) {
-        for (const auto& p : missing) spdlog::warn("[DataLoader] Missing (will skip): {}", p);
+        for (const auto& p : missing)
+            ygg::log::warn("[DataLoader] Missing (will skip): {}", p);
         return;
     }
 
     std::string msg = "[DataLoader] Missing data files:\n";
-    for (const auto& p : missing) msg += "  " + p + "\n";
+    for (const auto& p : missing)
+        msg += "  " + p + "\n";
     throw std::runtime_error(msg);
 }
 
@@ -219,38 +214,71 @@ void DataLoader::load_day(InstrumentReader& reader) {
     auto op = orderbook_path(ex, sym, d);
 
     // Trades
+    bool has_real_trades = false;
     if (fs::exists(tp)) {
         try {
             auto evs = read_trades(tp, ex, sym);
-            reader.day_events.insert(reader.day_events.end(), std::make_move_iterator(evs.begin()),
+            reader.day_events.insert(reader.day_events.end(),
+                                     std::make_move_iterator(evs.begin()),
                                      std::make_move_iterator(evs.end()));
+            has_real_trades = true;
         } catch (const std::exception& e) {
-            spdlog::error("[DataLoader] Failed to read {}: {}", tp, e.what());
+            ygg::log::error("[DataLoader] Failed to read {}: {}", tp, e.what());
         }
     } else if (!allow_partial_data_) {
-        spdlog::warn("[DataLoader] Trades file missing: {}", tp);
+        ygg::log::warn("[DataLoader] Trades file missing: {}", tp);
     }
 
     // Order book
     if (fs::exists(op)) {
         try {
             auto evs = read_orderbook(op, ex, sym);
-            reader.day_events.insert(reader.day_events.end(), std::make_move_iterator(evs.begin()),
+            reader.day_events.insert(reader.day_events.end(),
+                                     std::make_move_iterator(evs.begin()),
                                      std::make_move_iterator(evs.end()));
         } catch (const std::exception& e) {
-            spdlog::error("[DataLoader] Failed to read {}: {}", op, e.what());
+            ygg::log::error("[DataLoader] Failed to read {}: {}", op, e.what());
         }
     } else if (!allow_partial_data_) {
-        spdlog::warn("[DataLoader] Orderbook file missing: {}", op);
+        ygg::log::warn("[DataLoader] Orderbook file missing: {}", op);
+    }
+
+    // When no real trades exist, generate one synthetic trade per orderbook snapshot
+    // at the mid-price with unit quantity.  This gives trade-dependent strategies
+    // (e.g. VWAP) a price stream equivalent to a mid-price moving average.
+    if (!has_real_trades && !reader.day_events.empty()) {
+        ygg::log::debug("[DataLoader] No trades for {}/{} on {} — synthesising from orderbook mid",
+                        ex,
+                        sym,
+                        format_date(d));
+        std::vector<MarketEvent> synthetic;
+        synthetic.reserve(reader.day_events.size());
+        for (const auto& ev : reader.day_events) {
+            if (ev.type != MarketEvent::Type::ORDER_BOOK)
+                continue;
+            const auto& ob = std::get<OrderBookRecord>(ev.payload);
+            if (ob.bid_px[0] <= 0.0 || ob.ask_px[0] <= 0.0)
+                continue;
+            TradeRecord t;
+            t.timestamp_ns = ob.timestamp_ns;
+            t.price = (ob.bid_px[0] + ob.ask_px[0]) * 0.5;
+            t.quantity = 0.01;
+            t.side = TradeSide::BUY;
+            t.exchange = ex;
+            t.symbol = sym;
+            synthetic.push_back(MarketEvent::from_trade(std::move(t)));
+        }
+        reader.day_events.insert(reader.day_events.end(),
+                                 std::make_move_iterator(synthetic.begin()),
+                                 std::make_move_iterator(synthetic.end()));
     }
 
     // Merge-sort trades + orderbook by timestamp.
-    std::sort(
-        reader.day_events.begin(), reader.day_events.end(),
-        [](const MarketEvent& a, const MarketEvent& b) { return a.timestamp_ns < b.timestamp_ns; });
+    std::sort(reader.day_events.begin(), reader.day_events.end(), [](const MarketEvent& a, const MarketEvent& b) {
+        return a.timestamp_ns < b.timestamp_ns;
+    });
 
-    spdlog::debug("[DataLoader] Loaded {} events for {}/{} on {}", reader.day_events.size(), ex,
-                  sym, format_date(d));
+    ygg::log::debug("[DataLoader] Loaded {} events for {}/{} on {}", reader.day_events.size(), ex, sym, format_date(d));
 }
 
 bool DataLoader::InstrumentReader::advance() {
@@ -284,7 +312,8 @@ std::optional<MarketEvent> DataLoader::next() {
 
         // Stale entry — reader has already moved past this timestamp.
         if (!r.has_next() || r.peek().timestamp_ns != ts) {
-            if (r.has_next()) heap_.emplace(r.peek().timestamp_ns, idx);
+            if (r.has_next())
+                heap_.emplace(r.peek().timestamp_ns, idx);
             continue;
         }
 
@@ -294,7 +323,8 @@ std::optional<MarketEvent> DataLoader::next() {
         if (!r.has_next()) {
             if (r.advance()) {
                 load_day(r);
-                if (r.has_next()) heap_.emplace(r.peek().timestamp_ns, idx);
+                if (r.has_next())
+                    heap_.emplace(r.peek().timestamp_ns, idx);
             }
         } else {
             heap_.emplace(r.peek().timestamp_ns, idx);

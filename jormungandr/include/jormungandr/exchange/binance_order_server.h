@@ -1,5 +1,8 @@
 #pragma once
 
+#include "jormungandr/matching/matching_engine.h"
+#include "jormungandr/matching/open_order.h"
+
 #include <atomic>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -7,9 +10,6 @@
 #include <memory>
 #include <thread>
 #include <vector>
-
-#include "jormungandr/matching/matching_engine.h"
-#include "jormungandr/matching/open_order.h"
 
 namespace jormungandr::exchange {
 

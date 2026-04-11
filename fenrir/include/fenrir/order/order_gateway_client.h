@@ -9,9 +9,9 @@
 #include <bifrost_protocol/CancelOrder.h>
 #include <bifrost_protocol/ExchangeId.h>
 #include <bifrost_protocol/ExecutionReport.h>
-#include <bifrost_protocol/OrderGatewayHeartbeat.h>
 #include <bifrost_protocol/ModifyOrder.h>
 #include <bifrost_protocol/NewOrder.h>
+#include <bifrost_protocol/OrderGatewayHeartbeat.h>
 #include <bifrost_protocol/OrderSide.h>
 #include <bifrost_protocol/OrderType.h>
 #include <bifrost_protocol/TimeInForce.h>

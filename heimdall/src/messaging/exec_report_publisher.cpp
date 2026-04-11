@@ -2,31 +2,36 @@
 
 #include <bifrost_protocol/ExecutionReport.h>
 #include <bifrost_protocol/MessageHeader.h>
-#include <yggdrasil/aeron/aeron_utils.h>
 
 #include <thread>
+#include <yggdrasil/aeron/aeron_utils.h>
 
 namespace heimdall::messaging {
 
 ExecReportPublisher::ExecReportPublisher(std::shared_ptr<aeron::Aeron> aeron,
-                                         const std::string& channel, int stream_id) {
+                                         const std::string& channel,
+                                         int stream_id) {
     publication_ = ygg::aeron::wait_for_publication(aeron, channel, stream_id);
 }
 
-void ExecReportPublisher::publish(uint64_t order_id, uint64_t exchange_order_id,
+void ExecReportPublisher::publish(uint64_t order_id,
+                                  uint64_t exchange_order_id,
                                   bifrost::protocol::ExchangeId::Value exchange_id,
                                   uint64_t instrument_id,
                                   bifrost::protocol::ExecStatus::Value status,
                                   bifrost::protocol::OrderSide::Value side,
-                                  bifrost::protocol::OrderType::Value order_type, int64_t price,
-                                  uint64_t filled_qty, uint64_t remaining_qty,
-                                  bifrost::protocol::RejectReason::Value reject_reason, int64_t fee,
+                                  bifrost::protocol::OrderType::Value order_type,
+                                  int64_t price,
+                                  uint64_t filled_qty,
+                                  uint64_t remaining_qty,
+                                  bifrost::protocol::RejectReason::Value reject_reason,
+                                  int64_t fee,
                                   bifrost::protocol::FeeCurrency::Value fee_currency,
-                                  uint64_t exchange_ts_ns, uint64_t local_ts_ns) {
+                                  uint64_t exchange_ts_ns,
+                                  uint64_t local_ts_ns) {
     using namespace bifrost::protocol;
 
-    constexpr std::size_t kBufSize =
-        MessageHeader::encodedLength() + ExecutionReport::sbeBlockLength();
+    constexpr std::size_t kBufSize = MessageHeader::encodedLength() + ExecutionReport::sbeBlockLength();
     char buf[kBufSize]{};
 
     ExecutionReport msg;
@@ -47,8 +52,7 @@ void ExecReportPublisher::publish(uint64_t order_id, uint64_t exchange_order_id,
         .timestampNs(exchange_ts_ns)
         .localTsNs(local_ts_ns);
 
-    aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf),
-                           static_cast<aeron::util::index_t>(kBufSize));
+    aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), static_cast<aeron::util::index_t>(kBufSize));
 
     while (publication_->offer(ab, 0, static_cast<aeron::util::index_t>(kBufSize)) < 0) {
         std::this_thread::yield();

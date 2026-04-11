@@ -1,12 +1,13 @@
 #include "heimdall/adapter/deribit/deribit_order_adapter.h"
 
+#include "heimdall/adapter/common/credentials.h"
+
 #include <bifrost_protocol/ExchangeId.h>
 #include <bifrost_protocol/ExecStatus.h>
 #include <bifrost_protocol/FeeCurrency.h>
 #include <bifrost_protocol/OrderSide.h>
 #include <bifrost_protocol/OrderType.h>
 #include <bifrost_protocol/RejectReason.h>
-#include <spdlog/spdlog.h>
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -20,8 +21,6 @@
 #include <stdexcept>
 #include <string>
 
-#include "heimdall/adapter/common/credentials.h"
-
 namespace heimdall::adapter {
 
 namespace beast = boost::beast;
@@ -33,20 +32,19 @@ using tcp = net::ip::tcp;
 
 static constexpr double kScale = 1e8;
 
-DeribitOrderAdapter::DeribitOrderAdapter(const config::AdapterConfig& cfg,
-                                         const ExchangeCredentials& creds)
-    : OrderAdapterBase(cfg), client_id_(creds.client_id), client_secret_(creds.client_secret) {
-    uint32_t epoch_s =
-        static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::seconds>(
-                                  std::chrono::system_clock::now().time_since_epoch())
-                                  .count());
+DeribitOrderAdapter::DeribitOrderAdapter(const config::AdapterConfig& cfg, const ExchangeCredentials& creds)
+    : OrderAdapterBase(cfg),
+      client_id_(creds.client_id),
+      client_secret_(creds.client_secret) {
+    uint32_t epoch_s = static_cast<uint32_t>(
+        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
     char buf[9];
     std::snprintf(buf, sizeof(buf), "%08x", epoch_s);
     session_prefix_ = std::string(buf, 8);
 
     parser_.on_exec_event = [this](const ExecEvent& ev) {
         if (!exec_queue_.try_push(ev))
-            spdlog::error("[Deribit] exec_queue full — dropped ExecEvent order_id={}", ev.order_id);
+            ygg::log::error("[Deribit] exec_queue full — dropped ExecEvent order_id={}", ev.order_id);
     };
 }
 
@@ -64,9 +62,10 @@ std::string DeribitOrderAdapter::build_auth_msg() {
 }
 
 void DeribitOrderAdapter::handle_message(const std::string& payload, uint64_t recv_ns) {
-    spdlog::info("[Heimdall] DeribitOrderAdapter WS rx: {}", payload.substr(0, 500));
+    ygg::log::info("[Heimdall] DeribitOrderAdapter WS rx: {}", payload.substr(0, 500));
     auto root = json::parse(payload);
-    if (!root.is_object()) return;
+    if (!root.is_object())
+        return;
     const auto& obj = root.as_object();
 
     // Notification methods: heartbeat + subscription channel pushes
@@ -85,7 +84,8 @@ void DeribitOrderAdapter::handle_message(const std::string& payload, uint64_t re
                     resp["method"] = "public/test";
                     resp["params"] = json::object{};
                     std::lock_guard<std::mutex> lk(send_mu_);
-                    if (ws_send_) ws_send_(json::serialize(resp));
+                    if (ws_send_)
+                        ws_send_(json::serialize(resp));
                 }
             }
             return;
@@ -93,10 +93,12 @@ void DeribitOrderAdapter::handle_message(const std::string& payload, uint64_t re
 
         if (method == "subscription") {
             auto params_it = obj.find("params");
-            if (params_it == obj.end() || !params_it->value().is_object()) return;
+            if (params_it == obj.end() || !params_it->value().is_object())
+                return;
             const auto& params = params_it->value().as_object();
             auto channel_it = params.find("channel");
-            if (channel_it == params.end()) return;
+            if (channel_it == params.end())
+                return;
             if (std::string(channel_it->value().as_string()) == "user.orders.any.raw") {
                 auto data_it = params.find("data");
                 if (data_it != params.end() && data_it->value().is_object())
@@ -107,40 +109,44 @@ void DeribitOrderAdapter::handle_message(const std::string& payload, uint64_t re
     }
 
     // JSON-RPC responses (id-based)
-    if (obj.find("id") == obj.end()) return;
+    if (obj.find("id") == obj.end())
+        return;
 
     if (auto err_it = obj.find("error"); err_it != obj.end()) {
         const auto& err = err_it->value().as_object();
         int64_t code = 0;
         std::string errmsg;
-        if (auto cit = err.find("code"); cit != err.end()) code = cit->value().to_number<int64_t>();
+        if (auto cit = err.find("code"); cit != err.end())
+            code = cit->value().to_number<int64_t>();
         if (auto mit = err.find("message"); mit != err.end())
             errmsg = std::string(mit->value().as_string());
-        spdlog::error("[Heimdall] DeribitOrderAdapter: JSON-RPC error code={} msg={}", code,
-                      errmsg);
+        ygg::log::error("[Heimdall] DeribitOrderAdapter: JSON-RPC error code={} msg={}", code, errmsg);
         return;
     }
 
     auto result_it = obj.find("result");
-    if (result_it == obj.end() || !result_it->value().is_object()) return;
+    if (result_it == obj.end() || !result_it->value().is_object())
+        return;
     const auto& res = result_it->value().as_object();
 
     // Auth response
     if (res.find("access_token") != res.end()) {
-        spdlog::info("[Heimdall] DeribitOrderAdapter: authenticated successfully");
+        ygg::log::info("[Heimdall] DeribitOrderAdapter: authenticated successfully");
         logged_in_.store(true, std::memory_order_release);
         std::lock_guard<std::mutex> lk(send_mu_);
         auto send_rpc = [&](json::object msg) {
             msg["jsonrpc"] = "2.0";
             msg["id"] = jsonrpc_id_.fetch_add(1, std::memory_order_relaxed);
-            if (ws_send_) ws_send_(json::serialize(msg));
+            if (ws_send_)
+                ws_send_(json::serialize(msg));
         };
         send_rpc({{"method", "private/enable_cancel_on_disconnect"}, {"params", json::object{}}});
         send_rpc({{"method", "public/set_heartbeat"}, {"params", json::object{{"interval", 10}}}});
         send_rpc({{"method", "private/subscribe"},
                   {"params", json::object{{"channels", json::array{"user.orders.any.raw"}}}}});
         for (const auto& pending : pending_sends_)
-            if (ws_send_) ws_send_(pending);
+            if (ws_send_)
+                ws_send_(pending);
         pending_sends_.clear();
         return;
     }
@@ -154,12 +160,10 @@ void DeribitOrderAdapter::connect_and_run() {
     logged_in_.store(false, std::memory_order_relaxed);
     parser_.reset();
 
-    spdlog::info("[Heimdall] DeribitOrderAdapter connecting {}:{}{}", cfg_.ws_host, cfg_.ws_port,
-                 cfg_.ws_path);
+    ygg::log::info("[Heimdall] DeribitOrderAdapter connecting {}:{}{}", cfg_.ws_host, cfg_.ws_port, cfg_.ws_path);
 
     tcp::resolver resolver(ioc_);
-    auto ws =
-        std::make_unique<websocket::stream<beast::ssl_stream<beast::tcp_stream>>>(ioc_, ssl_ctx_);
+    auto ws = std::make_unique<websocket::stream<beast::ssl_stream<beast::tcp_stream>>>(ioc_, ssl_ctx_);
 
     auto results = resolver.resolve(cfg_.ws_host, cfg_.ws_port);
     beast::get_lowest_layer(*ws).connect(results);
@@ -171,9 +175,8 @@ void DeribitOrderAdapter::connect_and_run() {
     // Deribit uses text frames for JSON-RPC
     ws->text(true);
 
-    ws->set_option(websocket::stream_base::decorator([](websocket::request_type& req) {
-        req.set(boost::beast::http::field::user_agent, "heimdall/0.1");
-    }));
+    ws->set_option(websocket::stream_base::decorator(
+        [](websocket::request_type& req) { req.set(boost::beast::http::field::user_agent, "heimdall/0.1"); }));
     ws->handshake(cfg_.ws_host, cfg_.ws_path);
 
     // Disable Beast's idle timeout — we manage heartbeats via Deribit's
@@ -187,13 +190,15 @@ void DeribitOrderAdapter::connect_and_run() {
     // Register send callback — nulled out on any exit path.
     {
         std::lock_guard<std::mutex> lk(send_mu_);
-        ws_send_ = [&ws](const std::string& msg) { ws->write(net::buffer(msg)); };
+        ws_send_ = [&ws](const std::string& msg) {
+            ws->write(net::buffer(msg));
+        };
     }
 
     ws->write(net::buffer(build_auth_msg()));
 
     connected_.store(true, std::memory_order_relaxed);
-    spdlog::info("[Heimdall] DeribitOrderAdapter connected, waiting for auth");
+    ygg::log::info("[Heimdall] DeribitOrderAdapter connected, waiting for auth");
 
     try {
         beast::flat_buffer buf;
@@ -206,10 +211,10 @@ void DeribitOrderAdapter::connect_and_run() {
                 buf.consume(buf.size());
                 continue;
             }
-            if (ec) throw beast::system_error(ec);
+            if (ec)
+                throw beast::system_error(ec);
 
-            uint64_t recv_ns =
-                static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
+            uint64_t recv_ns = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
             std::string msg(static_cast<const char*>(buf.data().data()), buf.data().size());
             buf.consume(buf.size());
 
@@ -285,8 +290,7 @@ void DeribitOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& orde
     std::string frame = json::serialize(msg);
 
     auto emit_rejection = [&]() {
-        uint64_t ts =
-            static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
+        uint64_t ts = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
         ExecEvent rej{};
         rej.order_id = order.orderId();
         rej.exchange_id = bifrost::protocol::ExchangeId::DERIBIT;
@@ -298,12 +302,12 @@ void DeribitOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& orde
         rej.status = bifrost::protocol::ExecStatus::REJECTED;
         rej.reject_reason = bifrost::protocol::RejectReason::EXCHANGE_ERROR;
         if (!exec_queue_.try_push(rej))
-            spdlog::error("[Deribit] exec_queue full — dropped rejection order_id={}", rej.order_id);
+            ygg::log::error("[Deribit] exec_queue full — dropped rejection order_id={}", rej.order_id);
     };
 
     std::lock_guard<std::mutex> lk(send_mu_);
     if (!ws_send_) {
-        spdlog::warn(
+        ygg::log::warn(
             "[Heimdall] DeribitOrderAdapter: send_new_order: WS not "
             "connected, rejecting order={}",
             order.orderId());
@@ -311,7 +315,7 @@ void DeribitOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& orde
         return;
     }
     if (!logged_in_.load(std::memory_order_acquire)) {
-        spdlog::info(
+        ygg::log::info(
             "[Heimdall] DeribitOrderAdapter: queuing order {} (not yet "
             "authenticated)",
             order.orderId());
@@ -321,7 +325,7 @@ void DeribitOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& orde
     try {
         ws_send_(frame);
     } catch (const std::exception& e) {
-        spdlog::error("[Heimdall] DeribitOrderAdapter: send_new_order failed: {}", e.what());
+        ygg::log::error("[Heimdall] DeribitOrderAdapter: send_new_order failed: {}", e.what());
         emit_rejection();
     }
 }
@@ -331,7 +335,7 @@ void DeribitOrderAdapter::send_cancel(const bifrost::protocol::CancelOrder& canc
     // Deribit cancel uses exchange order_id, not instrument symbol.
     std::string exch_oid = parser_.get_exchange_order_id(cancel.orderId());
     if (exch_oid.empty()) {
-        spdlog::warn(
+        ygg::log::warn(
             "[Heimdall] DeribitOrderAdapter: send_cancel: no exchange "
             "order_id for order={}",
             cancel.orderId());
@@ -353,7 +357,7 @@ void DeribitOrderAdapter::send_cancel(const bifrost::protocol::CancelOrder& canc
         try {
             ws_send_(frame);
         } catch (const std::exception& e) {
-            spdlog::error("[Heimdall] DeribitOrderAdapter: send_cancel failed: {}", e.what());
+            ygg::log::error("[Heimdall] DeribitOrderAdapter: send_cancel failed: {}", e.what());
         }
     }
 }
@@ -362,7 +366,7 @@ void DeribitOrderAdapter::send_cancel_all(uint64_t instrument_id) {
     // Deribit cancel_all_by_instrument requires instrument_name, but we only
     // have instrument_id here. Log a warning — in practice the main.cpp
     // cancel_all path iterates open orders and calls send_cancel per order.
-    spdlog::warn(
+    ygg::log::warn(
         "[Heimdall] DeribitOrderAdapter: send_cancel_all called "
         "instrument_id={} — not supported without instrument name",
         instrument_id);
@@ -372,7 +376,7 @@ void DeribitOrderAdapter::send_modify(const bifrost::protocol::ModifyOrder& modi
                                       const std::string& /*native_symbol*/) {
     std::string exch_oid = parser_.get_exchange_order_id(modify.orderId());
     if (exch_oid.empty()) {
-        spdlog::warn(
+        ygg::log::warn(
             "[Heimdall] DeribitOrderAdapter: send_modify: no exchange "
             "order_id for order={}",
             modify.orderId());
@@ -399,23 +403,22 @@ void DeribitOrderAdapter::send_modify(const bifrost::protocol::ModifyOrder& modi
         try {
             ws_send_(frame);
         } catch (const std::exception& e) {
-            spdlog::error("[Heimdall] DeribitOrderAdapter: send_modify failed: {}", e.what());
+            ygg::log::error("[Heimdall] DeribitOrderAdapter: send_modify failed: {}", e.what());
         }
     }
 }
 
 AccountSnapshotData DeribitOrderAdapter::fetch_account_snapshot(uint64_t correlation_id) {
     // Not yet implemented — Deribit account snapshot is not required for current strategies.
-    spdlog::warn(
+    ygg::log::warn(
         "[Heimdall] DeribitOrderAdapter: fetch_account_snapshot not implemented — returning empty "
         "snapshot");
     AccountSnapshotData snap;
     snap.exchange_id = bifrost::protocol::ExchangeId::DERIBIT;
     snap.correlation_id = correlation_id;
-    snap.timestamp_ns =
-        static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                  std::chrono::system_clock::now().time_since_epoch())
-                                  .count());
+    snap.timestamp_ns = static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count());
     return snap;
 }
 

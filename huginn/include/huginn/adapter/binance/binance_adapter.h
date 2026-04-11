@@ -38,8 +38,8 @@ public:
 
 protected:
     // Returns nullptr if there are no subscriptions yet (run() will retry).
-    std::unique_ptr<ygg::ws::WsStream> connect_and_subscribe() override;
-    void read_loop(ygg::ws::WsStream& ws) override;
+    std::unique_ptr<ygg::ws::AnyWsStream> connect_and_subscribe() override;
+    void read_loop(ygg::ws::AnyWsStream& ws) override;
     void parse_frame(std::string_view payload, uint64_t recv_ns) override;
 
 private:

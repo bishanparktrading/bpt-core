@@ -14,7 +14,6 @@ add_library(surtr_lib
 target_link_libraries(surtr_lib PUBLIC
     yggdrasil
     fmt::fmt
-    spdlog::spdlog
     tomlplusplus::tomlplusplus
     aeron_client
     Threads::Threads

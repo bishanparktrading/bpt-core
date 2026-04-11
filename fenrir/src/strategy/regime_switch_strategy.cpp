@@ -12,7 +12,6 @@
 #include <chrono>
 #include <cmath>
 #include <numeric>
-#include <spdlog/spdlog.h>
 
 using bifrost::protocol::ExchangeId;
 using bifrost::protocol::ExecStatus;
@@ -87,7 +86,7 @@ RegimeSwitchStrategy::RegimeSwitchStrategy(uint64_t correlation_id,
 
     // Order ID generation is handled by OrderManager (globally unique across all strategies).
 
-    spdlog::info(
+    ygg::log::info(
         "[RS] hurst_window={} eval_bars={} mr_thresh={:.2f} "
         "trend_thresh={:.2f} hysteresis={:.2f}",
         hurst_window_,
@@ -95,7 +94,7 @@ RegimeSwitchStrategy::RegimeSwitchStrategy(uint64_t correlation_id,
         mean_revert_threshold_,
         trend_threshold_,
         hysteresis_);
-    spdlog::info(
+    ygg::log::info(
         "[RS] grid: levels={} spacing={:.0f}bps qty_usd={:.0f} "
         "max_pos_usd={:.0f} recenter={:.0f}bps",
         grid_levels_count_,
@@ -103,7 +102,7 @@ RegimeSwitchStrategy::RegimeSwitchStrategy(uint64_t correlation_id,
         grid_qty_usd_,
         grid_max_position_usd_,
         grid_recenter_bps_);
-    spdlog::info(
+    ygg::log::info(
         "[RS] momentum: ema_fast={} ema_slow={} atr={} "
         "stop_mult={:.1f} target_mult={:.1f} qty_usd={:.0f}",
         ema_fast_period_,
@@ -112,23 +111,23 @@ RegimeSwitchStrategy::RegimeSwitchStrategy(uint64_t correlation_id,
         atr_stop_mult_,
         atr_target_mult_,
         momentum_qty_usd_);
-    spdlog::info("[RS] execution: aggress={:.1f}bps max_spread={:.1f}bps bar_interval={:.1f}s depth={}",
-                 aggress_bps_,
-                 max_spread_bps_,
-                 bar_interval_ns_ / 1e9,
-                 order_book_depth_);
-    spdlog::info("[RS] risk: max_pos_usd={} max_order_usd={} max_daily_loss={}",
-                 cfg.risk.max_position_usd,
-                 cfg.risk.max_order_size_usd,
-                 cfg.risk.max_daily_loss_usd);
-    spdlog::info("[RS] order IDs managed by OrderManager (globally unique)");
+    ygg::log::info("[RS] execution: aggress={:.1f}bps max_spread={:.1f}bps bar_interval={:.1f}s depth={}",
+                   aggress_bps_,
+                   max_spread_bps_,
+                   bar_interval_ns_ / 1e9,
+                   order_book_depth_);
+    ygg::log::info("[RS] risk: max_pos_usd={} max_order_usd={} max_daily_loss={}",
+                   cfg.risk.max_position_usd,
+                   cfg.risk.max_order_size_usd,
+                   cfg.risk.max_daily_loss_usd);
+    ygg::log::info("[RS] order IDs managed by OrderManager (globally unique)");
 }
 
 // ── IStrategy ───────────────────────────────────────────────────────────────
 
 void RegimeSwitchStrategy::start() {
     for (const auto& ex : md_exchanges_)
-        spdlog::info("[RS] MD exchange: {}", ex);
+        ygg::log::info("[RS] MD exchange: {}", ex);
 
     std::vector<refdata::RefdataClient::CanonicalFilter> filters;
     for (const auto& sym : instruments_) {
@@ -163,11 +162,11 @@ void RegimeSwitchStrategy::start() {
 void RegimeSwitchStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
     // Guard against duplicate snapshots from Sindri re-broadcasts.
     if (!state_.empty()) {
-        spdlog::debug("[RS] Ignoring duplicate snapshot ({} instruments)", cache.size());
+        ygg::log::debug("[RS] Ignoring duplicate snapshot ({} instruments)", cache.size());
         return;
     }
 
-    spdlog::info("[RS] Snapshot ({} instruments), resolving...", cache.size());
+    ygg::log::info("[RS] Snapshot ({} instruments), resolving...", cache.size());
     order_to_instrument_.clear();
     positions_.clear_all();
 
@@ -194,16 +193,16 @@ void RegimeSwitchStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
         st.tick_size = inst->tick_size;
         st.lot_size = inst->lot_size;
 
-        spdlog::info("[RS] Instrument [{}] {} @ {} tick={} lot={}",
-                     id,
-                     inst->symbol,
-                     inst->exchange,
-                     inst->tick_size,
-                     inst->lot_size);
+        ygg::log::info("[RS] Instrument [{}] {} @ {} tick={} lot={}",
+                       id,
+                       inst->symbol,
+                       inst->exchange,
+                       inst->tick_size,
+                       inst->lot_size);
         state_.emplace(id, std::move(st));
     }
 
-    spdlog::info("[RS] Resolved {} instrument(s)", state_.size());
+    ygg::log::info("[RS] Resolved {} instrument(s)", state_.size());
 
     if (!md_client_)
         return;
@@ -212,7 +211,7 @@ void RegimeSwitchStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
     for (const auto& [id, st] : state_)
         subs.push_back({id, st.exchange, st.symbol, order_book_depth_});
 
-    spdlog::info("[RS] Subscribing MD to {} instrument(s)", subs.size());
+    ygg::log::info("[RS] Subscribing MD to {} instrument(s)", subs.size());
     md_client_->subscribe(correlation_id_, subs);
 }
 
@@ -288,9 +287,9 @@ void RegimeSwitchStrategy::on_bbo(const bifrost::protocol::MdMarketData& tick) {
     if (st.regime == Regime::TRANSITIONING) {
         constexpr uint64_t kTransitionTimeoutNs = 10'000'000'000ULL;  // 10s
         if (st.last_bbo_ns - st.transition_start_ns > kTransitionTimeoutNs) {
-            spdlog::warn("[RS] {} transition timeout — force-completing ({} pending cancels)",
-                         st.symbol,
-                         st.pending_cancels.size());
+            ygg::log::warn("[RS] {} transition timeout — force-completing ({} pending cancels)",
+                           st.symbol,
+                           st.pending_cancels.size());
             for (uint64_t oid : st.pending_cancels)
                 order_to_instrument_.erase(oid);
             st.pending_cancels.clear();
@@ -345,7 +344,7 @@ void RegimeSwitchStrategy::on_bar_close(InstrumentState& st) {
     // Need enough data for Hurst.
     if (st.return_count < 20) {
         if (st.regime == Regime::WARMING_UP)
-            spdlog::debug("[RS] {} warming up: {}/{} returns", st.symbol, st.return_count, hurst_window_);
+            ygg::log::debug("[RS] {} warming up: {}/{} returns", st.symbol, st.return_count, hurst_window_);
         return;
     }
 
@@ -357,11 +356,11 @@ void RegimeSwitchStrategy::on_bar_close(InstrumentState& st) {
 
     // ── Regime change ──
     if (new_regime != st.regime && st.regime != Regime::TRANSITIONING && st.regime_dwell >= min_regime_dwell_) {
-        spdlog::info("[RS] {} regime change: {} → {} (H={:.3f})",
-                     st.symbol,
-                     regime_name(st.regime),
-                     regime_name(new_regime),
-                     hurst);
+        ygg::log::info("[RS] {} regime change: {} → {} (H={:.3f})",
+                       st.symbol,
+                       regime_name(st.regime),
+                       regime_name(new_regime),
+                       hurst);
         begin_transition(st, new_regime);
         return;
     }
@@ -375,30 +374,30 @@ void RegimeSwitchStrategy::on_bar_close(InstrumentState& st) {
     // ── Act within current regime ──
     if (st.regime == Regime::GRID) {
         if (!spread_ok) {
-            spdlog::debug("[RS] {} grid skipped — spread {:.1f}bps > max {:.1f}bps",
-                          st.symbol,
-                          spread_bps,
-                          max_spread_bps_);
+            ygg::log::debug("[RS] {} grid skipped — spread {:.1f}bps > max {:.1f}bps",
+                            st.symbol,
+                            spread_bps,
+                            max_spread_bps_);
         } else if (st.grid.active_count == 0) {
             grid_build(st);
         } else if (st.grid.grid_center > 0.0) {
             const double drift_bps = std::abs(mid - st.grid.grid_center) / st.grid.grid_center * 10000.0;
             if (drift_bps > grid_recenter_bps_) {
-                spdlog::info("[RS] {} grid recenter: mid={:.2f} center={:.2f} drift={:.1f}bps",
-                             st.symbol,
-                             mid,
-                             st.grid.grid_center,
-                             drift_bps);
+                ygg::log::info("[RS] {} grid recenter: mid={:.2f} center={:.2f} drift={:.1f}bps",
+                               st.symbol,
+                               mid,
+                               st.grid.grid_center,
+                               drift_bps);
                 grid_cancel_all(st);
                 grid_build(st);
             }
         }
     } else if (st.regime == Regime::MOMENTUM) {
         if (!spread_ok) {
-            spdlog::debug("[RS] {} momentum skipped — spread {:.1f}bps > max {:.1f}bps",
-                          st.symbol,
-                          spread_bps,
-                          max_spread_bps_);
+            ygg::log::debug("[RS] {} momentum skipped — spread {:.1f}bps > max {:.1f}bps",
+                            st.symbol,
+                            spread_bps,
+                            max_spread_bps_);
         } else if (!st.has_momentum_position) {
             momentum_check_signal(st);
         } else {
@@ -406,15 +405,15 @@ void RegimeSwitchStrategy::on_bar_close(InstrumentState& st) {
         }
     }
 
-    spdlog::info("[RS] {} H={:.3f} regime={} dwell={}/{} mid={:.2f} atr={:.2f} spread={:.1f}bps",
-                 st.symbol,
-                 hurst,
-                 regime_name(st.regime),
-                 st.regime_dwell,
-                 min_regime_dwell_,
-                 mid,
-                 st.bar_atr,
-                 spread_bps);
+    ygg::log::info("[RS] {} H={:.3f} regime={} dwell={}/{} mid={:.2f} atr={:.2f} spread={:.1f}bps",
+                   st.symbol,
+                   hurst,
+                   regime_name(st.regime),
+                   st.regime_dwell,
+                   min_regime_dwell_,
+                   mid,
+                   st.bar_atr,
+                   spread_bps);
 }
 
 // ── Exec Reports ────────────────────────────────────────────────────────────
@@ -439,24 +438,24 @@ void RegimeSwitchStrategy::on_exec_report(const bifrost::protocol::ExecutionRepo
         const auto src = rpt.rejectSource();
         const bool gateway_reject = (src == RejectSource::GATEWAY || src == RejectSource::RISK);
         if (gateway_reject)
-            spdlog::error("[RS] {} exec order_id={} REJECTED reason={} source={}",
-                          st.symbol,
-                          order_id,
-                          bifrost::protocol::RejectReason::c_str(rpt.rejectReason()),
-                          bifrost::protocol::RejectSource::c_str(src));
+            ygg::log::error("[RS] {} exec order_id={} REJECTED reason={} source={}",
+                            st.symbol,
+                            order_id,
+                            bifrost::protocol::RejectReason::c_str(rpt.rejectReason()),
+                            bifrost::protocol::RejectSource::c_str(src));
         else
-            spdlog::warn("[RS] {} exec order_id={} REJECTED reason={} source={}",
-                         st.symbol,
-                         order_id,
-                         bifrost::protocol::RejectReason::c_str(rpt.rejectReason()),
-                         bifrost::protocol::RejectSource::c_str(src));
+            ygg::log::warn("[RS] {} exec order_id={} REJECTED reason={} source={}",
+                           st.symbol,
+                           order_id,
+                           bifrost::protocol::RejectReason::c_str(rpt.rejectReason()),
+                           bifrost::protocol::RejectSource::c_str(src));
     } else {
-        spdlog::info("[RS] {} exec order_id={} status={} filled={:.6f} price={:.2f}",
-                     st.symbol,
-                     order_id,
-                     bifrost::protocol::ExecStatus::c_str(status),
-                     static_cast<double>(rpt.filledQty()) / kQtyScale,
-                     static_cast<double>(rpt.price()) / kPriceScale);
+        ygg::log::info("[RS] {} exec order_id={} status={} filled={:.6f} price={:.2f}",
+                       st.symbol,
+                       order_id,
+                       bifrost::protocol::ExecStatus::c_str(status),
+                       static_cast<double>(rpt.filledQty()) / kQtyScale,
+                       static_cast<double>(rpt.price()) / kPriceScale);
     }
 
     // Track fill.
@@ -464,10 +463,10 @@ void RegimeSwitchStrategy::on_exec_report(const bifrost::protocol::ExecutionRepo
         positions_.on_fill(st.instrument_id, st.exchange_id, rpt.side(), rpt.filledQty(), rpt.price());
 
         if (const auto pos = positions_.get(st.instrument_id, st.exchange_id)) {
-            spdlog::info("[RS] {} pos net_qty={:.6f} rpnl={:.4f}",
-                         st.symbol,
-                         static_cast<double>(pos->net_qty) / kQtyScale,
-                         pos->realized_pnl);
+            ygg::log::info("[RS] {} pos net_qty={:.6f} rpnl={:.4f}",
+                           st.symbol,
+                           static_cast<double>(pos->net_qty) / kQtyScale,
+                           pos->realized_pnl);
         }
     }
 
@@ -486,9 +485,9 @@ void RegimeSwitchStrategy::on_exec_report(const bifrost::protocol::ExecutionRepo
             if (st.consecutive_rejects >= 3) {
                 constexpr uint64_t kCooldownNs = 30'000'000'000ULL;
                 st.reject_cooldown_until_ns = st.last_bbo_ns + kCooldownNs;
-                spdlog::warn("[RS] {} pausing orders for 30s after {} consecutive rejects",
-                             st.symbol,
-                             st.consecutive_rejects);
+                ygg::log::warn("[RS] {} pausing orders for 30s after {} consecutive rejects",
+                               st.symbol,
+                               st.consecutive_rejects);
             }
         }
     } else {
@@ -521,7 +520,7 @@ void RegimeSwitchStrategy::on_exec_report(const bifrost::protocol::ExecutionRepo
                     // This was a close order.
                     st.has_momentum_position = false;
                     st.momentum_order_id = 0;
-                    spdlog::info("[RS] {} momentum position closed", st.symbol);
+                    ygg::log::info("[RS] {} momentum position closed", st.symbol);
                 } else {
                     // This was an entry.
                     st.has_momentum_position = true;
@@ -534,12 +533,12 @@ void RegimeSwitchStrategy::on_exec_report(const bifrost::protocol::ExecutionRepo
                         st.momentum_stop = st.momentum_entry_price + st.bar_atr * atr_stop_mult_;
                         st.momentum_target = st.momentum_entry_price - st.bar_atr * atr_target_mult_;
                     }
-                    spdlog::info("[RS] {} momentum entered: side={} price={:.2f} stop={:.2f} target={:.2f}",
-                                 st.symbol,
-                                 st.momentum_side == bifrost::protocol::OrderSide::BUY ? "BUY" : "SELL",
-                                 st.momentum_entry_price,
-                                 st.momentum_stop,
-                                 st.momentum_target);
+                    ygg::log::info("[RS] {} momentum entered: side={} price={:.2f} stop={:.2f} target={:.2f}",
+                                   st.symbol,
+                                   st.momentum_side == bifrost::protocol::OrderSide::BUY ? "BUY" : "SELL",
+                                   st.momentum_entry_price,
+                                   st.momentum_stop,
+                                   st.momentum_target);
                 }
             } else {
                 // Order cancelled or rejected.
@@ -728,7 +727,7 @@ void RegimeSwitchStrategy::grid_build(InstrumentState& st) {
 
     // Reject cooldown — don't spam orders if gateway is rejecting.
     if (st.reject_cooldown_until_ns > 0 && st.last_bbo_ns < st.reject_cooldown_until_ns) {
-        spdlog::debug("[RS] {} grid_build skipped — in reject cooldown", st.symbol);
+        ygg::log::debug("[RS] {} grid_build skipped — in reject cooldown", st.symbol);
         return;
     }
     st.reject_cooldown_until_ns = 0;
@@ -742,7 +741,10 @@ void RegimeSwitchStrategy::grid_build(InstrumentState& st) {
     if (st.bar_atr > 0.0 && st.bar_atr_warmup >= atr_period_) {
         // Space grid levels at 1x ATR apart — adapts to current volatility.
         spacing = st.bar_atr;
-        spdlog::info("[RS] {} grid spacing from ATR: {:.2f} ({:.1f}bps)", st.symbol, spacing, spacing / mid * 10000.0);
+        ygg::log::info("[RS] {} grid spacing from ATR: {:.2f} ({:.1f}bps)",
+                       st.symbol,
+                       spacing,
+                       spacing / mid * 10000.0);
     } else {
         spacing = mid * grid_spacing_bps_ / 10000.0;
     }
@@ -752,11 +754,11 @@ void RegimeSwitchStrategy::grid_build(InstrumentState& st) {
     const double fee_bps = get_round_trip_fee_bps(st);
     const double min_spacing = mid * fee_bps / 10000.0 * 1.5;  // 1.5x fees for margin
     if (spacing < min_spacing) {
-        spdlog::info("[RS] {} grid spacing {:.2f} < fee floor {:.2f} (fees={:.1f}bps), widening",
-                     st.symbol,
-                     spacing,
-                     min_spacing,
-                     fee_bps);
+        ygg::log::info("[RS] {} grid spacing {:.2f} < fee floor {:.2f} (fees={:.1f}bps), widening",
+                       st.symbol,
+                       spacing,
+                       min_spacing,
+                       fee_bps);
         spacing = min_spacing;
     }
 
@@ -764,7 +766,7 @@ void RegimeSwitchStrategy::grid_build(InstrumentState& st) {
     double lot = st.lot_size > 0.0 ? st.lot_size : 1.0 / kQtyScale;
     const double rounded_base = std::floor(target_base / lot) * lot;
     if (rounded_base <= 0.0) {
-        spdlog::warn("[RS] {} grid qty too small for lot_size", st.symbol);
+        ygg::log::warn("[RS] {} grid qty too small for lot_size", st.symbol);
         return;
     }
 
@@ -795,14 +797,14 @@ void RegimeSwitchStrategy::grid_build(InstrumentState& st) {
     }
     st.grid.active_count = grid_levels_count_ * 2;
 
-    spdlog::info("[RS] {} grid built: center={:.2f} spacing={:.2f} ({:.1f}bps) levels={} qty={:.6f} fees={:.1f}bps",
-                 st.symbol,
-                 mid,
-                 spacing,
-                 spacing / mid * 10000.0,
-                 grid_levels_count_ * 2,
-                 rounded_base,
-                 fee_bps);
+    ygg::log::info("[RS] {} grid built: center={:.2f} spacing={:.2f} ({:.1f}bps) levels={} qty={:.6f} fees={:.1f}bps",
+                   st.symbol,
+                   mid,
+                   spacing,
+                   spacing / mid * 10000.0,
+                   grid_levels_count_ * 2,
+                   rounded_base,
+                   fee_bps);
 }
 
 void RegimeSwitchStrategy::grid_cancel_all(InstrumentState& st) {
@@ -828,10 +830,10 @@ void RegimeSwitchStrategy::grid_on_fill(InstrumentState& st,
     const int64_t net = positions_.net_qty(st.instrument_id, st.exchange_id);
     const double pos_usd = std::abs(static_cast<double>(net) / kQtyScale * mid);
     if (pos_usd > grid_max_position_usd_) {
-        spdlog::warn("[RS] {} grid position limit reached: ${:.0f} > ${:.0f}",
-                     st.symbol,
-                     pos_usd,
-                     grid_max_position_usd_);
+        ygg::log::warn("[RS] {} grid position limit reached: ${:.0f} > ${:.0f}",
+                       st.symbol,
+                       pos_usd,
+                       grid_max_position_usd_);
         return;
     }
 
@@ -880,14 +882,14 @@ void RegimeSwitchStrategy::grid_on_fill(InstrumentState& st,
         lvl.side = tp_side;
         lvl.is_take_profit = true;
 
-        spdlog::info("[RS] {} grid TP: {} @ {:.2f} → {} @ {:.2f} (spacing={:.2f} fees={:.1f}bps)",
-                     st.symbol,
-                     rpt.side() == OrderSide::BUY ? "BUY" : "SELL",
-                     fill_price,
-                     tp_side == OrderSide::BUY ? "BUY" : "SELL",
-                     tp_price,
-                     tp_spacing,
-                     fee_bps);
+        ygg::log::info("[RS] {} grid TP: {} @ {:.2f} → {} @ {:.2f} (spacing={:.2f} fees={:.1f}bps)",
+                       st.symbol,
+                       rpt.side() == OrderSide::BUY ? "BUY" : "SELL",
+                       fill_price,
+                       tp_side == OrderSide::BUY ? "BUY" : "SELL",
+                       tp_price,
+                       tp_spacing,
+                       fee_bps);
         break;
     }
 }
@@ -931,11 +933,11 @@ void RegimeSwitchStrategy::momentum_check_signal(InstrumentState& st) {
             return;
         st.momentum_side = OrderSide::BUY;
         st.momentum_order_id = send_order(st, OrderSide::BUY, OrderType::LIMIT, TimeInForce::IOC, price, rounded);
-        spdlog::info("[RS] {} momentum BUY signal: ema_fast={:.2f} > ema_slow={:.2f} atr={:.2f}",
-                     st.symbol,
-                     st.ema_fast,
-                     st.ema_slow,
-                     st.bar_atr);
+        ygg::log::info("[RS] {} momentum BUY signal: ema_fast={:.2f} > ema_slow={:.2f} atr={:.2f}",
+                       st.symbol,
+                       st.ema_fast,
+                       st.ema_slow,
+                       st.bar_atr);
 
     } else if (st.ema_fast < st.ema_slow) {
         // Bearish crossover — go short.
@@ -947,11 +949,11 @@ void RegimeSwitchStrategy::momentum_check_signal(InstrumentState& st) {
             return;
         st.momentum_side = OrderSide::SELL;
         st.momentum_order_id = send_order(st, OrderSide::SELL, OrderType::LIMIT, TimeInForce::IOC, price, rounded);
-        spdlog::info("[RS] {} momentum SELL signal: ema_fast={:.2f} < ema_slow={:.2f} atr={:.2f}",
-                     st.symbol,
-                     st.ema_fast,
-                     st.ema_slow,
-                     st.bar_atr);
+        ygg::log::info("[RS] {} momentum SELL signal: ema_fast={:.2f} < ema_slow={:.2f} atr={:.2f}",
+                       st.symbol,
+                       st.ema_fast,
+                       st.ema_slow,
+                       st.bar_atr);
     }
 }
 
@@ -990,12 +992,12 @@ void RegimeSwitchStrategy::momentum_check_exit(InstrumentState& st, double mid) 
     }
 
     if (should_exit) {
-        spdlog::info("[RS] {} momentum exit: reason={} mid={:.2f} stop={:.2f} target={:.2f}",
-                     st.symbol,
-                     reason,
-                     mid,
-                     st.momentum_stop,
-                     st.momentum_target);
+        ygg::log::info("[RS] {} momentum exit: reason={} mid={:.2f} stop={:.2f} target={:.2f}",
+                       st.symbol,
+                       reason,
+                       mid,
+                       st.momentum_stop,
+                       st.momentum_target);
         momentum_close_position(st);
     }
 }
@@ -1076,7 +1078,7 @@ void RegimeSwitchStrategy::check_transition_complete(InstrumentState& st) {
                                            price,
                                            static_cast<double>(std::abs(net)) / kQtyScale);
             st.transition = TransitionPhase::CLOSING_POSITION;
-            spdlog::info("[RS] {} closing position before entering {}", st.symbol, regime_name(st.target_regime));
+            ygg::log::info("[RS] {} closing position before entering {}", st.symbol, regime_name(st.target_regime));
             return;
         }
 
@@ -1086,7 +1088,7 @@ void RegimeSwitchStrategy::check_transition_complete(InstrumentState& st) {
         st.regime_dwell = 0;
         st.has_momentum_position = (net != 0);
 
-        spdlog::info("[RS] {} entered regime: {}", st.symbol, regime_name(st.regime));
+        ygg::log::info("[RS] {} entered regime: {}", st.symbol, regime_name(st.regime));
 
         if (st.regime == Regime::GRID) {
             grid_build(st);
@@ -1106,19 +1108,19 @@ uint64_t RegimeSwitchStrategy::send_order(InstrumentState& st,
     if (!order_mgr_)
         return 0;
 
-    spdlog::info("[RS] {} {} @ {:.2f} qty={:.6f} tif={}",
-                 st.symbol,
-                 side == bifrost::protocol::OrderSide::BUY ? "BUY" : "SELL",
-                 price,
-                 qty,
-                 tif == bifrost::protocol::TimeInForce::IOC ? "IOC" : "GTC");
+    ygg::log::info("[RS] {} {} @ {:.2f} qty={:.6f} tif={}",
+                   st.symbol,
+                   side == bifrost::protocol::OrderSide::BUY ? "BUY" : "SELL",
+                   price,
+                   qty,
+                   tif == bifrost::protocol::TimeInForce::IOC ? "IOC" : "GTC");
 
     const uint64_t order_id = order_mgr_->place_order(st.instrument_id, st.exchange_id, side, type, tif, price, qty);
     if (order_id == 0)
         return 0;
 
     order_to_instrument_[order_id] = st.instrument_id;
-    spdlog::info("[RS] order placed → order_id={}", order_id);
+    ygg::log::info("[RS] order placed → order_id={}", order_id);
     return order_id;
 }
 

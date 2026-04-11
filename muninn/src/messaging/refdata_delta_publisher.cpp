@@ -6,8 +6,8 @@
 #include <bifrost_protocol/OptionSide.h>
 #include <bifrost_protocol/RefDataDelta.h>
 
-#include <spdlog/spdlog.h>
 #include <yggdrasil/aeron/aeron_utils.h>
+#include <yggdrasil/logging.h>
 #include <yggdrasil/util/tsc_clock.h>
 
 namespace muninn::messaging {
@@ -56,7 +56,7 @@ void RefdataDeltaPublisher::publish_delta(bifrost::protocol::DeltaUpdateType::Va
     aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), kBufSize);
     aeron_offer(*publication_, ab, static_cast<aeron::util::index_t>(kBufSize), "delta");
 
-    spdlog::debug("Published delta seq={} uid={} type={}", seq_, inst.inst_uid, DeltaUpdateType::c_str(update_type));
+    ygg::log::debug("Published delta seq={} uid={} type={}", seq_, inst.inst_uid, DeltaUpdateType::c_str(update_type));
 }
 
 void RefdataDeltaPublisher::publish_heartbeat() {
@@ -80,7 +80,7 @@ void RefdataDeltaPublisher::publish_heartbeat() {
     aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), kBufSize);
     aeron_offer(*publication_, ab, static_cast<aeron::util::index_t>(kBufSize), "heartbeat");
 
-    spdlog::debug("Published heartbeat seq={}", seq_);
+    ygg::log::debug("Published heartbeat seq={}", seq_);
 }
 
 }  // namespace muninn::messaging

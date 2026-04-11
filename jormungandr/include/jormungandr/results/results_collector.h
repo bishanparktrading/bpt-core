@@ -1,12 +1,12 @@
 #pragma once
 
+#include "jormungandr/data/market_event.h"
+#include "jormungandr/matching/open_order.h"
+
 #include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include "jormungandr/data/market_event.h"
-#include "jormungandr/matching/open_order.h"
 
 namespace jormungandr::results {
 

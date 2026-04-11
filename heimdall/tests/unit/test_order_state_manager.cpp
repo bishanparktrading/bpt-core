@@ -1,13 +1,13 @@
 // Unit tests for OrderStateManager — pure logic, no network, no Aeron.
+#include "heimdall/order/order_state_manager.h"
+
 #include <bifrost_protocol/ExchangeId.h>
 #include <bifrost_protocol/ExecStatus.h>
 #include <bifrost_protocol/OrderSide.h>
 #include <bifrost_protocol/OrderType.h>
+
 #include <gtest/gtest.h>
-
 #include <vector>
-
-#include "heimdall/order/order_state_manager.h"
 
 using namespace heimdall::order;
 using EX = bifrost::protocol::ExchangeId;
@@ -174,8 +174,7 @@ TEST(OrderStateManagerTest, CheckStaleDetectsOldAckedOrder) {
     uint64_t now = 1000ULL + 61ULL * 1'000'000'000ULL;
 
     std::vector<uint64_t> stale_ids;
-    mgr.check_stale(now, timeout_ns,
-                    [&](const OrderState& st) { stale_ids.push_back(st.order_id); });
+    mgr.check_stale(now, timeout_ns, [&](const OrderState& st) { stale_ids.push_back(st.order_id); });
 
     EXPECT_EQ(stale_ids.size(), 1u);
     EXPECT_EQ(stale_ids[0], 40ULL);
@@ -191,8 +190,7 @@ TEST(OrderStateManagerTest, CheckStaleSkipsRecentOrder) {
     uint64_t now = 1000ULL + 10ULL * 1'000'000'000ULL;  // only 10s later
 
     std::vector<uint64_t> stale_ids;
-    mgr.check_stale(now, timeout_ns,
-                    [&](const OrderState& st) { stale_ids.push_back(st.order_id); });
+    mgr.check_stale(now, timeout_ns, [&](const OrderState& st) { stale_ids.push_back(st.order_id); });
 
     EXPECT_TRUE(stale_ids.empty());
 }

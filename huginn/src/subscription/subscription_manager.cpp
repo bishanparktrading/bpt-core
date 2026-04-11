@@ -4,8 +4,8 @@
 #include <bifrost_protocol/MessageHeader.h>
 
 #include <cstring>
-#include <spdlog/spdlog.h>
 #include <unordered_set>
+#include <yggdrasil/logging.h>
 
 namespace huginn::subscription {
 
@@ -56,7 +56,7 @@ void SubscriptionManager::apply_batch(bifrost::protocol::MdSubscribeBatch& msg, 
             adapter::IAdapter* adapter = find_adapter(it->second.exchange);
             if (adapter)
                 adapter->unsubscribe(it->first);
-            spdlog::info("SubscriptionManager: unsubscribed {} on {}", it->first, it->second.exchange);
+            ygg::log::info("SubscriptionManager: unsubscribed {} on {}", it->first, it->second.exchange);
             it = active_.erase(it);
         } else {
             ++it;
@@ -68,7 +68,7 @@ void SubscriptionManager::apply_batch(bifrost::protocol::MdSubscribeBatch& msg, 
         adapter::IAdapter* adapter = find_adapter(d.exchange);
 
         if (!adapter) {
-            spdlog::warn("SubscriptionManager: no adapter for exchange {}", d.exchange);
+            ygg::log::warn("SubscriptionManager: no adapter for exchange {}", d.exchange);
             ack_pub.publish_ack(correlation_id, d.id, d.exchange.c_str(), AckStatus::NOT_FOUND);
             continue;
         }
@@ -76,7 +76,11 @@ void SubscriptionManager::apply_batch(bifrost::protocol::MdSubscribeBatch& msg, 
         if (active_.find(d.id) == active_.end()) {
             adapter->subscribe(d.id, d.symbol, d.depth);
             active_[d.id] = {d.id, d.exchange, d.symbol, d.depth};
-            spdlog::info("SubscriptionManager: subscribed {} ({}) on {} depth={}", d.id, d.symbol, d.exchange, d.depth);
+            ygg::log::info("SubscriptionManager: subscribed {} ({}) on {} depth={}",
+                           d.id,
+                           d.symbol,
+                           d.exchange,
+                           d.depth);
         }
 
         ack_pub.publish_ack(correlation_id, d.id, d.exchange.c_str(), AckStatus::OK);

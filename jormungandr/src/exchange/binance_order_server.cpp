@@ -1,7 +1,5 @@
 #include "jormungandr/exchange/binance_order_server.h"
 
-#include <spdlog/spdlog.h>
-
 #include <algorithm>
 #include <atomic>
 #include <boost/asio/post.hpp>
@@ -14,6 +12,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <yggdrasil/logging.h>
 
 namespace beast = boost::beast;
 namespace http = beast::http;
@@ -25,7 +24,9 @@ namespace jormungandr::exchange {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-static std::string dbl(double v) { return std::format("{:.10g}", v); }
+static std::string dbl(double v) {
+    return std::format("{:.10g}", v);
+}
 
 static std::unordered_map<std::string, std::string> parse_query(const std::string& qs) {
     std::unordered_map<std::string, std::string> out;
@@ -33,18 +34,16 @@ static std::unordered_map<std::string, std::string> parse_query(const std::strin
     std::string tok;
     while (std::getline(ss, tok, '&')) {
         auto eq = tok.find('=');
-        if (eq != std::string::npos) out.emplace(tok.substr(0, eq), tok.substr(eq + 1));
+        if (eq != std::string::npos)
+            out.emplace(tok.substr(0, eq), tok.substr(eq + 1));
     }
     return out;
 }
 
-static std::string format_execution_report(const matching::FillReport& fill,
-                                           uint64_t order_id_int) {
+static std::string format_execution_report(const matching::FillReport& fill, uint64_t order_id_int) {
     namespace json = boost::json;
     std::string side = (fill.side == matching::OrderSide::BUY) ? "BUY" : "SELL";
-    std::string status = fill.is_fully_filled
-                             ? "FILLED"
-                             : (fill.cumulative_fill_qty > 0 ? "PARTIALLY_FILLED" : "NEW");
+    std::string status = fill.is_fully_filled ? "FILLED" : (fill.cumulative_fill_qty > 0 ? "PARTIALLY_FILLED" : "NEW");
     std::string type = (fill.order_type == matching::OrderType::MARKET) ? "MARKET" : "LIMIT";
 
     json::object obj;
@@ -66,14 +65,12 @@ static std::string format_execution_report(const matching::FillReport& fill,
     return json::serialize(obj);
 }
 
-static std::string format_order_response(const matching::OpenOrder& order, uint64_t order_id_int,
-                                         uint64_t sim_ts) {
+static std::string format_order_response(const matching::OpenOrder& order, uint64_t order_id_int, uint64_t sim_ts) {
     namespace json = boost::json;
     std::string side = (order.side == matching::OrderSide::BUY) ? "BUY" : "SELL";
     std::string type = (order.type == matching::OrderType::MARKET) ? "MARKET" : "LIMIT";
-    std::string status = (order.filled_qty >= order.quantity)
-                             ? "FILLED"
-                             : (order.filled_qty > 0 ? "PARTIALLY_FILLED" : "NEW");
+    std::string status =
+        (order.filled_qty >= order.quantity) ? "FILLED" : (order.filled_qty > 0 ? "PARTIALLY_FILLED" : "NEW");
 
     json::object obj;
     obj["symbol"] = order.symbol;
@@ -95,18 +92,23 @@ static std::string format_order_response(const matching::OpenOrder& order, uint6
 // user-data stream.  After the upgrade the session is purely a push channel.
 class BinanceOrderSession : public std::enable_shared_from_this<BinanceOrderSession> {
 public:
-    explicit BinanceOrderSession(tcp::socket socket, matching::MatchingEngine& engine,
+    explicit BinanceOrderSession(tcp::socket socket,
+                                 matching::MatchingEngine& engine,
                                  std::atomic<uint64_t>& order_id_seq)
-        : socket_(std::move(socket)), engine_(engine), order_id_seq_(order_id_seq) {}
+        : socket_(std::move(socket)),
+          engine_(engine),
+          order_id_seq_(order_id_seq) {}
 
     void run() { do_read_http(); }
 
     // Queues a message on the WS user-data channel.  No-op if not upgraded.
     void push(std::shared_ptr<std::string> msg) {
-        if (!ws_upgraded_) return;
+        if (!ws_upgraded_)
+            return;
         bool idle = write_queue_.empty();
         write_queue_.push_back(std::move(msg));
-        if (idle) do_ws_write();
+        if (idle)
+            do_ws_write();
     }
 
     bool closed() const { return closed_; }
@@ -117,10 +119,9 @@ private:
 
     void do_read_http() {
         req_ = {};
-        http::async_read(socket_, buf_, req_,
-                         [self = shared_from_this()](beast::error_code ec, std::size_t) {
-                             self->on_read_http(ec);
-                         });
+        http::async_read(socket_, buf_, req_, [self = shared_from_this()](beast::error_code ec, std::size_t) {
+            self->on_read_http(ec);
+        });
     }
 
     void on_read_http(beast::error_code ec) {
@@ -138,7 +139,7 @@ private:
                     return;
                 }
                 self->ws_upgraded_ = true;
-                spdlog::info("[BinanceOrderServer] User-data WS connected");
+                ygg::log::info("[BinanceOrderServer] User-data WS connected");
                 // WS sessions are purely outbound; nothing to read.
             });
             return;
@@ -180,11 +181,11 @@ private:
         }
 
         res.prepare_payload();
-        http::async_write(socket_, res,
-                          [self = shared_from_this()](beast::error_code ec, std::size_t) {
-                              self->closed_ = true;  // HTTP: close after response
-                              if (ec) return;
-                          });
+        http::async_write(socket_, res, [self = shared_from_this()](beast::error_code ec, std::size_t) {
+            self->closed_ = true;  // HTTP: close after response
+            if (ec)
+                return;
+        });
     }
 
     void handle_new_order(const std::string& body, http::response<http::string_body>& res) {
@@ -194,11 +195,10 @@ private:
         order.exchange = "BINANCE";
         order.symbol = params.count("symbol") ? params["symbol"] : "";
         order.client_order_id = params.count("newClientOrderId") ? params["newClientOrderId"] : "";
-        order.type = (params.count("type") && params["type"] == "MARKET")
-                         ? matching::OrderType::MARKET
-                         : matching::OrderType::LIMIT;
-        order.side = (params.count("side") && params["side"] == "SELL") ? matching::OrderSide::SELL
-                                                                        : matching::OrderSide::BUY;
+        order.type = (params.count("type") && params["type"] == "MARKET") ? matching::OrderType::MARKET
+                                                                          : matching::OrderType::LIMIT;
+        order.side =
+            (params.count("side") && params["side"] == "SELL") ? matching::OrderSide::SELL : matching::OrderSide::BUY;
         order.quantity = params.count("quantity") ? std::stod(params["quantity"]) : 0.0;
         order.price = params.count("price") ? std::stod(params["price"]) : 0.0;
 
@@ -231,7 +231,8 @@ private:
     // ── WebSocket write phase ───────────────────────────────────────────────
 
     void do_ws_write() {
-        if (write_queue_.empty() || closed_ || !ws_stream_) return;
+        if (write_queue_.empty() || closed_ || !ws_stream_)
+            return;
         ws_stream_->async_write(net::buffer(*write_queue_.front()),
                                 [self = shared_from_this()](beast::error_code ec, std::size_t) {
                                     if (ec) {
@@ -259,9 +260,13 @@ private:
 // ── BinanceOrderServer ────────────────────────────────────────────────────────
 
 BinanceOrderServer::BinanceOrderServer(uint16_t port, matching::MatchingEngine& engine)
-    : port_(port), engine_(engine), acceptor_(ioc_) {}
+    : port_(port),
+      engine_(engine),
+      acceptor_(ioc_) {}
 
-BinanceOrderServer::~BinanceOrderServer() { stop(); }
+BinanceOrderServer::~BinanceOrderServer() {
+    stop();
+}
 
 void BinanceOrderServer::start() {
     tcp::endpoint ep{tcp::v4(), port_};
@@ -269,7 +274,7 @@ void BinanceOrderServer::start() {
     acceptor_.set_option(net::socket_base::reuse_address(true));
     acceptor_.bind(ep);
     acceptor_.listen();
-    spdlog::info("[BinanceOrderServer] Listening on port {}", port_);
+    ygg::log::info("[BinanceOrderServer] Listening on port {}", port_);
     do_accept();
     thread_ = std::thread([this] { ioc_.run(); });
 }
@@ -277,21 +282,22 @@ void BinanceOrderServer::start() {
 void BinanceOrderServer::stop() {
     net::post(ioc_, [this] { acceptor_.close(); });
     ioc_.stop();
-    if (thread_.joinable()) thread_.join();
+    if (thread_.joinable())
+        thread_.join();
 }
 
 void BinanceOrderServer::do_accept() {
     acceptor_.async_accept([this](beast::error_code ec, tcp::socket socket) {
         if (!ec) {
-            sessions_.erase(std::remove_if(sessions_.begin(), sessions_.end(),
-                                           [](const auto& s) { return s->closed(); }),
-                            sessions_.end());
-            auto session =
-                std::make_shared<BinanceOrderSession>(std::move(socket), engine_, order_id_seq_);
+            sessions_.erase(
+                std::remove_if(sessions_.begin(), sessions_.end(), [](const auto& s) { return s->closed(); }),
+                sessions_.end());
+            auto session = std::make_shared<BinanceOrderSession>(std::move(socket), engine_, order_id_seq_);
             sessions_.push_back(session);
             session->run();
         }
-        if (acceptor_.is_open()) do_accept();
+        if (acceptor_.is_open())
+            do_accept();
     });
 }
 
@@ -306,11 +312,11 @@ void BinanceOrderServer::push_fill(const matching::FillReport& fill) {
     auto msg = std::make_shared<std::string>(format_execution_report(fill, oid));
 
     net::post(ioc_, [this, msg]() {
-        sessions_.erase(std::remove_if(sessions_.begin(), sessions_.end(),
-                                       [](const auto& s) { return s->closed(); }),
+        sessions_.erase(std::remove_if(sessions_.begin(), sessions_.end(), [](const auto& s) { return s->closed(); }),
                         sessions_.end());
         for (const auto& s : sessions_)
-            if (s->is_ws()) s->push(msg);
+            if (s->is_ws())
+                s->push(msg);
     });
 }
 

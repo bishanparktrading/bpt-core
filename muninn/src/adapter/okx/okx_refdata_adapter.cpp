@@ -2,7 +2,6 @@
 
 #include <bifrost_protocol/DeltaUpdateType.h>
 
-#include <spdlog/spdlog.h>
 #include <yggdrasil/util/tsc_clock.h>
 
 namespace muninn::adapter {
@@ -28,7 +27,7 @@ OKXRefDataAdapter::OKXRefDataAdapter(const config::AdapterConfig& cfg,
       parser_(mapping) {}
 
 void OKXRefDataAdapter::fetchSnapshot() {
-    spdlog::info("[OKXRefData] Starting snapshot fetch...");
+    ygg::log::info("[OKXRefData] Starting snapshot fetch...");
     const uint64_t ts = now_ns();
 
     http::RestClient::Headers base_headers;
@@ -41,7 +40,7 @@ void OKXRefDataAdapter::fetchSnapshot() {
         for (auto& inst : parser_.parse_instruments(body, "SPOT", ts))
             registry_->add(inst);
     } catch (const std::exception& e) {
-        spdlog::error("[OKXRefData] Failed to fetch SPOT instruments: {}", e.what());
+        ygg::log::error("[OKXRefData] Failed to fetch SPOT instruments: {}", e.what());
         throw;
     }
 
@@ -51,7 +50,7 @@ void OKXRefDataAdapter::fetchSnapshot() {
         for (auto& inst : parser_.parse_instruments(body, "SWAP", ts))
             registry_->add(inst);
     } catch (const std::exception& e) {
-        spdlog::error("[OKXRefData] Failed to fetch SWAP instruments: {}", e.what());
+        ygg::log::error("[OKXRefData] Failed to fetch SWAP instruments: {}", e.what());
         // Non-fatal — continue without perp instruments
     }
 
@@ -65,7 +64,7 @@ void OKXRefDataAdapter::fetchSnapshot() {
             if (on_fee_schedule)
                 on_fee_schedule(fs);
     } catch (const std::exception& e) {
-        spdlog::warn("[OKXRefData] Failed to fetch SPOT trade-fee: {}", e.what());
+        ygg::log::warn("[OKXRefData] Failed to fetch SPOT trade-fee: {}", e.what());
     }
     try {
         auto headers = okx_auth_headers(api_key_, secret_key_, passphrase_, "GET", fee_swap_target, cfg_.simulated);
@@ -74,15 +73,15 @@ void OKXRefDataAdapter::fetchSnapshot() {
             if (on_fee_schedule)
                 on_fee_schedule(fs);
     } catch (const std::exception& e) {
-        spdlog::warn("[OKXRefData] Failed to fetch SWAP trade-fee: {}", e.what());
+        ygg::log::warn("[OKXRefData] Failed to fetch SWAP trade-fee: {}", e.what());
     }
 
     ready_.store(true, std::memory_order_release);
-    spdlog::info("[OKXRefData] Snapshot complete. Registry has {} instruments.", registry_->getAll().size());
+    ygg::log::info("[OKXRefData] Snapshot complete. Registry has {} instruments.", registry_->getAll().size());
 }
 
 void OKXRefDataAdapter::fetchInstrumentListing() {
-    spdlog::info("[OKXRefData] Hourly instrument listing refresh...");
+    ygg::log::info("[OKXRefData] Hourly instrument listing refresh...");
     const uint64_t ts = now_ns();
 
     http::RestClient::Headers base_headers;
@@ -99,7 +98,7 @@ void OKXRefDataAdapter::fetchInstrumentListing() {
         for (auto& inst : parser_.parse_instruments(body, "SPOT", ts))
             notify(inst);
     } catch (const std::exception& e) {
-        spdlog::error("[OKXRefData] Hourly SPOT refresh failed: {}", e.what());
+        ygg::log::error("[OKXRefData] Hourly SPOT refresh failed: {}", e.what());
     }
 
     try {
@@ -107,7 +106,7 @@ void OKXRefDataAdapter::fetchInstrumentListing() {
         for (auto& inst : parser_.parse_instruments(body, "SWAP", ts))
             notify(inst);
     } catch (const std::exception& e) {
-        spdlog::error("[OKXRefData] Hourly SWAP refresh failed: {}", e.what());
+        ygg::log::error("[OKXRefData] Hourly SWAP refresh failed: {}", e.what());
     }
 }
 

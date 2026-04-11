@@ -2,7 +2,7 @@
 
 #include <bifrost_protocol/TradeSide.h>
 
-#include <spdlog/spdlog.h>
+#include <yggdrasil/logging.h>
 #include <yggdrasil/util/parse_double.h>
 #include <yggdrasil/util/tsc_clock.h>
 
@@ -56,7 +56,7 @@ void BinanceParser::parse(std::string_view payload,
         uint64_t lat_ns = ygg::util::TscClock::now_mono_ns() - parse_start_ns;
         decode_lat_.record(lat_ns);
         if (++tick_count_ <= 20 || tick_count_ % 500 == 0)
-            spdlog::info("Binance BBO decode: {}ns tick={}", lat_ns, tick_count_);
+            ygg::log::info("Binance BBO decode: {}ns tick={}", lat_ns, tick_count_);
         pub.publish(bbo);
 
     } else if (type == "aggTrade") {

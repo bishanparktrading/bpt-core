@@ -1,6 +1,6 @@
 #include "muninn/messaging/subscription_manager.h"
 
-#include <spdlog/spdlog.h>
+#include <yggdrasil/logging.h>
 
 namespace muninn::messaging {
 
@@ -13,17 +13,17 @@ void SubscriptionManager::upsert(const RefdataRequest& request) {
     subscriptions_[request.correlation_id] = filter;
 
     if (is_new) {
-        spdlog::info("New subscription: correlation_id={} filters={}",
-                     request.correlation_id,
-                     request.instruments.size());
+        ygg::log::info("New subscription: correlation_id={} filters={}",
+                       request.correlation_id,
+                       request.instruments.size());
     } else {
-        spdlog::debug("Refreshed subscription: correlation_id={}", request.correlation_id);
+        ygg::log::debug("Refreshed subscription: correlation_id={}", request.correlation_id);
     }
 }
 
 void SubscriptionManager::remove(uint64_t correlation_id) {
     if (subscriptions_.erase(correlation_id)) {
-        spdlog::info("Removed subscription: correlation_id={}", correlation_id);
+        ygg::log::info("Removed subscription: correlation_id={}", correlation_id);
     }
 }
 

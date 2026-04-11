@@ -7,8 +7,8 @@
 #include <iomanip>
 #include <nlohmann/json.hpp>
 #include <openssl/evp.h>
-#include <spdlog/spdlog.h>
 #include <sstream>
+#include <yggdrasil/logging.h>
 
 namespace muninn::mapping {
 
@@ -70,7 +70,7 @@ InstrumentMappingS3Fetcher::InstrumentMappingS3Fetcher(const Config& cfg) : cfg_
 
 bool InstrumentMappingS3Fetcher::fetch(const std::string& local_path) const {
     if (cfg_.keys.empty()) {
-        spdlog::error("[InstrumentMappingS3Fetcher] No S3 keys configured");
+        ygg::log::error("[InstrumentMappingS3Fetcher] No S3 keys configured");
         return false;
     }
 
@@ -93,10 +93,10 @@ bool InstrumentMappingS3Fetcher::fetch(const std::string& local_path) const {
         auto outcome = client.GetObject(request);
         if (!outcome.IsSuccess()) {
             const auto& err = outcome.GetError();
-            spdlog::error("[InstrumentMappingS3Fetcher] S3 GetObject failed for {}: {} — {}",
-                          exchange_name,
-                          err.GetExceptionName().c_str(),
-                          err.GetMessage().c_str());
+            ygg::log::error("[InstrumentMappingS3Fetcher] S3 GetObject failed for {}: {} — {}",
+                            exchange_name,
+                            err.GetExceptionName().c_str(),
+                            err.GetMessage().c_str());
             return false;
         }
 
@@ -113,29 +113,29 @@ bool InstrumentMappingS3Fetcher::fetch(const std::string& local_path) const {
             const std::string expected = it->second.c_str();
             const std::string actual = sha256_hex(body);
             if (actual != expected) {
-                spdlog::error("[InstrumentMappingS3Fetcher] SHA256 mismatch for {}: expected={} actual={}",
-                              exchange_name,
-                              expected,
-                              actual);
+                ygg::log::error("[InstrumentMappingS3Fetcher] SHA256 mismatch for {}: expected={} actual={}",
+                                exchange_name,
+                                expected,
+                                actual);
                 return false;
             }
-            spdlog::debug("[InstrumentMappingS3Fetcher] SHA256 verified for {}: {}", exchange_name, actual);
+            ygg::log::debug("[InstrumentMappingS3Fetcher] SHA256 verified for {}: {}", exchange_name, actual);
         } else {
-            spdlog::warn("[InstrumentMappingS3Fetcher] No SHA256 metadata on s3://{}/{} — skipping integrity check",
-                         cfg_.bucket,
-                         s3_key);
+            ygg::log::warn("[InstrumentMappingS3Fetcher] No SHA256 metadata on s3://{}/{} — skipping integrity check",
+                           cfg_.bucket,
+                           s3_key);
         }
 
         json parsed;
         try {
             parsed = json::parse(body);
         } catch (const json::exception& e) {
-            spdlog::error("[InstrumentMappingS3Fetcher] JSON parse error for {}: {}", exchange_name, e.what());
+            ygg::log::error("[InstrumentMappingS3Fetcher] JSON parse error for {}: {}", exchange_name, e.what());
             return false;
         }
 
         merge_into(merged, parsed);
-        spdlog::info("[InstrumentMappingS3Fetcher] Fetched s3://{}/{} ({} bytes)", cfg_.bucket, s3_key, body.size());
+        ygg::log::info("[InstrumentMappingS3Fetcher] Fetched s3://{}/{} ({} bytes)", cfg_.bucket, s3_key, body.size());
     }
 
     // Recompute instrument_count from merged reverse map size.
@@ -148,26 +148,26 @@ bool InstrumentMappingS3Fetcher::fetch(const std::string& local_path) const {
     {
         std::ofstream out(tmp_path, std::ios::binary | std::ios::trunc);
         if (!out.is_open()) {
-            spdlog::error("[InstrumentMappingS3Fetcher] Cannot open tmp file for writing: {}", tmp_path);
+            ygg::log::error("[InstrumentMappingS3Fetcher] Cannot open tmp file for writing: {}", tmp_path);
             return false;
         }
         out.write(serialised.data(), static_cast<std::streamsize>(serialised.size()));
         if (!out) {
-            spdlog::error("[InstrumentMappingS3Fetcher] Write to tmp file failed: {}", tmp_path);
+            ygg::log::error("[InstrumentMappingS3Fetcher] Write to tmp file failed: {}", tmp_path);
             return false;
         }
     }
 
     if (std::rename(tmp_path.c_str(), local_path.c_str()) != 0) {
-        spdlog::error("[InstrumentMappingS3Fetcher] Atomic rename failed: {} → {}", tmp_path, local_path);
+        ygg::log::error("[InstrumentMappingS3Fetcher] Atomic rename failed: {} → {}", tmp_path, local_path);
         return false;
     }
 
-    spdlog::info("[InstrumentMappingS3Fetcher] Merged {} exchange(s) → {} ({} instruments, {} bytes)",
-                 cfg_.keys.size(),
-                 local_path,
-                 merged["reverse"].size(),
-                 serialised.size());
+    ygg::log::info("[InstrumentMappingS3Fetcher] Merged {} exchange(s) → {} ({} instruments, {} bytes)",
+                   cfg_.keys.size(),
+                   local_path,
+                   merged["reverse"].size(),
+                   serialised.size());
     return true;
 }
 

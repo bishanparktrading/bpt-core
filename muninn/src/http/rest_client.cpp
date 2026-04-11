@@ -8,9 +8,9 @@
 #include <boost/beast/http.hpp>
 #include <boost/beast/ssl.hpp>
 #include <chrono>
-#include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <thread>
+#include <yggdrasil/logging.h>
 
 namespace muninn::http {
 
@@ -80,12 +80,12 @@ std::string with_retry(Fn&& fn, const std::string& desc) {
                 throw;
             if (attempt + 1 == kMaxAttempts)
                 throw;
-            spdlog::warn("[RestClient] {} failed (attempt {}/{}): {} — retrying in {}s",
-                         desc,
-                         attempt + 1,
-                         kMaxAttempts,
-                         msg,
-                         kBackoffS[attempt]);
+            ygg::log::warn("[RestClient] {} failed (attempt {}/{}): {} — retrying in {}s",
+                           desc,
+                           attempt + 1,
+                           kMaxAttempts,
+                           msg,
+                           kBackoffS[attempt]);
             std::this_thread::sleep_for(std::chrono::seconds(kBackoffS[attempt]));
         }
     }

@@ -6,8 +6,8 @@
 #include <bifrost_protocol/RefDataError.h>
 #include <bifrost_protocol/RefDataReady.h>
 
-#include <spdlog/spdlog.h>
 #include <yggdrasil/aeron/aeron_utils.h>
+#include <yggdrasil/logging.h>
 #include <yggdrasil/util/tsc_clock.h>
 
 namespace muninn::messaging {
@@ -40,10 +40,10 @@ void MuninnStatusPublisher::publish_ready(uint8_t exchanges_loaded,
     aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), kBufSize);
     aeron_offer(*publication_, ab, static_cast<aeron::util::index_t>(kBufSize), "muninn_ready");
 
-    spdlog::info("[Muninn] RefDataReady published exchanges_loaded=0x{:02x} instruments={} fee_schedules={}",
-                 exchanges_loaded,
-                 instrument_count,
-                 fee_schedules_loaded);
+    ygg::log::info("[Muninn] RefDataReady published exchanges_loaded=0x{:02x} instruments={} fee_schedules={}",
+                   exchanges_loaded,
+                   instrument_count,
+                   fee_schedules_loaded);
 }
 
 void MuninnStatusPublisher::publish_error(bifrost::protocol::RefDataErrorType::Value error_type,
@@ -67,10 +67,10 @@ void MuninnStatusPublisher::publish_error(bifrost::protocol::RefDataErrorType::V
     aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), kBufSize);
     aeron_offer(*publication_, ab, static_cast<aeron::util::index_t>(kBufSize), "muninn_error");
 
-    spdlog::error("[Muninn] RefDataError published error_type={} exchange={} instrument_id={}",
-                  RefDataErrorType::c_str(error_type),
-                  ExchangeId::c_str(exchange_id),
-                  instrument_id);
+    ygg::log::error("[Muninn] RefDataError published error_type={} exchange={} instrument_id={}",
+                    RefDataErrorType::c_str(error_type),
+                    ExchangeId::c_str(exchange_id),
+                    instrument_id);
 }
 
 }  // namespace muninn::messaging

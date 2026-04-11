@@ -4,6 +4,7 @@
 
 #include <bifrost_protocol/ExchangeId.h>
 #include <bifrost_protocol/InstrumentType.h>
+
 #include <cmath>
 #include <cstdio>
 #include <gtest/gtest.h>

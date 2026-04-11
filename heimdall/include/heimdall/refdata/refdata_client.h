@@ -1,7 +1,11 @@
 #pragma once
 
+#include "heimdall/refdata/instrument.h"
+#include "heimdall/refdata/instrument_cache.h"
+
 #include <Aeron.h>
 #include <FragmentAssembler.h>
+
 #include <bifrost_protocol/InstrumentType.h>
 
 #include <functional>
@@ -9,16 +13,12 @@
 #include <string>
 #include <vector>
 
-#include "heimdall/refdata/instrument.h"
-#include "heimdall/refdata/instrument_cache.h"
-
 namespace heimdall::refdata {
 
 class RefdataClient {
 public:
     using OnSnapshotFn = std::function<void(const InstrumentCache&)>;
-    using OnDeltaFn =
-        std::function<void(const Instrument&, bifrost::protocol::DeltaUpdateType::Value)>;
+    using OnDeltaFn = std::function<void(const Instrument&, bifrost::protocol::DeltaUpdateType::Value)>;
 
     // Canonical filter entry to pre-filter the Sindri snapshot server-side.
     // An empty exchange means "any exchange".
@@ -29,8 +29,11 @@ public:
         std::string exchange;
     };
 
-    RefdataClient(std::shared_ptr<aeron::Aeron> aeron, const std::string& channel,
-                  int control_stream, int snapshot_stream, int delta_stream);
+    RefdataClient(std::shared_ptr<aeron::Aeron> aeron,
+                  const std::string& channel,
+                  int control_stream,
+                  int snapshot_stream,
+                  int delta_stream);
 
     // Send a subscription request. Empty filters vector means subscribe-all.
     void subscribe(uint64_t correlation_id, std::vector<CanonicalFilter> filters = {});
@@ -51,11 +54,15 @@ public:
     [[nodiscard]] const InstrumentCache& cache() const { return cache_; }
 
 private:
-    void handle_snapshot_fragment(aeron::AtomicBuffer& buffer, aeron::util::index_t offset,
-                                  aeron::util::index_t length, aeron::Header& header);
+    void handle_snapshot_fragment(aeron::AtomicBuffer& buffer,
+                                  aeron::util::index_t offset,
+                                  aeron::util::index_t length,
+                                  aeron::Header& header);
 
-    void handle_delta_fragment(aeron::AtomicBuffer& buffer, aeron::util::index_t offset,
-                               aeron::util::index_t length, aeron::Header& header);
+    void handle_delta_fragment(aeron::AtomicBuffer& buffer,
+                               aeron::util::index_t offset,
+                               aeron::util::index_t length,
+                               aeron::Header& header);
 
     std::shared_ptr<aeron::Publication> ctrl_pub_;
     std::shared_ptr<aeron::Subscription> snap_sub_;

@@ -70,11 +70,10 @@ public:
     // Silent lookup — for bulk loads where a miss is expected (instrument not in
     // mapping). Returns nullopt on miss; no log emitted.
     [[nodiscard]] std::optional<uint32_t> try_resolve_canonical_id(uint8_t exchange_id,
-                                                                    const std::string& exchange_symbol) const;
+                                                                   const std::string& exchange_symbol) const;
 
     // Targeted lookup — logs WARN on miss and returns UNKNOWN_INSTRUMENT (0).
-    [[nodiscard]] uint32_t resolve_canonical_id(uint8_t exchange_id,
-                                                const std::string& exchange_symbol) const;
+    [[nodiscard]] uint32_t resolve_canonical_id(uint8_t exchange_id, const std::string& exchange_symbol) const;
 
     // canonical_id + exchange_id → exchange symbol. Returns empty string on miss.
     [[nodiscard]] std::string resolve_symbol(uint32_t canonical_id, uint8_t exchange_id) const;

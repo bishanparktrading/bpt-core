@@ -7,11 +7,11 @@
 #include <bifrost_protocol/MessageHeader.h>
 #include <bifrost_protocol/OptionSide.h>
 #include <bifrost_protocol/RefDataDelta.h>
-#include <bifrost_protocol/RefDataSnapshot.h>
-#include <bifrost_protocol/RefDataSubscriptionRequest.h>
 #include <bifrost_protocol/RefDataError.h>
 #include <bifrost_protocol/RefDataErrorType.h>
 #include <bifrost_protocol/RefDataReady.h>
+#include <bifrost_protocol/RefDataSnapshot.h>
+#include <bifrost_protocol/RefDataSubscriptionRequest.h>
 
 #include <cstring>
 #include <gtest/gtest.h>

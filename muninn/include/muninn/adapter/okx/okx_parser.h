@@ -23,8 +23,7 @@ public:
                                                        uint64_t collected_ts) const;
 
     // GET /api/v5/account/trade-fee?instType=SPOT|SWAP
-    std::vector<refdata::FeeScheduleState> parse_trade_fee(const std::string& body,
-                                                           uint64_t collected_ts) const;
+    std::vector<refdata::FeeScheduleState> parse_trade_fee(const std::string& body, uint64_t collected_ts) const;
 
 private:
     std::shared_ptr<mapping::InstrumentMappingLoader> mapping_;

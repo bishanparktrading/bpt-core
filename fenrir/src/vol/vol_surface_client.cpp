@@ -6,9 +6,9 @@
 #include <bifrost_protocol/VolSurface.h>
 
 #include <chrono>
-#include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <thread>
+#include <yggdrasil/logging.h>
 
 namespace fenrir::vol {
 
@@ -46,9 +46,9 @@ VolSurfaceClient::VolSurfaceClient(std::shared_ptr<aeron::Aeron> aeron,
                aeron::util::index_t length,
                aeron::Header& header) { handle_surface_fragment(buffer, offset, length, header); });
 
-    spdlog::info("[VolSurfaceClient] Subscriptions ready: surface={} status={}",
-                 vol_surface_stream,
-                 surtr_status_stream);
+    ygg::log::info("[VolSurfaceClient] Subscriptions ready: surface={} status={}",
+                   vol_surface_stream,
+                   surtr_status_stream);
 }
 
 int VolSurfaceClient::poll(int fragment_limit) {
@@ -127,10 +127,10 @@ void VolSurfaceClient::handle_status_fragment(aeron::AtomicBuffer& buffer,
                             hdr.version(),
                             static_cast<uint64_t>(length));
 
-        spdlog::info("[VolSurfaceClient] SurtrReady: exchanges=0x{:02x} underlyings={} points={}",
-                     ready.exchangesLoaded(),
-                     ready.underlyingCount(),
-                     ready.pointCount());
+        ygg::log::info("[VolSurfaceClient] SurtrReady: exchanges=0x{:02x} underlyings={} points={}",
+                       ready.exchangesLoaded(),
+                       ready.underlyingCount(),
+                       ready.pointCount());
 
         if (on_ready)
             on_ready(ready.exchangesLoaded(), ready.underlyingCount(), ready.pointCount());

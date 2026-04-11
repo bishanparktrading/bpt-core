@@ -15,28 +15,31 @@
 #include <bifrost_protocol/OrderSide.h>
 
 #include <atomic>
-#include <deque>
 #include <string>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 namespace fenrir::strategy {
 
-// VWAP-reversion strategy.
+// Mid-EMA reversion strategy (trades-free variant of VWAP reversion).
 //
 // Per instrument:
-//   1. Maintain a rolling VWAP from trade ticks (window = vwap_window_trades).
+//   1. Maintain an EMA of mid-price from BBO ticks (period = vwap_window_trades,
+//      alpha = 2 / (period + 1)).
 //   2. On each BBO tick compute:
-//        deviation = (mid - vwap) / vwap
-//   3. Entry (no open position, no open order, cooldown elapsed):
-//        deviation > +entry_threshold  → SELL  (price stretched above VWAP; expect reversion)
-//        deviation < -entry_threshold  → BUY   (price stretched below VWAP; expect reversion)
+//        deviation = (mid - ema) / ema
+//   3. Entry (no open position, no open order, cooldown elapsed, min BBO ticks seen):
+//        deviation > +entry_threshold  → SELL  (price stretched above EMA; expect reversion)
+//        deviation < -entry_threshold  → BUY   (price stretched below EMA; expect reversion)
 //   4. Exit (have open position, no open order):
-//        Long  → SELL when mid ≥ vwap × (1 - exit_threshold)   [reverted]
+//        Long  → SELL when mid ≥ ema × (1 - exit_threshold)   [reverted]
 //             OR SELL when mid ≤ avg_entry × (1 - stop_threshold) [stop loss]
-//        Short → BUY  when mid ≤ vwap × (1 + exit_threshold)   [reverted]
+//        Short → BUY  when mid ≤ ema × (1 + exit_threshold)   [reverted]
 //             OR BUY  when mid ≥ avg_entry × (1 + stop_threshold) [stop loss]
+//
+// Config params reused without rename:
+//   vwap_window_trades  → EMA period N  (alpha = 2/(N+1))
+//   min_trades_to_signal → minimum BBO ticks before signalling
 class VwapReversionStrategy : public IStrategy {
 public:
     VwapReversionStrategy(uint64_t correlation_id,
@@ -54,10 +57,9 @@ public:
 
 private:
     struct InstrumentState {
-        // Rolling VWAP window — (price, qty) pairs in normal units
-        std::deque<std::pair<double, double>> trade_window;
-        double vwap_pxqty_sum{0.0};
-        double vwap_qty_sum{0.0};
+        // EMA of mid-price (computed from BBO ticks)
+        double ema_mid{0.0};
+        std::size_t bbo_count{0};  // ticks seen so far (warm-up guard)
 
         // One open order per instrument at a time (0 = none)
         uint64_t open_order_id{0};
@@ -84,8 +86,9 @@ private:
     uint64_t correlation_id_;
 
     // Config params
-    std::size_t vwap_window_trades_;
-    std::size_t min_trades_to_signal_;
+    std::size_t ema_period_;     // vwap_window_trades in config → EMA period
+    std::size_t min_bbo_ticks_;  // min_trades_to_signal in config → warm-up guard
+    double ema_alpha_;           // 2 / (ema_period_ + 1)
     double entry_threshold_;
     double exit_threshold_;
     double stop_threshold_;

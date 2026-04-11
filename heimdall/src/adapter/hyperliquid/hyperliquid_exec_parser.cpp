@@ -6,7 +6,6 @@
 #include <bifrost_protocol/OrderSide.h>
 #include <bifrost_protocol/OrderType.h>
 #include <bifrost_protocol/RejectReason.h>
-#include <spdlog/spdlog.h>
 
 #include <boost/json.hpp>
 #include <string>
@@ -34,19 +33,18 @@ void HyperliquidExecParser::handle_fills(const json::array& fills, uint64_t recv
                 ev.order_id = 0;
             }
         }
-        if (ev.order_id == 0) continue;
+        if (ev.order_id == 0)
+            continue;
 
         ev.exchange_order_id = static_cast<uint64_t>(fill.at("oid").as_int64());
         ev.instrument_id = 0;
 
         std::string side_str = std::string(fill.at("side").as_string());
-        ev.side = (side_str == "B") ? bifrost::protocol::OrderSide::BUY
-                                    : bifrost::protocol::OrderSide::SELL;
+        ev.side = (side_str == "B") ? bifrost::protocol::OrderSide::BUY : bifrost::protocol::OrderSide::SELL;
         ev.order_type = bifrost::protocol::OrderType::LIMIT;
 
         ev.price = static_cast<int64_t>(std::stod(std::string(fill.at("px").as_string())) * kScale);
-        ev.filled_qty =
-            static_cast<uint64_t>(std::stod(std::string(fill.at("sz").as_string())) * kScale);
+        ev.filled_qty = static_cast<uint64_t>(std::stod(std::string(fill.at("sz").as_string())) * kScale);
         ev.remaining_qty = 0;  // HL does not provide remaining_qty in fill events
 
         ev.fee = static_cast<int64_t>(std::stod(std::string(fill.at("fee").as_string())) * kScale);
@@ -59,7 +57,8 @@ void HyperliquidExecParser::handle_fills(const json::array& fills, uint64_t recv
         else
             ev.exchange_ts_ns = recv_ns;
 
-        if (on_exec_event) on_exec_event(ev);
+        if (on_exec_event)
+            on_exec_event(ev);
     }
 }
 

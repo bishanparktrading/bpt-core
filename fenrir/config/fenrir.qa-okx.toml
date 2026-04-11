@@ -6,27 +6,27 @@ media_driver_dir = "/dev/shm/aeron-bifrost"
 
 [aeron.refdata_control]
 channel = "aeron:ipc"
-stream_id = 1003    # fenrir -> sindri
+stream_id = 1003    # fenrir -> refdata
 
 [aeron.refdata_snapshot]
 channel = "aeron:ipc"
-stream_id = 1001    # sindri -> fenrir (filtered snapshot)
+stream_id = 1001    # refdata -> fenrir (filtered snapshot)
 
 [aeron.refdata_delta]
 channel = "aeron:ipc"
-stream_id = 1002    # sindri -> fenrir (incremental updates)
+stream_id = 1002    # refdata -> fenrir (incremental updates)
 
 [aeron.fee_schedule]
 channel = "aeron:ipc"
-stream_id = 1004    # sindri -> fenrir (FeeSchedule id=19)
+stream_id = 1004    # refdata -> fenrir (FeeSchedule id=19)
 
 [aeron.funding_rate]
 channel = "aeron:ipc"
-stream_id = 1005    # sindri -> fenrir (FundingRate id=18)
+stream_id = 1005    # refdata -> fenrir (FundingRate id=18)
 
-[aeron.sindri_status]
+[aeron.refdata_status]
 channel = "aeron:ipc"
-stream_id = 1006    # sindri -> fenrir (RefDataReady id=16, RefDataError id=17)
+stream_id = 1006    # refdata -> fenrir (RefDataReady id=16, RefDataError id=17)
 
 [aeron.md_control]
 channel = "aeron:ipc"

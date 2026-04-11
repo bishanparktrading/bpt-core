@@ -4,6 +4,7 @@
 
 #include <bifrost_protocol/ExchangeId.h>
 #include <bifrost_protocol/InstrumentType.h>
+
 #include <chrono>
 #include <cmath>
 #include <ctime>
@@ -11,9 +12,9 @@
 #include <nlohmann/json.hpp>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
-#include <spdlog/spdlog.h>
 #include <sstream>
 #include <stdexcept>
+#include <yggdrasil/logging.h>
 
 using json = nlohmann::json;
 
@@ -67,9 +68,13 @@ std::string base64_encode(const unsigned char* data, size_t len) {
 std::string hmac_sha256_b64(const std::string& key, const std::string& message) {
     unsigned char digest[EVP_MAX_MD_SIZE];
     unsigned int digest_len = 0;
-    HMAC(EVP_sha256(), key.data(), static_cast<int>(key.size()),
-         reinterpret_cast<const unsigned char*>(message.data()), static_cast<int>(message.size()),
-         digest, &digest_len);
+    HMAC(EVP_sha256(),
+         key.data(),
+         static_cast<int>(key.size()),
+         reinterpret_cast<const unsigned char*>(message.data()),
+         static_cast<int>(message.size()),
+         digest,
+         &digest_len);
     return base64_encode(digest, digest_len);
 }
 
@@ -81,8 +86,7 @@ std::string iso8601_now() {
     std::tm tm{};
     gmtime_r(&t, &tm);
     std::ostringstream oss;
-    oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%S") << '.' << std::setfill('0') << std::setw(3)
-        << ms.count() << 'Z';
+    oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%S") << '.' << std::setfill('0') << std::setw(3) << ms.count() << 'Z';
     return oss.str();
 }
 
@@ -91,12 +95,11 @@ std::string iso8601_now() {
 OKXParser::OKXParser(std::shared_ptr<mapping::InstrumentMappingLoader> mapping) : mapping_(std::move(mapping)) {}
 
 std::vector<refdata::Instrument> OKXParser::parse_instruments(const std::string& body,
-                                                               const std::string& inst_type,
-                                                               uint64_t collected_ts) const {
+                                                              const std::string& inst_type,
+                                                              uint64_t collected_ts) const {
     auto j = json::parse(body);
     if (j.value("code", "") != "0") {
-        spdlog::error("[OKXParser] instruments API error code={} msg={}", j.value("code", "?"),
-                      j.value("msg", "?"));
+        ygg::log::error("[OKXParser] instruments API error code={} msg={}", j.value("code", "?"), j.value("msg", "?"));
         return {};
     }
 
@@ -124,8 +127,7 @@ std::vector<refdata::Instrument> OKXParser::parse_instruments(const std::string&
             auto p = venue_symbol.find('-');
             if (p != std::string::npos) {
                 auto p2 = venue_symbol.find('-', p + 1);
-                quote = (p2 != std::string::npos) ? venue_symbol.substr(p + 1, p2 - p - 1)
-                                                   : venue_symbol.substr(p + 1);
+                quote = (p2 != std::string::npos) ? venue_symbol.substr(p + 1, p2 - p - 1) : venue_symbol.substr(p + 1);
             }
         }
 
@@ -173,15 +175,15 @@ std::vector<refdata::Instrument> OKXParser::parse_instruments(const std::string&
         result.push_back(std::move(inst));
     }
 
-    spdlog::info("[OKXParser] Parsed {} {} instruments", result.size(), inst_type);
+    ygg::log::info("[OKXParser] Parsed {} {} instruments", result.size(), inst_type);
     return result;
 }
 
 std::vector<refdata::FeeScheduleState> OKXParser::parse_trade_fee(const std::string& body,
-                                                                    uint64_t collected_ts) const {
+                                                                  uint64_t collected_ts) const {
     auto j = json::parse(body);
     if (j.value("code", "") != "0") {
-        spdlog::warn("[OKXParser] trade-fee API error code={}", j.value("code", "?"));
+        ygg::log::warn("[OKXParser] trade-fee API error code={}", j.value("code", "?"));
         return {};
     }
 
@@ -217,11 +219,11 @@ std::vector<refdata::FeeScheduleState> OKXParser::parse_trade_fee(const std::str
 }
 
 http::RestClient::Headers okx_auth_headers(const std::string& api_key,
-                                            const std::string& secret_key,
-                                            const std::string& passphrase,
-                                            const std::string& method,
-                                            const std::string& target,
-                                            bool simulated) {
+                                           const std::string& secret_key,
+                                           const std::string& passphrase,
+                                           const std::string& method,
+                                           const std::string& target,
+                                           bool simulated) {
     const std::string timestamp = iso8601_now();
     const std::string signature = hmac_sha256_b64(secret_key, timestamp + method + target);
 

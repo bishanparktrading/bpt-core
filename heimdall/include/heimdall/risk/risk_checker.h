@@ -14,14 +14,19 @@ namespace heimdall::risk {
 // lock-free.
 class RiskChecker {
 public:
-    explicit RiskChecker(double max_order_size_usd, double max_notional_per_order_usd,
-                         uint32_t max_open_orders_per_venue, uint32_t max_orders_per_second);
+    explicit RiskChecker(double max_order_size_usd,
+                         double max_notional_per_order_usd,
+                         uint32_t max_open_orders_per_venue,
+                         uint32_t max_orders_per_second);
 
     // Returns OK or the rejection reason. Called before sending any order.
     // price and quantity are scaled integers (divide by 1e8 for actual value).
     [[nodiscard]] std::expected<void, bifrost::protocol::RejectReason::Value> check(
-        bifrost::protocol::ExchangeId::Value exchange, uint64_t instrument_id, int64_t price,
-        uint64_t quantity, uint64_t order_id);
+        bifrost::protocol::ExchangeId::Value exchange,
+        uint64_t instrument_id,
+        int64_t price,
+        uint64_t quantity,
+        uint64_t order_id);
 
     // Called when an order is acknowledged/filled/cancelled to decrement
     // counters.

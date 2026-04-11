@@ -5,16 +5,16 @@
 #include <bifrost_protocol/CancelAll.h>
 #include <bifrost_protocol/CancelOrder.h>
 #include <bifrost_protocol/ExecutionReport.h>
-#include <bifrost_protocol/OrderGatewayHeartbeat.h>
 #include <bifrost_protocol/MessageHeader.h>
 #include <bifrost_protocol/ModifyOrder.h>
 #include <bifrost_protocol/NewOrder.h>
+#include <bifrost_protocol/OrderGatewayHeartbeat.h>
 
 #include <chrono>
-#include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <thread>
 #include <x86intrin.h>
+#include <yggdrasil/logging.h>
 #include <yggdrasil/util/tsc_clock.h>
 
 namespace fenrir::order {
@@ -93,15 +93,15 @@ bool OrderGatewayClient::send_new_order(uint64_t order_id,
     using namespace bifrost::protocol;
 
     if (quantity == 0) {
-        spdlog::warn("[OrderGW] Rejected order_id={}: quantity is zero", order_id);
+        ygg::log::warn("[OrderGW] Rejected order_id={}: quantity is zero", order_id);
         return false;
     }
     if (order_type != OrderType::MARKET && price <= 0) {
-        spdlog::warn("[OrderGW] Rejected order_id={}: price={} invalid for non-MARKET order", order_id, price);
+        ygg::log::warn("[OrderGW] Rejected order_id={}: price={} invalid for non-MARKET order", order_id, price);
         return false;
     }
     if (exchange_symbol.empty()) {
-        spdlog::warn("[OrderGW] Rejected order_id={}: exchange_symbol is empty", order_id);
+        ygg::log::warn("[OrderGW] Rejected order_id={}: exchange_symbol is empty", order_id);
         return false;
     }
 

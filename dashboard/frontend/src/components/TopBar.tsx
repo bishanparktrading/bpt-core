@@ -1,0 +1,59 @@
+import { useEffect, useState } from 'react'
+import { useStore } from '../store'
+import type { ConnectionStatus } from '../types/messages'
+
+const STATUS_LABEL: Record<ConnectionStatus, string> = {
+  live: 'LIVE',
+  mock: 'MOCK',
+  halted: 'HALTED',
+  off: 'DISCONNECTED',
+}
+
+function Clock() {
+  const [time, setTime] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setTime(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  return <span className="topbar-clock">{time.toUTCString().slice(17, 25)} UTC</span>
+}
+
+export function TopBar() {
+  const symbol = useStore((s) => s.symbol)
+  const price = useStore((s) => s.price)
+  const firstPrice = useStore((s) => s.firstPrice)
+  const status = useStore((s) => s.status)
+
+  const change = price - firstPrice
+  const pct = firstPrice ? (change / firstPrice) * 100 : 0
+  const up = change >= 0
+
+  return (
+    <div className="topbar">
+      <span className="topbar-logo">BPT</span>
+      <div className="topbar-divider" />
+      <span className="topbar-symbol">{symbol || '—'}</span>
+      <span className="topbar-price">
+        {price
+          ? price.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+          : '—'}
+      </span>
+      {firstPrice > 0 && (
+        <span className={`topbar-change ${up ? 'topbar-change--up' : 'topbar-change--down'}`}>
+          {up ? '+' : ''}
+          {change.toFixed(1)} ({up ? '+' : ''}
+          {pct.toFixed(2)}%)
+        </span>
+      )}
+
+      <div className="topbar-spacer" />
+
+      <div className="topbar-status">
+        <div className={`status-dot status-dot--${status}`} />
+        {STATUS_LABEL[status]}
+      </div>
+      <div className="topbar-divider" />
+      <Clock />
+    </div>
+  )
+}

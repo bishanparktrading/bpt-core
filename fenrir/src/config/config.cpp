@@ -44,7 +44,7 @@ AppConfig AppConfig::load(const std::string& path) {
     app_cfg.aeron.refdata_delta = load_stream((*a)["refdata_delta"].as_table(), "aeron:ipc", 1002);
     app_cfg.aeron.fee_schedule = load_stream((*a)["fee_schedule"].as_table(), "aeron:ipc", 1004);
     app_cfg.aeron.funding_rate = load_stream((*a)["funding_rate"].as_table(), "aeron:ipc", 1005);
-    app_cfg.aeron.sindri_status = load_stream((*a)["sindri_status"].as_table(), "aeron:ipc", 1006);
+    app_cfg.aeron.refdata_status = load_stream((*a)["refdata_status"].as_table(), "aeron:ipc", 1006);
     app_cfg.aeron.md_control = load_stream((*a)["md_control"].as_table(), "aeron:ipc", 0);
     app_cfg.aeron.md_data = load_stream((*a)["md_data"].as_table(), "aeron:ipc", 0);
     app_cfg.aeron.md_ack_hb = load_stream((*a)["md_ack_hb"].as_table(), "aeron:ipc", 0);

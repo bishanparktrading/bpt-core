@@ -1,6 +1,5 @@
 #include "huginn/adapter/common/adapter_base.h"
 
-#include <spdlog/spdlog.h>
 #include <thread>
 #include <yggdrasil/util/thread_pin.h>
 
@@ -51,7 +50,7 @@ void AdapterBase::push_frame(std::string_view payload, uint64_t recv_ns) noexcep
         ++dropped_frames_;
         // Log at most once every 1000 drops to avoid flooding on sustained backpressure.
         if (dropped_frames_ == 1 || dropped_frames_ % 1000 == 0) {
-            spdlog::warn("{}: frame queue full or oversized — dropped frames: {}", exchange_name(), dropped_frames_);
+            ygg::log::warn("{}: frame queue full or oversized — dropped frames: {}", exchange_name(), dropped_frames_);
         }
     }
 }
@@ -82,15 +81,15 @@ void AdapterBase::run() {
             }
             if (on_connect)
                 on_connect();
-            read_loop(*ws);
+            read_loop(*ws);  // NOLINT(bugprone-unchecked-optional-access)
         } catch (const std::exception& e) {
             if (!stop_flag_.load(std::memory_order_relaxed)) {
                 if (on_disconnect)
                     on_disconnect();
-                spdlog::error("{} error: {}, reconnecting in {}ms",
-                              exchange_name(),
-                              e.what(),
-                              reconnect_delay().count());
+                ygg::log::error("{} error: {}, reconnecting in {}ms",
+                                exchange_name(),
+                                e.what(),
+                                reconnect_delay().count());
                 std::this_thread::sleep_for(reconnect_delay());
             }
         }

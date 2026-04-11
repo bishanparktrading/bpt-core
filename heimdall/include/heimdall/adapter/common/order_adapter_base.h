@@ -1,15 +1,15 @@
 #pragma once
 
+#include "heimdall/adapter/common/i_order_adapter.h"
+#include "heimdall/config/settings.h"
+#include "heimdall/util/exec_event_queue.h"
+
 #include <atomic>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <chrono>
 #include <functional>
 #include <thread>
-
-#include "heimdall/adapter/common/i_order_adapter.h"
-#include "heimdall/config/settings.h"
-#include "heimdall/util/exec_event_queue.h"
 
 namespace heimdall::adapter {
 

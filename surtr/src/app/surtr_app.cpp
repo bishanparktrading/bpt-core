@@ -2,15 +2,15 @@
 
 #include <chrono>
 #include <ctime>
-#include <spdlog/spdlog.h>
 #include <thread>
+#include <yggdrasil/logging.h>
 #include <yggdrasil/signal.h>
 
 namespace {
 inline uint64_t now_ns() noexcept {
-    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                     std::chrono::system_clock::now().time_since_epoch())
-                                     .count());
+    return static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count());
 }
 inline uint32_t today_yyyymmdd() noexcept {
     auto tt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -55,25 +55,25 @@ SurtrApp::SurtrApp(config::Settings settings, std::shared_ptr<aeron::Aeron> aero
 
     refdata_sub_->set_on_option([this](const surface::OptionInstrument& inst) {
         builder_.add_instrument(inst);
-        spdlog::info("[Surtr] Option instrument: id={} {} {} K={} exp={}",
-                     inst.instrument_id,
-                     inst.underlying,
-                     inst.exchange,
-                     inst.strike_price,
-                     inst.expiry_date);
+        ygg::log::info("[Surtr] Option instrument: id={} {} {} K={} exp={}",
+                       inst.instrument_id,
+                       inst.underlying,
+                       inst.exchange,
+                       inst.strike_price,
+                       inst.expiry_date);
     });
 
     refdata_sub_->set_on_perp([this](const refdata::PerpInstrument& inst) {
         perp_map_[inst.instrument_id] = {inst.underlying, inst.exchange_id};
-        spdlog::info("[Surtr] Perp instrument registered: id={} {} {}",
-                     inst.instrument_id,
-                     inst.underlying,
-                     inst.exchange);
+        ygg::log::info("[Surtr] Perp instrument registered: id={} {} {}",
+                       inst.instrument_id,
+                       inst.underlying,
+                       inst.exchange);
     });
 
     refdata_sub_->set_on_remove([this](uint64_t instrument_id) { builder_.remove_instrument(instrument_id); });
 
-    spdlog::info("[Surtr] Ready — entering main loop");
+    ygg::log::info("[Surtr] Ready — entering main loop");
 }
 
 void SurtrApp::run() {
@@ -101,10 +101,10 @@ void SurtrApp::run() {
 
             for (const auto& grid : grids) {
                 vol_pub_->publish(grid, now_ns());
-                spdlog::debug("[Surtr] Published surface: {} {} points={}",
-                              grid.underlying,
-                              static_cast<int>(grid.exchange_id),
-                              grid.points.size());
+                ygg::log::debug("[Surtr] Published surface: {} {} points={}",
+                                grid.underlying,
+                                static_cast<int>(grid.exchange_id),
+                                grid.points.size());
             }
 
             if (!initial_ready_sent && builder_.instrument_count() > 0) {
@@ -154,10 +154,7 @@ void SurtrApp::run() {
                 else if (g.exchange_id == EX::DERIBIT)
                     exchanges_loaded |= 0x08;
             }
-            status_pub_->publish_ready(now_ns(),
-                                       exchanges_loaded,
-                                       static_cast<uint16_t>(grids.size()),
-                                       total_points);
+            status_pub_->publish_ready(now_ns(), exchanges_loaded, static_cast<uint16_t>(grids.size()), total_points);
             last_ready = now;
         }
 
@@ -165,7 +162,7 @@ void SurtrApp::run() {
             std::this_thread::sleep_for(idle_sleep);
     }
 
-    spdlog::info("[Surtr] Shutdown complete.");
+    ygg::log::info("[Surtr] Shutdown complete.");
 }
 
 }  // namespace surtr

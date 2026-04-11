@@ -1,10 +1,10 @@
 #pragma once
 
-#include <cstdint>
-#include <variant>
-
 #include "jormungandr/data/orderbook_record.h"
 #include "jormungandr/data/trade_record.h"
+
+#include <cstdint>
+#include <variant>
 
 namespace jormungandr::data {
 

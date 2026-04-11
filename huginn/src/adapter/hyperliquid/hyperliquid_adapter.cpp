@@ -5,7 +5,6 @@
 #include <boost/beast/websocket.hpp>
 #include <chrono>
 #include <fmt/format.h>
-#include <spdlog/spdlog.h>
 #include <yggdrasil/util/tsc_clock.h>
 #include <yggdrasil/ws/ws_connect.h>
 
@@ -20,22 +19,23 @@ HyperliquidAdapter::HyperliquidAdapter(const config::AdapterConfig& cfg,
     : AdapterBase(cfg, std::move(md_pub)),
       parser_(subs_) {}
 
-void HyperliquidAdapter::send_instrument_subs(ygg::ws::WsStream& ws, const std::string& coin) {
+void HyperliquidAdapter::send_instrument_subs(ygg::ws::AnyWsStream& ws, const std::string& coin) {
     for (const char* type : {"l2Book", "trades", "activeAssetCtx"}) {
         auto sub = fmt::format(R"({{"method":"subscribe","subscription":{{"type":"{}","coin":"{}"}}}})", type, coin);
         ws.write(net::buffer(sub));
     }
 }
 
-std::unique_ptr<ygg::ws::WsStream> HyperliquidAdapter::connect_and_subscribe() {
-    spdlog::info("HyperliquidAdapter connecting {}:{}{}", cfg_.ws_host, cfg_.ws_port, cfg_.ws_path);
-    auto ws = ygg::ws::ws_connect(ioc_,
-                                  ssl_ctx_,
-                                  cfg_.ws_host,
-                                  cfg_.ws_port,
-                                  cfg_.ws_path,
-                                  cfg_.so_rcvbuf_bytes,
-                                  cfg_.ws_connect_timeout_ms);
+std::unique_ptr<ygg::ws::AnyWsStream> HyperliquidAdapter::connect_and_subscribe() {
+    ygg::log::info("HyperliquidAdapter connecting {}:{}{}", cfg_.ws_host, cfg_.ws_port, cfg_.ws_path);
+    auto tls_ws = ygg::ws::ws_connect(ioc_,
+                                      ssl_ctx_,
+                                      cfg_.ws_host,
+                                      cfg_.ws_port,
+                                      cfg_.ws_path,
+                                      cfg_.so_rcvbuf_bytes,
+                                      cfg_.ws_connect_timeout_ms);
+    auto ws = std::make_unique<ygg::ws::AnyWsStream>(std::move(tls_ws));
 
     // Enable WebSocket-level keep-alive pings. If HL stops responding Beast
     // closes the stream with an error, triggering the reconnect loop.
@@ -46,7 +46,7 @@ std::unique_ptr<ygg::ws::WsStream> HyperliquidAdapter::connect_and_subscribe() {
         true                             // send keep-alive ping frames
     });
 
-    spdlog::info("HyperliquidAdapter connected, subscribing instruments");
+    ygg::log::info("HyperliquidAdapter connected, subscribing instruments");
 
     // Drain pending so the read loop does not re-send what we're about to subscribe.
     subs_.take_pending();
@@ -57,19 +57,19 @@ std::unique_ptr<ygg::ws::WsStream> HyperliquidAdapter::connect_and_subscribe() {
     return ws;
 }
 
-void HyperliquidAdapter::read_loop(ygg::ws::WsStream& ws) {
+void HyperliquidAdapter::read_loop(ygg::ws::AnyWsStream& ws) {
     beast::flat_buffer buf;
     const auto liveness = std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms);
     auto last_recv = std::chrono::steady_clock::now();
 
     while (!stop_flag_.load(std::memory_order_relaxed)) {
         // Reset timer first — covers subscribe frame writes and the read.
-        beast::get_lowest_layer(ws).expires_after(std::chrono::milliseconds(cfg_.ws_read_timeout_ms));
+        ws.expires_after(std::chrono::milliseconds(cfg_.ws_read_timeout_ms));
 
         // Send subscribe frames for any instruments added since connect.
         for (const auto& entry : subs_.take_pending()) {
             send_instrument_subs(ws, entry.symbol);
-            spdlog::info("HyperliquidAdapter: runtime subscribe {}", entry.symbol);
+            ygg::log::info("HyperliquidAdapter: runtime subscribe {}", entry.symbol);
         }
 
         beast::error_code ec;
@@ -78,7 +78,7 @@ void HyperliquidAdapter::read_loop(ygg::ws::WsStream& ws) {
         if (ec == beast::error::timeout) {
             buf.consume(buf.size());
             if (std::chrono::steady_clock::now() - last_recv >= liveness) {
-                spdlog::warn("HyperliquidAdapter: no data for {}ms, reconnecting", cfg_.ws_liveness_timeout_ms);
+                ygg::log::warn("HyperliquidAdapter: no data for {}ms, reconnecting", cfg_.ws_liveness_timeout_ms);
                 throw std::runtime_error("liveness timeout");
             }
             continue;

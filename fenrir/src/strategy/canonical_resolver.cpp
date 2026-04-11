@@ -1,7 +1,7 @@
 #include "fenrir/strategy/canonical_resolver.h"
 
 #include <algorithm>
-#include <spdlog/spdlog.h>
+#include <yggdrasil/logging.h>
 
 namespace fenrir::strategy {
 
@@ -26,7 +26,7 @@ std::optional<CanonicalResolver::ParsedSymbol> CanonicalResolver::parse(const st
     const auto colon = canonical.find(':');
 
     if (slash == std::string::npos || colon == std::string::npos || colon <= slash) {
-        spdlog::warn("[CanonicalResolver] Malformed canonical symbol '{}' — expected BASE/QUOTE:TYPE", canonical);
+        ygg::log::warn("[CanonicalResolver] Malformed canonical symbol '{}' — expected BASE/QUOTE:TYPE", canonical);
         return std::nullopt;
     }
 

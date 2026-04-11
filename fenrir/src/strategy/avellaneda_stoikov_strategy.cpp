@@ -11,7 +11,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <spdlog/spdlog.h>
 
 using bifrost::protocol::ExchangeId;
 using bifrost::protocol::ExecStatus;
@@ -48,7 +47,7 @@ AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
       refdata_(refdata),
       md_client_(md),
       order_mgr_(order_mgr) {
-    spdlog::info(
+    ygg::log::info(
         "[AS] γ={:.4f} κ_fallback={:.4f} session={:.0f}s "
         "vol_halflife={:.1f}s vol_warmup={} "
         "kappa_halflife={:.1f}s kappa_warmup={} kappa_min={:.4f} "
@@ -65,20 +64,20 @@ AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
         max_inventory_,
         order_qty_,
         min_half_spread_bps_);
-    spdlog::info("[AS] risk: max_position_usd={} max_order_size_usd={} max_daily_loss_usd={}",
-                 cfg.risk.max_position_usd,
-                 cfg.risk.max_order_size_usd,
-                 cfg.risk.max_daily_loss_usd);
+    ygg::log::info("[AS] risk: max_position_usd={} max_order_size_usd={} max_daily_loss_usd={}",
+                   cfg.risk.max_position_usd,
+                   cfg.risk.max_order_size_usd,
+                   cfg.risk.max_daily_loss_usd);
 
     for (const auto& s : instruments_)
-        spdlog::info("[AS] instrument: {}", s);
+        ygg::log::info("[AS] instrument: {}", s);
 }
 
 // ── IStrategy ───────────────────────────────────────────────────────────────
 
 void AvellanedaStoikovStrategy::start() {
     for (const auto& ex : md_exchanges_)
-        spdlog::info("[AS] MD exchange: {}", ex);
+        ygg::log::info("[AS] MD exchange: {}", ex);
 
     std::vector<refdata::RefdataClient::CanonicalFilter> filters;
     for (const auto& sym : instruments_) {
@@ -111,7 +110,7 @@ void AvellanedaStoikovStrategy::start() {
 }
 
 void AvellanedaStoikovStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
-    spdlog::info("[AS] Snapshot ({} instruments), resolving universe...", cache.size());
+    ygg::log::info("[AS] Snapshot ({} instruments), resolving universe...", cache.size());
     state_.clear();
     order_to_instrument_.clear();
     positions_.clear_all();
@@ -136,15 +135,15 @@ void AvellanedaStoikovStrategy::on_snapshot(const refdata::InstrumentCache& cach
                                        .exchange_id = ex_id,
                                        .tick_size = inst->tick_size,
                                        .lot_size = inst->lot_size});
-        spdlog::info("  [{}] {} @ {} tick={} lot={}",
-                     id,
-                     inst->symbol,
-                     inst->exchange,
-                     inst->tick_size,
-                     inst->lot_size);
+        ygg::log::info("  [{}] {} @ {} tick={} lot={}",
+                       id,
+                       inst->symbol,
+                       inst->exchange,
+                       inst->tick_size,
+                       inst->lot_size);
     }
 
-    spdlog::info("[AS] Trading universe: {} instrument(s)", state_.size());
+    ygg::log::info("[AS] Trading universe: {} instrument(s)", state_.size());
 
     if (!md_client_)
         return;
@@ -154,7 +153,7 @@ void AvellanedaStoikovStrategy::on_snapshot(const refdata::InstrumentCache& cach
     for (const auto& [id, st] : state_)
         subs.push_back({id, st.exchange, st.symbol});
 
-    spdlog::info("[AS] Subscribing MD to {} instrument(s)", subs.size());
+    ygg::log::info("[AS] Subscribing MD to {} instrument(s)", subs.size());
     md_client_->subscribe(correlation_id_, subs);
 }
 
@@ -180,15 +179,15 @@ void AvellanedaStoikovStrategy::on_delta(const refdata::Instrument& inst,
                                        .exchange_id = ex_id,
                                        .tick_size = inst.tick_size,
                                        .lot_size = inst.lot_size});
-        spdlog::info("[AS] Delta ADD {} @ {} tick={} lot={}",
-                     inst.symbol,
-                     inst.exchange,
-                     inst.tick_size,
-                     inst.lot_size);
+        ygg::log::info("[AS] Delta ADD {} @ {} tick={} lot={}",
+                       inst.symbol,
+                       inst.exchange,
+                       inst.tick_size,
+                       inst.lot_size);
 
     } else if (update_type == bifrost::protocol::DeltaUpdateType::REMOVE) {
         state_.erase(inst.instrument_id);
-        spdlog::info("[AS] Delta REMOVE {} @ {}", inst.symbol, inst.exchange);
+        ygg::log::info("[AS] Delta REMOVE {} @ {}", inst.symbol, inst.exchange);
     }
 }
 
@@ -283,44 +282,44 @@ void AvellanedaStoikovStrategy::on_exec_report(const bifrost::protocol::Executio
     InstrumentState& st = state_it->second;
 
     if (status == ExecStatus::ACKED) {
-        spdlog::debug("[AS] ExecReport order_id={} {} {} ACKED", order_id, st.symbol, st.exchange);
+        ygg::log::debug("[AS] ExecReport order_id={} {} {} ACKED", order_id, st.symbol, st.exchange);
     } else if (status == ExecStatus::REJECTED) {
         const auto src = rpt.rejectSource();
         const bool gateway_reject = (src == RejectSource::GATEWAY || src == RejectSource::RISK);
         if (gateway_reject)
-            spdlog::error("[AS] ExecReport order_id={} {} {} REJECTED reason={} source={}",
-                          order_id,
-                          st.symbol,
-                          st.exchange,
-                          bifrost::protocol::RejectReason::c_str(rpt.rejectReason()),
-                          bifrost::protocol::RejectSource::c_str(src));
+            ygg::log::error("[AS] ExecReport order_id={} {} {} REJECTED reason={} source={}",
+                            order_id,
+                            st.symbol,
+                            st.exchange,
+                            bifrost::protocol::RejectReason::c_str(rpt.rejectReason()),
+                            bifrost::protocol::RejectSource::c_str(src));
         else
-            spdlog::warn("[AS] ExecReport order_id={} {} {} REJECTED reason={} source={}",
-                         order_id,
-                         st.symbol,
-                         st.exchange,
-                         bifrost::protocol::RejectReason::c_str(rpt.rejectReason()),
-                         bifrost::protocol::RejectSource::c_str(src));
+            ygg::log::warn("[AS] ExecReport order_id={} {} {} REJECTED reason={} source={}",
+                           order_id,
+                           st.symbol,
+                           st.exchange,
+                           bifrost::protocol::RejectReason::c_str(rpt.rejectReason()),
+                           bifrost::protocol::RejectSource::c_str(src));
     } else {
-        spdlog::info("[AS] ExecReport order_id={} {} {} status={} filled={:.6f} price={:.2f}",
-                     order_id,
-                     st.symbol,
-                     st.exchange,
-                     bifrost::protocol::ExecStatus::c_str(status),
-                     static_cast<double>(rpt.filledQty()) / 1e8,
-                     static_cast<double>(rpt.price()) / 1e8);
+        ygg::log::info("[AS] ExecReport order_id={} {} {} status={} filled={:.6f} price={:.2f}",
+                       order_id,
+                       st.symbol,
+                       st.exchange,
+                       bifrost::protocol::ExecStatus::c_str(status),
+                       static_cast<double>(rpt.filledQty()) / 1e8,
+                       static_cast<double>(rpt.price()) / 1e8);
     }
 
     if (status == ExecStatus::FILLED || status == ExecStatus::PARTIAL) {
         positions_.on_fill(canonical_id, st.exchange_id, rpt.side(), rpt.filledQty(), rpt.price());
 
         if (const auto pos = positions_.get(canonical_id, st.exchange_id)) {
-            spdlog::info("[AS] Position {} @ {}  net_qty={:.6f}  avg_price={:.2f}  rpnl={:.4f}",
-                         st.symbol,
-                         st.exchange,
-                         static_cast<double>(pos->net_qty) / 1e8,
-                         pos->avg_price,
-                         pos->realized_pnl);
+            ygg::log::info("[AS] Position {} @ {}  net_qty={:.6f}  avg_price={:.2f}  rpnl={:.4f}",
+                           st.symbol,
+                           st.exchange,
+                           static_cast<double>(pos->net_qty) / 1e8,
+                           pos->avg_price,
+                           pos->realized_pnl);
         }
     }
 
@@ -344,16 +343,18 @@ void AvellanedaStoikovStrategy::on_exec_report(const bifrost::protocol::Executio
     // increasing cooldowns so we don't flood a broken/unfunded account.
     if (status == ExecStatus::REJECTED && rpt.rejectSource() == RejectSource::EXCHANGE) {
         ++st.consecutive_exchange_errors;
-        const uint64_t backoff_s =
-            (st.consecutive_exchange_errors == 1) ? 5 :
-            (st.consecutive_exchange_errors == 2) ? 15 : 30;
+        const uint64_t backoff_s = (st.consecutive_exchange_errors == 1)   ? 5
+                                   : (st.consecutive_exchange_errors == 2) ? 15
+                                                                           : 30;
         const uint64_t now_ns = static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::steady_clock::now().time_since_epoch())
+            std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch())
                 .count());
         st.reject_backoff_until_ns = now_ns + backoff_s * 1'000'000'000ULL;
-        spdlog::warn("[AS] Exchange rejection backoff {} @ {}: {}s (consecutive={})",
-                     st.symbol, st.exchange, backoff_s, st.consecutive_exchange_errors);
+        ygg::log::warn("[AS] Exchange rejection backoff {} @ {}: {}s (consecutive={})",
+                       st.symbol,
+                       st.exchange,
+                       backoff_s,
+                       st.consecutive_exchange_errors);
     } else if (status == ExecStatus::ACKED) {
         st.consecutive_exchange_errors = 0;
         st.reject_backoff_until_ns = 0;
@@ -406,12 +407,12 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
     out_bid = reservation - half_spread;
     out_ask = reservation + half_spread;
 
-    spdlog::debug("[AS] quotes σ²={:.2e} κ={:.4f} ({}) half_spread={:.4f} reservation={:.2f}",
-                  sigma_sq,
-                  kappa,
-                  (st.kappa_ticks >= kappa_warmup_ticks_) ? "live" : "fallback",
-                  half_spread,
-                  reservation);
+    ygg::log::debug("[AS] quotes σ²={:.2e} κ={:.4f} ({}) half_spread={:.4f} reservation={:.2f}",
+                    sigma_sq,
+                    kappa,
+                    (st.kappa_ticks >= kappa_warmup_ticks_) ? "live" : "fallback",
+                    half_spread,
+                    reservation);
 
     return true;
 }
@@ -425,15 +426,13 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
     // Honour exchange-error backoff before touching orders on this instrument.
     if (st.reject_backoff_until_ns > 0) {
         const uint64_t now_ns = static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::steady_clock::now().time_since_epoch())
+            std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch())
                 .count());
         if (now_ns < st.reject_backoff_until_ns)
             return;
         // Backoff expired — clear it and allow quoting to resume.
         st.reject_backoff_until_ns = 0;
-        spdlog::info("[AS] Exchange backoff expired for {} @ {}, resuming quotes",
-                     st.symbol, st.exchange);
+        ygg::log::info("[AS] Exchange backoff expired for {} @ {}, resuming quotes", st.symbol, st.exchange);
     }
 
     const bool at_max_long = net_qty >= max_inventory_;
@@ -452,11 +451,11 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
         if (at_max_long || adverse) {
             // Hard cancel — adverse selection or inventory limit, don't amend.
             if (order_mgr_) {
-                spdlog::debug("[AS] Cancel bid order_id={} {} @ {} reason={}",
-                              st.bid_order_id,
-                              st.symbol,
-                              st.exchange,
-                              at_max_long ? "max_inv" : "adverse");
+                ygg::log::debug("[AS] Cancel bid order_id={} {} @ {} reason={}",
+                                st.bid_order_id,
+                                st.symbol,
+                                st.exchange,
+                                at_max_long ? "max_inv" : "adverse");
                 order_mgr_->cancel_order(st.bid_order_id, st.exchange_id, instrument_id);
             }
             st.bid_cancel_pending = true;
@@ -468,11 +467,11 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
                     price = std::floor(price / st.tick_size) * st.tick_size;
                 const int64_t price_fixed = static_cast<int64_t>(std::round(price * kPriceScale));
                 const uint64_t qty_fp = static_cast<uint64_t>(std::round(order_qty_ * 1e8));
-                spdlog::debug("[AS] Modify bid order_id={} {} @ {} → {:.6f}",
-                              st.bid_order_id,
-                              st.symbol,
-                              st.exchange,
-                              price);
+                ygg::log::debug("[AS] Modify bid order_id={} {} @ {} → {:.6f}",
+                                st.bid_order_id,
+                                st.symbol,
+                                st.exchange,
+                                price);
                 order_mgr_->modify_order(st.bid_order_id, st.exchange_id, instrument_id, price_fixed, qty_fp);
             }
             st.last_bid_price = new_bid;
@@ -499,11 +498,11 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
             st.last_ask_price > 0.0 && std::abs(new_ask - st.last_ask_price) / st.last_ask_price > requote_threshold_;
         if (at_max_short || adverse) {
             if (order_mgr_) {
-                spdlog::debug("[AS] Cancel ask order_id={} {} @ {} reason={}",
-                              st.ask_order_id,
-                              st.symbol,
-                              st.exchange,
-                              at_max_short ? "max_inv" : "adverse");
+                ygg::log::debug("[AS] Cancel ask order_id={} {} @ {} reason={}",
+                                st.ask_order_id,
+                                st.symbol,
+                                st.exchange,
+                                at_max_short ? "max_inv" : "adverse");
                 order_mgr_->cancel_order(st.ask_order_id, st.exchange_id, instrument_id);
             }
             st.ask_cancel_pending = true;
@@ -514,11 +513,11 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
                     price = std::ceil(price / st.tick_size) * st.tick_size;
                 const int64_t price_fixed = static_cast<int64_t>(std::round(price * kPriceScale));
                 const uint64_t qty_fp = static_cast<uint64_t>(std::round(order_qty_ * 1e8));
-                spdlog::debug("[AS] Modify ask order_id={} {} @ {} → {:.6f}",
-                              st.ask_order_id,
-                              st.symbol,
-                              st.exchange,
-                              price);
+                ygg::log::debug("[AS] Modify ask order_id={} {} @ {} → {:.6f}",
+                                st.ask_order_id,
+                                st.symbol,
+                                st.exchange,
+                                price);
                 order_mgr_->modify_order(st.ask_order_id, st.exchange_id, instrument_id, price_fixed, qty_fp);
             }
             st.last_ask_price = new_ask;
@@ -561,16 +560,16 @@ uint64_t AvellanedaStoikovStrategy::send_limit_order(uint64_t instrument_id,
                                                      double qty) {
     const auto vex_it = venue_exec_.find(st.exchange);
     if (vex_it == venue_exec_.end() || !vex_it->second.enabled) {
-        spdlog::debug("[AS] Venue {} not enabled — quote suppressed", st.exchange);
+        ygg::log::debug("[AS] Venue {} not enabled — quote suppressed", st.exchange);
         return 0;
     }
 
     if (!order_mgr_) {
-        spdlog::info("[AS] {} {} {} @ {:.6f} (no gateway)",
-                     (side == OrderSide::BUY ? "BID" : "ASK"),
-                     st.symbol,
-                     st.exchange,
-                     price);
+        ygg::log::info("[AS] {} {} {} @ {:.6f} (no gateway)",
+                       (side == OrderSide::BUY ? "BID" : "ASK"),
+                       st.symbol,
+                       st.exchange,
+                       price);
         return 0;
     }
 
@@ -589,12 +588,12 @@ uint64_t AvellanedaStoikovStrategy::send_limit_order(uint64_t instrument_id,
     if (order_id == 0)
         return 0;
 
-    spdlog::info("[AS] {} {} {} @ {:.6f} → order_id={}",
-                 (side == OrderSide::BUY ? "BID" : "ASK"),
-                 st.symbol,
-                 st.exchange,
-                 price,
-                 order_id);
+    ygg::log::info("[AS] {} {} {} @ {:.6f} → order_id={}",
+                   (side == OrderSide::BUY ? "BID" : "ASK"),
+                   st.symbol,
+                   st.exchange,
+                   price,
+                   order_id);
 
     order_to_instrument_[order_id] = instrument_id;
     return order_id;
@@ -610,11 +609,11 @@ uint64_t AvellanedaStoikovStrategy::send_unwind_order(uint64_t instrument_id,
         return 0;
 
     if (!order_mgr_) {
-        spdlog::info("[AS] UNWIND {} {} @ {} mid={:.6f} (no gateway)",
-                     (side == OrderSide::BUY ? "BUY" : "SELL"),
-                     st.symbol,
-                     st.exchange,
-                     mid);
+        ygg::log::info("[AS] UNWIND {} {} @ {} mid={:.6f} (no gateway)",
+                       (side == OrderSide::BUY ? "BUY" : "SELL"),
+                       st.symbol,
+                       st.exchange,
+                       mid);
         return 0;
     }
 
@@ -628,13 +627,13 @@ uint64_t AvellanedaStoikovStrategy::send_unwind_order(uint64_t instrument_id,
     if (order_id == 0)
         return 0;
 
-    spdlog::info("[AS] UNWIND {} {} @ {} price={:.6f} mid={:.6f} → order_id={}",
-                 (side == OrderSide::BUY ? "BUY" : "SELL"),
-                 st.symbol,
-                 st.exchange,
-                 price,
-                 mid,
-                 order_id);
+    ygg::log::info("[AS] UNWIND {} {} @ {} price={:.6f} mid={:.6f} → order_id={}",
+                   (side == OrderSide::BUY ? "BUY" : "SELL"),
+                   st.symbol,
+                   st.exchange,
+                   price,
+                   mid,
+                   order_id);
 
     order_to_instrument_[order_id] = instrument_id;
     return order_id;

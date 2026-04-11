@@ -1,13 +1,13 @@
 #pragma once
 
+#include "jormungandr/config/settings.h"
+#include "jormungandr/data/market_event.h"
+
 #include <chrono>
 #include <optional>
 #include <queue>
 #include <string>
 #include <vector>
-
-#include "jormungandr/config/settings.h"
-#include "jormungandr/data/market_event.h"
 
 namespace jormungandr::data {
 
@@ -20,7 +20,8 @@ namespace jormungandr::data {
 //   while (auto ev = loader.next()) { ... }
 class DataLoader {
 public:
-    DataLoader(const config::DataConfig& data_cfg, const config::SimulationConfig& sim_cfg,
+    DataLoader(const config::DataConfig& data_cfg,
+               const config::SimulationConfig& sim_cfg,
                const std::vector<config::InstrumentConfig>& instruments);
 
     // Checks that every required trades + orderbook file exists for the full
@@ -55,16 +56,16 @@ private:
     // Returns false if all readers are exhausted.
     bool load_next_day() const;
 
-    std::string trades_path(const std::string& exchange, const std::string& symbol,
-                            std::chrono::sys_days day) const;
-    std::string orderbook_path(const std::string& exchange, const std::string& symbol,
-                               std::chrono::sys_days day) const;
+    std::string trades_path(const std::string& exchange, const std::string& symbol, std::chrono::sys_days day) const;
+    std::string orderbook_path(const std::string& exchange, const std::string& symbol, std::chrono::sys_days day) const;
 
     void load_day(InstrumentReader& reader);
 
-    std::vector<MarketEvent> read_trades(const std::string& path, const std::string& exchange,
+    std::vector<MarketEvent> read_trades(const std::string& path,
+                                         const std::string& exchange,
                                          const std::string& symbol) const;
-    std::vector<MarketEvent> read_orderbook(const std::string& path, const std::string& exchange,
+    std::vector<MarketEvent> read_orderbook(const std::string& path,
+                                            const std::string& exchange,
                                             const std::string& symbol) const;
 
     std::string local_cache_;

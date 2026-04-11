@@ -1,0 +1,33 @@
+# Instance config — BACKTEST mode
+# Huginn connects to Jormungandr's local WS servers instead of real exchanges.
+# Aeron config is identical to QA — Fenrir still subscribes via Aeron as normal.
+environment    = "backtest"
+exchange_config = "config/exchanges/backtest.toml"
+exchanges      = ["BINANCE", "OKX"]
+subscription_heartbeat_interval_ms = 5000
+service_heartbeat_interval_ms      = 5000
+
+[aeron]
+media_driver_dir = "/dev/shm/aeron-bifrost"
+
+[aeron.control]
+channel   = "aeron:ipc"
+stream_id = 2001    # Fenrir → Huginn  (MdSubscribeBatch)
+
+[aeron.data]
+channel   = "aeron:ipc"
+stream_id = 2002    # Huginn → Fenrir  (MdMarketData, MdTrade, MdOrderBook)
+
+[aeron.ack_hb]
+channel   = "aeron:ipc"
+stream_id = 2003    # Huginn → Fenrir  (MdSubscriptionAck, heartbeats)
+
+[metrics]
+host = "127.0.0.1"
+port = 9102
+
+[logging]
+level             = "debug"
+dir               = "logs/backtest"
+flush_level       = "warn"
+flush_interval_ms = 1000

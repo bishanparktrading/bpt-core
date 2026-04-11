@@ -27,7 +27,6 @@ target_link_libraries(heimdall_lib PUBLIC
     aeron_client
     bifrost::protocol
     fmt::fmt
-    spdlog::spdlog
     tomlplusplus::tomlplusplus
     Boost::system
     Boost::json
@@ -35,8 +34,6 @@ target_link_libraries(heimdall_lib PUBLIC
     OpenSSL::Crypto
     Threads::Threads
     prometheus-cpp::pull
-    aws-cpp-sdk-core
-    aws-cpp-sdk-secretsmanager
 )
 
 target_include_directories(heimdall_lib PUBLIC

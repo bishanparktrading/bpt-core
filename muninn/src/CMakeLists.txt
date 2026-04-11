@@ -25,7 +25,6 @@ add_library(muninn_lib
 target_link_libraries(muninn_lib PUBLIC
     yggdrasil
     fmt::fmt
-    spdlog::spdlog
     tomlplusplus::tomlplusplus
     nlohmann_json::nlohmann_json
     aeron_client
@@ -35,8 +34,6 @@ target_link_libraries(muninn_lib PUBLIC
     bifrost::protocol
     prometheus-cpp::pull
     aws-cpp-sdk-s3
-    aws-cpp-sdk-core
-    aws-cpp-sdk-secretsmanager
 )
 
 target_include_directories(muninn_lib PUBLIC

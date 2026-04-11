@@ -1,89 +1,121 @@
 #pragma once
 
-// yggdrasil/logging.h — Shared logger config and initialisation for all services.
+// yggdrasil/logging.h — Shared logger config, initialisation, and log call API.
 //
-// Usage (in main, before any spdlog calls):
-//   ygg::logging::init("fenrir");
+// All services call ygg::log::info/warn/error/debug/trace — never the backend
+// directly.  Swapping backends (e.g. spdlog → Quill) is a one-file change in
+// logging.cpp; no service code is touched.
 //
-//   ygg::logging::LogConfig cfg;
-//   cfg.level = "debug";
-//   cfg.flush_interval_ms = 1000;
-//   ygg::logging::init("fenrir", cfg);
+// Usage:
+//   #include <yggdrasil/logging.h>
 //
-// To load config from a TOML table, include <yggdrasil/logging_toml.h> instead.
-
-#include <spdlog/async.h>
-#include <spdlog/sinks/rotating_file_sink.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
-#include <spdlog/spdlog.h>
+//   ygg::logging::init("fenrir");          // once at startup
+//   ygg::log::info("tick {}", n);          // anywhere
+//
+// To load LogConfig from a TOML table, include <yggdrasil/logging_toml.h>.
+//
+// Backend: Quill (current).
+//
+// Hot-path note: Quill's zero-copy arg serialisation requires LOG_* macros with
+// a compile-time string literal at the call site.  Our function-call API
+// pre-formats the message with fmt (calling thread) then enqueues the result as
+// a std::string through Quill's SPSC queue.  The calling-thread overhead is the
+// same as spdlog async; the gain is Quill's faster SPSC queue and I/O backend.
+// If the extra ~50-200ns per log call ever becomes a bottleneck, switch call
+// sites to the LOG_INFO(ygg::logging::get_default_logger(), ...) macros.
 
 #include <cstdint>
-#include <filesystem>
+#include <fmt/format.h>
+#include <quill/LogMacros.h>
+#include <quill/Logger.h>
 #include <string>
-#include <vector>
 
 namespace ygg::logging {
 
 struct LogConfig {
-    std::string log_dir           = "logs";
-    std::string level             = "info";   // trace/debug/info/warn/error/critical/off
-    std::string flush_level       = "warn";   // flush-on threshold (>= this level triggers sync flush)
-    bool        console           = true;
-    bool        file              = true;
-    uint32_t    async_queue_size  = 8192;     // ring buffer depth for the async logger
-    uint32_t    async_threads     = 1;
-    bool        block_on_overflow = false;    // false = discard_new (prefer for hot paths)
-    uint32_t    max_file_size_mb  = 10;
-    uint32_t    max_files         = 3;        // number of rotated files to retain
-    std::string pattern;                      // empty = spdlog default pattern
-    uint32_t    flush_interval_ms = 0;        // 0 = flush-on-level only; >0 also flushes periodically
+    std::string log_dir = "logs";
+    std::string level = "info";        // trace/debug/info/warn/error/critical/off
+    std::string flush_level = "warn";  // note: per-level flush is not supported by the Quill
+                                       // backend; this field is reserved for future use
+    bool console = true;
+    bool file = true;
+    uint32_t async_queue_size = 131072;  // initial SPSC queue capacity in bytes (Quill default: 128 KiB)
+    uint32_t async_threads = 1;
+    bool block_on_overflow = false;  // false = drop oldest when queue full
+    uint32_t max_file_size_mb = 10;
+    uint32_t max_files = 3;          // number of rotated files to retain
+    std::string pattern;             // empty = Quill default pattern
+    uint32_t flush_interval_ms = 0;  // 0 = no periodic flush; >0 = backend wakes every N ms
 };
 
-inline spdlog::level::level_enum level_from_string(const std::string& s) {
-    if (s == "trace")                    return spdlog::level::trace;
-    if (s == "debug")                    return spdlog::level::debug;
-    if (s == "info")                     return spdlog::level::info;
-    if (s == "warn" || s == "warning")   return spdlog::level::warn;
-    if (s == "error")                    return spdlog::level::err;
-    if (s == "critical")                 return spdlog::level::critical;
-    if (s == "off")                      return spdlog::level::off;
-    return spdlog::level::info;
-}
+// Returns the Quill logger created by init().  Nullptr until init() is called.
+quill::Logger* get_default_logger();
 
-inline void init(const std::string& service_name, const LogConfig& cfg = {}) {
-    spdlog::init_thread_pool(cfg.async_queue_size, cfg.async_threads);
-
-    std::vector<spdlog::sink_ptr> sinks;
-
-    if (cfg.console)
-        sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
-
-    if (cfg.file) {
-        std::filesystem::create_directories(cfg.log_dir);
-        sinks.push_back(std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
-            cfg.log_dir + "/" + service_name + ".log",
-            static_cast<std::size_t>(cfg.max_file_size_mb) * 1024 * 1024,
-            cfg.max_files));
-    }
-
-    auto policy = cfg.block_on_overflow
-        ? spdlog::async_overflow_policy::block
-        : spdlog::async_overflow_policy::discard_new;
-
-    auto logger = std::make_shared<spdlog::async_logger>(
-        service_name, sinks.begin(), sinks.end(),
-        spdlog::thread_pool(), policy);
-
-    logger->set_level(level_from_string(cfg.level));
-    logger->flush_on(level_from_string(cfg.flush_level));
-
-    if (!cfg.pattern.empty())
-        logger->set_pattern(cfg.pattern);
-
-    if (cfg.flush_interval_ms > 0)
-        spdlog::flush_every(std::chrono::milliseconds(cfg.flush_interval_ms));
-
-    spdlog::set_default_logger(logger);
-}
+void init(const std::string& service_name, const LogConfig& cfg = {});
 
 }  // namespace ygg::logging
+
+// ── Log call API ─────────────────────────────────────────────────────────────
+//
+// The format string is validated at compile time by fmt::format_string<Args...>.
+// The message is pre-formatted on the calling thread and enqueued as a
+// std::string via Quill's SPSC lock-free queue.  The backend thread handles
+// all sink I/O.
+//
+namespace ygg::log {
+
+template <typename... Args>
+inline void trace(fmt::format_string<Args...> fmt, Args&&... args) {
+    auto* l = ygg::logging::get_default_logger();
+    if (l) {
+        auto msg = fmt::format(fmt, std::forward<Args>(args)...);
+        LOG_TRACE_L1(l, "{}", msg);
+    }
+}
+
+template <typename... Args>
+inline void debug(fmt::format_string<Args...> fmt, Args&&... args) {
+    auto* l = ygg::logging::get_default_logger();
+    if (l) {
+        auto msg = fmt::format(fmt, std::forward<Args>(args)...);
+        LOG_DEBUG(l, "{}", msg);
+    }
+}
+
+template <typename... Args>
+inline void info(fmt::format_string<Args...> fmt, Args&&... args) {
+    auto* l = ygg::logging::get_default_logger();
+    if (l) {
+        auto msg = fmt::format(fmt, std::forward<Args>(args)...);
+        LOG_INFO(l, "{}", msg);
+    }
+}
+
+template <typename... Args>
+inline void warn(fmt::format_string<Args...> fmt, Args&&... args) {
+    auto* l = ygg::logging::get_default_logger();
+    if (l) {
+        auto msg = fmt::format(fmt, std::forward<Args>(args)...);
+        LOG_WARNING(l, "{}", msg);
+    }
+}
+
+template <typename... Args>
+inline void error(fmt::format_string<Args...> fmt, Args&&... args) {
+    auto* l = ygg::logging::get_default_logger();
+    if (l) {
+        auto msg = fmt::format(fmt, std::forward<Args>(args)...);
+        LOG_ERROR(l, "{}", msg);
+    }
+}
+
+template <typename... Args>
+inline void critical(fmt::format_string<Args...> fmt, Args&&... args) {
+    auto* l = ygg::logging::get_default_logger();
+    if (l) {
+        auto msg = fmt::format(fmt, std::forward<Args>(args)...);
+        LOG_CRITICAL(l, "{}", msg);
+    }
+}
+
+}  // namespace ygg::log

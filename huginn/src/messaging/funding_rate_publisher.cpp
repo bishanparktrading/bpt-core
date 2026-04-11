@@ -3,9 +3,9 @@
 #include <bifrost_protocol/FundingRate.h>
 #include <bifrost_protocol/MessageHeader.h>
 
-#include <spdlog/spdlog.h>
 #include <thread>
 #include <yggdrasil/aeron/aeron_utils.h>
+#include <yggdrasil/logging.h>
 
 namespace huginn::messaging {
 
@@ -39,10 +39,10 @@ void FundingRatePublisher::publish(const FundingRateUpdate& fr) {
             std::this_thread::yield();
     } while (result < 0);
 
-    spdlog::debug("[Huginn] FundingRate published exchange={} instrument_id={} rate={}bps",
-                  ExchangeId::c_str(fr.exchange_id),
-                  fr.instrument_id,
-                  fr.rate_bps);
+    ygg::log::debug("[Huginn] FundingRate published exchange={} instrument_id={} rate={}bps",
+                    ExchangeId::c_str(fr.exchange_id),
+                    fr.instrument_id,
+                    fr.rate_bps);
 }
 
 }  // namespace huginn::messaging

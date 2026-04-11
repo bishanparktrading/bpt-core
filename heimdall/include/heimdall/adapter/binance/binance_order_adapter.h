@@ -1,12 +1,12 @@
 #pragma once
 
-#include <chrono>
-#include <cstdint>
-#include <string>
-
 #include "heimdall/adapter/binance/binance_exec_parser.h"
 #include "heimdall/adapter/common/credentials.h"
 #include "heimdall/adapter/common/order_adapter_base.h"
+
+#include <chrono>
+#include <cstdint>
+#include <string>
 
 namespace heimdall::adapter {
 
@@ -25,19 +25,15 @@ public:
     BinanceOrderAdapter(const config::AdapterConfig& cfg, const ExchangeCredentials& creds);
 
     void send_new_order(const bifrost::protocol::NewOrder& order) override;
-    void send_cancel(const bifrost::protocol::CancelOrder& cancel,
-                     const std::string& native_symbol) override;
+    void send_cancel(const bifrost::protocol::CancelOrder& cancel, const std::string& native_symbol) override;
     void send_cancel_all(uint64_t instrument_id) override;
-    void send_modify(const bifrost::protocol::ModifyOrder& modify,
-                     const std::string& native_symbol) override;
+    void send_modify(const bifrost::protocol::ModifyOrder& modify, const std::string& native_symbol) override;
 
     [[nodiscard]] bifrost::protocol::ExchangeId::Value exchange_id() const override {
         return bifrost::protocol::ExchangeId::BINANCE;
     }
     [[nodiscard]] const char* exchange_name() const override { return "BINANCE"; }
-    [[nodiscard]] bool is_connected() const override {
-        return connected_.load(std::memory_order_relaxed);
-    }
+    [[nodiscard]] bool is_connected() const override { return connected_.load(std::memory_order_relaxed); }
 
     AccountSnapshotData fetch_account_snapshot(uint64_t correlation_id) override;
 
@@ -46,8 +42,10 @@ protected:
 
 private:
     // HTTPS helper: synchronous POST/PUT/DELETE to Binance REST API.
-    std::string https_request(const std::string& method, const std::string& path,
-                              const std::string& body, bool with_api_key);
+    std::string https_request(const std::string& method,
+                              const std::string& path,
+                              const std::string& body,
+                              bool with_api_key);
 
     // Build a signed query string for private REST endpoints.
     std::string sign_query(const std::string& params) const;

@@ -1,12 +1,12 @@
 #pragma once
 
+#include "heimdall/adapter/common/account_snapshot_data.h"
+
 #include <Aeron.h>
 
 #include <memory>
 #include <mutex>
 #include <string>
-
-#include "heimdall/adapter/common/account_snapshot_data.h"
 
 namespace heimdall::messaging {
 
@@ -14,8 +14,7 @@ namespace heimdall::messaging {
 // Thread-safe: publish() may be called from a detached fetch thread.
 class AccountSnapshotPublisher {
 public:
-    AccountSnapshotPublisher(std::shared_ptr<aeron::Aeron> aeron, const std::string& channel,
-                             int stream_id);
+    AccountSnapshotPublisher(std::shared_ptr<aeron::Aeron> aeron, const std::string& channel, int stream_id);
 
     void publish(const adapter::AccountSnapshotData& snapshot);
 

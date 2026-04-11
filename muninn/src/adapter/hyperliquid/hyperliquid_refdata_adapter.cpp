@@ -3,7 +3,6 @@
 #include <bifrost_protocol/DeltaUpdateType.h>
 
 #include <nlohmann/json.hpp>
-#include <spdlog/spdlog.h>
 #include <yggdrasil/util/tsc_clock.h>
 
 namespace muninn::adapter {
@@ -27,7 +26,7 @@ HyperliquidRefDataAdapter::HyperliquidRefDataAdapter(const config::AdapterConfig
       parser_(mapping) {}
 
 void HyperliquidRefDataAdapter::fetchSnapshot() {
-    spdlog::info("[HyperliquidRefData] Starting snapshot fetch...");
+    ygg::log::info("[HyperliquidRefData] Starting snapshot fetch...");
     const uint64_t ts = now_ns();
 
     // 1. Meta — instrument listing (all perps)
@@ -36,7 +35,7 @@ void HyperliquidRefDataAdapter::fetchSnapshot() {
         for (auto& inst : parser_.parse_meta(body, ts))
             registry_->add(inst);
     } catch (const std::exception& e) {
-        spdlog::error("[HyperliquidRefData] Failed to fetch meta: {}", e.what());
+        ygg::log::error("[HyperliquidRefData] Failed to fetch meta: {}", e.what());
         throw;
     }
 
@@ -49,18 +48,18 @@ void HyperliquidRefDataAdapter::fetchSnapshot() {
                 if (on_fee_schedule)
                     on_fee_schedule(fs);
         } catch (const std::exception& e) {
-            spdlog::warn("[HyperliquidRefData] Failed to fetch userFees: {}", e.what());
+            ygg::log::warn("[HyperliquidRefData] Failed to fetch userFees: {}", e.what());
         }
     } else {
-        spdlog::warn("[HyperliquidRefData] No wallet address configured — skipping userFees");
+        ygg::log::warn("[HyperliquidRefData] No wallet address configured — skipping userFees");
     }
 
     ready_.store(true, std::memory_order_release);
-    spdlog::info("[HyperliquidRefData] Snapshot complete. Registry has {} instruments.", registry_->getAll().size());
+    ygg::log::info("[HyperliquidRefData] Snapshot complete. Registry has {} instruments.", registry_->getAll().size());
 }
 
 void HyperliquidRefDataAdapter::fetchInstrumentListing() {
-    spdlog::info("[HyperliquidRefData] Hourly instrument listing refresh...");
+    ygg::log::info("[HyperliquidRefData] Hourly instrument listing refresh...");
     const uint64_t ts = now_ns();
 
     try {
@@ -70,7 +69,7 @@ void HyperliquidRefDataAdapter::fetchInstrumentListing() {
                 on_instrument_delta(inst, bifrost::protocol::DeltaUpdateType::MODIFY, ts);
         }
     } catch (const std::exception& e) {
-        spdlog::error("[HyperliquidRefData] Hourly meta refresh failed: {}", e.what());
+        ygg::log::error("[HyperliquidRefData] Hourly meta refresh failed: {}", e.what());
     }
 }
 

@@ -1,9 +1,8 @@
 #include "surtr/pricing/black_scholes.h"
 #include "surtr/pricing/iv_solver.h"
 
-#include <gtest/gtest.h>
-
 #include <cmath>
+#include <gtest/gtest.h>
 
 namespace surtr::pricing {
 
@@ -79,7 +78,11 @@ TEST(IvSolver, MultipleStrikesSameExpiry) {
         double sigma;
     };
     StrikeVol cases[] = {
-        {80.0, 0.35}, {90.0, 0.28}, {100.0, 0.22}, {110.0, 0.27}, {120.0, 0.34},
+        {80.0, 0.35},
+        {90.0, 0.28},
+        {100.0, 0.22},
+        {110.0, 0.27},
+        {120.0, 0.34},
     };
 
     for (const auto& c : cases) {

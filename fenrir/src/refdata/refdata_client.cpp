@@ -4,17 +4,17 @@
 #include <bifrost_protocol/FundingRate.h>
 #include <bifrost_protocol/MessageHeader.h>
 #include <bifrost_protocol/RefDataDelta.h>
-#include <bifrost_protocol/RefDataSnapshot.h>
-#include <bifrost_protocol/RefDataSubscriptionRequest.h>
 #include <bifrost_protocol/RefDataError.h>
 #include <bifrost_protocol/RefDataReady.h>
+#include <bifrost_protocol/RefDataSnapshot.h>
+#include <bifrost_protocol/RefDataSubscriptionRequest.h>
 
 #include <chrono>
 #include <cstring>
-#include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <thread>
 #include <x86intrin.h>
+#include <yggdrasil/logging.h>
 #include <yggdrasil/util/tsc_clock.h>
 
 namespace fenrir::refdata {
@@ -105,13 +105,13 @@ RefdataClient::RefdataClient(std::shared_ptr<aeron::Aeron> aeron,
             handle_status_fragment(buf, off, len, hdr);
         });
 
-    spdlog::info("RefdataClient connected: ctrl={} snap={} delta={} fee={} funding={} status={}",
-                 control_stream,
-                 snapshot_stream,
-                 delta_stream,
-                 fee_schedule_stream,
-                 funding_rate_stream,
-                 status_stream);
+    ygg::log::info("RefdataClient connected: ctrl={} snap={} delta={} fee={} funding={} status={}",
+                   control_stream,
+                   snapshot_stream,
+                   delta_stream,
+                   fee_schedule_stream,
+                   funding_rate_stream,
+                   status_stream);
 }
 
 void RefdataClient::subscribe(uint64_t correlation_id, std::vector<CanonicalFilter> filters) {
@@ -148,7 +148,7 @@ void RefdataClient::subscribe(uint64_t correlation_id, std::vector<CanonicalFilt
     while (ctrl_pub_->offer(ab, 0, static_cast<aeron::util::index_t>(buf_size)) < 0)
         _mm_pause();
 
-    spdlog::info("Subscription request sent: correlation_id={} canonical_filters={}", correlation_id, nf);
+    ygg::log::info("Subscription request sent: correlation_id={} canonical_filters={}", correlation_id, nf);
 }
 
 void RefdataClient::handle_snapshot_fragment(aeron::AtomicBuffer& buffer,
@@ -177,7 +177,7 @@ void RefdataClient::handle_snapshot_fragment(aeron::AtomicBuffer& buffer,
         return;
 
     cache_.apply_snapshot(msg);
-    spdlog::info("Snapshot received: {} instruments", cache_.size());
+    ygg::log::info("Snapshot received: {} instruments", cache_.size());
 
     if (on_snapshot_complete)
         on_snapshot_complete(cache_);
@@ -219,7 +219,7 @@ void RefdataClient::handle_delta_fragment(aeron::AtomicBuffer& buffer,
 
     bool ok = cache_.apply_delta(msg);
     if (!ok) {
-        spdlog::warn(
+        ygg::log::warn(
             "Delta sequence gap detected (last={} received={}), resetting cache — "
             "resubscription required",
             cache_.last_delta_seq(),
@@ -260,11 +260,11 @@ void RefdataClient::handle_fee_schedule_fragment(aeron::AtomicBuffer& buffer,
 
     fee_cache_.update(msg.exchangeId(), msg.instrumentId(), msg.makerFeeBps(), msg.takerFeeBps(), msg.updatedTs());
 
-    spdlog::debug("[Fenrir] FeeSchedule: exchange={} instrument={} maker={}bps taker={}bps",
-                  ExchangeId::c_str(msg.exchangeId()),
-                  msg.instrumentId(),
-                  msg.makerFeeBps(),
-                  msg.takerFeeBps());
+    ygg::log::debug("[Fenrir] FeeSchedule: exchange={} instrument={} maker={}bps taker={}bps",
+                    ExchangeId::c_str(msg.exchangeId()),
+                    msg.instrumentId(),
+                    msg.makerFeeBps(),
+                    msg.takerFeeBps());
 }
 
 void RefdataClient::handle_funding_rate_fragment(aeron::AtomicBuffer& buffer,
@@ -295,10 +295,10 @@ void RefdataClient::handle_funding_rate_fragment(aeron::AtomicBuffer& buffer,
                                msg.nextFundingTs(),
                                msg.collectedTs());
 
-    spdlog::debug("[Fenrir] FundingRate: exchange={} instrument={} rate={}bps",
-                  ExchangeId::c_str(msg.exchangeId()),
-                  msg.instrumentId(),
-                  msg.rateBps());
+    ygg::log::debug("[Fenrir] FundingRate: exchange={} instrument={} rate={}bps",
+                    ExchangeId::c_str(msg.exchangeId()),
+                    msg.instrumentId(),
+                    msg.rateBps());
 }
 
 void RefdataClient::handle_status_fragment(aeron::AtomicBuffer& buffer,
@@ -321,11 +321,11 @@ void RefdataClient::handle_status_fragment(aeron::AtomicBuffer& buffer,
                           hdr.version(),
                           static_cast<std::size_t>(length));
 
-        spdlog::debug("[Fenrir] RefDataReady: exchanges=0x{:02x} instruments={} fee_schedules={} funding_rates={}",
-                      msg.exchangesLoaded(),
-                      msg.instrumentCount(),
-                      msg.feeSchedulesLoaded(),
-                      msg.fundingRatesLoaded());
+        ygg::log::debug("[Fenrir] RefDataReady: exchanges=0x{:02x} instruments={} fee_schedules={} funding_rates={}",
+                        msg.exchangesLoaded(),
+                        msg.instrumentCount(),
+                        msg.feeSchedulesLoaded(),
+                        msg.fundingRatesLoaded());
 
         if (on_ready)
             on_ready(msg.exchangesLoaded(),
@@ -341,10 +341,10 @@ void RefdataClient::handle_status_fragment(aeron::AtomicBuffer& buffer,
                           hdr.version(),
                           static_cast<std::size_t>(length));
 
-        spdlog::error("[Fenrir] RefDataError: type={} exchange={} instrument={}",
-                      RefDataErrorType::c_str(msg.errorType()),
-                      ExchangeId::c_str(msg.exchangeId()),
-                      msg.instrumentId());
+        ygg::log::error("[Fenrir] RefDataError: type={} exchange={} instrument={}",
+                        RefDataErrorType::c_str(msg.errorType()),
+                        ExchangeId::c_str(msg.exchangeId()),
+                        msg.instrumentId());
 
         if (on_error)
             on_error(msg.errorType(), msg.exchangeId(), msg.instrumentId());

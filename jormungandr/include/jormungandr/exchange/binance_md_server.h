@@ -1,13 +1,13 @@
 #pragma once
 
+#include "jormungandr/data/market_event.h"
+
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <cstdint>
 #include <memory>
 #include <thread>
 #include <vector>
-
-#include "jormungandr/data/market_event.h"
 
 namespace jormungandr::exchange {
 

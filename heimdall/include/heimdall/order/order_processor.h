@@ -1,5 +1,11 @@
 #pragma once
 
+#include "heimdall/adapter/common/i_order_adapter.h"
+#include "heimdall/messaging/exec_report_publisher.h"
+#include "heimdall/metrics/metrics.h"
+#include "heimdall/order/order_state_manager.h"
+#include "heimdall/risk/risk_checker.h"
+
 #include <bifrost_protocol/CancelAll.h>
 #include <bifrost_protocol/CancelOrder.h>
 #include <bifrost_protocol/ModifyOrder.h>
@@ -9,12 +15,6 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
-
-#include "heimdall/adapter/common/i_order_adapter.h"
-#include "heimdall/messaging/exec_report_publisher.h"
-#include "heimdall/metrics/metrics.h"
-#include "heimdall/order/order_state_manager.h"
-#include "heimdall/risk/risk_checker.h"
 
 namespace heimdall::order {
 
@@ -34,8 +34,10 @@ public:
     // All dependencies are non-owning references.  The adapters vector is also
     // referenced rather than copied so that the processor always sees the live
     // set without needing to be rebuilt if an adapter is added at runtime.
-    OrderProcessor(messaging::ExecReportPublisher& exec_pub, OrderStateManager& state_mgr,
-                   risk::RiskChecker& risk_checker, metrics::HeimdallMetrics& metrics,
+    OrderProcessor(messaging::ExecReportPublisher& exec_pub,
+                   OrderStateManager& state_mgr,
+                   risk::RiskChecker& risk_checker,
+                   metrics::HeimdallMetrics& metrics,
                    const std::vector<std::shared_ptr<adapter::IOrderAdapter>>& adapters);
 
     // Called by each adapter's on_exec_event callback when an exchange event
@@ -97,8 +99,7 @@ public:
 private:
     // Linear scan over adapters_ — the list is short (≤4 exchanges) so this
     // is faster than a hash map in practice.
-    [[nodiscard]] adapter::IOrderAdapter* find_adapter(
-        bifrost::protocol::ExchangeId::Value id) const;
+    [[nodiscard]] adapter::IOrderAdapter* find_adapter(bifrost::protocol::ExchangeId::Value id) const;
 
     // Maps the wire-format ExecStatus onto the internal OrderLifecycle enum.
     // Centralised here so adapters can use the raw protocol type without

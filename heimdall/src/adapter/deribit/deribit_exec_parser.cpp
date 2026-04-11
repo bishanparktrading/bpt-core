@@ -6,11 +6,11 @@
 #include <bifrost_protocol/OrderSide.h>
 #include <bifrost_protocol/OrderType.h>
 #include <bifrost_protocol/RejectReason.h>
-#include <spdlog/spdlog.h>
 
 #include <boost/json.hpp>
 #include <functional>
 #include <string>
+#include <yggdrasil/logging.h>
 
 namespace heimdall::adapter {
 
@@ -19,8 +19,10 @@ namespace json = boost::json;
 static constexpr double kScale = 1e8;
 
 static bifrost::protocol::FeeCurrency::Value parse_fee_ccy(const std::string& instrument_name) {
-    if (instrument_name.find("BTC") == 0) return bifrost::protocol::FeeCurrency::BTC;
-    if (instrument_name.find("ETH") == 0) return bifrost::protocol::FeeCurrency::ETH;
+    if (instrument_name.find("BTC") == 0)
+        return bifrost::protocol::FeeCurrency::BTC;
+    if (instrument_name.find("ETH") == 0)
+        return bifrost::protocol::FeeCurrency::ETH;
     return bifrost::protocol::FeeCurrency::USDT;
 }
 
@@ -55,10 +57,11 @@ void DeribitExecParser::handle_subscription_event(const json::object& d, uint64_
     {
         std::lock_guard<std::mutex> lk(mu_);
         auto it = label_to_order_id_.find(label);
-        if (it != label_to_order_id_.end()) order_id = it->second;
+        if (it != label_to_order_id_.end())
+            order_id = it->second;
     }
     if (order_id == 0) {
-        spdlog::debug("[Heimdall] DeribitExecParser: subscription unknown label={}", label);
+        ygg::log::debug("[Heimdall] DeribitExecParser: subscription unknown label={}", label);
         return;
     }
 
@@ -88,8 +91,7 @@ void DeribitExecParser::handle_subscription_event(const json::object& d, uint64_
         ev.side = (std::string(dit->value().as_string()) == "buy") ? OS::BUY : OS::SELL;
 
     if (auto tit = d.find("order_type"); tit != d.end() && tit->value().is_string())
-        ev.order_type =
-            (std::string(tit->value().as_string()) == "market") ? OT::MARKET : OT::LIMIT;
+        ev.order_type = (std::string(tit->value().as_string()) == "market") ? OT::MARKET : OT::LIMIT;
 
     if (auto pit = d.find("price"); pit != d.end() && pit->value().is_number())
         ev.price = static_cast<int64_t>(pit->value().to_number<double>() * kScale);
@@ -144,15 +146,13 @@ void DeribitExecParser::handle_subscription_event(const json::object& d, uint64_
     if (ev.status == ES::ACKED) {
         std::lock_guard<std::mutex> lk(mu_);
         if (!acked_orders_.insert(ev.order_id).second) {
-            spdlog::debug("[Heimdall] DeribitExecParser: suppressed duplicate ACKED order_id={}",
-                          ev.order_id);
+            ygg::log::debug("[Heimdall] DeribitExecParser: suppressed duplicate ACKED order_id={}", ev.order_id);
             return;
         }
     } else if (ev.status == ES::CANCELLED) {
         std::lock_guard<std::mutex> lk(mu_);
         if (!cancelled_orders_.insert(ev.order_id).second) {
-            spdlog::debug("[Heimdall] DeribitExecParser: suppressed duplicate CANCELLED order_id={}",
-                          ev.order_id);
+            ygg::log::debug("[Heimdall] DeribitExecParser: suppressed duplicate CANCELLED order_id={}", ev.order_id);
             return;
         }
         acked_orders_.erase(ev.order_id);
@@ -161,7 +161,8 @@ void DeribitExecParser::handle_subscription_event(const json::object& d, uint64_
         acked_orders_.erase(ev.order_id);
     }
 
-    if (on_exec_event) on_exec_event(ev);
+    if (on_exec_event)
+        on_exec_event(ev);
 }
 
 void DeribitExecParser::handle_order_response(const json::object& order_obj, uint64_t recv_ns) {
@@ -178,10 +179,11 @@ void DeribitExecParser::handle_order_response(const json::object& order_obj, uin
     {
         std::lock_guard<std::mutex> lk(mu_);
         auto it = label_to_order_id_.find(label);
-        if (it != label_to_order_id_.end()) order_id = it->second;
+        if (it != label_to_order_id_.end())
+            order_id = it->second;
     }
     if (order_id == 0) {
-        spdlog::warn("[Heimdall] DeribitExecParser: order response unknown label={}", label);
+        ygg::log::warn("[Heimdall] DeribitExecParser: order response unknown label={}", label);
         return;
     }
 
@@ -195,15 +197,17 @@ void DeribitExecParser::handle_order_response(const json::object& order_obj, uin
     }
 
     std::string order_state;
-    if (auto sit = order_obj.find("order_state");
-        sit != order_obj.end() && sit->value().is_string())
+    if (auto sit = order_obj.find("order_state"); sit != order_obj.end() && sit->value().is_string())
         order_state = std::string(sit->value().as_string());
 
-    spdlog::info("[Heimdall] DeribitExecParser: order response label={} exchange_oid={} state={}",
-                 label, exch_oid, order_state);
+    ygg::log::info("[Heimdall] DeribitExecParser: order response label={} exchange_oid={} state={}",
+                   label,
+                   exch_oid,
+                   order_state);
 
     // Only emit for terminal IOC states — GTC orders are reported via subscription channel.
-    if (order_state != "filled" && order_state != "cancelled" && order_state != "rejected") return;
+    if (order_state != "filled" && order_state != "cancelled" && order_state != "rejected")
+        return;
 
     ExecEvent ev{};
     ev.order_id = order_id;
@@ -222,16 +226,13 @@ void DeribitExecParser::handle_order_response(const json::object& order_obj, uin
     if (auto dit = order_obj.find("direction"); dit != order_obj.end() && dit->value().is_string())
         ev.side = (std::string(dit->value().as_string()) == "buy") ? OS::BUY : OS::SELL;
 
-    if (auto pit = order_obj.find("average_price");
-        pit != order_obj.end() && pit->value().is_number())
+    if (auto pit = order_obj.find("average_price"); pit != order_obj.end() && pit->value().is_number())
         ev.price = static_cast<int64_t>(pit->value().to_number<double>() * kScale);
 
-    if (auto fit = order_obj.find("filled_amount");
-        fit != order_obj.end() && fit->value().is_number())
+    if (auto fit = order_obj.find("filled_amount"); fit != order_obj.end() && fit->value().is_number())
         ev.filled_qty = static_cast<uint64_t>(fit->value().to_number<double>() * kScale);
 
-    if (auto tit = order_obj.find("last_update_timestamp");
-        tit != order_obj.end() && tit->value().is_number())
+    if (auto tit = order_obj.find("last_update_timestamp"); tit != order_obj.end() && tit->value().is_number())
         ev.exchange_ts_ns = static_cast<uint64_t>(tit->value().to_number<double>()) * 1000000ULL;
     else
         ev.exchange_ts_ns = recv_ns;
@@ -241,8 +242,7 @@ void DeribitExecParser::handle_order_response(const json::object& order_obj, uin
         ev.remaining_qty = 0;
     } else if (order_state == "cancelled") {
         ev.status = ES::CANCELLED;
-        if (auto rit = order_obj.find("amount");
-            rit != order_obj.end() && rit->value().is_number()) {
+        if (auto rit = order_obj.find("amount"); rit != order_obj.end() && rit->value().is_number()) {
             double total = rit->value().to_number<double>();
             double filled = static_cast<double>(ev.filled_qty) / kScale;
             ev.remaining_qty = static_cast<uint64_t>((total - filled) * kScale);
@@ -252,7 +252,8 @@ void DeribitExecParser::handle_order_response(const json::object& order_obj, uin
         ev.reject_reason = RR::EXCHANGE_ERROR;
     }
 
-    if (on_exec_event) on_exec_event(ev);
+    if (on_exec_event)
+        on_exec_event(ev);
 }
 
 }  // namespace heimdall::adapter

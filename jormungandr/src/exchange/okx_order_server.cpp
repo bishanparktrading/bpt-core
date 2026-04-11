@@ -1,7 +1,5 @@
 #include "jormungandr/exchange/okx_order_server.h"
 
-#include <spdlog/spdlog.h>
-
 #include <algorithm>
 #include <atomic>
 #include <boost/asio/post.hpp>
@@ -11,6 +9,7 @@
 #include <deque>
 #include <format>
 #include <string>
+#include <yggdrasil/logging.h>
 
 namespace beast = boost::beast;
 namespace ws = beast::websocket;
@@ -21,13 +20,14 @@ namespace jormungandr::exchange {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-static std::string dbl(double v) { return std::format("{:.10g}", v); }
+static std::string dbl(double v) {
+    return std::format("{:.10g}", v);
+}
 
 // OKX execution report pushed on the "orders" channel.
 // Jormungandr only emits the fill state — Heimdall's adapter handles fills only
 // (no ACKED/PARTIAL lifecycle needed).
-static std::string format_execution_report(const matching::FillReport& fill,
-                                           uint64_t order_id_int) {
+static std::string format_execution_report(const matching::FillReport& fill, uint64_t order_id_int) {
     namespace json = boost::json;
     std::string side = (fill.side == matching::OrderSide::BUY) ? "buy" : "sell";
     std::string state = fill.is_fully_filled ? "filled" : "partially_filled";
@@ -35,11 +35,14 @@ static std::string format_execution_report(const matching::FillReport& fill,
     // Fee is negative for taker (OKX convention: negative = cost)
     double fee_val = -(fill.last_fill_qty * fill.last_fill_price * 0.0005);
 
+    std::string ord_type = (fill.order_type == matching::OrderType::MARKET) ? "market" : "limit";
+
     json::object item;
     item["instId"] = fill.symbol;
     item["clOrdId"] = fill.client_order_id;
     item["ordId"] = std::to_string(order_id_int);
     item["side"] = side;
+    item["ordType"] = ord_type;
     item["px"] = dbl(fill.order_price);
     item["sz"] = dbl(fill.original_qty);
     item["fillSz"] = dbl(fill.last_fill_qty);
@@ -65,19 +68,20 @@ static std::string format_execution_report(const matching::FillReport& fill,
 // execution reports (outgoing).  Heimdall connects and sends op messages.
 class OkxOrderSession : public std::enable_shared_from_this<OkxOrderSession> {
 public:
-    explicit OkxOrderSession(tcp::socket socket, matching::MatchingEngine& engine,
-                             std::atomic<uint64_t>& order_id_seq)
-        : ws_(std::move(socket)), engine_(engine), order_id_seq_(order_id_seq) {}
+    explicit OkxOrderSession(tcp::socket socket, matching::MatchingEngine& engine, std::atomic<uint64_t>& order_id_seq)
+        : ws_(std::move(socket)),
+          engine_(engine),
+          order_id_seq_(order_id_seq) {}
 
     void run() {
-        ws_.async_accept(
-            [self = shared_from_this()](beast::error_code ec) { self->on_accept(ec); });
+        ws_.async_accept([self = shared_from_this()](beast::error_code ec) { self->on_accept(ec); });
     }
 
     void send(std::shared_ptr<std::string> msg) {
         bool idle = write_queue_.empty();
         write_queue_.push_back(std::move(msg));
-        if (idle) do_write();
+        if (idle)
+            do_write();
     }
 
     bool closed() const { return closed_; }
@@ -85,18 +89,16 @@ public:
 private:
     void on_accept(beast::error_code ec) {
         if (ec) {
-            spdlog::warn("[OkxOrderServer] accept error: {}", ec.message());
+            ygg::log::warn("[OkxOrderServer] accept error: {}", ec.message());
             closed_ = true;
             return;
         }
-        spdlog::info("[OkxOrderServer] WS connected");
+        ygg::log::info("[OkxOrderServer] WS connected");
         do_read();
     }
 
     void do_read() {
-        ws_.async_read(buf_, [self = shared_from_this()](beast::error_code ec, std::size_t) {
-            self->on_read(ec);
-        });
+        ws_.async_read(buf_, [self = shared_from_this()](beast::error_code ec, std::size_t) { self->on_read(ec); });
     }
 
     // Handles incoming op messages from Heimdall:
@@ -111,6 +113,13 @@ private:
 
         std::string text = beast::buffers_to_string(buf_.data());
         buf_.consume(buf_.size());
+
+        // Heimdall sends plain-text "ping" keepalives — respond and continue.
+        if (text == "ping") {
+            send(std::make_shared<std::string>("pong"));
+            do_read();
+            return;
+        }
 
         try {
             auto val = boost::json::parse(text);
@@ -128,9 +137,12 @@ private:
                 ack["code"] = "0";
                 ack["msg"] = "";
                 send(std::make_shared<std::string>(boost::json::serialize(ack)));
+            } else if (op == "subscribe") {
+                // Heimdall subscribes to the "orders" channel after login — ack silently.
+                (void)op;
             }
         } catch (const std::exception& e) {
-            spdlog::warn("[OkxOrderServer] parse error: {}", e.what());
+            ygg::log::warn("[OkxOrderServer] parse error: {}", e.what());
         }
 
         do_read();
@@ -145,14 +157,14 @@ private:
         order.client_order_id = std::string(args.at("clOrdId").as_string());
 
         std::string ord_type = std::string(args.at("ordType").as_string());
-        order.type =
-            (ord_type == "market") ? matching::OrderType::MARKET : matching::OrderType::LIMIT;
+        order.type = (ord_type == "market") ? matching::OrderType::MARKET : matching::OrderType::LIMIT;
 
         std::string side_str = std::string(args.at("side").as_string());
         order.side = (side_str == "sell") ? matching::OrderSide::SELL : matching::OrderSide::BUY;
 
         order.quantity = std::stod(std::string(args.at("sz").as_string()));
-        if (args.contains("px")) order.price = std::stod(std::string(args.at("px").as_string()));
+        if (args.contains("px"))
+            order.price = std::stod(std::string(args.at("px").as_string()));
 
         uint64_t oid = ++order_id_seq_;
         order.order_id = std::to_string(oid);
@@ -161,8 +173,7 @@ private:
 
         // Ack the order placement (OKX place-order response)
         json::object ack;
-        ack["id"] = std::string(
-            args.contains("clOrdId") ? std::string(args.at("clOrdId").as_string()) : "");
+        ack["id"] = std::string(args.contains("clOrdId") ? std::string(args.at("clOrdId").as_string()) : "");
         ack["op"] = "order";
         ack["code"] = "0";
         ack["msg"] = "";
@@ -179,10 +190,8 @@ private:
         namespace json = boost::json;
 
         std::string symbol = std::string(args.at("instId").as_string());
-        std::string cl_ord_id =
-            args.contains("clOrdId") ? std::string(args.at("clOrdId").as_string()) : "";
-        std::string ord_id =
-            args.contains("ordId") ? std::string(args.at("ordId").as_string()) : cl_ord_id;
+        std::string cl_ord_id = args.contains("clOrdId") ? std::string(args.at("clOrdId").as_string()) : "";
+        std::string ord_id = args.contains("ordId") ? std::string(args.at("ordId").as_string()) : cl_ord_id;
 
         bool ok = engine_.cancel_order("OKX", symbol, ord_id);
 
@@ -207,7 +216,8 @@ private:
     }
 
     void do_write() {
-        if (write_queue_.empty() || closed_) return;
+        if (write_queue_.empty() || closed_)
+            return;
         ws_.async_write(net::buffer(*write_queue_.front()),
                         [self = shared_from_this()](beast::error_code ec, std::size_t) {
                             if (ec) {
@@ -230,9 +240,13 @@ private:
 // ── OkxOrderServer ────────────────────────────────────────────────────────────
 
 OkxOrderServer::OkxOrderServer(uint16_t port, matching::MatchingEngine& engine)
-    : port_(port), engine_(engine), acceptor_(ioc_) {}
+    : port_(port),
+      engine_(engine),
+      acceptor_(ioc_) {}
 
-OkxOrderServer::~OkxOrderServer() { stop(); }
+OkxOrderServer::~OkxOrderServer() {
+    stop();
+}
 
 void OkxOrderServer::start() {
     tcp::endpoint ep{tcp::v4(), port_};
@@ -240,7 +254,7 @@ void OkxOrderServer::start() {
     acceptor_.set_option(net::socket_base::reuse_address(true));
     acceptor_.bind(ep);
     acceptor_.listen();
-    spdlog::info("[OkxOrderServer] Listening on port {}", port_);
+    ygg::log::info("[OkxOrderServer] Listening on port {}", port_);
     do_accept();
     thread_ = std::thread([this] { ioc_.run(); });
 }
@@ -248,21 +262,22 @@ void OkxOrderServer::start() {
 void OkxOrderServer::stop() {
     net::post(ioc_, [this] { acceptor_.close(); });
     ioc_.stop();
-    if (thread_.joinable()) thread_.join();
+    if (thread_.joinable())
+        thread_.join();
 }
 
 void OkxOrderServer::do_accept() {
     acceptor_.async_accept([this](beast::error_code ec, tcp::socket socket) {
         if (!ec) {
-            sessions_.erase(std::remove_if(sessions_.begin(), sessions_.end(),
-                                           [](const auto& s) { return s->closed(); }),
-                            sessions_.end());
-            auto session =
-                std::make_shared<OkxOrderSession>(std::move(socket), engine_, order_id_seq_);
+            sessions_.erase(
+                std::remove_if(sessions_.begin(), sessions_.end(), [](const auto& s) { return s->closed(); }),
+                sessions_.end());
+            auto session = std::make_shared<OkxOrderSession>(std::move(socket), engine_, order_id_seq_);
             sessions_.push_back(session);
             session->run();
         }
-        if (acceptor_.is_open()) do_accept();
+        if (acceptor_.is_open())
+            do_accept();
     });
 }
 
@@ -276,10 +291,10 @@ void OkxOrderServer::push_fill(const matching::FillReport& fill) {
     auto msg = std::make_shared<std::string>(format_execution_report(fill, oid));
 
     net::post(ioc_, [this, msg]() {
-        sessions_.erase(std::remove_if(sessions_.begin(), sessions_.end(),
-                                       [](const auto& s) { return s->closed(); }),
+        sessions_.erase(std::remove_if(sessions_.begin(), sessions_.end(), [](const auto& s) { return s->closed(); }),
                         sessions_.end());
-        for (const auto& s : sessions_) s->send(msg);
+        for (const auto& s : sessions_)
+            s->send(msg);
     });
 }
 

@@ -1,10 +1,5 @@
 #pragma once
 
-#include <map>
-#include <memory>
-#include <string>
-#include <vector>
-
 #include "heimdall/adapter/common/credentials.h"
 #include "heimdall/adapter/common/i_order_adapter.h"
 #include "heimdall/config/settings.h"
@@ -17,11 +12,17 @@
 #include "heimdall/order/order_state_manager.h"
 #include "heimdall/risk/risk_checker.h"
 
+#include <map>
+#include <memory>
+#include <string>
+#include <vector>
+
 namespace heimdall {
 
 class HeimdallApp {
 public:
-    HeimdallApp(config::Settings cfg, std::shared_ptr<aeron::Aeron> aeron,
+    HeimdallApp(config::Settings cfg,
+                std::shared_ptr<aeron::Aeron> aeron,
                 std::map<std::string, adapter::ExchangeCredentials> creds);
     void run();
 

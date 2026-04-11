@@ -7,8 +7,8 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
-#include <spdlog/spdlog.h>
 #include <thread>
+#include <yggdrasil/logging.h>
 
 namespace surtr::messaging {
 
@@ -29,9 +29,9 @@ StatusPublisher::StatusPublisher(std::shared_ptr<aeron::Aeron> aeron,
     }
 
     if (!pub_) {
-        spdlog::error("[StatusPublisher] Failed to find publication on {} stream {}", channel, stream_id);
+        ygg::log::error("[StatusPublisher] Failed to find publication on {} stream {}", channel, stream_id);
     } else {
-        spdlog::info("[StatusPublisher] Publication ready on {} stream {}", channel, stream_id);
+        ygg::log::info("[StatusPublisher] Publication ready on {} stream {}", channel, stream_id);
     }
 }
 
@@ -93,10 +93,10 @@ void StatusPublisher::publish_ready(uint64_t timestamp_ns,
     aeron::concurrent::AtomicBuffer buffer(reinterpret_cast<uint8_t*>(buf), total);
     pub_->offer(buffer, 0, static_cast<int32_t>(total));
 
-    spdlog::info("[Surtr] Published SurtrReady: exchanges=0x{:02x} underlyings={} points={}",
-                 exchanges_loaded,
-                 underlying_count,
-                 point_count);
+    ygg::log::info("[Surtr] Published SurtrReady: exchanges=0x{:02x} underlyings={} points={}",
+                   exchanges_loaded,
+                   underlying_count,
+                   point_count);
 }
 
 }  // namespace surtr::messaging

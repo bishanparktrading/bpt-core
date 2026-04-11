@@ -1,6 +1,7 @@
 #include "jormungandr/exchange/okx_md_server.h"
 
-#include <spdlog/spdlog.h>
+#include "jormungandr/data/orderbook_record.h"
+#include "jormungandr/data/trade_record.h"
 
 #include <algorithm>
 #include <boost/asio/post.hpp>
@@ -9,11 +10,10 @@
 #include <boost/json.hpp>
 #include <deque>
 #include <format>
+#include <future>
 #include <set>
 #include <string>
-
-#include "jormungandr/data/orderbook_record.h"
-#include "jormungandr/data/trade_record.h"
+#include <yggdrasil/logging.h>
 
 namespace beast = boost::beast;
 namespace ws = beast::websocket;
@@ -24,7 +24,9 @@ namespace jormungandr::exchange {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-static std::string dbl(double v) { return std::format("{:.10g}", v); }
+static std::string dbl(double v) {
+    return std::format("{:.10g}", v);
+}
 
 // OKX subscription key: "<channel>|<instId>", e.g. "trades|BTC-USDT-SWAP".
 static std::string sub_key(const std::string& channel, const std::string& inst_id) {
@@ -81,6 +83,28 @@ static std::string format_books5(const data::OrderBookRecord& ob) {
     return json::serialize(root);
 }
 
+// bbo-tbt format: top-of-book only (one bid + one ask level).
+// Huginn subscribes with depth=0 → bbo-tbt channel.
+static std::string format_bbo_tbt(const data::OrderBookRecord& ob) {
+    namespace json = boost::json;
+
+    std::string ts = std::to_string(ob.timestamp_ns / 1'000'000);
+
+    json::object item;
+    item["bids"] = json::array{json::array{dbl(ob.bid_px[0]), dbl(ob.bid_sz[0]), "0", "1"}};
+    item["asks"] = json::array{json::array{dbl(ob.ask_px[0]), dbl(ob.ask_sz[0]), "0", "1"}};
+    item["ts"] = ts;
+
+    json::object arg;
+    arg["channel"] = "bbo-tbt";
+    arg["instId"] = ob.symbol;
+
+    json::object root;
+    root["arg"] = std::move(arg);
+    root["data"] = json::array{std::move(item)};
+    return json::serialize(root);
+}
+
 // ── OkxMdSession ──────────────────────────────────────────────────────────────
 
 class OkxMdSession : public std::enable_shared_from_this<OkxMdSession> {
@@ -88,14 +112,14 @@ public:
     explicit OkxMdSession(tcp::socket socket) : ws_(std::move(socket)) {}
 
     void run() {
-        ws_.async_accept(
-            [self = shared_from_this()](beast::error_code ec) { self->on_accept(ec); });
+        ws_.async_accept([self = shared_from_this()](beast::error_code ec) { self->on_accept(ec); });
     }
 
     void send(std::shared_ptr<std::string> msg) {
         bool idle = write_queue_.empty();
         write_queue_.push_back(std::move(msg));
-        if (idle) do_write();
+        if (idle)
+            do_write();
     }
 
     bool is_subscribed(const std::string& channel, const std::string& inst_id) const {
@@ -107,7 +131,7 @@ public:
 private:
     void on_accept(beast::error_code ec) {
         if (ec) {
-            spdlog::warn("[OkxMdServer] accept error: {}", ec.message());
+            ygg::log::warn("[OkxMdServer] accept error: {}", ec.message());
             closed_ = true;
             return;
         }
@@ -115,9 +139,7 @@ private:
     }
 
     void do_read() {
-        ws_.async_read(buf_, [self = shared_from_this()](beast::error_code ec, std::size_t) {
-            self->on_read(ec);
-        });
+        ws_.async_read(buf_, [self = shared_from_this()](beast::error_code ec, std::size_t) { self->on_read(ec); });
     }
 
     // OKX subscribe message format:
@@ -130,6 +152,13 @@ private:
 
         std::string text = beast::buffers_to_string(buf_.data());
         buf_.consume(buf_.size());
+
+        // Huginn sends a plain-text "ping" (not JSON) for keepalives.
+        if (text == "ping") {
+            send(std::make_shared<std::string>("pong"));
+            do_read();
+            return;
+        }
 
         try {
             auto val = boost::json::parse(text);
@@ -153,27 +182,27 @@ private:
                         ack["event"] = "subscribe";
                         ack["arg"] = std::move(ack_arg);
                         send(std::make_shared<std::string>(boost::json::serialize(ack)));
-                        spdlog::debug("[OkxMdServer] subscribed: {} {}", channel, inst_id);
+                        ygg::log::debug("[OkxMdServer] subscribed: {} {}", channel, inst_id);
                     } else {
                         subs_.erase(key);
                     }
                 }
             } else if (op == "ping") {
-                // OKX keepalive
-                send(std::make_shared<std::string>(R"({"event":"pong"})"));
+                // JSON-format ping ({"op":"ping"}) — respond with plain pong
+                send(std::make_shared<std::string>("pong"));
             }
         } catch (const std::exception& e) {
-            spdlog::warn("[OkxMdServer] parse error: {}", e.what());
+            ygg::log::warn("[OkxMdServer] parse error: {}", e.what());
         }
 
         do_read();
     }
 
     void do_write() {
-        if (write_queue_.empty() || closed_) return;
-        ws_.async_write(
-            net::buffer(*write_queue_.front()),
-            [self = shared_from_this()](beast::error_code ec, std::size_t) { self->on_write(ec); });
+        if (write_queue_.empty() || closed_)
+            return;
+        ws_.async_write(net::buffer(*write_queue_.front()),
+                        [self = shared_from_this()](beast::error_code ec, std::size_t) { self->on_write(ec); });
     }
 
     void on_write(beast::error_code ec) {
@@ -196,7 +225,9 @@ private:
 
 OkxMdServer::OkxMdServer(uint16_t port) : port_(port), acceptor_(ioc_) {}
 
-OkxMdServer::~OkxMdServer() { stop(); }
+OkxMdServer::~OkxMdServer() {
+    stop();
+}
 
 void OkxMdServer::start() {
     tcp::endpoint ep{tcp::v4(), port_};
@@ -204,7 +235,7 @@ void OkxMdServer::start() {
     acceptor_.set_option(net::socket_base::reuse_address(true));
     acceptor_.bind(ep);
     acceptor_.listen();
-    spdlog::info("[OkxMdServer] Listening on port {}", port_);
+    ygg::log::info("[OkxMdServer] Listening on port {}", port_);
     do_accept();
     thread_ = std::thread([this] { ioc_.run(); });
 }
@@ -212,42 +243,60 @@ void OkxMdServer::start() {
 void OkxMdServer::stop() {
     net::post(ioc_, [this] { acceptor_.close(); });
     ioc_.stop();
-    if (thread_.joinable()) thread_.join();
+    if (thread_.joinable())
+        thread_.join();
 }
 
 void OkxMdServer::do_accept() {
     acceptor_.async_accept([this](beast::error_code ec, tcp::socket socket) {
         if (!ec) {
-            spdlog::info("[OkxMdServer] New connection");
+            ygg::log::info("[OkxMdServer] New connection");
             auto session = std::make_shared<OkxMdSession>(std::move(socket));
-            sessions_.erase(std::remove_if(sessions_.begin(), sessions_.end(),
-                                           [](const auto& s) { return s->closed(); }),
-                            sessions_.end());
+            sessions_.erase(
+                std::remove_if(sessions_.begin(), sessions_.end(), [](const auto& s) { return s->closed(); }),
+                sessions_.end());
             sessions_.push_back(session);
             session->run();
         }
-        if (acceptor_.is_open()) do_accept();
+        if (acceptor_.is_open())
+            do_accept();
     });
+}
+
+std::size_t OkxMdServer::session_count() {
+    std::promise<std::size_t> p;
+    auto fut = p.get_future();
+    net::post(ioc_, [this, &p]() {
+        auto count = std::count_if(sessions_.begin(), sessions_.end(), [](const auto& s) { return !s->closed(); });
+        p.set_value(static_cast<std::size_t>(count));
+    });
+    return fut.get();
 }
 
 void OkxMdServer::push(const data::MarketEvent& event) {
     net::post(ioc_, [this, event]() {
-        sessions_.erase(std::remove_if(sessions_.begin(), sessions_.end(),
-                                       [](const auto& s) { return s->closed(); }),
+        sessions_.erase(std::remove_if(sessions_.begin(), sessions_.end(), [](const auto& s) { return s->closed(); }),
                         sessions_.end());
-        if (sessions_.empty()) return;
+        if (sessions_.empty())
+            return;
 
         if (event.type == data::MarketEvent::Type::TRADE) {
             const auto& t = std::get<data::TradeRecord>(event.payload);
             auto msg = std::make_shared<std::string>(format_trade(t));
             for (const auto& s : sessions_)
-                if (s->is_subscribed("trades", t.symbol)) s->send(msg);
+                if (s->is_subscribed("trades", t.symbol))
+                    s->send(msg);
 
         } else {
             const auto& ob = std::get<data::OrderBookRecord>(event.payload);
-            auto msg = std::make_shared<std::string>(format_books5(ob));
-            for (const auto& s : sessions_)
-                if (s->is_subscribed("books5", ob.symbol)) s->send(msg);
+            auto books5_msg = std::make_shared<std::string>(format_books5(ob));
+            auto bbo_tbt_msg = std::make_shared<std::string>(format_bbo_tbt(ob));
+            for (const auto& s : sessions_) {
+                if (s->is_subscribed("books5", ob.symbol))
+                    s->send(books5_msg);
+                else if (s->is_subscribed("bbo-tbt", ob.symbol))
+                    s->send(bbo_tbt_msg);
+            }
         }
     });
 }

@@ -12,7 +12,6 @@
 #include "fenrir/strategy/vwap_reversion_strategy.h"
 
 #include <fmt/format.h>
-#include <spdlog/spdlog.h>
 #include <stdexcept>
 
 namespace fenrir::strategy {
@@ -24,7 +23,7 @@ std::unique_ptr<IStrategy> StrategyFactory::create(const config::FenrirConfig& c
                                                    vol::VolSurfaceClient* vol_client) {
     const std::string& type = cfg.strategy.type;
 
-    spdlog::info("[StrategyFactory] Instantiating strategy type: {}", type);
+    ygg::log::info("[StrategyFactory] Instantiating strategy type: {}", type);
 
     if (type == "MomentumStrategy") {
         return std::make_unique<MomentumStrategy>(cfg.correlation_id, cfg.strategy, refdata, md, order_mgr);

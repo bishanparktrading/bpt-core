@@ -1,15 +1,15 @@
 #pragma once
 
+#include "heimdall/adapter/common/credentials.h"
+#include "heimdall/adapter/common/order_adapter_base.h"
+#include "heimdall/adapter/okx/okx_exec_parser.h"
+
 #include <atomic>
 #include <functional>
 #include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include "heimdall/adapter/common/credentials.h"
-#include "heimdall/adapter/common/order_adapter_base.h"
-#include "heimdall/adapter/okx/okx_exec_parser.h"
 
 namespace heimdall::adapter {
 
@@ -30,19 +30,15 @@ public:
     void start() override;
 
     void send_new_order(const bifrost::protocol::NewOrder& order) override;
-    void send_cancel(const bifrost::protocol::CancelOrder& cancel,
-                     const std::string& native_symbol) override;
+    void send_cancel(const bifrost::protocol::CancelOrder& cancel, const std::string& native_symbol) override;
     void send_cancel_all(uint64_t instrument_id) override;
-    void send_modify(const bifrost::protocol::ModifyOrder& modify,
-                     const std::string& native_symbol) override;
+    void send_modify(const bifrost::protocol::ModifyOrder& modify, const std::string& native_symbol) override;
 
     [[nodiscard]] bifrost::protocol::ExchangeId::Value exchange_id() const override {
         return bifrost::protocol::ExchangeId::OKX;
     }
     [[nodiscard]] const char* exchange_name() const override { return "OKX"; }
-    [[nodiscard]] bool is_connected() const override {
-        return connected_.load(std::memory_order_relaxed);
-    }
+    [[nodiscard]] bool is_connected() const override { return connected_.load(std::memory_order_relaxed); }
 
     AccountSnapshotData fetch_account_snapshot(uint64_t correlation_id) override;
 
@@ -54,8 +50,10 @@ private:
     std::string build_login_msg() const;
 
     // REST helper — used at startup to fetch instIdCode per symbol.
-    std::string https_request(const std::string& method, const std::string& path,
-                              const std::string& body = "", bool signed_req = false);
+    std::string https_request(const std::string& method,
+                              const std::string& path,
+                              const std::string& body = "",
+                              bool signed_req = false);
     void fetch_inst_id_codes();
 
     std::string api_key_;

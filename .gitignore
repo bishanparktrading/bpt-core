@@ -24,9 +24,17 @@ vcpkg/
 # Editor
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
+
+# Dashboard frontend
+dashboard/frontend/node_modules/
+dashboard/frontend/dist/
+
+# Backtest results (per-run output)
+jormungandr/results/
 
 # OS
 .DS_Store

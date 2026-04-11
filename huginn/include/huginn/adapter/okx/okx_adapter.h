@@ -19,12 +19,12 @@ public:
     [[nodiscard]] ygg::util::LatencyHistogram& decode_latency_hist() noexcept override { return parser_.decode_lat_; }
 
 protected:
-    std::unique_ptr<ygg::ws::WsStream> connect_and_subscribe() override;
-    void read_loop(ygg::ws::WsStream& ws) override;
+    std::unique_ptr<ygg::ws::AnyWsStream> connect_and_subscribe() override;
+    void read_loop(ygg::ws::AnyWsStream& ws) override;
     void parse_frame(std::string_view payload, uint64_t recv_ns) override;
 
 private:
-    void send_instrument_subs(ygg::ws::WsStream& ws, const std::string& symbol, uint8_t depth);
+    void send_instrument_subs(ygg::ws::AnyWsStream& ws, const std::string& symbol, uint8_t depth);
 
     OkxParser parser_;
 };

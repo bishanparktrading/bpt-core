@@ -5,8 +5,8 @@
 #include <bifrost_protocol/FeeSchedule.h>
 #include <bifrost_protocol/MessageHeader.h>
 
-#include <spdlog/spdlog.h>
 #include <yggdrasil/aeron/aeron_utils.h>
+#include <yggdrasil/logging.h>
 
 namespace muninn::messaging {
 
@@ -35,11 +35,11 @@ void FeeSchedulePublisher::publish(const refdata::FeeScheduleState& fs) {
     aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), kBufSize);
     aeron_offer(*publication_, ab, static_cast<aeron::util::index_t>(kBufSize), "fee_schedule");
 
-    spdlog::debug("[Muninn] FeeSchedule published exchange={} instrument_id={} maker={}bps taker={}bps",
-                  ExchangeId::c_str(fs.exchange_id),
-                  fs.instrument_id,
-                  fs.maker_fee_bps,
-                  fs.taker_fee_bps);
+    ygg::log::debug("[Muninn] FeeSchedule published exchange={} instrument_id={} maker={}bps taker={}bps",
+                    ExchangeId::c_str(fs.exchange_id),
+                    fs.instrument_id,
+                    fs.maker_fee_bps,
+                    fs.taker_fee_bps);
 }
 
 }  // namespace muninn::messaging

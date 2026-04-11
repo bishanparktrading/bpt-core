@@ -87,13 +87,16 @@ bool InstrumentCache::apply_delta(bifrost::protocol::RefDataDelta& msg) {
 
     uint64_t seq = msg.deltaSeqNum();
 
-    if (seq <= snapshot_seq_num_) return true;
+    if (seq <= snapshot_seq_num_)
+        return true;
 
-    if (last_delta_seq_ > 0 && seq != last_delta_seq_ + 1) return false;
+    if (last_delta_seq_ > 0 && seq != last_delta_seq_ + 1)
+        return false;
 
     last_delta_seq_ = seq;
 
-    if (msg.updateType() == DUT::NULL_VALUE) return true;
+    if (msg.updateType() == DUT::NULL_VALUE)
+        return true;
 
     switch (msg.updateType()) {
         case DUT::ADD:
@@ -133,13 +136,15 @@ void InstrumentCache::reset() {
 
 std::optional<Instrument> InstrumentCache::get(uint64_t instrument_id) const {
     auto it = cache_.find(instrument_id);
-    if (it == cache_.end()) return std::nullopt;
+    if (it == cache_.end())
+        return std::nullopt;
     return it->second;
 }
 
 const Instrument* InstrumentCache::get_by_canonical(uint64_t instrument_id) const {
     auto it = cache_.find(instrument_id);
-    if (it == cache_.end()) return nullptr;
+    if (it == cache_.end())
+        return nullptr;
     return &it->second;
 }
 

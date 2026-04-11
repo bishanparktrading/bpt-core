@@ -1,12 +1,10 @@
 // Unit tests for jormungandr::matching::MatchingEngine
-#include "jormungandr/matching/matching_engine.h"
-
 #include "jormungandr/data/market_event.h"
 #include "jormungandr/data/orderbook_record.h"
 #include "jormungandr/data/trade_record.h"
+#include "jormungandr/matching/matching_engine.h"
 
 #include <gtest/gtest.h>
-
 #include <string>
 #include <vector>
 
@@ -15,13 +13,16 @@ using namespace jormungandr::data;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-static MarketEvent make_book(const std::string& exchange, const std::string& symbol,
-                              double bid, double ask, double size = 10.0,
-                              uint64_t ts = 1000) {
+static MarketEvent make_book(const std::string& exchange,
+                             const std::string& symbol,
+                             double bid,
+                             double ask,
+                             double size = 10.0,
+                             uint64_t ts = 1000) {
     OrderBookRecord ob;
     ob.timestamp_ns = ts;
-    ob.exchange     = exchange;
-    ob.symbol       = symbol;
+    ob.exchange = exchange;
+    ob.symbol = symbol;
     for (int i = 0; i < kOrderBookDepth; ++i) {
         ob.bid_px[i] = bid - i * 0.01;
         ob.bid_sz[i] = size;
@@ -31,19 +32,21 @@ static MarketEvent make_book(const std::string& exchange, const std::string& sym
     return MarketEvent::from_orderbook(ob);
 }
 
-static OpenOrder make_order(OrderType type, OrderSide side, double qty,
-                              double price = 0.0,
-                              const std::string& oid  = "ord1",
-                              const std::string& coid = "client1") {
+static OpenOrder make_order(OrderType type,
+                            OrderSide side,
+                            double qty,
+                            double price = 0.0,
+                            const std::string& oid = "ord1",
+                            const std::string& coid = "client1") {
     OpenOrder o;
-    o.order_id        = oid;
+    o.order_id = oid;
     o.client_order_id = coid;
-    o.exchange        = "BINANCE";
-    o.symbol          = "BTCUSDT";
-    o.type            = type;
-    o.side            = side;
-    o.quantity        = qty;
-    o.price           = price;
+    o.exchange = "BINANCE";
+    o.symbol = "BTCUSDT";
+    o.type = type;
+    o.side = side;
+    o.quantity = qty;
+    o.price = price;
     return o;
 }
 

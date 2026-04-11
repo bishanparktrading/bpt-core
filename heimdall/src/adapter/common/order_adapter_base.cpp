@@ -1,14 +1,12 @@
 #include "heimdall/adapter/common/order_adapter_base.h"
 
-#include <spdlog/spdlog.h>
 #include <yggdrasil/util/thread_pin.h>
 
 namespace heimdall::adapter {
 
 namespace ssl = boost::asio::ssl;
 
-OrderAdapterBase::OrderAdapterBase(const config::AdapterConfig& cfg)
-    : cfg_(cfg), ssl_ctx_(ssl::context::tls_client) {
+OrderAdapterBase::OrderAdapterBase(const config::AdapterConfig& cfg) : cfg_(cfg), ssl_ctx_(ssl::context::tls_client) {
     ssl_ctx_.set_default_verify_paths();
     ssl_ctx_.set_verify_mode(ssl::verify_peer);
 }
@@ -20,12 +18,14 @@ void OrderAdapterBase::start() {
 void OrderAdapterBase::stop() {
     stop_flag_.store(true, std::memory_order_relaxed);
     ioc_.stop();
-    if (thread_.joinable()) thread_.join();
+    if (thread_.joinable())
+        thread_.join();
 }
 
 int OrderAdapterBase::drain_exec_events(const std::function<void(const ExecEvent&)>& fn) {
     int n = 0;
-    while (exec_queue_.try_pop([&](const ExecEvent& ev) { fn(ev); })) ++n;
+    while (exec_queue_.try_pop([&](const ExecEvent& ev) { fn(ev); }))
+        ++n;
     return n;
 }
 
@@ -42,8 +42,10 @@ void OrderAdapterBase::run() {
             connect_and_run();
         } catch (const std::exception& e) {
             if (!stop_flag_.load(std::memory_order_relaxed)) {
-                spdlog::error("[Heimdall] {} error: {}, reconnecting in {}ms", exchange_name(),
-                              e.what(), reconnect_delay().count());
+                ygg::log::error("[Heimdall] {} error: {}, reconnecting in {}ms",
+                                exchange_name(),
+                                e.what(),
+                                reconnect_delay().count());
                 std::this_thread::sleep_for(reconnect_delay());
             }
         }

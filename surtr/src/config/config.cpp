@@ -1,6 +1,5 @@
 #include "surtr/config/settings.h"
 
-#include <spdlog/spdlog.h>
 #include <toml++/toml.hpp>
 
 namespace surtr::config {

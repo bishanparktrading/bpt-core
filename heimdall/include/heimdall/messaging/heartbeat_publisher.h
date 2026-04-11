@@ -10,8 +10,7 @@ namespace heimdall::messaging {
 
 class HeartbeatPublisher {
 public:
-    HeartbeatPublisher(std::shared_ptr<aeron::Aeron> aeron, const std::string& channel,
-                       int stream_id);
+    HeartbeatPublisher(std::shared_ptr<aeron::Aeron> aeron, const std::string& channel, int stream_id);
 
     // Publish a OrderGatewayHeartbeat.
     // service_id: identifier for this heimdall instance (typically 1).

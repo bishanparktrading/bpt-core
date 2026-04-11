@@ -4,7 +4,7 @@
 #include <bifrost_protocol/TradeSide.h>
 
 #include <cmath>
-#include <spdlog/spdlog.h>
+#include <yggdrasil/logging.h>
 #include <yggdrasil/util/parse_double.h>
 #include <yggdrasil/util/tsc_clock.h>
 
@@ -78,7 +78,7 @@ void HyperliquidParser::parse(std::string_view payload,
         uint64_t lat_ns = ygg::util::TscClock::now_mono_ns() - parse_start_ns;
         decode_lat_.record(lat_ns);
         if (++tick_count_ <= 20 || tick_count_ % 500 == 0)
-            spdlog::info("Hyperliquid BBO decode: {}ns tick={}", lat_ns, tick_count_);
+            ygg::log::info("Hyperliquid BBO decode: {}ns tick={}", lat_ns, tick_count_);
         pub.publish(bbo);
 
         // --- Trades ---

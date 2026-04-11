@@ -5,10 +5,10 @@
 #include <bifrost_protocol/MessageHeader.h>
 
 #include <chrono>
-#include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <thread>
 #include <x86intrin.h>
+#include <yggdrasil/logging.h>
 
 using namespace bifrost::protocol;
 
@@ -39,7 +39,7 @@ BacktestClient::BacktestClient(std::shared_ptr<aeron::Aeron> aeron,
         std::this_thread::sleep_for(poll_interval);
     }
 
-    spdlog::info("[BacktestClient] connected: ctrl_sub={} ack_pub={}", control_stream_id, ack_stream_id);
+    ygg::log::info("[BacktestClient] connected: ctrl_sub={} ack_pub={}", control_stream_id, ack_stream_id);
 }
 
 void BacktestClient::send_ack(uint64_t tick_seq, uint64_t simulation_ts) {

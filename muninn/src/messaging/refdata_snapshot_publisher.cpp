@@ -6,9 +6,9 @@
 #include <bifrost_protocol/OptionSide.h>
 #include <bifrost_protocol/RefDataSnapshot.h>
 
-#include <spdlog/spdlog.h>
 #include <vector>
 #include <yggdrasil/aeron/aeron_utils.h>
+#include <yggdrasil/logging.h>
 #include <yggdrasil/util/tsc_clock.h>
 
 namespace muninn::messaging {
@@ -63,7 +63,7 @@ void RefdataSnapshotPublisher::publish(const registry::InstrumentRegistry& regis
             matched.push_back(inst);
     });
 
-    spdlog::info("Snapshot correlation_id={}: {} instrument(s)", request.correlation_id, matched.size());
+    ygg::log::info("Snapshot correlation_id={}: {} instrument(s)", request.correlation_id, matched.size());
 
     using namespace bifrost::protocol;
 
@@ -106,7 +106,7 @@ void RefdataSnapshotPublisher::publish(const registry::InstrumentRegistry& regis
     aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf.data()), static_cast<aeron::util::index_t>(buf_size));
     aeron_offer(*publication_, ab, static_cast<aeron::util::index_t>(buf_size), "snapshot");
 
-    spdlog::info("Snapshot sent correlation_id={}", request.correlation_id);
+    ygg::log::info("Snapshot sent correlation_id={}", request.correlation_id);
 }
 
 }  // namespace muninn::messaging

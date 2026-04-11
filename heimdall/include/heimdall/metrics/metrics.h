@@ -1,13 +1,12 @@
 #pragma once
 
+#include <memory>
 #include <prometheus/counter.h>
 #include <prometheus/exposer.h>
 #include <prometheus/family.h>
 #include <prometheus/gauge.h>
 #include <prometheus/histogram.h>
 #include <prometheus/registry.h>
-
-#include <memory>
 #include <string>
 
 namespace heimdall::metrics {
@@ -31,7 +30,8 @@ struct HeimdallMetrics {
     explicit HeimdallMetrics(uint16_t port);
 
     void shutdown() {
-        if (healthy) healthy->Set(0.0);
+        if (healthy)
+            healthy->Set(0.0);
     }
 
     prometheus::Gauge& exchange_connected(const std::string& exchange) {
@@ -50,8 +50,7 @@ struct HeimdallMetrics {
         // Buckets: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s
         return order_ack_rtt_fam->Add(
             {{"exchange", exchange}},
-            prometheus::Histogram::BucketBoundaries{1e6, 5e6, 10e6, 25e6, 50e6, 100e6, 250e6, 500e6,
-                                                    1e9, 2.5e9, 5e9});
+            prometheus::Histogram::BucketBoundaries{1e6, 5e6, 10e6, 25e6, 50e6, 100e6, 250e6, 500e6, 1e9, 2.5e9, 5e9});
     }
 };
 

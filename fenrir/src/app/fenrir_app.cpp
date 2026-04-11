@@ -8,15 +8,14 @@
 #include <bifrost_protocol/RejectReason.h>
 
 #include <chrono>
-#include <spdlog/spdlog.h>
 #include <thread>
 #include <yggdrasil/signal.h>
 
 using namespace std::chrono_literals;
 using bifrost::protocol::ExchangeId;
 using bifrost::protocol::ExecStatus;
-using bifrost::protocol::RejectReason;
 using bifrost::protocol::RefDataErrorType;
+using bifrost::protocol::RejectReason;
 
 namespace fenrir {
 
@@ -36,7 +35,7 @@ FenrirApp::FenrirApp(config::AppConfig cfg, std::shared_ptr<aeron::Aeron> aeron)
                                                         ac.refdata_delta.stream_id,
                                                         ac.fee_schedule.stream_id,
                                                         ac.funding_rate.stream_id,
-                                                        ac.sindri_status.stream_id,
+                                                        ac.refdata_status.stream_id,
                                                         fee_cache_,
                                                         funding_rate_cache_,
                                                         ac.pub_timeout_ms,
@@ -70,9 +69,9 @@ FenrirApp::FenrirApp(config::AppConfig cfg, std::shared_ptr<aeron::Aeron> aeron)
                                                               ac.surtr_status.stream_id,
                                                               ac.pub_timeout_ms,
                                                               ac.pub_poll_interval_ms);
-        spdlog::info("[Fenrir] VolSurfaceClient ready: surface={} status={}",
-                     ac.vol_surface.stream_id,
-                     ac.surtr_status.stream_id);
+        ygg::log::info("[Fenrir] VolSurfaceClient ready: surface={} status={}",
+                       ac.vol_surface.stream_id,
+                       ac.surtr_status.stream_id);
     }
 
     if (order_gw_) {
@@ -90,9 +89,9 @@ FenrirApp::FenrirApp(config::AppConfig cfg, std::shared_ptr<aeron::Aeron> aeron)
                                                        ac.backtest_ack.stream_id,      // pub: Fenrir → Jormungandr
                                                        ac.pub_timeout_ms,
                                                        ac.pub_poll_interval_ms);
-        spdlog::info("[Fenrir] Backtest mode enabled: ctrl_sub={} ack_pub={}",
-                     ac.backtest_control.stream_id,
-                     ac.backtest_ack.stream_id);
+        ygg::log::info("[Fenrir] Backtest mode enabled: ctrl_sub={} ack_pub={}",
+                       ac.backtest_control.stream_id,
+                       ac.backtest_ack.stream_id);
     }
 }
 
@@ -103,7 +102,7 @@ void FenrirApp::wire_callbacks() {
                                 bool funding_rates_loaded) {
         const uint8_t configured_mask = cfg_.fenrir.strategy.schedule.configured_exchanges_mask;
         if (!refdata_ready_) {
-            spdlog::info(
+            ygg::log::info(
                 "[Fenrir] RefDataReady: exchanges=0x{:02x} (configured=0x{:02x}) "
                 "instruments={} fee_schedules={} funding_rates={}",
                 exchanges_loaded,
@@ -112,14 +111,14 @@ void FenrirApp::wire_callbacks() {
                 fee_schedules_loaded,
                 funding_rates_loaded);
         } else {
-            spdlog::debug("[Fenrir] RefDataReady (periodic): exchanges=0x{:02x} instruments={}",
-                          exchanges_loaded,
-                          instrument_count);
+            ygg::log::debug("[Fenrir] RefDataReady (periodic): exchanges=0x{:02x} instruments={}",
+                            exchanges_loaded,
+                            instrument_count);
         }
 
         if (configured_mask != 0 && (exchanges_loaded & configured_mask) != configured_mask) {
             const uint8_t missing = configured_mask & ~exchanges_loaded;
-            spdlog::critical(
+            ygg::log::critical(
                 "[Fenrir] HALT — refdata service is missing required exchanges (mask=0x{:02x}). "
                 "Cannot trade safely. Shutting down.",
                 missing);
@@ -138,17 +137,17 @@ void FenrirApp::wire_callbacks() {
     };
 
     refdata_->on_error = [](RefDataErrorType::Value error_type, ExchangeId::Value exchange_id, uint64_t instrument_id) {
-        spdlog::error("[Fenrir] RefDataError: type={} exchange={} instrument={}",
-                      RefDataErrorType::c_str(error_type),
-                      ExchangeId::c_str(exchange_id),
-                      instrument_id);
+        ygg::log::error("[Fenrir] RefDataError: type={} exchange={} instrument={}",
+                        RefDataErrorType::c_str(error_type),
+                        ExchangeId::c_str(exchange_id),
+                        instrument_id);
     };
 
     refdata_->on_snapshot_complete = [this](const refdata::InstrumentCache& cache) {
         strategy_->on_snapshot(cache);
         if (strategy_started_ && !strategy_md_started_) {
             strategy_md_started_ = true;
-            spdlog::info("[Fenrir] Snapshot received — starting strategy MD subscriptions");
+            ygg::log::info("[Fenrir] Snapshot received — starting strategy MD subscriptions");
             strategy_->start();
         }
     };
@@ -160,25 +159,30 @@ void FenrirApp::wire_callbacks() {
 
     if (md_client_) {
         md_client_->on_service_heartbeat = [this]() {
-            last_md_hb_recv_ns_ = static_cast<uint64_t>(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::steady_clock::now().time_since_epoch())
-                    .count());
+            last_md_hb_recv_ns_ = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                                            std::chrono::steady_clock::now().time_since_epoch())
+                                                            .count());
         };
         md_client_->on_bbo = [this](const bifrost::protocol::MdMarketData& tick) {
             static uint64_t bbo_count = 0;
             if (++bbo_count <= 10 || bbo_count % 1000 == 0) {
-                spdlog::info("[Fenrir] BBO tick #{}: id={} bid={:.4f} ask={:.4f}",
-                             bbo_count,
-                             tick.instrumentId(),
-                             tick.bidPrice(),
-                             tick.askPrice());
+                ygg::log::info("[Fenrir] BBO tick #{}: id={} bid={:.4f} ask={:.4f}",
+                               bbo_count,
+                               tick.instrumentId(),
+                               tick.bidPrice(),
+                               tick.askPrice());
             }
             metrics_.md_ticks_total->Increment();
             if (!trading_paused_) {
                 curr_tick_ts_ns_ = tick.timestampNs();
                 strategy_->on_bbo(tick);
-                tick_lat_hist_.record(ygg::util::TscClock::now_epoch_ns() - curr_tick_ts_ns_);
+                const uint64_t t3 = ygg::util::TscClock::now_epoch_ns();
+                if (t3 > curr_tick_ts_ns_) {
+                    const uint64_t delta = t3 - curr_tick_ts_ns_;
+                    if (bbo_count <= 3)
+                        ygg::log::debug("[Latency] bbo raw delta={}ns", delta);
+                    tick_lat_hist_.record(delta);
+                }
             }
         };
         md_client_->on_trade = [this](const bifrost::protocol::MdTrade& tick) {
@@ -186,30 +190,34 @@ void FenrirApp::wire_callbacks() {
             if (!trading_paused_) {
                 curr_tick_ts_ns_ = tick.timestampNs();
                 strategy_->on_trade(tick);
-                tick_lat_hist_.record(ygg::util::TscClock::now_epoch_ns() - curr_tick_ts_ns_);
+                const uint64_t t3 = ygg::util::TscClock::now_epoch_ns();
+                if (t3 > curr_tick_ts_ns_)
+                    tick_lat_hist_.record(t3 - curr_tick_ts_ns_);
             }
         };
         md_client_->on_order_book = [this](const bifrost::protocol::MdOrderBook& book) {
             if (!trading_paused_) {
                 curr_tick_ts_ns_ = book.timestampNs();
                 strategy_->on_order_book(book);
-                tick_lat_hist_.record(ygg::util::TscClock::now_epoch_ns() - curr_tick_ts_ns_);
+                const uint64_t t3 = ygg::util::TscClock::now_epoch_ns();
+                if (t3 > curr_tick_ts_ns_)
+                    tick_lat_hist_.record(t3 - curr_tick_ts_ns_);
             }
         };
     }
 
     if (vol_client_) {
         vol_client_->on_vol_surface = [this](bifrost::protocol::VolSurface& surface) {
-            spdlog::info("[Fenrir] VolSurface received: exchange={} underlying={}",
-                         ExchangeId::c_str(surface.exchangeId()),
-                         surface.getUnderlyingAsString());
+            ygg::log::info("[Fenrir] VolSurface received: exchange={} underlying={}",
+                           ExchangeId::c_str(surface.exchangeId()),
+                           surface.getUnderlyingAsString());
             strategy_->on_vol_surface(surface);
         };
         vol_client_->on_ready = [this](uint8_t exchanges_loaded, uint16_t underlying_count, uint32_t point_count) {
-            spdlog::info("[Fenrir] SurtrReady: exchanges=0x{:02x} underlyings={} points={}",
-                         exchanges_loaded,
-                         underlying_count,
-                         point_count);
+            ygg::log::info("[Fenrir] SurtrReady: exchanges=0x{:02x} underlyings={} points={}",
+                           exchanges_loaded,
+                           underlying_count,
+                           point_count);
             surtr_ready_ = true;
         };
     }
@@ -224,30 +232,29 @@ void FenrirApp::wire_callbacks() {
         order_gw_->on_exec_report = [this](const bifrost::protocol::ExecutionReport& rpt) {
             const auto status = rpt.status();
             if (status == ExecStatus::ACKED) {
-                spdlog::debug("[Fenrir] ExecReport order_id={} ACKED price={:.2f}",
-                              rpt.orderId(),
-                              static_cast<double>(rpt.price()) / 1e8);
+                ygg::log::debug("[Fenrir] ExecReport order_id={} ACKED price={:.2f}",
+                                rpt.orderId(),
+                                static_cast<double>(rpt.price()) / 1e8);
             } else if (status == ExecStatus::REJECTED) {
-                spdlog::info("[Fenrir] ExecReport order_id={} REJECTED reason={} price={:.2f}",
-                             rpt.orderId(),
-                             RejectReason::c_str(rpt.rejectReason()),
-                             static_cast<double>(rpt.price()) / 1e8);
+                ygg::log::info("[Fenrir] ExecReport order_id={} REJECTED reason={} price={:.2f}",
+                               rpt.orderId(),
+                               RejectReason::c_str(rpt.rejectReason()),
+                               static_cast<double>(rpt.price()) / 1e8);
             } else {
-                spdlog::info("[Fenrir] ExecReport order_id={} status={} filled_qty={:.6f} price={:.2f}",
-                             rpt.orderId(),
-                             ExecStatus::c_str(status),
-                             static_cast<double>(rpt.filledQty()) / 1e8,
-                             static_cast<double>(rpt.price()) / 1e8);
+                ygg::log::info("[Fenrir] ExecReport order_id={} status={} filled_qty={:.6f} price={:.2f}",
+                               rpt.orderId(),
+                               ExecStatus::c_str(status),
+                               static_cast<double>(rpt.filledQty()) / 1e8,
+                               static_cast<double>(rpt.price()) / 1e8);
             }
             metrics_.exec_reports_total->Increment();
             strategy_->on_exec_report(rpt);
         };
 
         order_gw_->on_heartbeat = [this](const bifrost::protocol::OrderGatewayHeartbeat&) {
-            last_gw_hb_recv_ns_ = static_cast<uint64_t>(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::steady_clock::now().time_since_epoch())
-                    .count());
+            last_gw_hb_recv_ns_ = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                                            std::chrono::steady_clock::now().time_since_epoch())
+                                                            .count());
         };
 
         order_gw_->on_account_snapshot = [this](bifrost::protocol::AccountSnapshot& snap) {
@@ -262,7 +269,7 @@ void FenrirApp::wire_callbacks() {
 
             account_snapshot_ready_ |= bit;
 
-            spdlog::info(
+            ygg::log::info(
                 "[Fenrir] AccountSnapshot received: exchange={} balance={:.2f} positions={} "
                 "ready_mask=0x{:02x}",
                 ExchangeId::c_str(exchange_id),
@@ -276,7 +283,7 @@ void FenrirApp::wire_callbacks() {
 }
 
 void FenrirApp::run() {
-    spdlog::info("Polling... waiting for RefDataReady before subscribing (Ctrl+C to exit)");
+    ygg::log::info("Polling... waiting for RefDataReady before subscribing (Ctrl+C to exit)");
 
     while (ygg::signal::is_running()) {
         int frags = refdata_->poll();
@@ -295,15 +302,15 @@ void FenrirApp::run() {
             const uint8_t mask = cfg_.fenrir.strategy.schedule.configured_exchanges_mask;
             uint64_t corr = cfg_.fenrir.correlation_id;
             if (mask & 0x01) {
-                spdlog::info("[Fenrir] Requesting AccountSnapshot for BINANCE");
+                ygg::log::info("[Fenrir] Requesting AccountSnapshot for BINANCE");
                 order_gw_->send_account_snapshot_request(ExchangeId::BINANCE, corr++);
             }
             if (mask & 0x02) {
-                spdlog::info("[Fenrir] Requesting AccountSnapshot for OKX");
+                ygg::log::info("[Fenrir] Requesting AccountSnapshot for OKX");
                 order_gw_->send_account_snapshot_request(ExchangeId::OKX, corr++);
             }
             if (mask & 0x04) {
-                spdlog::info("[Fenrir] Requesting AccountSnapshot for HYPERLIQUID");
+                ygg::log::info("[Fenrir] Requesting AccountSnapshot for HYPERLIQUID");
                 order_gw_->send_account_snapshot_request(ExchangeId::HYPERLIQUID, corr++);
             }
         }
@@ -316,7 +323,7 @@ void FenrirApp::run() {
         if (!strategy_started_ && refdata_ready_ && account_ready) {
             strategy_started_ = true;
             metrics_.strategy_active->Set(1.0);
-            spdlog::info("[Fenrir] RefDataReady + AccountSnapshot received — sending RefDataSubscriptionRequest");
+            ygg::log::info("[Fenrir] RefDataReady + AccountSnapshot received — sending RefDataSubscriptionRequest");
             refdata_->subscribe(cfg_.fenrir.correlation_id);
         }
 
@@ -333,17 +340,16 @@ void FenrirApp::run() {
         }
 
         if (frags == 0)
-            std::this_thread::sleep_for(10us);
+            __builtin_ia32_pause();
     }
 
     metrics_.shutdown();
-    spdlog::info("Shutting down");
+    ygg::log::info("Shutting down");
 }
 
 void FenrirApp::check_service_liveness() {
     const uint64_t now_ns = static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::steady_clock::now().time_since_epoch())
+        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch())
             .count());
 
     // Throttle to once per second — no need to check every poll iteration.
@@ -351,16 +357,15 @@ void FenrirApp::check_service_liveness() {
         return;
     last_liveness_check_ns_ = now_ns;
 
-    const uint64_t threshold_ns =
-        cfg_.fenrir.strategy.schedule.md_staleness_threshold_ms * 1'000'000ULL;
+    const uint64_t threshold_ns = cfg_.fenrir.strategy.schedule.md_staleness_threshold_ms * 1'000'000ULL;
     bool stale = false;
 
     if (md_client_ && last_md_hb_recv_ns_ != 0) {
         const uint64_t age_ns = now_ns - last_md_hb_recv_ns_;
         if (age_ns > threshold_ns) {
-            spdlog::warn("[Fenrir] Huginn heartbeat stale ({:.1f}s, threshold={:.1f}s) — pausing trading",
-                         age_ns / 1e9,
-                         threshold_ns / 1e9);
+            ygg::log::warn("[Fenrir] Huginn heartbeat stale ({:.1f}s, threshold={:.1f}s) — pausing trading",
+                           age_ns / 1e9,
+                           threshold_ns / 1e9);
             stale = true;
         }
     }
@@ -368,9 +373,9 @@ void FenrirApp::check_service_liveness() {
     if (order_gw_ && last_gw_hb_recv_ns_ != 0) {
         const uint64_t age_ns = now_ns - last_gw_hb_recv_ns_;
         if (age_ns > threshold_ns) {
-            spdlog::warn("[Fenrir] Heimdall heartbeat stale ({:.1f}s, threshold={:.1f}s) — pausing trading",
-                         age_ns / 1e9,
-                         threshold_ns / 1e9);
+            ygg::log::warn("[Fenrir] Heimdall heartbeat stale ({:.1f}s, threshold={:.1f}s) — pausing trading",
+                           age_ns / 1e9,
+                           threshold_ns / 1e9);
             stale = true;
         }
     }
@@ -378,11 +383,11 @@ void FenrirApp::check_service_liveness() {
     if (stale && !trading_paused_) {
         trading_paused_ = true;
         metrics_.trading_paused->Set(1.0);
-        spdlog::warn("[Fenrir] Trading PAUSED — service heartbeat(s) stale");
+        ygg::log::warn("[Fenrir] Trading PAUSED — service heartbeat(s) stale");
     } else if (!stale && trading_paused_) {
         trading_paused_ = false;
         metrics_.trading_paused->Set(0.0);
-        spdlog::info("[Fenrir] Trading RESUMED — all service heartbeats healthy");
+        ygg::log::info("[Fenrir] Trading RESUMED — all service heartbeats healthy");
     }
 }
 
@@ -395,17 +400,17 @@ void FenrirApp::report_latency_stats() {
     last_lat_report_ns_ = now;
 
     auto tick = tick_lat_hist_.snapshot_and_reset();
-    auto ord  = order_lat_hist_.snapshot_and_reset();
+    auto ord = order_lat_hist_.snapshot_and_reset();
 
     if (tick.total == 0) {
-        spdlog::info("[Latency] No MD ticks processed in last 30s");
+        ygg::log::info("[Latency] No MD ticks processed in last 30s");
         return;
     }
 
     // T0 = huginn TSC at wire receipt; T3 = fenrir TSC after strategy returns.
     // Both services calibrate TscClock independently — cross-process skew is
     // typically <1µs on a single host with invariant TSC, so delta is valid.
-    spdlog::info(
+    ygg::log::info(
         "[Latency] MD tick→strategy (T0→T3): n={} "
         "p50={:.1f}µs p90={:.1f}µs p99={:.1f}µs p99.9={:.1f}µs max={:.1f}µs mean={:.1f}µs",
         tick.total,
@@ -417,7 +422,7 @@ void FenrirApp::report_latency_stats() {
         tick.mean_ns() / 1e3);
 
     if (ord.total > 0) {
-        spdlog::info(
+        ygg::log::info(
             "[Latency] MD tick→order placed (T0→T3 w/order): n={} "
             "p50={:.1f}µs p90={:.1f}µs p99={:.1f}µs max={:.1f}µs mean={:.1f}µs",
             ord.total,
@@ -427,12 +432,12 @@ void FenrirApp::report_latency_stats() {
             ord.max_ns() / 1e3,
             ord.mean_ns() / 1e3);
     } else {
-        spdlog::info("[Latency] No orders placed in last 30s");
+        ygg::log::info("[Latency] No orders placed in last 30s");
     }
 }
 
 void FenrirApp::run_backtest_loop() {
-    spdlog::info("[Fenrir] Backtest: strategy ready — entering tick-gating loop");
+    ygg::log::info("[Fenrir] Backtest: strategy ready — entering tick-gating loop");
 
     bool stop_received = false;
 
@@ -443,7 +448,7 @@ void FenrirApp::run_backtest_loop() {
             if (cmd == BacktestCommand::START) {
                 if (seq == 0) {
                     // Initial handshake — Jormungandr is ready to start ticking.
-                    spdlog::info("[Fenrir] Backtest handshake received, acking");
+                    ygg::log::info("[Fenrir] Backtest handshake received, acking");
                     backtest_client_->send_ack(0, 0);
                 } else {
                     // Normal tick — drain MD and execution reports for up to 10 ms,
@@ -465,7 +470,7 @@ void FenrirApp::run_backtest_loop() {
                     backtest_client_->send_ack(seq, sim_ts);
                 }
             } else if (cmd == BacktestCommand::STOP) {
-                spdlog::info("[Fenrir] Backtest STOP received — halting");
+                ygg::log::info("[Fenrir] Backtest STOP received — halting");
                 stop_received = true;
             }
         };

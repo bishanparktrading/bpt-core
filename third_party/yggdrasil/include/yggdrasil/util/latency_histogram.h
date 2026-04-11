@@ -8,7 +8,7 @@
 //   ygg::util::LatencyHistogram hist;
 //   hist.record(end_ns - start_ns);
 //   auto snap = hist.snapshot_and_reset();
-//   spdlog::info("p99={}ns", snap.percentile_ns(0.99));
+//   ygg::log::info("p99={}ns", snap.percentile_ns(0.99));
 
 #include <array>
 #include <atomic>

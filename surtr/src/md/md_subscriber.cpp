@@ -5,8 +5,8 @@
 #include <bifrost_protocol/MessageHeader.h>
 
 #include <chrono>
-#include <spdlog/spdlog.h>
 #include <thread>
+#include <yggdrasil/logging.h>
 
 namespace surtr::md {
 
@@ -20,9 +20,9 @@ MdSubscriber::MdSubscriber(std::shared_ptr<aeron::Aeron> aeron, const std::strin
     }
 
     if (!sub_) {
-        spdlog::error("[MdSubscriber] Failed to find subscription on {} stream {}", channel, stream_id);
+        ygg::log::error("[MdSubscriber] Failed to find subscription on {} stream {}", channel, stream_id);
     } else {
-        spdlog::info("[MdSubscriber] Subscription ready on {} stream {}", channel, stream_id);
+        ygg::log::info("[MdSubscriber] Subscription ready on {} stream {}", channel, stream_id);
     }
 }
 

@@ -1,13 +1,13 @@
 #pragma once
 
+#include "jormungandr/data/market_event.h"
+
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <cstdint>
 #include <memory>
 #include <thread>
 #include <vector>
-
-#include "jormungandr/data/market_event.h"
 
 namespace jormungandr::exchange {
 
@@ -42,6 +42,10 @@ public:
     // Formats the event as OKX WebSocket JSON and dispatches to every session
     // whose subscription set covers the event's symbol/channel.
     void push(const data::MarketEvent& event);
+
+    // Returns the number of currently active (non-closed) sessions.
+    // Thread-safe via io_context post.
+    std::size_t session_count();
 
 private:
     void do_accept();

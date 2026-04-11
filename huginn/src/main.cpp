@@ -2,7 +2,6 @@
 #include "huginn/config/settings.h"
 
 #include <chrono>
-#include <spdlog/spdlog.h>
 #include <string>
 #include <yggdrasil/aeron/aeron_utils.h>
 #include <yggdrasil/logging.h>
@@ -19,7 +18,7 @@ int main(int argc, char* argv[]) {
         cfg = huginn::config::load(config_path);
     } catch (const std::exception& e) {
         ygg::logging::init("huginn");
-        spdlog::error("Failed to load config: {}", e.what());
+        ygg::log::error("Failed to load config: {}", e.what());
         return 1;
     }
 
@@ -27,13 +26,13 @@ int main(int argc, char* argv[]) {
     ygg::util::TscClock::calibrate();
 
     auto aeron = ygg::aeron::connect(cfg.aeron.media_driver_dir);
-    spdlog::info("Huginn connected to Aeron MediaDriver");
+    ygg::log::info("Huginn connected to Aeron MediaDriver");
 
     try {
         huginn::HuginnApp app(std::move(cfg), std::move(aeron));
         app.run();
     } catch (const std::exception& e) {
-        spdlog::error("Fatal: {}", e.what());
+        ygg::log::error("Fatal: {}", e.what());
         return 1;
     }
 

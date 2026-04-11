@@ -1,7 +1,5 @@
 #pragma once
 
-#include <chrono>
-
 #include "jormungandr/data/data_loader.h"
 #include "jormungandr/exchange/binance_md_server.h"
 #include "jormungandr/exchange/okx_md_server.h"
@@ -10,32 +8,36 @@
 #include "jormungandr/messaging/backtest_control_publisher.h"
 #include "jormungandr/results/results_collector.h"
 
+#include <chrono>
+
 namespace jormungandr::clock {
 
-// ClockMaster drives the backtest event loop:
+// ClockMaster drives the backtest event loop.
 //
-//   1. Sends BacktestControl(START) to Fenrir and waits for the initial ack.
-//   2. For each tick from DataLoader:
-//        a. Dispatch the market event to the appropriate WS server.
-//        b. Send BacktestControl(START, seq, ts) so Fenrir knows the virtual time.
-//        c. Wait for BacktestAck(seq) before advancing to the next tick.
-//   3. Sends BacktestControl(STOP) when all data is exhausted.
+// Iterates over all events from DataLoader in timestamp order, dispatches
+// each to the appropriate mock WS server (Huginn picks them up) and to the
+// matching engine and results collector.
 //
-// This implements as-fast-as-possible mode: Jormungandr advances only after
-// Fenrir explicitly acknowledges each tick.
+// When ctrl_pub and ack_sub are provided, ClockMaster gates each tick:
+//   1. dispatch event to WS server + matching engine
+//   2. send BacktestControl::START(seq, sim_ts) to Fenrir
+//   3. block until Fenrir sends BacktestAck(seq)
+// This ensures Fenrir processes each tick and any resulting orders before
+// Jormungandr advances the simulated clock, eliminating lookahead bias.
 class ClockMaster {
 public:
-    ClockMaster(data::DataLoader& loader, exchange::BinanceMdServer* binance_server,
-                exchange::OkxMdServer* okx_server, matching::MatchingEngine* matching_engine,
-                results::ResultsCollector* results, messaging::BacktestControlPublisher& ctrl_pub,
-                messaging::BacktestAckSubscriber& ack_sub, std::chrono::milliseconds ack_timeout);
+    ClockMaster(data::DataLoader& loader,
+                exchange::BinanceMdServer* binance_server,
+                exchange::OkxMdServer* okx_server,
+                matching::MatchingEngine* matching_engine,
+                results::ResultsCollector* results,
+                messaging::BacktestControlPublisher* ctrl_pub = nullptr,
+                messaging::BacktestAckSubscriber* ack_sub = nullptr);
 
-    // Runs the simulation to completion.  Throws on ack timeout or
-    // unrecoverable Aeron errors.
+    // Runs the simulation to completion.
     void run();
 
 private:
-    // Route a single event to the WS server matching its exchange field.
     void dispatch(const data::MarketEvent& event);
 
     data::DataLoader& loader_;
@@ -43,9 +45,10 @@ private:
     exchange::OkxMdServer* okx_server_;
     matching::MatchingEngine* matching_engine_;
     results::ResultsCollector* results_;
-    messaging::BacktestControlPublisher& ctrl_pub_;
-    messaging::BacktestAckSubscriber& ack_sub_;
-    std::chrono::milliseconds ack_timeout_;
+    messaging::BacktestControlPublisher* ctrl_pub_;
+    messaging::BacktestAckSubscriber* ack_sub_;
+
+    static constexpr std::chrono::milliseconds kAckTimeout{5000};
 };
 
 }  // namespace jormungandr::clock

@@ -19,10 +19,10 @@ struct AeronConfig {
     ygg::config::StreamConfig refdata_control{"aeron:ipc", 1003};
     ygg::config::StreamConfig refdata_snapshot{"aeron:ipc", 1001};
     ygg::config::StreamConfig refdata_delta{"aeron:ipc", 1002};
-    // Sindri live-refdata streams
-    ygg::config::StreamConfig fee_schedule{"aeron:ipc", 1004};   // FeeSchedule id=19
-    ygg::config::StreamConfig funding_rate{"aeron:ipc", 1005};   // FundingRate id=18
-    ygg::config::StreamConfig sindri_status{"aeron:ipc", 1006};  // RefDataReady id=16, RefDataError id=17
+    // Refdata live streams
+    ygg::config::StreamConfig fee_schedule{"aeron:ipc", 1004};    // FeeSchedule id=19
+    ygg::config::StreamConfig funding_rate{"aeron:ipc", 1005};    // FundingRate id=18
+    ygg::config::StreamConfig refdata_status{"aeron:ipc", 1006};  // RefDataReady id=16, RefDataError id=17
     // Market data streams (optional — stream_id 0 means MD client is not started)
     ygg::config::StreamConfig md_control{"aeron:ipc", 0};
     ygg::config::StreamConfig md_data{"aeron:ipc", 0};

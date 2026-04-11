@@ -9,7 +9,6 @@
 #include <cmath>
 #include <cstring>
 #include <simdjson.h>
-#include <spdlog/spdlog.h>
 #include <yggdrasil/util/tsc_clock.h>
 #include <yggdrasil/ws/ws_connect.h>
 
@@ -48,7 +47,7 @@ void BinanceAdapter::stop() {
         fr_thread_.join();
 }
 
-std::unique_ptr<ygg::ws::WsStream> BinanceAdapter::connect_and_subscribe() {
+std::unique_ptr<ygg::ws::AnyWsStream> BinanceAdapter::connect_and_subscribe() {
     std::string streams;
     for (const auto& [id, entry] : subs_.snapshot()) {
         if (!streams.empty())
@@ -60,14 +59,15 @@ std::unique_ptr<ygg::ws::WsStream> BinanceAdapter::connect_and_subscribe() {
         return nullptr;
 
     const std::string path = cfg_.ws_path + "?streams=" + streams;
-    spdlog::info("BinanceAdapter connecting {}:{}{}", cfg_.ws_host, cfg_.ws_port, path);
-    auto ws = ygg::ws::ws_connect(ioc_,
-                                  ssl_ctx_,
-                                  cfg_.ws_host,
-                                  cfg_.ws_port,
-                                  path,
-                                  cfg_.so_rcvbuf_bytes,
-                                  cfg_.ws_connect_timeout_ms);
+    ygg::log::info("BinanceAdapter connecting {}:{}{}", cfg_.ws_host, cfg_.ws_port, path);
+    auto tls_ws = ygg::ws::ws_connect(ioc_,
+                                      ssl_ctx_,
+                                      cfg_.ws_host,
+                                      cfg_.ws_port,
+                                      path,
+                                      cfg_.so_rcvbuf_bytes,
+                                      cfg_.ws_connect_timeout_ms);
+    auto ws = std::make_unique<ygg::ws::AnyWsStream>(std::move(tls_ws));
 
     // Enable WebSocket-level keep-alive pings. If Binance stops responding
     // Beast closes the stream with an error, triggering the reconnect loop.
@@ -78,25 +78,25 @@ std::unique_ptr<ygg::ws::WsStream> BinanceAdapter::connect_and_subscribe() {
         true                             // send keep-alive ping frames
     });
 
-    spdlog::info("BinanceAdapter connected");
+    ygg::log::info("BinanceAdapter connected");
     return ws;
 }
 
-void BinanceAdapter::read_loop(ygg::ws::WsStream& ws) {
+void BinanceAdapter::read_loop(ygg::ws::AnyWsStream& ws) {
     beast::flat_buffer buf;
     const auto liveness = std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms);
     auto last_recv = std::chrono::steady_clock::now();
 
     while (!stop_flag_.load(std::memory_order_relaxed)) {
         // Reset timer at the top of every iteration (consistent with other adapters).
-        beast::get_lowest_layer(ws).expires_after(std::chrono::milliseconds(cfg_.ws_read_timeout_ms));
+        ws.expires_after(std::chrono::milliseconds(cfg_.ws_read_timeout_ms));
         beast::error_code ec;
         ws.read(buf, ec);
 
         if (ec == beast::error::timeout) {
             buf.consume(buf.size());
             if (std::chrono::steady_clock::now() - last_recv >= liveness) {
-                spdlog::warn("BinanceAdapter: no data for {}ms, reconnecting", cfg_.ws_liveness_timeout_ms);
+                ygg::log::warn("BinanceAdapter: no data for {}ms, reconnecting", cfg_.ws_liveness_timeout_ms);
                 throw std::runtime_error("liveness timeout");
             }
             continue;
@@ -127,7 +127,7 @@ void BinanceAdapter::run_funding_rate_loop() {
         try {
             fr_ioc_.restart();
             auto ws = ygg::ws::ws_connect(fr_ioc_, fr_ssl_ctx_, fr_host, fr_port, fr_path, cfg_.so_rcvbuf_bytes);
-            spdlog::info("BinanceAdapter funding-rate stream connected");
+            ygg::log::info("BinanceAdapter funding-rate stream connected");
 
             beast::flat_buffer buf;
             while (!stop_flag_.load(std::memory_order_relaxed)) {
@@ -193,7 +193,7 @@ void BinanceAdapter::run_funding_rate_loop() {
             ws->close(websocket::close_code::normal);
         } catch (const std::exception& e) {
             if (!stop_flag_.load(std::memory_order_relaxed)) {
-                spdlog::error("BinanceAdapter funding-rate error: {}, reconnecting in 5s", e.what());
+                ygg::log::error("BinanceAdapter funding-rate error: {}, reconnecting in 5s", e.what());
                 std::this_thread::sleep_for(std::chrono::seconds(5));
             }
         }

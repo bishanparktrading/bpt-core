@@ -6,25 +6,29 @@
 #include <bifrost_protocol/MessageHeader.h>
 #include <bifrost_protocol/ModifyOrder.h>
 #include <bifrost_protocol/NewOrder.h>
-#include <spdlog/spdlog.h>
+
 #include <yggdrasil/aeron/aeron_utils.h>
+#include <yggdrasil/logging.h>
 
 namespace heimdall::messaging {
 
-OrderSubscriber::OrderSubscriber(std::shared_ptr<aeron::Aeron> aeron, const std::string& channel,
-                                 int stream_id) {
+OrderSubscriber::OrderSubscriber(std::shared_ptr<aeron::Aeron> aeron, const std::string& channel, int stream_id) {
     subscription_ = ygg::aeron::wait_for_subscription(aeron, channel, stream_id);
 
     assembler_ = std::make_unique<aeron::FragmentAssembler>(
-        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset, aeron::util::index_t length,
-               aeron::Header& hdr) { handle_fragment(buf, offset, length, hdr); });
+        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset, aeron::util::index_t length, aeron::Header& hdr) {
+            handle_fragment(buf, offset, length, hdr);
+        });
 }
 
-void OrderSubscriber::handle_fragment(aeron::AtomicBuffer& buf, aeron::util::index_t offset,
-                                      aeron::util::index_t length, aeron::Header& /*hdr*/) {
+void OrderSubscriber::handle_fragment(aeron::AtomicBuffer& buf,
+                                      aeron::util::index_t offset,
+                                      aeron::util::index_t length,
+                                      aeron::Header& /*hdr*/) {
     using namespace bifrost::protocol;
 
-    if (static_cast<std::size_t>(length) < MessageHeader::encodedLength()) return;
+    if (static_cast<std::size_t>(length) < MessageHeader::encodedLength())
+        return;
 
     char* data = reinterpret_cast<char*>(buf.buffer()) + offset;
     MessageHeader hdr(data, static_cast<std::size_t>(length));
@@ -33,36 +37,56 @@ void OrderSubscriber::handle_fragment(aeron::AtomicBuffer& buf, aeron::util::ind
 
     if (tmpl == NewOrder::sbeTemplateId()) {
         NewOrder msg;
-        msg.wrapForDecode(data, MessageHeader::encodedLength(), hdr.blockLength(), hdr.version(),
+        msg.wrapForDecode(data,
+                          MessageHeader::encodedLength(),
+                          hdr.blockLength(),
+                          hdr.version(),
                           static_cast<std::size_t>(length));
-        if (on_new_order) on_new_order(msg);
+        if (on_new_order)
+            on_new_order(msg);
 
     } else if (tmpl == CancelOrder::sbeTemplateId()) {
         CancelOrder msg;
-        msg.wrapForDecode(data, MessageHeader::encodedLength(), hdr.blockLength(), hdr.version(),
+        msg.wrapForDecode(data,
+                          MessageHeader::encodedLength(),
+                          hdr.blockLength(),
+                          hdr.version(),
                           static_cast<std::size_t>(length));
-        if (on_cancel) on_cancel(msg);
+        if (on_cancel)
+            on_cancel(msg);
 
     } else if (tmpl == CancelAll::sbeTemplateId()) {
         CancelAll msg;
-        msg.wrapForDecode(data, MessageHeader::encodedLength(), hdr.blockLength(), hdr.version(),
+        msg.wrapForDecode(data,
+                          MessageHeader::encodedLength(),
+                          hdr.blockLength(),
+                          hdr.version(),
                           static_cast<std::size_t>(length));
-        if (on_cancel_all) on_cancel_all(msg);
+        if (on_cancel_all)
+            on_cancel_all(msg);
 
     } else if (tmpl == ModifyOrder::sbeTemplateId()) {
         ModifyOrder msg;
-        msg.wrapForDecode(data, MessageHeader::encodedLength(), hdr.blockLength(), hdr.version(),
+        msg.wrapForDecode(data,
+                          MessageHeader::encodedLength(),
+                          hdr.blockLength(),
+                          hdr.version(),
                           static_cast<std::size_t>(length));
-        if (on_modify) on_modify(msg);
+        if (on_modify)
+            on_modify(msg);
 
     } else if (tmpl == AccountSnapshotRequest::sbeTemplateId()) {
         AccountSnapshotRequest msg;
-        msg.wrapForDecode(data, MessageHeader::encodedLength(), hdr.blockLength(), hdr.version(),
+        msg.wrapForDecode(data,
+                          MessageHeader::encodedLength(),
+                          hdr.blockLength(),
+                          hdr.version(),
                           static_cast<std::size_t>(length));
-        if (on_account_snapshot_request) on_account_snapshot_request(msg);
+        if (on_account_snapshot_request)
+            on_account_snapshot_request(msg);
 
     } else {
-        spdlog::warn("[Heimdall] OrderSubscriber: unknown templateId={}", tmpl);
+        ygg::log::warn("[Heimdall] OrderSubscriber: unknown templateId={}", tmpl);
     }
 }
 
