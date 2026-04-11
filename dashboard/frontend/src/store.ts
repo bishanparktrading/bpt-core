@@ -1,10 +1,11 @@
 import { create } from 'zustand'
-import type { ConnectionStatus, Msg } from './types/messages'
+import type { ConnectionStatus, Msg, RunMode } from './types/messages'
 import type { Fill } from './components/Blotter'
 
 interface State {
   // Session
   status: ConnectionStatus
+  mode: RunMode
   symbol: string
   strategy: string
   exchange: string
@@ -29,6 +30,7 @@ interface State {
 
 const initialState = {
   status: 'off' as ConnectionStatus,
+  mode: 'backtest' as RunMode,
   symbol: '',
   strategy: '',
   exchange: '',
@@ -53,6 +55,7 @@ export const useStore = create<State>((set) => ({
             startingCapital: msg.startingCapital,
             strategy: msg.strategy,
             exchange: msg.exchange,
+            mode: msg.mode,
           }
 
         case 'status':

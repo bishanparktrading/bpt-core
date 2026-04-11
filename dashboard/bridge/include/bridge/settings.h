@@ -20,6 +20,7 @@ struct Settings {
     std::string symbol{"BTC-USDT"};
     std::string strategy{"unknown"};    // display only; set via config or --strategy-name
     std::string exchange{"OKX"};        // display only
+    std::string mode{"backtest"};       // display only; "backtest" | "paper" | "live"
     double      starting_capital{100'000.0};
 
     // Logging

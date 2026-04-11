@@ -16,6 +16,9 @@ interface ReplayConfig {
   initialDelayMs?: number
 }
 
+// Mock mode always emits mode="mock" — it's frontend-only fake data, never
+// a real backtest / paper / live run.
+
 // Position tracker — mirrors what the bridge will compute server-side.
 class PositionTracker {
   netQty = 0
@@ -45,7 +48,7 @@ export function startMockReplay(cfg: ReplayConfig): () => void {
   const dispatch = (msg: Msg) => useStore.getState().handleMessage(msg)
 
   useStore.getState().reset()
-  dispatch({ type: 'session', symbol, startingCapital, strategy, exchange })
+  dispatch({ type: 'session', symbol, startingCapital, strategy, exchange, mode: 'mock' })
   dispatch({ type: 'status', state: 'mock' })
 
   const tracker = new PositionTracker()

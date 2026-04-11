@@ -6,13 +6,18 @@
 # on top and prints the command to run the frontend.
 #
 # Usage:
-#   ./smoke_test.sh start [fenrir-config]  Start stack + bridge
-#   ./smoke_test.sh stop                   Stop bridge + stack
-#   ./smoke_test.sh status                 Show what's running
-#   ./smoke_test.sh verify                 Compare bridge equity vs summary.json
+#   ./smoke_test.sh start [fenrir-config] [--starting-capital N]
+#   ./smoke_test.sh stop
+#   ./smoke_test.sh status
+#   ./smoke_test.sh verify
 #
 # The optional fenrir-config is forwarded to backtest.sh — use it to pick a
 # strategy config other than the default vwap_reversion.backtest.toml.
+#
+# --starting-capital N (default: 100000) is forwarded to BOTH jormungandr and
+# the bridge so the equity curve on the dashboard matches the one written to
+# summary.json.  Fenrir's risk limits (max_position_usd etc.) are separate
+# and stay whatever the strategy config says.
 #
 # What a passing smoke test looks like:
 #   1. Stack launches, Jormungandr starts replaying Jan 6-12 OKX data
@@ -74,8 +79,16 @@ bridge_start() {
     local strategy_name
     strategy_name="$(derive_strategy_name "${FENRIR_CONFIG_OVERRIDE:-}")"
 
-    echo "  Starting bridge (strategy: $strategy_name)..."
-    nohup "$BRIDGE_BIN" --config "$BRIDGE_CFG" --strategy-name "$strategy_name" \
+    local cap_args=()
+    if [ -n "${STARTING_CAPITAL:-}" ]; then
+        cap_args=(--starting-capital "$STARTING_CAPITAL")
+    fi
+
+    echo "  Starting bridge (mode: backtest, strategy: $strategy_name${STARTING_CAPITAL:+, starting_capital: \$$STARTING_CAPITAL})..."
+    nohup "$BRIDGE_BIN" --config "$BRIDGE_CFG" \
+                        --mode backtest \
+                        --strategy-name "$strategy_name" \
+                        "${cap_args[@]}" \
         > "$BRIDGE_LOG_DIR/bridge.stdout" 2>&1 &
     echo $! > "$BRIDGE_PID"
 
@@ -192,16 +205,46 @@ PY
     echo "  3. Confirm total_fills, final_equity, and total_pnl all match"
 }
 
-case "${1:-}" in
-    start)
-        FENRIR_CONFIG_OVERRIDE="${2:-}"
-        do_start
-        ;;
+# ── Arg parsing ────────────────────────────────────────────────────────────
+# First positional: subcommand.  Second (optional): fenrir-config path.
+# --starting-capital N can appear anywhere after the subcommand and sets the
+# STARTING_CAPITAL env var consumed by bridge_start() and backtest.sh.
+SUBCMD="${1:-}"
+shift || true
+
+FENRIR_CONFIG_OVERRIDE=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --starting-capital)
+            STARTING_CAPITAL="$2"
+            shift 2
+            ;;
+        --starting-capital=*)
+            STARTING_CAPITAL="${1#--starting-capital=}"
+            shift
+            ;;
+        -*)
+            echo "Unknown flag: $1"
+            exit 1
+            ;;
+        *)
+            # First positional after subcommand is the fenrir config
+            if [ -z "$FENRIR_CONFIG_OVERRIDE" ]; then
+                FENRIR_CONFIG_OVERRIDE="$1"
+            fi
+            shift
+            ;;
+    esac
+done
+export STARTING_CAPITAL
+
+case "$SUBCMD" in
+    start)  do_start ;;
     stop)   do_stop ;;
     status) do_status ;;
     verify) do_verify ;;
     *)
-        echo "Usage: $0 {start|stop|status|verify} [fenrir-config]"
+        echo "Usage: $0 {start|stop|status|verify} [fenrir-config] [--starting-capital N]"
         exit 1
         ;;
 esac

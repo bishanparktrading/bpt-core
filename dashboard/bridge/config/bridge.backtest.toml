@@ -19,6 +19,7 @@ port = 8080
 symbol           = "BTC-USDT"
 exchange         = "OKX"
 strategy         = "unknown"          # override at runtime via --strategy-name
+mode             = "backtest"         # "backtest" | "paper" | "live"; override via --mode
 starting_capital = 100_000.0
 
 [logging]

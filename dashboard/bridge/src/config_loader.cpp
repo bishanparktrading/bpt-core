@@ -52,6 +52,7 @@ Settings load(const std::string& path) {
         if (auto v = (*sess)["symbol"].value<std::string>()) s.symbol = *v;
         if (auto v = (*sess)["strategy"].value<std::string>()) s.strategy = *v;
         if (auto v = (*sess)["exchange"].value<std::string>()) s.exchange = *v;
+        if (auto v = (*sess)["mode"].value<std::string>()) s.mode = *v;
         if (auto v = (*sess)["starting_capital"].value<double>()) s.starting_capital = *v;
     }
 

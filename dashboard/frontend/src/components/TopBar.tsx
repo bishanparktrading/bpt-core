@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../store'
-import type { ConnectionStatus } from '../types/messages'
+import type { ConnectionStatus, RunMode } from '../types/messages'
 
 const STATUS_LABEL: Record<ConnectionStatus, string> = {
   live: 'LIVE',
   mock: 'MOCK',
   halted: 'HALTED',
   off: 'DISCONNECTED',
+}
+
+const MODE_LABEL: Record<RunMode, string> = {
+  backtest: 'BACKTEST',
+  paper:    'PAPER',
+  live:     'LIVE',
+  mock:     'MOCK',
 }
 
 function Clock() {
@@ -19,6 +26,7 @@ function Clock() {
 }
 
 export function TopBar() {
+  const mode = useStore((s) => s.mode)
   const symbol = useStore((s) => s.symbol)
   const strategy = useStore((s) => s.strategy)
   const exchange = useStore((s) => s.exchange)
@@ -42,6 +50,8 @@ export function TopBar() {
   return (
     <div className="topbar">
       <span className="topbar-logo">BPT</span>
+      <div className="topbar-divider" />
+      <span className={`mode-pill mode-pill--${mode}`}>{MODE_LABEL[mode]}</span>
       <div className="topbar-divider" />
       <span className="topbar-symbol">{subject}</span>
       <span className="topbar-price">

@@ -20,16 +20,23 @@ int main(int argc, char** argv) {
     ygg::signal::install();
 
     std::string config_path = "config/bridge.toml";
-    std::string strategy_override;     // --strategy-name overrides session.strategy
-    std::string symbol_override;       // --symbol        overrides session.symbol
-    std::string exchange_override;     // --exchange      overrides session.exchange
+    std::string strategy_override;     // --strategy-name    → session.strategy
+    std::string symbol_override;       // --symbol           → session.symbol
+    std::string exchange_override;     // --exchange         → session.exchange
+    std::string mode_override;         // --mode             → session.mode
+    double      starting_capital_override = 0.0;  // --starting-capital → session.starting_capital
 
     for (int i = 1; i < argc - 1; ++i) {
         const std::string arg(argv[i]);
-        if (arg == "--config")        config_path        = argv[i + 1];
-        if (arg == "--strategy-name") strategy_override  = argv[i + 1];
-        if (arg == "--symbol")        symbol_override    = argv[i + 1];
-        if (arg == "--exchange")      exchange_override  = argv[i + 1];
+        if (arg == "--config")            config_path        = argv[i + 1];
+        if (arg == "--strategy-name")     strategy_override  = argv[i + 1];
+        if (arg == "--symbol")            symbol_override    = argv[i + 1];
+        if (arg == "--exchange")          exchange_override  = argv[i + 1];
+        if (arg == "--mode")              mode_override      = argv[i + 1];
+        if (arg == "--starting-capital") {
+            try { starting_capital_override = std::stod(argv[i + 1]); }
+            catch (const std::exception&) { /* ignore, default stays */ }
+        }
     }
 
     bridge::config::Settings settings;
@@ -42,16 +49,19 @@ int main(int argc, char** argv) {
     }
 
     // CLI overrides take precedence over TOML values.
-    if (!strategy_override.empty()) settings.strategy = strategy_override;
-    if (!symbol_override.empty())   settings.symbol   = symbol_override;
-    if (!exchange_override.empty()) settings.exchange = exchange_override;
+    if (!strategy_override.empty())    settings.strategy          = strategy_override;
+    if (!symbol_override.empty())      settings.symbol            = symbol_override;
+    if (!exchange_override.empty())    settings.exchange          = exchange_override;
+    if (!mode_override.empty())        settings.mode              = mode_override;
+    if (starting_capital_override > 0) settings.starting_capital  = starting_capital_override;
 
     ygg::logging::init("bridge", settings.logging);
     ygg::log::info("bridge starting — ws :{}  aeron {}", settings.ws_port, settings.media_driver_dir);
     ygg::log::info("[bridge] md_data stream={}  exec_report stream={}",
                    settings.md_data.stream_id, settings.exec_report.stream_id);
-    ygg::log::info("[bridge] strategy={} symbol={}@{} starting_capital=${:.2f}",
-                   settings.strategy, settings.symbol, settings.exchange, settings.starting_capital);
+    ygg::log::info("[bridge] mode={} strategy={} symbol={}@{} starting_capital=${:.2f}",
+                   settings.mode, settings.strategy, settings.symbol, settings.exchange,
+                   settings.starting_capital);
 
     // ── Aeron ────────────────────────────────────────────────────────────────
     auto aeron = ygg::aeron::connect(settings.media_driver_dir);
@@ -67,6 +77,7 @@ int main(int argc, char** argv) {
                bridge::encode::session(settings.symbol,
                                        settings.strategy,
                                        settings.exchange,
+                                       settings.mode,
                                        settings.starting_capital));
     ws.publish(bridge::MsgKind::Status, bridge::encode::status("live"));
 

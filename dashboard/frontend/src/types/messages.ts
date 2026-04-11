@@ -6,6 +6,11 @@
 
 export type ConnectionStatus = 'live' | 'mock' | 'halted' | 'off'
 
+// Run mode — distinct from connection state.  Drives the prominent
+// pill in the top bar so the user can tell at a glance whether they
+// are looking at historical replay, simulated trading, or real money.
+export type RunMode = 'backtest' | 'paper' | 'live' | 'mock'
+
 export type Side = 'BUY' | 'SELL'
 
 // Sent once at the start of a session (and replayed to mid-run joiners).
@@ -15,6 +20,7 @@ export interface SessionMsg {
   startingCapital: number
   strategy: string    // e.g. "MomentumStrategy" — display only
   exchange: string    // e.g. "OKX" — display only
+  mode: RunMode       // backtest | paper | live | mock — display only
 }
 
 // Connection / run state.

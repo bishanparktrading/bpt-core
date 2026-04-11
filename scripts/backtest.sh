@@ -12,6 +12,9 @@
 #
 # The optional fenrir-config argument overrides the default strategy config.
 # Default: fenrir/config/vwap_reversion.qa-okx.toml
+#
+# Env vars:
+#   STARTING_CAPITAL   Override jormungandr's starting_capital (default: TOML value).
 
 set -euo pipefail
 
@@ -91,7 +94,14 @@ do_start() {
 
     # 5. Jormungandr — start last so that Huginn already has subscriptions queued.
     #    The subscriber gate fires when Huginn reconnects with a non-empty subscription list.
-    "$JORMUNGANDR_DIR/scripts/start.sh" "$JORMUNGANDR_CONFIG"
+    #    Forward STARTING_CAPITAL to jormungandr via its extra-args env var.
+    if [ -n "${STARTING_CAPITAL:-}" ]; then
+        echo "  (starting_capital override: \$$STARTING_CAPITAL)"
+        JORMUNGANDR_EXTRA_ARGS="--starting-capital $STARTING_CAPITAL" \
+            "$JORMUNGANDR_DIR/scripts/start.sh" "$JORMUNGANDR_CONFIG"
+    else
+        "$JORMUNGANDR_DIR/scripts/start.sh" "$JORMUNGANDR_CONFIG"
+    fi
     echo
 
     echo "=== Backtest stack is up — waiting for Jormungandr to exhaust data ==="

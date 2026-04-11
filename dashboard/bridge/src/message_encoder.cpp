@@ -9,12 +9,14 @@ using nlohmann::json;
 std::string session(std::string_view symbol,
                     std::string_view strategy,
                     std::string_view exchange,
+                    std::string_view mode,
                     double starting_capital) {
     return json{
         {"type", "session"},
         {"symbol", symbol},
         {"strategy", strategy},
         {"exchange", exchange},
+        {"mode", mode},
         {"startingCapital", starting_capital},
     }.dump();
 }

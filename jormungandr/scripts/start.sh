@@ -47,7 +47,10 @@ echo "  Log    : $LOG_FILE"
 cd "$PROJECT_DIR"
 # Arrow/Parquet from anaconda3 pull in anaconda's older libstdc++.
 # Preload the system one so jormungandr's GLIBCXX_3.4.30+ requirements are satisfied.
-LD_PRELOAD=/lib/x86_64-linux-gnu/libstdc++.so.6 "$BINARY" "$CONFIG" >> "$LOG_FILE" 2>&1 &
+# JORMUNGANDR_EXTRA_ARGS (optional env var) forwards CLI flags from the caller
+# (e.g. --starting-capital 50000 from backtest.sh / smoke_test.sh).
+# shellcheck disable=SC2086
+LD_PRELOAD=/lib/x86_64-linux-gnu/libstdc++.so.6 "$BINARY" "$CONFIG" ${JORMUNGANDR_EXTRA_ARGS:-} >> "$LOG_FILE" 2>&1 &
 PID=$!
 echo "$PID" > "$PID_FILE"
 
