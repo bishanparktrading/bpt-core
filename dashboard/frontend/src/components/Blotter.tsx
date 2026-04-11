@@ -1,6 +1,8 @@
 import { useStore } from '../store'
 
 export interface Fill {
+  seq: number         // client-side monotonic counter; used as React key so
+                      // partial fills (which share orderId) don't collide
   ts: number          // ns since epoch
   orderId: number
   side: 'BUY' | 'SELL'
@@ -57,7 +59,7 @@ export function Blotter() {
               </tr>
             )}
             {rows.map(f => (
-              <tr key={f.orderId}>
+              <tr key={f.seq}>
                 <td>{fmtTime(f.ts)}</td>
                 <td style={{ color: 'var(--text-muted)' }}>#{f.orderId}</td>
                 <td className={f.side === 'BUY' ? 'side-buy' : 'side-sell'}>{f.side}</td>

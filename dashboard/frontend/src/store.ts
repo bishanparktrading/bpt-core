@@ -70,6 +70,7 @@ export const useStore = create<State>((set) => ({
 
         case 'fill': {
           const fill: Fill = {
+            seq: state.fills.length,  // monotonic, unique per store instance
             ts: msg.ts,
             orderId: msg.orderId,
             side: msg.side,

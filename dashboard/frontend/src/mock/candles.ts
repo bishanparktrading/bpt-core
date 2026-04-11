@@ -21,7 +21,7 @@ const PAD_BARS = 60                // 1h of padding before/after the fill window
 
 // Linearly interpolate between the closest fills so the random walk has an
 // anchor it is pulled toward.
-function anchorPrice(tsMs: number, fills: Fill[]): number {
+function anchorPrice(tsMs: number, fills: Omit<Fill, 'seq'>[]): number {
   let prev = fills[0]
   let next = fills[fills.length - 1]
   for (let i = 0; i < fills.length; i++) {
@@ -46,7 +46,7 @@ function mulberry32(seed: number) {
   }
 }
 
-export function generateCandles(fills: Fill[]): Candle[] {
+export function generateCandles(fills: Omit<Fill, 'seq'>[]): Candle[] {
   if (fills.length === 0) return []
 
   const rnd = mulberry32(0xBEEF)

@@ -52,16 +52,19 @@ bridge_start() {
     local strategy_name
     strategy_name="$(derive_strategy_name "${FENRIR_CONFIG_OVERRIDE:-}")"
 
-    local cap_args=()
+    local extra_args=()
     if [ -n "${STARTING_CAPITAL:-}" ]; then
-        cap_args=(--starting-capital "$STARTING_CAPITAL")
+        extra_args+=(--starting-capital "$STARTING_CAPITAL")
+    fi
+    if [ -n "${INSTRUMENT_ID:-}" ]; then
+        extra_args+=(--instrument-id "$INSTRUMENT_ID")
     fi
 
-    echo "  Starting bridge (mode: LIVE, strategy: $strategy_name${STARTING_CAPITAL:+, starting_capital: \$$STARTING_CAPITAL})..."
+    echo "  Starting bridge (mode: LIVE, strategy: $strategy_name${INSTRUMENT_ID:+, instrument_id: $INSTRUMENT_ID}${STARTING_CAPITAL:+, starting_capital: \$$STARTING_CAPITAL})..."
     nohup "$BRIDGE_BIN" --config "$BRIDGE_CFG" \
                         --mode live \
                         --strategy-name "$strategy_name" \
-                        "${cap_args[@]}" \
+                        "${extra_args[@]}" \
         > "$BRIDGE_LOG_DIR/bridge.stdout" 2>&1 &
     echo $! > "$BRIDGE_PID"
 
@@ -151,6 +154,8 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --starting-capital)   STARTING_CAPITAL="$2"; shift 2 ;;
         --starting-capital=*) STARTING_CAPITAL="${1#--starting-capital=}"; shift ;;
+        --instrument-id)      INSTRUMENT_ID="$2"; shift 2 ;;
+        --instrument-id=*)    INSTRUMENT_ID="${1#--instrument-id=}"; shift ;;
         -*)                   echo "Unknown flag: $1"; exit 1 ;;
         *)
             if [ -z "$FENRIR_CONFIG_OVERRIDE" ]; then
@@ -160,7 +165,7 @@ while [ $# -gt 0 ]; do
             ;;
     esac
 done
-export STARTING_CAPITAL
+export STARTING_CAPITAL INSTRUMENT_ID
 
 case "$SUBCMD" in
     start)  do_start ;;

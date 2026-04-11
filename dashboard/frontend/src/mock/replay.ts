@@ -7,7 +7,7 @@ import type { Msg, Side } from '../types/messages'
 import { useStore } from '../store'
 
 interface ReplayConfig {
-  fills: Fill[]
+  fills: Omit<Fill, 'seq'>[]  // seq is assigned by the store, not supplied by the caller
   symbol: string
   strategy: string
   exchange: string

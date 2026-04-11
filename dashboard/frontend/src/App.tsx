@@ -17,7 +17,8 @@ import { useStore } from './store'
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'mock'
 
 // ── Static mock fills (the 22 round trips from trades.csv) ────────────────────
-const MOCK_FILLS: Fill[] = [
+// Typed without `seq` — the store assigns it when each fill is dispatched.
+const MOCK_FILLS: Omit<Fill, 'seq'>[] = [
   { ts: 1767721259502000000, orderId: 1,  side: 'BUY',  qty: 1, price: 92007.0, realizedPnl: 0,      equity: 100071.25 },
   { ts: 1767721274101000000, orderId: 2,  side: 'SELL', qty: 1, price: 92091.1, realizedPnl: 84.10,  equity: 100084.10 },
   { ts: 1767722407301000000, orderId: 3,  side: 'BUY',  qty: 1, price: 91300.1, realizedPnl: 0,      equity: 100084.05 },

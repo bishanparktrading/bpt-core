@@ -20,11 +20,12 @@ int main(int argc, char** argv) {
     ygg::signal::install();
 
     std::string config_path = "config/bridge.toml";
-    std::string strategy_override;     // --strategy-name    → session.strategy
-    std::string symbol_override;       // --symbol           → session.symbol
-    std::string exchange_override;     // --exchange         → session.exchange
-    std::string mode_override;         // --mode             → session.mode
+    std::string strategy_override;      // --strategy-name    → session.strategy
+    std::string symbol_override;        // --symbol           → session.symbol
+    std::string exchange_override;      // --exchange         → session.exchange
+    std::string mode_override;          // --mode             → session.mode
     double      starting_capital_override = 0.0;  // --starting-capital → session.starting_capital
+    uint64_t    instrument_id_override    = 0;    // --instrument-id   → session.instrument_id
 
     for (int i = 1; i < argc - 1; ++i) {
         const std::string arg(argv[i]);
@@ -35,6 +36,10 @@ int main(int argc, char** argv) {
         if (arg == "--mode")              mode_override      = argv[i + 1];
         if (arg == "--starting-capital") {
             try { starting_capital_override = std::stod(argv[i + 1]); }
+            catch (const std::exception&) { /* ignore, default stays */ }
+        }
+        if (arg == "--instrument-id") {
+            try { instrument_id_override = std::stoull(argv[i + 1]); }
             catch (const std::exception&) { /* ignore, default stays */ }
         }
     }
@@ -54,14 +59,16 @@ int main(int argc, char** argv) {
     if (!exchange_override.empty())    settings.exchange          = exchange_override;
     if (!mode_override.empty())        settings.mode              = mode_override;
     if (starting_capital_override > 0) settings.starting_capital  = starting_capital_override;
+    if (instrument_id_override > 0)    settings.instrument_id     = instrument_id_override;
 
     ygg::logging::init("bridge", settings.logging);
     ygg::log::info("bridge starting — ws :{}  aeron {}", settings.ws_port, settings.media_driver_dir);
     ygg::log::info("[bridge] md_data stream={}  exec_report stream={}",
                    settings.md_data.stream_id, settings.exec_report.stream_id);
-    ygg::log::info("[bridge] mode={} strategy={} symbol={}@{} starting_capital=${:.2f}",
+    ygg::log::info("[bridge] mode={} strategy={} symbol={}@{} starting_capital=${:.2f} instrument_filter={}",
                    settings.mode, settings.strategy, settings.symbol, settings.exchange,
-                   settings.starting_capital);
+                   settings.starting_capital,
+                   settings.instrument_id == 0 ? "(none)" : std::to_string(settings.instrument_id));
 
     // ── Aeron ────────────────────────────────────────────────────────────────
     auto aeron = ygg::aeron::connect(settings.media_driver_dir);
@@ -94,7 +101,14 @@ int main(int argc, char** argv) {
     auto last_tick_bcast = clock::now() - std::chrono::seconds(1);
 
     // ── Handlers ─────────────────────────────────────────────────────────────
-    md_sub.set_handler([&](uint64_t /*instr*/, double mid, uint64_t ts_ns) {
+    //
+    // When settings.instrument_id is non-zero, MD ticks and fills for other
+    // instruments are dropped before they reach the position tracker or the
+    // broadcast queue.  This is the cleanest way to run the dashboard for a
+    // single-instrument view of a multi-instrument strategy.
+
+    md_sub.set_handler([&](uint64_t instr, double mid, uint64_t ts_ns) {
+        if (settings.instrument_id != 0 && instr != settings.instrument_id) return;
         last_mid = mid;
         const auto now = clock::now();
         if (now - last_tick_bcast < kTickMinInterval) return;
@@ -103,6 +117,8 @@ int main(int argc, char** argv) {
     });
 
     exec_sub.set_handler([&](const bridge::ExecSubscriber::Fill& f) {
+        if (settings.instrument_id != 0 && f.instrument_id != settings.instrument_id) return;
+
         const auto res = tracker.apply(f.side, f.qty, f.price);
 
         ws.publish(bridge::MsgKind::Fill,
