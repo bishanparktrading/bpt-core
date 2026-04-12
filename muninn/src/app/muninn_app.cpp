@@ -169,11 +169,13 @@ void MuninnApp::run() {
     constexpr auto idle_sleep = std::chrono::microseconds(10);
     constexpr auto heartbeat_interval = std::chrono::seconds(5);
     constexpr auto muninn_ready_interval = std::chrono::seconds(30);
+    constexpr auto snapshot_republish_interval = std::chrono::seconds(30);
     constexpr auto mapping_refresh_interval = std::chrono::hours(24);
     const auto poll_interval = std::chrono::seconds(settings_.instrument_poll_interval_s);
 
     auto last_heartbeat = std::chrono::steady_clock::now();
     auto last_muninn_ready = std::chrono::steady_clock::now();
+    auto last_snapshot_republish = std::chrono::steady_clock::now();
     auto last_listing_poll = std::chrono::steady_clock::now();
     auto last_mapping_refresh = std::chrono::steady_clock::now();
 
@@ -199,6 +201,17 @@ void MuninnApp::run() {
             uint16_t current_count = static_cast<uint16_t>(registry_->count());
             status_pub_->publish_ready(exchanges_loaded, current_count, fee_schedules_loaded);
             last_muninn_ready = now;
+        }
+
+        // Periodic snapshot republish — broadcasts the full instrument
+        // catalog with an empty filter (match-all) so late-joining
+        // subscribers (e.g. surtr) receive it without needing to send
+        // their own subscription request.
+        if (now - last_snapshot_republish >= snapshot_republish_interval) {
+            messaging::RefdataRequest empty_req{};
+            snapshot_pub_->publish(*registry_, empty_req, delta_pub_->current_sequence());
+            ygg::log::info("[Muninn] Periodic snapshot republish: {} instruments", registry_->count());
+            last_snapshot_republish = now;
         }
 
         if (s3_fetcher_ && now - last_mapping_refresh >= mapping_refresh_interval) {

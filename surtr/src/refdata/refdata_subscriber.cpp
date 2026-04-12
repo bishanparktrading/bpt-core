@@ -7,6 +7,10 @@
 #include <bifrost_protocol/OptionSide.h>
 #include <bifrost_protocol/RefDataDelta.h>
 #include <bifrost_protocol/RefDataSnapshot.h>
+#include <bifrost_protocol/RefDataSubscriptionRequest.h>
+
+#include <x86intrin.h>
+#include <yggdrasil/util/tsc_clock.h>
 
 #include <chrono>
 #include <cstring>
@@ -41,16 +45,23 @@ RefdataSubscriber::RefdataSubscriber(std::shared_ptr<aeron::Aeron> aeron,
                                      const std::string& snapshot_channel,
                                      int32_t snapshot_stream_id,
                                      const std::string& delta_channel,
-                                     int32_t delta_stream_id) {
+                                     int32_t delta_stream_id,
+                                     const std::string& control_channel,
+                                     int32_t control_stream_id) {
     const int64_t snap_id = aeron->addSubscription(snapshot_channel, snapshot_stream_id);
     const int64_t delta_id = aeron->addSubscription(delta_channel, delta_stream_id);
+    const int64_t ctrl_id = (control_stream_id != 0)
+                                ? aeron->addPublication(control_channel, control_stream_id)
+                                : -1;
 
     for (int i = 0; i < 500; ++i) {
         if (!snapshot_sub_)
             snapshot_sub_ = aeron->findSubscription(snap_id);
         if (!delta_sub_)
             delta_sub_ = aeron->findSubscription(delta_id);
-        if (snapshot_sub_ && delta_sub_)
+        if (ctrl_id != -1 && !ctrl_pub_)
+            ctrl_pub_ = aeron->findPublication(ctrl_id);
+        if (snapshot_sub_ && delta_sub_ && (ctrl_id == -1 || ctrl_pub_))
             break;
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -70,6 +81,49 @@ RefdataSubscriber::RefdataSubscriber(std::shared_ptr<aeron::Aeron> aeron,
         ygg::log::info("[RefdataSubscriber] Delta subscription ready");
     else
         ygg::log::error("[RefdataSubscriber] Failed to create delta subscription");
+
+    if (ctrl_pub_)
+        ygg::log::info("[RefdataSubscriber] Control publication ready");
+}
+
+void RefdataSubscriber::send_subscription_request(uint64_t correlation_id) {
+    if (!ctrl_pub_) {
+        ygg::log::warn("[RefdataSubscriber] send_subscription_request: no control publication");
+        return;
+    }
+
+    using namespace bifrost::protocol;
+
+    // Empty filters — request all instruments, like fenrir does.
+    std::size_t buf_size = MessageHeader::encodedLength() + RefDataSubscriptionRequest::sbeBlockLength() +
+                           RefDataSubscriptionRequest::Instruments::sbeHeaderSize() +
+                           RefDataSubscriptionRequest::CanonicalFilter::sbeHeaderSize();
+
+    std::vector<char> buf(buf_size, '\0');
+
+    RefDataSubscriptionRequest req;
+    req.wrapAndApplyHeader(buf.data(), 0, buf_size)
+        .correlationId(correlation_id)
+        .timestampNs(ygg::util::TscClock::now_epoch_ns());
+
+    req.instrumentsCount(0);
+    req.canonicalFilterCount(0);
+
+    aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf.data()), static_cast<aeron::util::index_t>(buf_size));
+    // Retry for up to 10s — Aeron offer() returns NOT_CONNECTED until the
+    // subscriber (muninn) has registered the image.  Sleep between retries
+    // so we don't spin the CPU waiting for the driver.
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    long result = 0;
+    while ((result = ctrl_pub_->offer(ab, 0, static_cast<aeron::util::index_t>(buf_size))) < 0) {
+        if (std::chrono::steady_clock::now() > deadline) {
+            ygg::log::error("[RefdataSubscriber] subscription request offer timed out (last result={})", result);
+            return;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    ygg::log::info("[RefdataSubscriber] Subscription request sent: correlation_id={}", correlation_id);
 }
 
 int RefdataSubscriber::poll(int fragment_limit) {

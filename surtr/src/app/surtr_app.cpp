@@ -42,7 +42,9 @@ SurtrApp::SurtrApp(config::Settings settings, std::shared_ptr<aeron::Aeron> aero
                                                                 settings_.refdata_snapshot.channel,
                                                                 settings_.refdata_snapshot.stream_id,
                                                                 settings_.refdata_delta.channel,
-                                                                settings_.refdata_delta.stream_id);
+                                                                settings_.refdata_delta.stream_id,
+                                                                settings_.refdata_control.channel,
+                                                                settings_.refdata_control.stream_id);
 
     md_sub_->set_bbo_callback([this](uint64_t instrument_id, double bid, double ask, uint64_t timestamp_ns) {
         auto pit = perp_map_.find(instrument_id);
@@ -77,6 +79,7 @@ SurtrApp::SurtrApp(config::Settings settings, std::shared_ptr<aeron::Aeron> aero
 }
 
 void SurtrApp::run() {
+
     constexpr auto idle_sleep = std::chrono::microseconds(100);
     const auto publish_interval = std::chrono::milliseconds(settings_.publish_interval_ms);
     constexpr auto heartbeat_interval = std::chrono::seconds(5);
