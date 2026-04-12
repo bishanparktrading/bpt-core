@@ -51,6 +51,7 @@ public:
     void on_trade(const bifrost::protocol::MdTrade& tick) override;
     void on_vol_surface(bifrost::protocol::VolSurface& surface) override;
     void on_exec_report(const bifrost::protocol::ExecutionReport& rpt) override;
+    PortfolioState get_portfolio_state() override;
 
 private:
     // Per-option position tracking.

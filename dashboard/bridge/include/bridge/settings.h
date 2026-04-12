@@ -13,6 +13,7 @@ struct Settings {
     ygg::config::StreamConfig md_data{"aeron:ipc", 2002};       // Huginn → everyone
     ygg::config::StreamConfig exec_report{"aeron:ipc", 3002};   // Heimdall → Fenrir/dashboard
     ygg::config::StreamConfig control_command{"aeron:ipc", 9003}; // bridge → Fenrir (halt/resume)
+    ygg::config::StreamConfig portfolio_snapshot{"aeron:ipc", 9004}; // Fenrir → bridge (portfolio state)
 
     // WebSocket
     uint16_t ws_port{8080};

@@ -79,4 +79,47 @@ export interface OrderMsg {
   status: OrderStatus
 }
 
-export type Msg = SessionMsg | StatusMsg | TickMsg | FillMsg | PositionMsg | OrderMsg
+// Portfolio snapshot from fenrir via the bridge — contains all option
+// legs with Greeks, aggregated portfolio Greeks, and vol surface points.
+// Published at ~10Hz when an options strategy is running.
+export interface PortfolioMsg {
+  type: 'portfolio'
+  ts: number
+  delta: number
+  gamma: number
+  vega: number
+  theta: number
+  unrealizedPnl: number
+  realizedPnl: number
+  legs: Array<{
+    instrumentId: number
+    symbol: string
+    underlying: string
+    expiry: number
+    strike: number
+    isCall: boolean
+    isOption: boolean
+    qty: number
+    entryPrice: number
+    markPrice: number
+    iv: number
+    delta: number
+    gamma: number
+    vega: number
+    theta: number
+    unrealizedPnl: number
+  }>
+  surface: Array<{
+    instrumentId: number
+    expiry: number
+    strike: number
+    isCall: boolean
+    iv: number
+    bidIv: number
+    askIv: number
+    delta: number
+    tte: number
+  }>
+}
+
+export type Msg = SessionMsg | StatusMsg | TickMsg | FillMsg | PositionMsg | OrderMsg | PortfolioMsg

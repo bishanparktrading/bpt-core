@@ -77,6 +77,26 @@ int main(int argc, char** argv) {
     bridge::MdSubscriber   md_sub(aeron, settings.md_data.channel, settings.md_data.stream_id);
     bridge::ExecSubscriber exec_sub(aeron, settings.exec_report.channel, settings.exec_report.stream_id);
 
+    // ── Portfolio snapshot subscription (Fenrir → bridge) ────────────────────
+    // Fenrir publishes JSON at ~10Hz with option legs, Greeks, and vol surface.
+    // The bridge relays it as-is to all WS clients.
+    std::shared_ptr<aeron::Subscription> snapshot_sub;
+    if (settings.portfolio_snapshot.stream_id != 0) {
+        const int64_t reg_id = aeron->addSubscription(
+            settings.portfolio_snapshot.channel, settings.portfolio_snapshot.stream_id);
+        for (int i = 0; i < 500; ++i) {
+            snapshot_sub = aeron->findSubscription(reg_id);
+            if (snapshot_sub) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        if (snapshot_sub) {
+            ygg::log::info("[bridge] portfolio snapshot subscription ready on stream {}",
+                           settings.portfolio_snapshot.stream_id);
+        } else {
+            ygg::log::warn("[bridge] portfolio snapshot subscription unavailable");
+        }
+    }
+
     // ── Control publication (bridge → Fenrir) ────────────────────────────────
     // 1-byte command: 0x00 = HALT, 0x01 = RESUME.  No SBE — this is a
     // lightweight control path, not a high-throughput data stream.
@@ -216,6 +236,24 @@ int main(int argc, char** argv) {
         int work = 0;
         work += md_sub.poll(32);
         work += exec_sub.poll(32);
+
+        // Poll portfolio snapshots from fenrir and relay as-is to WS clients.
+        // The JSON from fenrir already has type:"portfolio" so the frontend
+        // can dispatch it directly.
+        if (snapshot_sub) {
+            work += snapshot_sub->poll(
+                [&ws](aeron::AtomicBuffer& buffer,
+                      aeron::util::index_t offset,
+                      aeron::util::index_t length,
+                      aeron::Header& /*hdr*/) {
+                    std::string json(
+                        reinterpret_cast<const char*>(buffer.buffer() + offset),
+                        static_cast<std::size_t>(length));
+                    ws.publish(bridge::MsgKind::Order, std::move(json));
+                },
+                1);
+        }
+
         if (work == 0) std::this_thread::sleep_for(std::chrono::microseconds(500));
     }
 

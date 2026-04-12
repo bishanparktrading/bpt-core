@@ -42,6 +42,8 @@ Settings load(const std::string& path) {
             (*aeron)["exec_report"].as_table(), s.exec_report.channel, s.exec_report.stream_id);
         s.control_command = load_stream(
             (*aeron)["control_command"].as_table(), s.control_command.channel, s.control_command.stream_id);
+        s.portfolio_snapshot = load_stream(
+            (*aeron)["portfolio_snapshot"].as_table(), s.portfolio_snapshot.channel, s.portfolio_snapshot.stream_id);
     }
 
     // WebSocket

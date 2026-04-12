@@ -17,7 +17,7 @@ import { RiskLimitsPanel, MOCK_LIMITS } from './components/RiskLimitsPanel'
 import { startMockReplay } from './mock/replay'
 import { connectWebSocket } from './ws/client'
 import { useStore } from './store'
-import { MOCK_LEGS, MOCK_GREEKS, MOCK_VOL_SURFACE, MOCK_SPOT } from './mock/options'
+import { optLegs, optGreeks, optSurface, spot } from './mock/options'
 
 // VITE_WS_URL selects the data source:
 //   unset or "mock"           → in-memory mock replay of trades.csv
@@ -70,10 +70,20 @@ export default function App() {
 
   const finalEquity = fills.length ? fills[fills.length - 1].equity : 100_000
 
-  // Mock mode always shows options panels for development.
-  // In production, the bridge's session message would signal whether the
-  // strategy involves options (not yet implemented — phase 2).
-  const showOptions = WS_URL === 'mock'
+  // Options data — use live store data if available, fall back to mock.
+  const storeLegs = useStore((s) => s.optionLegs)
+  const storeGreeks = useStore((s) => s.portfolioGreeks)
+  const storeSurface = useStore((s) => s.volSurface)
+  const price = useStore((s) => s.price)
+
+  const hasLiveOptions = storeLegs.length > 0
+  const optLegs = hasLiveOptions ? storeLegs : optLegs
+  const optGreeks = storeGreeks ?? optGreeks
+  const optSurface = storeSurface.length > 0 ? storeSurface : optSurface
+  const spot = price || spot
+
+  // Show options panels in mock mode (dev) or when live options data arrives.
+  const showOptions = WS_URL === 'mock' || hasLiveOptions
 
   return (
     <div className={`shell ${showOptions ? 'shell--options' : ''}`}>
@@ -90,19 +100,19 @@ export default function App() {
         </div>
 
         <div className={`right-col ${showOptions ? 'right-col--options' : ''}`}>
-          {showOptions ? <GreeksPanel greeks={MOCK_GREEKS} /> : <PositionPanel />}
+          {showOptions ? <GreeksPanel greeks={optGreeks} /> : <PositionPanel />}
           {showOptions ? (
             <div className="panel">
               <div className="panel-header">
                 <span className="panel-title">Term Structure</span>
                 <span className="panel-badge">ATM IV</span>
               </div>
-              <VolTermStructure slices={MOCK_VOL_SURFACE} spot={MOCK_SPOT} />
+              <VolTermStructure slices={optSurface} spot={spot} />
             </div>
           ) : (
             <RiskPanel />
           )}
-          {showOptions && <RiskLimitsPanel greeks={MOCK_GREEKS} limits={MOCK_LIMITS} />}
+          {showOptions && <RiskLimitsPanel greeks={optGreeks} limits={MOCK_LIMITS} />}
         </div>
       </div>
 
@@ -111,17 +121,17 @@ export default function App() {
           <div className="panel">
             <div className="panel-header">
               <span className="panel-title">Vol Surface</span>
-              <span className="panel-badge">{MOCK_VOL_SURFACE.length} expiries</span>
+              <span className="panel-badge">{optSurface.length} expiries</span>
             </div>
-            <VolSurfaceHeatmap slices={MOCK_VOL_SURFACE} legs={MOCK_LEGS} />
+            <VolSurfaceHeatmap slices={optSurface} legs={optLegs} />
           </div>
           <div className="panel">
             <div className="panel-header">
               <span className="panel-title">Vol Smile</span>
             </div>
-            <VolSmileChart slices={MOCK_VOL_SURFACE} legs={MOCK_LEGS} />
+            <VolSmileChart slices={optSurface} legs={optLegs} />
           </div>
-          <OptionsPositionPanel legs={MOCK_LEGS} />
+          <OptionsPositionPanel legs={optLegs} />
         </div>
       )}
 

@@ -40,6 +40,8 @@ struct AeronConfig {
     ygg::config::StreamConfig backtest_ack{"aeron:ipc", 9001};      // Fenrir → Jormungandr (BacktestAck id=24)
     // Dashboard control (optional — stream_id 0 disables; bridge → Fenrir)
     ygg::config::StreamConfig dashboard_control{"aeron:ipc", 9003};
+    // Portfolio snapshot (optional — Fenrir → bridge; published every ~100ms)
+    ygg::config::StreamConfig dashboard_snapshot{"aeron:ipc", 9004};
     // Max time (ms) to wait for Aeron pub/sub registration before throwing.
     int pub_timeout_ms{5000};
     // Poll interval (ms) when waiting for Aeron pub/sub registration.

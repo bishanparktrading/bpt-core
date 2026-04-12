@@ -1,6 +1,7 @@
 import { create } from 'zustand'
-import type { ConnectionStatus, Msg, OrderMsg, RunMode } from './types/messages'
+import type { ConnectionStatus, Msg, OrderMsg, PortfolioMsg, RunMode } from './types/messages'
 import type { Fill } from './components/Blotter'
+import type { OptionLeg, PortfolioGreeks, VolSmileSlice, VolSurfacePoint } from './types/options'
 import { sendCommand } from './ws/client'
 
 // Working order tracked by the store — derived from OrderMsg events.
@@ -65,6 +66,12 @@ interface State {
   // update on PARTIAL, and are removed on FILLED/CANCELLED/REJECTED.
   openOrders: Map<number, OpenOrder>
 
+  // Options portfolio state — populated by 'portfolio' messages from
+  // fenrir via the bridge. Null when no options strategy is running.
+  optionLegs: OptionLeg[]
+  portfolioGreeks: PortfolioGreeks | null
+  volSurface: VolSmileSlice[]
+
   // Kill-switch state: tracks the previous status so resume() can restore
   // the connection dot to whatever it was before the halt.  In slice (a)
   // this is pure client state; slice (b) will drive it from server acks.
@@ -97,6 +104,9 @@ const initialState = {
   fills: [] as Fill[],
   candles: [] as Candle[],
   openOrders: new Map<number, OpenOrder>(),
+  optionLegs: [] as OptionLeg[],
+  portfolioGreeks: null as PortfolioGreeks | null,
+  volSurface: [] as VolSmileSlice[],
   preHaltStatus: null as ConnectionStatus | null,
 }
 
@@ -175,6 +185,66 @@ export const useStore = create<State>((set) => ({
             avgEntry: msg.avgEntry,
             unrealizedPnl: msg.unrealizedPnl,
           }
+
+        case 'portfolio': {
+          const legs: OptionLeg[] = msg.legs
+            .filter((l) => l.isOption)
+            .map((l, i) => ({
+              instrumentId: l.instrumentId,
+              symbol: l.symbol,
+              underlying: l.underlying,
+              strike: l.strike,
+              expiry: l.expiry,
+              optionSide: l.isCall ? 'CALL' as const : 'PUT' as const,
+              qty: l.qty,
+              avgEntry: l.entryPrice,
+              markPrice: l.markPrice,
+              iv: l.iv,
+              delta: l.delta,
+              gamma: l.gamma,
+              vega: l.vega,
+              theta: l.theta,
+              unrealizedPnl: l.unrealizedPnl,
+            }))
+
+          const greeks: PortfolioGreeks = {
+            netDelta: msg.delta,
+            netGamma: msg.gamma,
+            netVega: msg.vega,
+            netTheta: msg.theta,
+            totalUnrealizedPnl: msg.unrealizedPnl,
+            totalRealizedPnl: msg.realizedPnl,
+          }
+
+          // Group surface points by expiry into VolSmileSlice[]
+          const byExpiry = new Map<number, VolSurfacePoint[]>()
+          for (const sp of msg.surface) {
+            const pts = byExpiry.get(sp.expiry) ?? []
+            pts.push({
+              instrumentId: sp.instrumentId,
+              strike: sp.strike,
+              expiry: sp.expiry,
+              optionSide: sp.isCall ? 'CALL' : 'PUT',
+              iv: sp.iv,
+              bidIv: sp.bidIv,
+              askIv: sp.askIv,
+              delta: sp.delta,
+              timeToExpiry: sp.tte,
+            })
+            byExpiry.set(sp.expiry, pts)
+          }
+          const surface: VolSmileSlice[] = [...byExpiry.entries()]
+            .sort(([a], [b]) => a - b)
+            .map(([expiry, points]) => {
+              const tte = points[0]?.timeToExpiry ?? 0
+              const dte = Math.round(tte * 365)
+              const d = String(expiry)
+              const label = `${d.slice(6, 8)} ${['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(d.slice(4, 6))] ?? d.slice(4, 6)}`
+              return { expiry, label, daysToExpiry: dte, points }
+            })
+
+          return { optionLegs: legs, portfolioGreeks: greeks, volSurface: surface }
+        }
 
         case 'order': {
           const next = new Map(state.openOrders)

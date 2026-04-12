@@ -621,6 +621,76 @@ void ShortVolStrategy::recompute_greeks(UnderlyingState& state) {
     }
 }
 
+PortfolioState ShortVolStrategy::get_portfolio_state() {
+    PortfolioState ps;
+    ps.timestamp_ns = static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count());
+
+    for (const auto& [key, state] : states_) {
+        // Aggregate Greeks
+        ps.portfolio_delta += state.portfolio_delta;
+        ps.portfolio_gamma += state.portfolio_gamma;
+        ps.portfolio_vega  += state.portfolio_vega;
+        ps.portfolio_theta += state.portfolio_theta;
+
+        // Option legs
+        for (const auto& [id, opt] : state.options) {
+            PortfolioState::Leg leg;
+            leg.instrument_id = opt.instrument_id;
+            leg.underlying = state.underlying;
+            leg.expiry_date = opt.expiry_date;
+            leg.strike = opt.strike;
+            leg.is_call = opt.is_call;
+            leg.is_option = true;
+            leg.qty = opt.position_qty;
+            leg.entry_price = opt.entry_price;
+            leg.mark_price = (opt.bid_price + opt.ask_price) / 2.0;
+            leg.iv = opt.iv;
+            leg.delta = opt.delta;
+            leg.gamma = opt.gamma;
+            leg.vega = opt.vega;
+            leg.theta = opt.theta;
+            leg.unrealized_pnl = (leg.mark_price - opt.entry_price) * opt.position_qty;
+
+            if (auto inst = refdata_.cache().get(opt.instrument_id))
+                leg.symbol = inst->symbol;
+
+            ps.legs.push_back(std::move(leg));
+            ps.total_unrealized_pnl += ps.legs.back().unrealized_pnl;
+
+            // Surface point for this leg
+            PortfolioState::SurfacePoint sp;
+            sp.instrument_id = opt.instrument_id;
+            sp.expiry_date = opt.expiry_date;
+            sp.strike = opt.strike;
+            sp.is_call = opt.is_call;
+            sp.iv = opt.iv;
+            sp.delta = opt.delta;
+            sp.time_to_expiry = opt.time_to_expiry;
+            ps.surface_points.push_back(sp);
+        }
+
+        // Perp hedge leg
+        if (state.perp_position_qty != 0.0) {
+            PortfolioState::Leg perp;
+            perp.instrument_id = state.perp_instrument_id;
+            perp.underlying = state.underlying;
+            perp.is_option = false;
+            perp.qty = state.perp_position_qty;
+            perp.mark_price = (state.perp_bid + state.perp_ask) / 2.0;
+            perp.delta = state.perp_position_qty;
+
+            if (auto inst = refdata_.cache().get(state.perp_instrument_id))
+                perp.symbol = inst->symbol;
+
+            ps.legs.push_back(std::move(perp));
+        }
+    }
+
+    return ps;
+}
+
 std::string ShortVolStrategy::state_key(bifrost::protocol::ExchangeId::Value ex, const std::string& underlying) {
     return std::to_string(static_cast<int>(ex)) + ":" + underlying;
 }
