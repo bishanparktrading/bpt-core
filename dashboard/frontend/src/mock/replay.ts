@@ -65,6 +65,35 @@ export function startMockReplay(cfg: ReplayConfig): () => void {
     )
   }
 
+  // Emit synthetic in-between ticks so the candle rollup in the store
+  // produces a lively chart during mock replay.  Each pair of consecutive
+  // fills gets N ticks spread linearly across both wall-clock (for the UI
+  // animation) and sim-clock (so the chart bucketing is sensible), with a
+  // small random walk that drifts toward the next fill price.
+  const TICKS_PER_FILL = 8
+  for (let i = 0; i < fills.length - 1; i++) {
+    const a = fills[i]
+    const b = fills[i + 1]
+    const baseWallMs = initialDelayMs + i * intervalMs
+    const dWallMs = intervalMs
+    const dSimNs = b.ts - a.ts
+    const dPrice = b.price - a.price
+
+    for (let k = 1; k < TICKS_PER_FILL; k++) {
+      const frac = k / TICKS_PER_FILL
+      const simTs = a.ts + Math.floor(dSimNs * frac)
+      const noise = (Math.random() - 0.5) * Math.abs(a.price) * 0.0008
+      const price = a.price + dPrice * frac + noise
+      const wallDelay = Math.floor(baseWallMs + dWallMs * frac)
+      timeouts.push(
+        window.setTimeout(
+          () => dispatch({ type: 'tick', ts: simTs, symbol, price }),
+          wallDelay,
+        ),
+      )
+    }
+  }
+
   fills.forEach((fill, i) => {
     const delay = initialDelayMs + i * intervalMs
     const id = window.setTimeout(() => {

@@ -12,12 +12,7 @@ import {
   type Time,
   type UTCTimestamp,
 } from 'lightweight-charts'
-import type { Candle } from '../mock/candles'
 import { useStore } from '../store'
-
-interface PriceChartProps {
-  candles: Candle[]
-}
 
 const CHART_THEME = {
   bg:        '#0d1117',
@@ -29,8 +24,9 @@ const CHART_THEME = {
   crosshair: '#243044',
 }
 
-export function PriceChart({ candles }: PriceChartProps) {
+export function PriceChart() {
   const fills = useStore((s) => s.fills)
+  const candles = useStore((s) => s.candles)
   const hostRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
@@ -93,20 +89,24 @@ export function PriceChart({ candles }: PriceChartProps) {
     }
   }, [])
 
-  // Set candles once (the full backtest range is known up front).
+  // Stream candles as they update. Using series.update(latestBar) — NOT
+  // setData — is critical: setData replaces the full series on every tick
+  // and caused visible lag. series.update is O(1): if the bar's time
+  // matches the current last bar it updates in place, otherwise it
+  // appends. That handles both "tick inside current bucket" and
+  // "tick crossed into a new bucket" cases.
   useEffect(() => {
     const series = seriesRef.current
-    if (!series) return
-    series.setData(
-      candles.map((c) => ({
-        time: c.time as UTCTimestamp,
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
-      })),
-    )
-    if (!didFitRef.current) {
+    if (!series || candles.length === 0) return
+    const last = candles[candles.length - 1]
+    series.update({
+      time: last.time as UTCTimestamp,
+      open: last.open,
+      high: last.high,
+      low: last.low,
+      close: last.close,
+    })
+    if (!didFitRef.current && candles.length >= 5) {
       chartRef.current?.timeScale().fitContent()
       didFitRef.current = true
     }

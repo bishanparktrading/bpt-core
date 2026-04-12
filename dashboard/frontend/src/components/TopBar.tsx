@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import type { ConnectionStatus, RunMode } from '../types/messages'
+import { KillSwitch } from './KillSwitch'
 
 const STATUS_LABEL: Record<ConnectionStatus, string> = {
   live: 'LIVE',
@@ -68,6 +69,9 @@ export function TopBar() {
       )}
 
       <div className="topbar-spacer" />
+
+      <KillSwitch />
+      <div className="topbar-divider" />
 
       <div className="topbar-status">
         <div className={`status-dot status-dot--${status}`} />

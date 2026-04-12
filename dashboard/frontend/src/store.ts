@@ -2,6 +2,26 @@ import { create } from 'zustand'
 import type { ConnectionStatus, Msg, RunMode } from './types/messages'
 import type { Fill } from './components/Blotter'
 
+// OHLC bar for the price chart. Built client-side by rolling incoming
+// TickMsg prices into 1-minute buckets — the bridge doesn't push candles
+// today, and doing the rollup here means we don't need a new message
+// type on the wire.  Keep it in sync with lightweight-charts' time unit
+// (unix seconds, not nanos).
+export interface Candle {
+  time: number    // unix seconds
+  open: number
+  high: number
+  low: number
+  close: number
+}
+
+// Seconds per bar.  1 minute is the conventional default for a live
+// console; parameterize only if users start asking for it.
+const BAR_SEC = 60
+// Cap in-memory candle history.  The chart only ever shows the last
+// few hundred bars anyway; unbounded growth is a leak.
+const MAX_CANDLES = 600
+
 interface State {
   // Session
   status: ConnectionStatus
@@ -23,9 +43,23 @@ interface State {
   // Fills
   fills: Fill[]
 
+  // OHLC candles rolled up from incoming ticks. See BAR_SEC / MAX_CANDLES.
+  candles: Candle[]
+
+  // Kill-switch state: tracks the previous status so resume() can restore
+  // the connection dot to whatever it was before the halt.  In slice (a)
+  // this is pure client state; slice (b) will drive it from server acks.
+  preHaltStatus: ConnectionStatus | null
+
   // Actions
   handleMessage: (msg: Msg) => void
   reset: () => void
+
+  // Kill switch — optimistic local mutations for slice (a).  Slice (b)
+  // will replace the bodies with WS command sends that wait for a
+  // server-side 'status' ack before flipping the UI.
+  localHalt: () => void
+  localResume: () => void
 }
 
 const initialState = {
@@ -41,6 +75,8 @@ const initialState = {
   avgEntry: 0,
   unrealizedPnl: 0,
   fills: [] as Fill[],
+  candles: [] as Candle[],
+  preHaltStatus: null as ConnectionStatus | null,
 }
 
 export const useStore = create<State>((set) => ({
@@ -65,7 +101,37 @@ export const useStore = create<State>((set) => ({
           const firstPrice = state.firstPrice || msg.price
           const unrealizedPnl =
             state.netQty !== 0 ? (msg.price - state.avgEntry) * state.netQty : 0
-          return { price: msg.price, firstPrice, unrealizedPnl }
+
+          // Roll this tick into the current 1m bar, or start a new bar
+          // if the tick crossed a bucket boundary.  Time is in seconds
+          // because lightweight-charts uses UTCTimestamp (unix seconds).
+          const tsSec = Math.floor(msg.ts / 1_000_000_000)
+          const bucketStart = Math.floor(tsSec / BAR_SEC) * BAR_SEC
+          const last = state.candles[state.candles.length - 1]
+
+          let candles: Candle[]
+          if (!last || last.time < bucketStart) {
+            const fresh: Candle = {
+              time: bucketStart,
+              open: msg.price,
+              high: msg.price,
+              low:  msg.price,
+              close: msg.price,
+            }
+            candles = [...state.candles, fresh]
+            if (candles.length > MAX_CANDLES) candles = candles.slice(-MAX_CANDLES)
+          } else {
+            // Still inside the same bucket — update high/low/close in place.
+            const updated: Candle = {
+              ...last,
+              high:  msg.price > last.high ? msg.price : last.high,
+              low:   msg.price < last.low  ? msg.price : last.low,
+              close: msg.price,
+            }
+            candles = [...state.candles.slice(0, -1), updated]
+          }
+
+          return { price: msg.price, firstPrice, unrealizedPnl, candles }
         }
 
         case 'fill': {
@@ -92,4 +158,16 @@ export const useStore = create<State>((set) => ({
     }),
 
   reset: () => set(initialState),
+
+  localHalt: () =>
+    set((state) => {
+      if (state.status === 'halted') return {}
+      return { preHaltStatus: state.status, status: 'halted' }
+    }),
+
+  localResume: () =>
+    set((state) => {
+      if (state.status !== 'halted') return {}
+      return { status: state.preHaltStatus ?? 'off', preHaltStatus: null }
+    }),
 }))

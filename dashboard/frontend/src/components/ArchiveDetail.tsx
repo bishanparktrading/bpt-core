@@ -90,7 +90,7 @@ export function ArchiveDetail({ name }: Props) {
 
   return (
     <div className="archive-body archive-body--detail">
-      <div style={{ gridArea: 'risk', minHeight: 0, display: 'flex' }}>
+      <div style={{ gridArea: 'risk', display: 'grid' }}>
         <RiskPanel
           fills={fills}
           startingCapital={summary.starting_capital}

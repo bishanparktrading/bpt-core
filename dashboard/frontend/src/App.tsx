@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 import './App.css'
 import { TopBar } from './components/TopBar'
 import { PositionPanel } from './components/PositionPanel'
@@ -6,7 +6,7 @@ import { RiskPanel } from './components/RiskPanel'
 import { Blotter, type Fill } from './components/Blotter'
 import { PriceChart } from './components/PriceChart'
 import { EquityChart } from './components/EquityChart'
-import { generateCandles } from './mock/candles'
+import { HaltedBanner } from './components/HaltedBanner'
 import { startMockReplay } from './mock/replay'
 import { connectWebSocket } from './ws/client'
 import { useStore } from './store'
@@ -44,7 +44,6 @@ const MOCK_FILLS: Omit<Fill, 'seq'>[] = [
 ]
 
 export default function App() {
-  const candles = useMemo(() => generateCandles(MOCK_FILLS), [])
   const fills = useStore((s) => s.fills)
 
   useEffect(() => {
@@ -66,6 +65,7 @@ export default function App() {
   return (
     <div className="shell">
       <TopBar />
+      <HaltedBanner />
 
       <div className="main-row">
         <div className="panel">
@@ -73,7 +73,7 @@ export default function App() {
             <span className="panel-title">BTC-USDT · 1m</span>
             <span className="panel-badge">OKX</span>
           </div>
-          <PriceChart candles={candles} />
+          <PriceChart />
         </div>
 
         <div className="right-col">
