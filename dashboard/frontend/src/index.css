@@ -255,12 +255,6 @@ html, body, #root {
   user-select: none;
 }
 
-.mode-pill--backtest {
-  background: var(--blue-dim);
-  color:      var(--blue);
-  border-color: var(--blue);
-}
-
 .mode-pill--paper {
   background: rgba(210, 153, 34, 0.14);
   color:      var(--yellow);

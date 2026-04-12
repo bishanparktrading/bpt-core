@@ -11,7 +11,7 @@ namespace bridge::encode {
 enum class Side : uint8_t { Buy, Sell };
 
 // { "type":"session", "symbol":"...", "strategy":"...", "exchange":"...",
-//   "mode":"backtest|paper|live", "startingCapital":100000 }
+//   "mode":"paper|live", "startingCapital":100000 }
 std::string session(std::string_view symbol,
                     std::string_view strategy,
                     std::string_view exchange,

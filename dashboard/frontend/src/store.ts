@@ -66,7 +66,7 @@ interface State {
 
 const initialState = {
   status: 'off' as ConnectionStatus,
-  mode: 'backtest' as RunMode,
+  mode: 'mock' as RunMode,
   symbol: '',
   strategy: '',
   exchange: '',

@@ -11,7 +11,6 @@ const STATUS_LABEL: Record<ConnectionStatus, string> = {
 }
 
 const MODE_LABEL: Record<RunMode, string> = {
-  backtest: 'BACKTEST',
   paper:    'PAPER',
   live:     'LIVE',
   mock:     'MOCK',
