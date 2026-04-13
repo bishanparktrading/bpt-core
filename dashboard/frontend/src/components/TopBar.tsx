@@ -30,6 +30,7 @@ export function TopBar() {
   const symbol = useStore((s) => s.symbol)
   const strategy = useStore((s) => s.strategy)
   const exchange = useStore((s) => s.exchange)
+  const instrumentType = useStore((s) => s.instrumentType)
   const price = useStore((s) => s.price)
   const firstPrice = useStore((s) => s.firstPrice)
   const status = useStore((s) => s.status)
@@ -54,6 +55,11 @@ export function TopBar() {
       <span className={`mode-pill mode-pill--${mode}`}>{MODE_LABEL[mode]}</span>
       <div className="topbar-divider" />
       <span className="topbar-symbol">{subject}</span>
+      {instrumentType && (
+        <span className={`inst-type-pill inst-type-pill--${instrumentType.toLowerCase()}`}>
+          {instrumentType}
+        </span>
+      )}
       <span className="topbar-price">
         {price
           ? price.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })

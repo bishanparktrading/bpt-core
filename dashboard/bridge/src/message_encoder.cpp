@@ -10,6 +10,7 @@ std::string session(std::string_view symbol,
                     std::string_view strategy,
                     std::string_view exchange,
                     std::string_view mode,
+                    std::string_view instrument_type,
                     double starting_capital) {
     return json{
         {"type", "session"},
@@ -17,6 +18,7 @@ std::string session(std::string_view symbol,
         {"strategy", strategy},
         {"exchange", exchange},
         {"mode", mode},
+        {"instrumentType", instrument_type},
         {"startingCapital", starting_capital},
     }.dump();
 }

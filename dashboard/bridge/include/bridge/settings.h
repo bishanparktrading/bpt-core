@@ -23,6 +23,7 @@ struct Settings {
     std::string strategy{"unknown"};    // display only; set via config or --strategy-name
     std::string exchange{"OKX"};        // display only
     std::string mode{"paper"};          // display only; "paper" | "live"
+    std::string instrument_type{"SPOT"}; // display only; "SPOT" | "PERP" | "FUTURE" | "OPTION"
     double      starting_capital{100'000.0};
 
     // Instrument filter: when non-zero, the bridge drops MD ticks and fills

@@ -1,5 +1,12 @@
 import { create } from 'zustand'
-import type { ConnectionStatus, Msg, OrderMsg, PortfolioMsg, RunMode } from './types/messages'
+import type {
+  ConnectionStatus,
+  InstrumentType,
+  Msg,
+  OrderMsg,
+  PortfolioMsg,
+  RunMode,
+} from './types/messages'
 import type { Fill } from './components/Blotter'
 import type { OptionLeg, PortfolioGreeks, VolSmileSlice, VolSurfacePoint } from './types/options'
 import { sendCommand } from './ws/client'
@@ -45,6 +52,7 @@ interface State {
   symbol: string
   strategy: string
   exchange: string
+  instrumentType: InstrumentType | null
   startingCapital: number
 
   // Market
@@ -95,6 +103,7 @@ const initialState = {
   symbol: '',
   strategy: '',
   exchange: '',
+  instrumentType: null as InstrumentType | null,
   startingCapital: 0,
   firstPrice: 0,
   price: 0,
@@ -123,6 +132,7 @@ export const useStore = create<State>((set) => ({
             strategy: msg.strategy,
             exchange: msg.exchange,
             mode: msg.mode,
+            instrumentType: msg.instrumentType ?? null,
           }
 
         case 'status':

@@ -57,6 +57,7 @@ Settings load(const std::string& path) {
         if (auto v = (*sess)["strategy"].value<std::string>()) s.strategy = *v;
         if (auto v = (*sess)["exchange"].value<std::string>()) s.exchange = *v;
         if (auto v = (*sess)["mode"].value<std::string>()) s.mode = *v;
+        if (auto v = (*sess)["instrument_type"].value<std::string>()) s.instrument_type = *v;
         if (auto v = (*sess)["starting_capital"].value<double>()) s.starting_capital = *v;
         if (auto v = (*sess)["instrument_id"].value<int64_t>())
             s.instrument_id = static_cast<uint64_t>(*v);

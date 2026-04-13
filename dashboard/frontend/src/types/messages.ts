@@ -14,14 +14,20 @@ export type RunMode = 'paper' | 'live' | 'mock'
 
 export type Side = 'BUY' | 'SELL'
 
+// Instrument type — display only.  Bridge passes it through from config
+// or --instrument-type CLI flag; used to label the top bar so traders can
+// tell perp/future/option from spot at a glance.
+export type InstrumentType = 'SPOT' | 'PERP' | 'FUTURE' | 'OPTION'
+
 // Sent once at the start of a session (and replayed to mid-run joiners).
 export interface SessionMsg {
   type: 'session'
   symbol: string
   startingCapital: number
-  strategy: string    // e.g. "MomentumStrategy" — display only
-  exchange: string    // e.g. "OKX" — display only
-  mode: RunMode       // paper | live | mock — display only
+  strategy: string              // e.g. "MomentumStrategy" — display only
+  exchange: string              // e.g. "OKX" — display only
+  mode: RunMode                 // paper | live | mock — display only
+  instrumentType?: InstrumentType // SPOT/PERP/FUTURE/OPTION — display only
 }
 
 // Connection / run state.

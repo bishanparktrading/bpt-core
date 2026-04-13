@@ -249,6 +249,39 @@ html, body, #root {
   color: var(--text-primary);
 }
 
+/* Instrument type pill — sits next to the symbol so traders can see at a
+   glance whether the active instrument is spot, perp, futures, or options. */
+.inst-type-pill {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 2px 6px;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  margin-left: 4px;
+}
+.inst-type-pill--spot {
+  background: rgba(56, 139, 253, 0.10);
+  color:      var(--blue);
+  border-color: rgba(56, 139, 253, 0.4);
+}
+.inst-type-pill--perp {
+  background: rgba(63, 185, 80, 0.10);
+  color:      var(--green);
+  border-color: rgba(63, 185, 80, 0.4);
+}
+.inst-type-pill--future {
+  background: rgba(210, 153, 34, 0.10);
+  color:      var(--yellow);
+  border-color: rgba(210, 153, 34, 0.4);
+}
+.inst-type-pill--option {
+  background: rgba(248, 81, 73, 0.10);
+  color:      var(--red);
+  border-color: rgba(248, 81, 73, 0.4);
+}
+
 .topbar-price {
   font-family: var(--font-mono);
   font-size: 16px;
