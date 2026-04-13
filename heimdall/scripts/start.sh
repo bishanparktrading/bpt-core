@@ -35,7 +35,9 @@ if [ ! -f "$BINARY" ]; then
     exit 1
 fi
 
-export BPT_ENV=local
+# Default to local secrets for dev convenience, but respect externally-set
+# BPT_ENV (e.g. "qa" or unset) so operators can point at AWS Secrets Manager.
+export BPT_ENV="${BPT_ENV:-local}"
 
 # ── Truncate log so startup polling is clean ──────────────────────
 > "$LOG_FILE"
