@@ -29,7 +29,10 @@ public:
     void run();
 
 private:
-    void wire_callbacks();
+    void wire_refdata_callbacks();
+    void wire_md_callbacks();
+    void wire_vol_callbacks();
+    void wire_order_callbacks();
     void run_backtest_loop();
     void check_service_liveness();
     void report_latency_stats();

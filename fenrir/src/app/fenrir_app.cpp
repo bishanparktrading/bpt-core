@@ -79,7 +79,10 @@ FenrirApp::FenrirApp(config::AppConfig cfg, std::shared_ptr<aeron::Aeron> aeron)
     }
 
     strategy_ = strategy::StrategyFactory::create(fc, *refdata_, md_client_.get(), order_mgr_.get(), vol_client_.get());
-    wire_callbacks();
+    wire_refdata_callbacks();
+    wire_md_callbacks();
+    wire_vol_callbacks();
+    wire_order_callbacks();
 
     if (cfg_.backtest_mode) {
         backtest_client_ =
@@ -122,7 +125,7 @@ FenrirApp::FenrirApp(config::AppConfig cfg, std::shared_ptr<aeron::Aeron> aeron)
     }
 }
 
-void FenrirApp::wire_callbacks() {
+void FenrirApp::wire_refdata_callbacks() {
     refdata_->on_ready = [this](uint8_t exchanges_loaded,
                                 uint16_t instrument_count,
                                 bool fee_schedules_loaded,
@@ -183,132 +186,131 @@ void FenrirApp::wire_callbacks() {
                                 bifrost::protocol::DeltaUpdateType::Value update_type) {
         strategy_->on_delta(inst, update_type);
     };
+}
 
-    if (md_client_) {
-        md_client_->on_service_heartbeat = [this]() {
-            last_md_hb_recv_ns_ = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                                            std::chrono::steady_clock::now().time_since_epoch())
-                                                            .count());
-        };
-        md_client_->on_bbo = [this](const bifrost::protocol::MdMarketData& tick) {
-            static uint64_t bbo_count = 0;
-            if (++bbo_count <= 10 || bbo_count % 1000 == 0) {
-                ygg::log::info("[Fenrir] BBO tick #{}: id={} bid={:.4f} ask={:.4f}",
-                               bbo_count,
-                               tick.instrumentId(),
-                               tick.bidPrice(),
-                               tick.askPrice());
-            }
-            metrics_.md_ticks_total->Increment();
-            if (!trading_paused_ && !trading_halted_) {
-                curr_tick_ts_ns_ = tick.timestampNs();
-                strategy_->on_bbo(tick);
-                const uint64_t t3 = ygg::util::TscClock::now_epoch_ns();
-                if (t3 > curr_tick_ts_ns_) {
-                    const uint64_t delta = t3 - curr_tick_ts_ns_;
-                    if (bbo_count <= 3)
-                        ygg::log::debug("[Latency] bbo raw delta={}ns", delta);
-                    tick_lat_hist_.record(delta);
-                }
-            }
-        };
-        md_client_->on_trade = [this](const bifrost::protocol::MdTrade& tick) {
-            metrics_.md_ticks_total->Increment();
-            if (!trading_paused_ && !trading_halted_) {
-                curr_tick_ts_ns_ = tick.timestampNs();
-                strategy_->on_trade(tick);
-                const uint64_t t3 = ygg::util::TscClock::now_epoch_ns();
-                if (t3 > curr_tick_ts_ns_)
-                    tick_lat_hist_.record(t3 - curr_tick_ts_ns_);
-            }
-        };
-        md_client_->on_order_book = [this](const bifrost::protocol::MdOrderBook& book) {
-            if (!trading_paused_ && !trading_halted_) {
-                curr_tick_ts_ns_ = book.timestampNs();
-                strategy_->on_order_book(book);
-                const uint64_t t3 = ygg::util::TscClock::now_epoch_ns();
-                if (t3 > curr_tick_ts_ns_)
-                    tick_lat_hist_.record(t3 - curr_tick_ts_ns_);
-            }
-        };
-    }
+void FenrirApp::wire_md_callbacks() {
+    if (!md_client_) return;
 
-    if (vol_client_) {
-        vol_client_->on_vol_surface = [this](bifrost::protocol::VolSurface& surface) {
-            ygg::log::info("[Fenrir] VolSurface received: exchange={} underlying={}",
-                           ExchangeId::c_str(surface.exchangeId()),
-                           surface.getUnderlyingAsString());
-            strategy_->on_vol_surface(surface);
-        };
-        vol_client_->on_ready = [this](uint8_t exchanges_loaded, uint16_t underlying_count, uint32_t point_count) {
-            ygg::log::info("[Fenrir] SurtrReady: exchanges=0x{:02x} underlyings={} points={}",
-                           exchanges_loaded,
-                           underlying_count,
-                           point_count);
-            surtr_ready_ = true;
-        };
-    }
+    md_client_->on_service_heartbeat = [this]() {
+        last_md_hb_recv_ns_ = static_cast<uint64_t>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count());
+    };
 
+    md_client_->on_bbo = [this](const bifrost::protocol::MdMarketData& tick) {
+        static uint64_t bbo_count = 0;
+        if (++bbo_count <= 10 || bbo_count % 1000 == 0) {
+            ygg::log::info("[Fenrir] BBO tick #{}: id={} bid={:.4f} ask={:.4f}",
+                           bbo_count, tick.instrumentId(), tick.bidPrice(), tick.askPrice());
+        }
+        metrics_.md_ticks_total->Increment();
+        if (trading_paused_ || trading_halted_) return;
+
+        curr_tick_ts_ns_ = tick.timestampNs();
+        strategy_->on_bbo(tick);
+        const uint64_t t3 = ygg::util::TscClock::now_epoch_ns();
+        if (t3 > curr_tick_ts_ns_) {
+            const uint64_t delta = t3 - curr_tick_ts_ns_;
+            if (bbo_count <= 3)
+                ygg::log::debug("[Latency] bbo raw delta={}ns", delta);
+            tick_lat_hist_.record(delta);
+        }
+    };
+
+    md_client_->on_trade = [this](const bifrost::protocol::MdTrade& tick) {
+        metrics_.md_ticks_total->Increment();
+        if (trading_paused_ || trading_halted_) return;
+
+        curr_tick_ts_ns_ = tick.timestampNs();
+        strategy_->on_trade(tick);
+        const uint64_t t3 = ygg::util::TscClock::now_epoch_ns();
+        if (t3 > curr_tick_ts_ns_)
+            tick_lat_hist_.record(t3 - curr_tick_ts_ns_);
+    };
+
+    md_client_->on_order_book = [this](const bifrost::protocol::MdOrderBook& book) {
+        if (!trading_paused_ && !trading_halted_) {
+            curr_tick_ts_ns_ = book.timestampNs();
+            strategy_->on_order_book(book);
+            const uint64_t t3 = ygg::util::TscClock::now_epoch_ns();
+            if (t3 > curr_tick_ts_ns_)
+                tick_lat_hist_.record(t3 - curr_tick_ts_ns_);
+        }
+    };
+}
+
+void FenrirApp::wire_vol_callbacks() {
+    if (!vol_client_) return;
+
+    vol_client_->on_vol_surface = [this](bifrost::protocol::VolSurface& surface) {
+        ygg::log::info("[Fenrir] VolSurface received: exchange={} underlying={}",
+                       ExchangeId::c_str(surface.exchangeId()),
+                       surface.getUnderlyingAsString());
+        strategy_->on_vol_surface(surface);
+    };
+
+    vol_client_->on_ready = [this](uint8_t exchanges_loaded, uint16_t underlying_count, uint32_t point_count) {
+        ygg::log::info("[Fenrir] SurtrReady: exchanges=0x{:02x} underlyings={} points={}",
+                       exchanges_loaded, underlying_count, point_count);
+        surtr_ready_ = true;
+    };
+}
+
+void FenrirApp::wire_order_callbacks() {
     if (order_mgr_) {
         order_mgr_->on_order_placed = [this](uint64_t /*order_id*/) {
             order_lat_hist_.record(ygg::util::TscClock::now_epoch_ns() - curr_tick_ts_ns_);
         };
     }
 
-    if (order_gw_) {
-        order_gw_->on_exec_report = [this](const bifrost::protocol::ExecutionReport& rpt) {
-            const auto status = rpt.status();
-            if (status == ExecStatus::ACKED) {
-                ygg::log::debug("[Fenrir] ExecReport order_id={} ACKED price={:.2f}",
-                                rpt.orderId(),
-                                static_cast<double>(rpt.price()) / 1e8);
-            } else if (status == ExecStatus::REJECTED) {
-                ygg::log::info("[Fenrir] ExecReport order_id={} REJECTED reason={} price={:.2f}",
-                               rpt.orderId(),
-                               RejectReason::c_str(rpt.rejectReason()),
-                               static_cast<double>(rpt.price()) / 1e8);
-            } else {
-                ygg::log::info("[Fenrir] ExecReport order_id={} status={} filled_qty={:.6f} price={:.2f}",
-                               rpt.orderId(),
-                               ExecStatus::c_str(status),
-                               static_cast<double>(rpt.filledQty()) / 1e8,
-                               static_cast<double>(rpt.price()) / 1e8);
-            }
-            metrics_.exec_reports_total->Increment();
-            strategy_->on_exec_report(rpt);
-        };
+    if (!order_gw_) return;
 
-        order_gw_->on_heartbeat = [this](const bifrost::protocol::OrderGatewayHeartbeat&) {
-            last_gw_hb_recv_ns_ = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                                            std::chrono::steady_clock::now().time_since_epoch())
-                                                            .count());
-        };
+    order_gw_->on_exec_report = [this](const bifrost::protocol::ExecutionReport& rpt) {
+        const auto status = rpt.status();
+        const double price_d = static_cast<double>(rpt.price()) / 1e8;
+        if (status == ExecStatus::ACKED) {
+            ygg::log::debug("[Fenrir] ExecReport order_id={} ACKED price={:.2f}",
+                            rpt.orderId(), price_d);
+        } else if (status == ExecStatus::REJECTED) {
+            ygg::log::info("[Fenrir] ExecReport order_id={} REJECTED reason={} price={:.2f}",
+                           rpt.orderId(), RejectReason::c_str(rpt.rejectReason()), price_d);
+        } else {
+            ygg::log::info("[Fenrir] ExecReport order_id={} status={} filled_qty={:.6f} price={:.2f}",
+                           rpt.orderId(), ExecStatus::c_str(status),
+                           static_cast<double>(rpt.filledQty()) / 1e8, price_d);
+        }
+        metrics_.exec_reports_total->Increment();
+        strategy_->on_exec_report(rpt);
+    };
 
-        order_gw_->on_account_snapshot = [this](bifrost::protocol::AccountSnapshot& snap) {
-            const auto exchange_id = snap.exchangeId();
-            uint8_t bit = 0;
-            if (exchange_id == ExchangeId::BINANCE)
-                bit = 0x01;
-            else if (exchange_id == ExchangeId::OKX)
-                bit = 0x02;
-            else if (exchange_id == ExchangeId::HYPERLIQUID)
-                bit = 0x04;
-            else if (exchange_id == ExchangeId::DERIBIT)
-                bit = 0x08;
+    order_gw_->on_heartbeat = [this](const bifrost::protocol::OrderGatewayHeartbeat&) {
+        last_gw_hb_recv_ns_ = static_cast<uint64_t>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count());
+    };
 
-            account_snapshot_ready_ |= bit;
+    order_gw_->on_account_snapshot = [this](bifrost::protocol::AccountSnapshot& snap) {
+        const auto exchange_id = snap.exchangeId();
+        uint8_t bit = 0;
+        switch (exchange_id) {
+            case ExchangeId::BINANCE:     bit = 0x01; break;
+            case ExchangeId::OKX:         bit = 0x02; break;
+            case ExchangeId::HYPERLIQUID: bit = 0x04; break;
+            case ExchangeId::DERIBIT:     bit = 0x08; break;
+            default: break;
+        }
+        account_snapshot_ready_ |= bit;
 
-            ygg::log::info(
-                "[Fenrir] AccountSnapshot received: exchange={} balance={:.2f} positions={} "
-                "ready_mask=0x{:02x}",
-                ExchangeId::c_str(exchange_id),
-                static_cast<double>(snap.availableBalanceE8()) / 1e8,
-                snap.positions().count(),
-                account_snapshot_ready_);
+        ygg::log::info(
+            "[Fenrir] AccountSnapshot received: exchange={} balance={:.2f} positions={} "
+            "ready_mask=0x{:02x}",
+            ExchangeId::c_str(exchange_id),
+            static_cast<double>(snap.availableBalanceE8()) / 1e8,
+            snap.positions().count(),
+            account_snapshot_ready_);
 
-            strategy_->on_account_snapshot(snap);
-        };
-    }
+        strategy_->on_account_snapshot(snap);
+    };
 }
 
 void FenrirApp::run() {
