@@ -16,6 +16,7 @@ add_library(fenrir_lib
     strategy/position_tracker.cpp
     strategy/avellaneda_stoikov_strategy.cpp
     strategy/funding_arb_strategy.cpp
+    strategy/hurst_estimator.cpp
     strategy/regime_switch_strategy.cpp
     strategy/vwap_reversion_strategy.cpp
     strategy/realized_vol_estimator.cpp

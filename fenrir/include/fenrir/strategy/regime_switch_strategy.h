@@ -71,8 +71,6 @@ private:
     static constexpr size_t kMaxHurstWindow = 500;
     static constexpr size_t kMaxTimeBars = 500;
 
-    double compute_hurst(const std::array<double, kMaxHurstWindow>& returns, size_t count) const;
-    double compute_hurst_multi_window(const std::array<double, kMaxHurstWindow>& returns, size_t count) const;
     Regime classify_regime(double hurst, Regime current) const;
 
     // ── Grid sub-strategy ────────────────────────────────────────────────────
