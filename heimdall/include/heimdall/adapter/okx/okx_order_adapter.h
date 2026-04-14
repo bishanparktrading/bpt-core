@@ -3,6 +3,7 @@
 #include "heimdall/adapter/common/credentials.h"
 #include "heimdall/adapter/common/order_adapter_base.h"
 #include "heimdall/adapter/okx/okx_exec_parser.h"
+#include "heimdall/adapter/okx/okx_https_client.h"
 #include "heimdall/adapter/okx/okx_ws_client.h"
 
 #include <atomic>
@@ -45,13 +46,8 @@ protected:
 
 private:
     void handle_message(const std::string& payload, uint64_t recv_ns);
-    std::string build_login_msg() const;
 
-    // REST helper — used at startup to fetch instIdCode per symbol.
-    std::string https_request(const std::string& method,
-                              const std::string& path,
-                              const std::string& body = "",
-                              bool signed_req = false);
+    // Fetched at startup from /api/v5/public/instruments.
     void fetch_inst_id_codes();
 
     // Fetch /api/v5/account/config at startup and log acctLv + perm.
@@ -79,6 +75,7 @@ private:
     std::atomic<uint64_t> ws_req_id_{1};
 
     OKXExecParser parser_;
+    okx::OKXHttpsClient https_client_;
     okx::OKXWsClient ws_client_;
 };
 

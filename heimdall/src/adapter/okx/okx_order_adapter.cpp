@@ -2,6 +2,7 @@
 
 #include "heimdall/adapter/common/credentials.h"
 #include "heimdall/adapter/okx/okx_action_codec.h"
+#include "heimdall/adapter/okx/okx_auth.h"
 
 #include <bifrost_protocol/ExchangeId.h>
 #include <bifrost_protocol/ExecStatus.h>
@@ -10,62 +11,20 @@
 #include <bifrost_protocol/OrderType.h>
 #include <bifrost_protocol/RejectReason.h>
 
-#include <boost/asio/connect.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/ssl/stream.hpp>
-#include <boost/beast/core.hpp>
-#include <boost/beast/http.hpp>
-#include <boost/beast/ssl.hpp>
 #include <boost/json.hpp>
 #include <chrono>
-#include <openssl/bio.h>
-#include <openssl/evp.h>
-#include <openssl/hmac.h>
-#include <stdexcept>
 #include <string>
 
 namespace heimdall::adapter {
 
-namespace beast = boost::beast;
-namespace net = boost::asio;
-namespace ssl = net::ssl;
 namespace json = boost::json;
-using tcp = net::ip::tcp;
-
-// Base64 encode
-static std::string base64_encode(const unsigned char* data, std::size_t len) {
-    BIO* b64 = BIO_new(BIO_f_base64());
-    BIO* mem = BIO_new(BIO_s_mem());
-    BIO_push(b64, mem);
-    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
-    BIO_write(b64, data, static_cast<int>(len));
-    BIO_flush(b64);
-
-    BUF_MEM* buf;
-    BIO_get_mem_ptr(b64, &buf);
-    std::string out(buf->data, buf->length);
-    BIO_free_all(b64);
-    return out;
-}
-
-static std::string hmac_sha256_b64(const std::string& key, const std::string& data) {
-    unsigned char digest[EVP_MAX_MD_SIZE];
-    unsigned int digest_len = 0;
-    HMAC(EVP_sha256(),
-         key.data(),
-         static_cast<int>(key.size()),
-         reinterpret_cast<const unsigned char*>(data.data()),
-         static_cast<int>(data.size()),
-         digest,
-         &digest_len);
-    return base64_encode(digest, digest_len);
-}
 
 OKXOrderAdapter::OKXOrderAdapter(const config::AdapterConfig& cfg, const ExchangeCredentials& creds)
     : OrderAdapterBase(cfg),
       api_key_(creds.api_key),
       secret_key_(creds.secret_key),
       passphrase_(creds.passphrase),
+      https_client_(cfg_, creds),
       ws_client_(ioc_, ssl_ctx_, cfg_) {
     uint32_t epoch_s = static_cast<uint32_t>(
         std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
@@ -78,40 +37,10 @@ OKXOrderAdapter::OKXOrderAdapter(const config::AdapterConfig& cfg, const Exchang
             ygg::log::error("[OKX] exec_queue full — dropped ExecEvent order_id={}", ev.order_id);
     };
 
-    ws_client_.set_login_msg_builder([this] { return build_login_msg(); });
+    ws_client_.set_login_msg_builder(
+        [this] { return okx::build_login_msg(api_key_, secret_key_, passphrase_); });
     ws_client_.set_message_handler(
         [this](const std::string& payload, uint64_t recv_ns) { handle_message(payload, recv_ns); });
-}
-
-std::string OKXOrderAdapter::https_request(const std::string& method,
-                                           const std::string& path,
-                                           const std::string& /*body*/,
-                                           bool /*signed_req*/) {
-    namespace http = boost::beast::http;
-    boost::asio::io_context ioc;
-    boost::asio::ssl::context ssl_ctx(boost::asio::ssl::context::tls_client);
-    ssl_ctx.set_default_verify_paths();
-    ssl_ctx.set_verify_mode(boost::asio::ssl::verify_peer);
-
-    tcp::resolver resolver(ioc);
-    beast::ssl_stream<beast::tcp_stream> stream(ioc, ssl_ctx);
-    if (!SSL_set_tlsext_host_name(stream.native_handle(), cfg_.rest_host.c_str()))
-        throw std::runtime_error("SSL_set_tlsext_host_name failed");
-    auto results = resolver.resolve(cfg_.rest_host, cfg_.rest_port);
-    beast::get_lowest_layer(stream).connect(results);
-    stream.handshake(boost::asio::ssl::stream_base::client);
-
-    http::request<http::string_body> req(method == "GET" ? http::verb::get : http::verb::post, path, 11);
-    req.set(http::field::host, cfg_.rest_host);
-    req.set(http::field::user_agent, "heimdall/0.1");
-    if (cfg_.testnet)
-        req.set("x-simulated-trading", "1");
-
-    http::write(stream, req);
-    beast::flat_buffer buf;
-    http::response<http::string_body> res;
-    http::read(stream, buf, res);
-    return res.body();
 }
 
 void OKXOrderAdapter::fetch_inst_id_codes() {
@@ -119,7 +48,7 @@ void OKXOrderAdapter::fetch_inst_id_codes() {
     const std::vector<std::string> inst_types = {"SPOT", "SWAP", "FUTURES", "MARGIN"};
     for (const auto& inst_type : inst_types) {
         try {
-            std::string resp = https_request("GET", "/api/v5/public/instruments?instType=" + inst_type);
+            std::string resp = https_client_.get_unsigned("/api/v5/public/instruments?instType=" + inst_type);
             auto root = json::parse(resp);
             if (!root.is_object())
                 continue;
@@ -169,26 +98,6 @@ void OKXOrderAdapter::start() {
         fetch_and_log_account_config();
     }
     OrderAdapterBase::start();
-}
-
-std::string OKXOrderAdapter::build_login_msg() const {
-    uint64_t ts_s = static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
-    std::string ts_str = std::to_string(ts_s);
-    std::string prehash = ts_str + "GET" + "/users/self/verify";
-    std::string sign = hmac_sha256_b64(secret_key_, prehash);
-
-    json::object login_msg;
-    login_msg["op"] = "login";
-    json::array args;
-    json::object arg;
-    arg["apiKey"] = api_key_;
-    arg["passphrase"] = passphrase_;
-    arg["timestamp"] = ts_str;
-    arg["sign"] = sign;
-    args.push_back(arg);
-    login_msg["args"] = std::move(args);
-    return json::serialize(login_msg);
 }
 
 void OKXOrderAdapter::handle_message(const std::string& payload, uint64_t recv_ns) {
@@ -337,64 +246,10 @@ void OKXOrderAdapter::send_modify(const bifrost::protocol::ModifyOrder& modify, 
     }
 }
 
-// Build OKX REST auth headers for a GET request (no body).
-// prehash = timestamp_s + "GET" + path
-static boost::beast::http::request<boost::beast::http::string_body> okx_signed_get(const std::string& host,
-                                                                                   const std::string& path,
-                                                                                   const std::string& api_key,
-                                                                                   const std::string& secret_key,
-                                                                                   const std::string& passphrase,
-                                                                                   bool testnet) {
-    namespace http = boost::beast::http;
-    const uint64_t ts_s = static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
-    const std::string ts_str = std::to_string(ts_s);
-    const std::string prehash = ts_str + "GET" + path;
-    const std::string sign = hmac_sha256_b64(secret_key, prehash);
-
-    http::request<http::string_body> req(http::verb::get, path, 11);
-    req.set(http::field::host, host);
-    req.set(http::field::user_agent, "heimdall/0.1");
-    req.set("OK-ACCESS-KEY", api_key);
-    req.set("OK-ACCESS-SIGN", sign);
-    req.set("OK-ACCESS-TIMESTAMP", ts_str);
-    req.set("OK-ACCESS-PASSPHRASE", passphrase);
-    if (testnet)
-        req.set("x-simulated-trading", "1");
-    return req;
-}
-
 AccountSnapshotData OKXOrderAdapter::fetch_account_snapshot(uint64_t correlation_id) {
-    namespace net = boost::asio;
-    namespace ssl = net::ssl;
-    namespace http = boost::beast::http;
-    using tcp = net::ip::tcp;
-
     const uint64_t ts_ns = static_cast<uint64_t>(
         std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
             .count());
-
-    auto do_get = [&](const std::string& path) -> std::string {
-        net::io_context ioc;
-        ssl::context ssl_ctx(ssl::context::tls_client);
-        ssl_ctx.set_default_verify_paths();
-        ssl_ctx.set_verify_mode(ssl::verify_peer);
-
-        tcp::resolver resolver(ioc);
-        beast::ssl_stream<beast::tcp_stream> stream(ioc, ssl_ctx);
-        if (!SSL_set_tlsext_host_name(stream.native_handle(), cfg_.rest_host.c_str()))
-            throw std::runtime_error("SSL_set_tlsext_host_name failed");
-        auto results = resolver.resolve(cfg_.rest_host, cfg_.rest_port);
-        beast::get_lowest_layer(stream).connect(results);
-        stream.handshake(ssl::stream_base::client);
-
-        auto req = okx_signed_get(cfg_.rest_host, path, api_key_, secret_key_, passphrase_, cfg_.testnet);
-        http::write(stream, req);
-        beast::flat_buffer buf;
-        http::response<http::string_body> res;
-        http::read(stream, buf, res);
-        return res.body();
-    };
 
     AccountSnapshotData snap;
     snap.exchange_id = bifrost::protocol::ExchangeId::OKX;
@@ -403,7 +258,7 @@ AccountSnapshotData OKXOrderAdapter::fetch_account_snapshot(uint64_t correlation
 
     try {
         // Balance endpoint — totalEq and availBal.
-        auto bal_resp = do_get("/api/v5/account/balance");
+        auto bal_resp = https_client_.get_signed("/api/v5/account/balance");
         auto bal_j = json::parse(bal_resp);
         if (bal_j.is_object() && bal_j.as_object().contains("data") && bal_j.as_object().at("data").is_array()) {
             const auto& data = bal_j.as_object().at("data").as_array();
@@ -432,7 +287,7 @@ AccountSnapshotData OKXOrderAdapter::fetch_account_snapshot(uint64_t correlation
 
     try {
         // Positions endpoint.
-        auto pos_resp = do_get("/api/v5/account/positions");
+        auto pos_resp = https_client_.get_signed("/api/v5/account/positions");
         auto pos_j = json::parse(pos_resp);
         if (pos_j.is_object() && pos_j.as_object().contains("data") && pos_j.as_object().at("data").is_array()) {
             for (const auto& p : pos_j.as_object().at("data").as_array()) {
@@ -469,37 +324,9 @@ AccountSnapshotData OKXOrderAdapter::fetch_account_snapshot(uint64_t correlation
 }
 
 void OKXOrderAdapter::fetch_and_log_account_config() {
-    namespace net = boost::asio;
-    namespace ssl = net::ssl;
-    namespace http = boost::beast::http;
-    using tcp = net::ip::tcp;
-
     try {
-        net::io_context ioc;
-        ssl::context ssl_ctx(ssl::context::tls_client);
-        ssl_ctx.set_default_verify_paths();
-        ssl_ctx.set_verify_mode(ssl::verify_peer);
-
-        tcp::resolver resolver(ioc);
-        beast::ssl_stream<beast::tcp_stream> stream(ioc, ssl_ctx);
-        if (!SSL_set_tlsext_host_name(stream.native_handle(), cfg_.rest_host.c_str()))
-            throw std::runtime_error("SSL_set_tlsext_host_name failed");
-        auto results = resolver.resolve(cfg_.rest_host, cfg_.rest_port);
-        beast::get_lowest_layer(stream).connect(results);
-        stream.handshake(ssl::stream_base::client);
-
-        auto req = okx_signed_get(cfg_.rest_host,
-                                  "/api/v5/account/config",
-                                  api_key_,
-                                  secret_key_,
-                                  passphrase_,
-                                  cfg_.testnet);
-        http::write(stream, req);
-        beast::flat_buffer buf;
-        http::response<http::string_body> res;
-        http::read(stream, buf, res);
-
-        auto j = json::parse(res.body());
+        auto body = https_client_.get_signed("/api/v5/account/config");
+        auto j = json::parse(body);
         if (!j.is_object()) {
             ygg::log::warn("[OKX account/config] unexpected response shape");
             return;
