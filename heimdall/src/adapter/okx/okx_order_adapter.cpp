@@ -16,8 +16,6 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/ssl.hpp>
-#include <boost/beast/websocket.hpp>
-#include <boost/beast/websocket/ssl.hpp>
 #include <boost/json.hpp>
 #include <chrono>
 #include <openssl/bio.h>
@@ -29,14 +27,10 @@
 namespace heimdall::adapter {
 
 namespace beast = boost::beast;
-namespace websocket = beast::websocket;
 namespace net = boost::asio;
 namespace ssl = net::ssl;
 namespace json = boost::json;
 using tcp = net::ip::tcp;
-
-static constexpr double kPriceScale = 1e8;
-static constexpr double kQtyScale = 1e5;
 
 // Base64 encode
 static std::string base64_encode(const unsigned char* data, std::size_t len) {
@@ -71,7 +65,8 @@ OKXOrderAdapter::OKXOrderAdapter(const config::AdapterConfig& cfg, const Exchang
     : OrderAdapterBase(cfg),
       api_key_(creds.api_key),
       secret_key_(creds.secret_key),
-      passphrase_(creds.passphrase) {
+      passphrase_(creds.passphrase),
+      ws_client_(ioc_, ssl_ctx_, cfg_) {
     uint32_t epoch_s = static_cast<uint32_t>(
         std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
     char buf[9];
@@ -82,6 +77,10 @@ OKXOrderAdapter::OKXOrderAdapter(const config::AdapterConfig& cfg, const Exchang
         if (!exec_queue_.try_push(ev))
             ygg::log::error("[OKX] exec_queue full — dropped ExecEvent order_id={}", ev.order_id);
     };
+
+    ws_client_.set_login_msg_builder([this] { return build_login_msg(); });
+    ws_client_.set_message_handler(
+        [this](const std::string& payload, uint64_t recv_ns) { handle_message(payload, recv_ns); });
 }
 
 std::string OKXOrderAdapter::https_request(const std::string& method,
@@ -223,9 +222,7 @@ void OKXOrderAdapter::handle_message(const std::string& payload, uint64_t recv_n
             arg["instType"] = "ANY";
             args.push_back(arg);
             sub_msg["args"] = std::move(args);
-            std::lock_guard<std::mutex> lk(send_mu_);
-            if (ws_send_)
-                ws_send_(json::serialize(sub_msg));
+            ws_client_.send(json::serialize(sub_msg));
         }
         return;
     }
@@ -260,111 +257,7 @@ void OKXOrderAdapter::handle_message(const std::string& payload, uint64_t recv_n
 void OKXOrderAdapter::connect_and_run() {
     logged_in_.store(false, std::memory_order_relaxed);
     parser_.reset();
-
-    ygg::log::info("[Heimdall] OKXOrderAdapter connecting {}:{}{} (tls={})",
-                   cfg_.ws_host,
-                   cfg_.ws_port,
-                   cfg_.ws_path,
-                   cfg_.use_tls);
-
-    // Generic WS message loop — works for both TLS and plain-TCP stream types.
-    auto run_loop = [&](auto& ws) {
-        {
-            std::lock_guard<std::mutex> lk(send_mu_);
-            ws_send_ = [&ws](const std::string& msg) {
-                ws.write(net::buffer(msg));
-            };
-        }
-
-        ws.write(net::buffer(build_login_msg()));
-
-        connected_.store(true, std::memory_order_relaxed);
-        ygg::log::info("[Heimdall] OKXOrderAdapter connected, waiting for login");
-
-        auto last_ping = std::chrono::steady_clock::now();
-        try {
-            beast::flat_buffer buf;
-            while (!stop_flag_.load(std::memory_order_relaxed)) {
-                auto now = std::chrono::steady_clock::now();
-                if (now - last_ping >= std::chrono::seconds(15)) {
-                    {
-                        std::lock_guard<std::mutex> lk(send_mu_);
-                        if (ws_send_)
-                            ws_send_("ping");
-                    }
-                    last_ping = now;
-                }
-
-                beast::get_lowest_layer(ws).expires_after(std::chrono::seconds(5));
-                beast::error_code ec;
-                ws.read(buf, ec);
-
-                if (ec == beast::error::timeout) {
-                    buf.consume(buf.size());
-                    continue;
-                }
-                if (ec)
-                    throw beast::system_error(ec);
-
-                uint64_t recv_ns = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
-                std::string payload(static_cast<const char*>(buf.data().data()), buf.data().size());
-                buf.consume(buf.size());
-
-                if (payload == "ping") {
-                    std::lock_guard<std::mutex> lk(send_mu_);
-                    if (ws_send_)
-                        ws_send_("pong");
-                    continue;
-                }
-                if (payload == "pong")
-                    continue;
-
-                handle_message(payload, recv_ns);
-            }
-        } catch (...) {
-            std::lock_guard<std::mutex> lk(send_mu_);
-            ws_send_ = nullptr;
-            throw;
-        }
-        {
-            std::lock_guard<std::mutex> lk(send_mu_);
-            ws_send_ = nullptr;
-        }
-        beast::error_code ec;
-        ws.close(websocket::close_code::normal, ec);
-    };
-
-    tcp::resolver resolver(ioc_);
-
-    if (!cfg_.use_tls) {
-        // Plain TCP — used when connecting to a local simulation server (backtest).
-        websocket::stream<beast::tcp_stream> ws(ioc_);
-        auto results = resolver.resolve(cfg_.ws_host, cfg_.ws_port);
-        beast::get_lowest_layer(ws).connect(results);
-        ws.text(true);
-        ws.set_option(websocket::stream_base::decorator(
-            [](websocket::request_type& req) { req.set(boost::beast::http::field::user_agent, "heimdall/0.1"); }));
-        ws.handshake(cfg_.ws_host, cfg_.ws_path);
-        ws.set_option(websocket::stream_base::timeout{std::chrono::seconds(15), websocket::stream_base::none(), false});
-        run_loop(ws);
-        return;
-    }
-
-    // TLS path — production.
-    websocket::stream<beast::ssl_stream<beast::tcp_stream>> ws(ioc_, ssl_ctx_);
-    auto results = resolver.resolve(cfg_.ws_host, cfg_.ws_port);
-    beast::get_lowest_layer(ws).connect(results);
-
-    if (!SSL_set_tlsext_host_name(ws.next_layer().native_handle(), cfg_.ws_host.c_str()))
-        throw std::runtime_error("SSL_set_tlsext_host_name failed");
-    ws.next_layer().handshake(ssl::stream_base::client);
-
-    ws.text(true);
-    ws.set_option(websocket::stream_base::decorator(
-        [](websocket::request_type& req) { req.set(boost::beast::http::field::user_agent, "heimdall/0.1"); }));
-    ws.handshake(cfg_.ws_host, cfg_.ws_path);
-    ws.set_option(websocket::stream_base::timeout{std::chrono::seconds(15), websocket::stream_base::none(), false});
-    run_loop(ws);
+    ws_client_.run(stop_flag_, connected_);
 }
 
 void OKXOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& order) {
@@ -401,17 +294,14 @@ void OKXOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& order) {
             ygg::log::error("[OKX] exec_queue full — dropped rejection order_id={}", rej.order_id);
     };
 
-    std::lock_guard<std::mutex> lk(send_mu_);
-    if (!ws_send_) {
-        ygg::log::warn(
-            "[Heimdall] OKXOrderAdapter: send_new_order: WS not connected, "
-            "rejecting order={}",
-            order.orderId());
-        emit_rejection();
-        return;
-    }
     try {
-        ws_send_(frame);
+        if (!ws_client_.send(frame)) {
+            ygg::log::warn(
+                "[Heimdall] OKXOrderAdapter: send_new_order: WS not connected, "
+                "rejecting order={}",
+                order.orderId());
+            emit_rejection();
+        }
     } catch (const std::exception& e) {
         ygg::log::error("[Heimdall] OKXOrderAdapter: send_new_order failed: {}", e.what());
         emit_rejection();
@@ -424,13 +314,10 @@ void OKXOrderAdapter::send_cancel(const bifrost::protocol::CancelOrder& cancel, 
     const std::string frame = json::serialize(
         okx::build_cancel_action(native_symbol, cloid, req_id));
 
-    std::lock_guard<std::mutex> lk(send_mu_);
-    if (ws_send_) {
-        try {
-            ws_send_(frame);
-        } catch (const std::exception& e) {
-            ygg::log::error("[Heimdall] OKXOrderAdapter: send_cancel failed: {}", e.what());
-        }
+    try {
+        ws_client_.send(frame);
+    } catch (const std::exception& e) {
+        ygg::log::error("[Heimdall] OKXOrderAdapter: send_cancel failed: {}", e.what());
     }
 }
 
@@ -443,13 +330,10 @@ void OKXOrderAdapter::send_modify(const bifrost::protocol::ModifyOrder& modify, 
     const std::string frame = json::serialize(
         okx::build_modify_action(native_symbol, cloid, modify.newPrice(), modify.newQuantity(), contract_sizes_));
 
-    std::lock_guard<std::mutex> lk(send_mu_);
-    if (ws_send_) {
-        try {
-            ws_send_(frame);
-        } catch (const std::exception& e) {
-            ygg::log::error("[Heimdall] OKXOrderAdapter: send_modify failed: {}", e.what());
-        }
+    try {
+        ws_client_.send(frame);
+    } catch (const std::exception& e) {
+        ygg::log::error("[Heimdall] OKXOrderAdapter: send_modify failed: {}", e.what());
     }
 }
 

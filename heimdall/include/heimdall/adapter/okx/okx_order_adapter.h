@@ -3,13 +3,11 @@
 #include "heimdall/adapter/common/credentials.h"
 #include "heimdall/adapter/common/order_adapter_base.h"
 #include "heimdall/adapter/okx/okx_exec_parser.h"
+#include "heimdall/adapter/okx/okx_ws_client.h"
 
 #include <atomic>
-#include <functional>
-#include <mutex>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 namespace heimdall::adapter {
 
@@ -80,12 +78,8 @@ private:
     // WS request id counter
     std::atomic<uint64_t> ws_req_id_{1};
 
-    // Outbound send callback — nulled on disconnect and guarded by send_mu_.
-    mutable std::mutex send_mu_;
-    std::vector<std::string> pending_sends_;
-    std::function<void(const std::string&)> ws_send_;
-
     OKXExecParser parser_;
+    okx::OKXWsClient ws_client_;
 };
 
 }  // namespace heimdall::adapter
