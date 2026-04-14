@@ -1,0 +1,54 @@
+# Local ops monitoring stack — Prometheus + Grafana.
+#
+# Scope: operational health only (service up/down, exchange connectivity,
+# order-ack latency, error counters). PnL / fills / vol surface belong in
+# the bpt-core dashboard, not here.
+#
+# Grafana's dashboard provisioning is read-only — every dashboard is
+# generated from monitoring/dashboards/*.py via grafanalib, rendered into
+# monitoring/generated/, and mounted into the Grafana container. Edits
+# made in the UI get blown away on container restart.
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: bpt-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      # bpt services run on the docker host (WSL), scraped via host-gateway.
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: bpt-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_USERS_DEFAULT_THEME=dark
+      # Provisioned dashboards are read-only — edits in the UI are blown
+      # away on next reload, which is the whole point of design-as-code.
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/bpt_system_overview.json
+    volumes:
+      - ./provisioning:/etc/grafana/provisioning:ro
+      - ./generated:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+
+volumes:
+  prometheus-data:
+  grafana-data:

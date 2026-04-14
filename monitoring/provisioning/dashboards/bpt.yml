@@ -1,0 +1,17 @@
+# Grafana dashboard provisioning — scans /var/lib/grafana/dashboards for
+# any JSON files and loads them at startup. The directory is mounted
+# read-only from monitoring/generated/ so UI edits cannot persist.
+
+apiVersion: 1
+
+providers:
+  - name: bpt
+    orgId: 1
+    folder: BPT
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false
