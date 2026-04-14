@@ -59,6 +59,9 @@ interface State {
   accountBalance: number
   accountEquity: number
   accountHistory: Array<{ ts: number; equity: number }>
+  // Open positions from the latest AccountSnapshot. Drives the holdings
+  // breakdown panel. Per-position PnL here is MTM'd by the exchange.
+  accountPositions: import('./types/messages').AccountPosition[]
 
   // Market
   firstPrice: number     // set on the first tick; used for top-bar % change
@@ -114,6 +117,7 @@ const initialState = {
   accountBalance: 0,
   accountEquity: 0,
   accountHistory: [] as Array<{ ts: number; equity: number }>,
+  accountPositions: [] as State['accountPositions'],
   firstPrice: 0,
   price: 0,
   netQty: 0,
@@ -222,6 +226,7 @@ export const useStore = create<State>((set) => ({
             accountBalance: msg.balance,
             accountEquity: msg.equity,
             accountHistory: history,
+            accountPositions: msg.positions ?? [],
           }
         }
 

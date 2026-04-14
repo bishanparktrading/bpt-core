@@ -9,6 +9,7 @@ import { PriceChart } from './components/PriceChart'
 import { EquityChart } from './components/EquityChart'
 import { HaltedBanner } from './components/HaltedBanner'
 import { OpenOrdersPanel } from './components/OpenOrdersPanel'
+import { HoldingsPanel } from './components/HoldingsPanel'
 import { GreeksPanel } from './components/GreeksPanel'
 import { OptionsPositionPanel } from './components/OptionsPositionPanel'
 import { VolSmileChart } from './components/VolSmileChart'
@@ -146,6 +147,7 @@ export default function App() {
       </div>
 
       <OpenOrdersPanel />
+      <HoldingsPanel />
       <Blotter />
     </div>
   )

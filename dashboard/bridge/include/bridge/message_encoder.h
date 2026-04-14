@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace bridge::encode {
 
@@ -47,11 +48,26 @@ std::string position(std::string_view symbol,
                      double avg_entry,
                      double unrealized_pnl);
 
-// { "type":"account", "ts":..., "balance":..., "equity":... }
-// Live exchange account snapshot from heimdall — used as the canonical
-// equity baseline so the dashboard reflects the actual exchange balance
-// rather than a static `starting_capital` config value.
-std::string account(uint64_t ts_ns, double balance, double equity);
+// Per-position row in an `account` message. Mirrors the `Position`
+// SBE repeating group inside heimdall's AccountSnapshot.
+struct AccountPosition {
+    std::string symbol;         // exchange-native symbol (e.g. "BTC")
+    double      net_qty;        // signed (+ long, − short) in coin units
+    double      avg_entry;      // quote currency
+    double      unrealized_pnl; // quote currency
+};
+
+// { "type":"account", "ts":..., "balance":..., "equity":...,
+//   "positions":[{"symbol":..., "netQty":..., "avgEntry":...,
+//                 "unrealizedPnl":...}, ...] }
+//
+// Live exchange account snapshot from heimdall — the canonical equity
+// baseline for the dashboard and the source of the holdings breakdown
+// panel.
+std::string account(uint64_t ts_ns,
+                    double balance,
+                    double equity,
+                    const std::vector<AccountPosition>& positions);
 
 // { "type":"order", "ts":..., "orderId":..., "symbol":"...", "side":"BUY",
 //   "orderType":"LIMIT", "price":..., "qty":..., "filledQty":...,

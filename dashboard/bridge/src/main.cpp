@@ -217,8 +217,13 @@ int main(int argc, char** argv) {
     // the equity curve reflects the actual exchange account, not a static
     // starting_capital config value.
     account_sub.set_handler([&](const bridge::AccountSubscriber::Snapshot& s) {
+        std::vector<bridge::encode::AccountPosition> positions;
+        positions.reserve(s.positions.size());
+        for (const auto& p : s.positions) {
+            positions.push_back({p.exchange_symbol, p.net_qty, p.avg_entry, p.unrealized_pnl});
+        }
         ws.publish(bridge::MsgKind::Order,
-                   bridge::encode::account(s.ts_ns, s.available_balance, s.total_equity));
+                   bridge::encode::account(s.ts_ns, s.available_balance, s.total_equity, positions));
     });
 
     exec_sub.set_handler([&](const bridge::ExecSubscriber::Fill& f) {

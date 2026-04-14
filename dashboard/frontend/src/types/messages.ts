@@ -62,14 +62,25 @@ export interface FillMsg {
   equity: number
 }
 
+// One open position row, as reported by the exchange and relayed via
+// heimdall → bridge → this message.
+export interface AccountPosition {
+  symbol: string          // exchange-native, e.g. "BTC"
+  netQty: number          // signed (+ long, − short)
+  avgEntry: number        // quote currency
+  unrealizedPnl: number   // quote currency, MTM'd by the exchange
+}
+
 // Live exchange account snapshot from heimdall, relayed by the bridge.
 // The dashboard uses these as the canonical equity baseline so the equity
 // curve reflects the actual exchange balance, not a static config value.
+// `positions` powers the holdings breakdown panel.
 export interface AccountMsg {
   type: 'account'
-  ts: number          // ns since epoch
-  balance: number     // available balance (e.g. USDC)
-  equity: number      // total account equity (falls back to balance when 0)
+  ts: number                        // ns since epoch
+  balance: number                   // available balance (e.g. USDC)
+  equity: number                    // total account equity (falls back to balance when 0)
+  positions: AccountPosition[]      // open positions with per-leg uPnL
 }
 
 // Current net position.  Emitted by the bridge after every fill.

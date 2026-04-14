@@ -68,6 +68,25 @@ void AccountSubscriber::on_fragment(const aeron::concurrent::AtomicBuffer& buffe
     s.total_equity      = static_cast<double>(msg.totalEquityE8()) / kE8;
     if (s.total_equity == 0.0) s.total_equity = s.available_balance;
 
+    // Decode the positions repeating group. SBE group iterators are
+    // stateful — calling .next() advances the read cursor, so the order
+    // we call it matters. Empty positions (net_qty == 0) are skipped by
+    // the publisher on heimdall's side but we also filter defensively
+    // in case a dead leg shows up.
+    auto& positions = msg.positions();
+    const std::size_t n = positions.count();
+    s.positions.reserve(n);
+    for (std::size_t i = 0; i < n; ++i) {
+        positions.next();
+        Position p;
+        p.exchange_symbol = positions.getExchangeSymbolAsString();
+        p.net_qty         = static_cast<double>(positions.netQtyE8())        / kE8;
+        p.avg_entry       = static_cast<double>(positions.avgEntryPriceE8()) / kE8;
+        p.unrealized_pnl  = static_cast<double>(positions.unrealizedPnlE8()) / kE8;
+        if (p.net_qty == 0.0) continue;
+        s.positions.push_back(std::move(p));
+    }
+
     if (handler_) handler_(s);
 }
 

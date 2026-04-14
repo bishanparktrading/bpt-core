@@ -75,12 +75,25 @@ std::string position(std::string_view symbol,
     }.dump();
 }
 
-std::string account(uint64_t ts_ns, double balance, double equity) {
+std::string account(uint64_t ts_ns,
+                    double balance,
+                    double equity,
+                    const std::vector<AccountPosition>& positions) {
+    auto positions_json = json::array();
+    for (const auto& p : positions) {
+        positions_json.push_back({
+            {"symbol", p.symbol},
+            {"netQty", p.net_qty},
+            {"avgEntry", p.avg_entry},
+            {"unrealizedPnl", p.unrealized_pnl},
+        });
+    }
     return json{
         {"type", "account"},
         {"ts", ts_ns},
         {"balance", balance},
         {"equity", equity},
+        {"positions", std::move(positions_json)},
     }.dump();
 }
 

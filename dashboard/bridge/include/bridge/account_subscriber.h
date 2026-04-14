@@ -5,22 +5,33 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace bridge {
 
 // Subscribes to Heimdall's AccountSnapshot stream (default 3004) and
-// delivers decoded balance / equity values from the live exchange account.
+// delivers decoded balance / equity / open-position state from the live
+// exchange account.
 //
-// The dashboard uses these as the canonical equity baseline so the equity
-// curve reflects the actual exchange balance rather than a static
-// `starting_capital` config value.
+// The dashboard uses these as the canonical equity baseline so the
+// equity curve reflects the actual exchange balance rather than a
+// static `starting_capital` config value; positions feed the holdings
+// breakdown panel.
 class AccountSubscriber {
 public:
+    struct Position {
+        std::string exchange_symbol;  // e.g. "BTC", "ETH-PERPETUAL"
+        double net_qty;               // signed coin qty (+ long, − short)
+        double avg_entry;              // natural units
+        double unrealized_pnl;        // natural units (quote currency)
+    };
+
     struct Snapshot {
         uint64_t ts_ns;
         uint8_t  exchange_id;
         double   available_balance;  // natural units (e.g. USDC)
         double   total_equity;       // natural units; falls back to balance when 0
+        std::vector<Position> positions;
     };
 
     using Handler = std::function<void(const Snapshot&)>;
