@@ -6,7 +6,7 @@
 # to miss at a glance.
 #
 # Usage:
-#   ./live_run.sh start <fenrir-config> [--starting-capital N]
+#   ./live_run.sh start <fenrir-config> [--instrument-id N]
 #   ./live_run.sh stop
 #   ./live_run.sh status
 
@@ -14,7 +14,7 @@ set -euo pipefail
 
 STACK_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 BRIDGE_BIN="$STACK_DIR/build/dashboard/bridge/bridge"
-BRIDGE_CFG="$STACK_DIR/dashboard/bridge/config/bridge.backtest.toml"
+BRIDGE_CFG="$STACK_DIR/dashboard/bridge/config/bridge.live.toml"
 BRIDGE_LOG_DIR="$STACK_DIR/dashboard/bridge/logs"
 BRIDGE_PID="$STACK_DIR/dashboard/bridge/.bridge.pid"
 LIVE_SH="$STACK_DIR/scripts/live.sh"
@@ -53,14 +53,11 @@ bridge_start() {
     strategy_name="$(derive_strategy_name "${FENRIR_CONFIG_OVERRIDE:-}")"
 
     local extra_args=()
-    if [ -n "${STARTING_CAPITAL:-}" ]; then
-        extra_args+=(--starting-capital "$STARTING_CAPITAL")
-    fi
     if [ -n "${INSTRUMENT_ID:-}" ]; then
         extra_args+=(--instrument-id "$INSTRUMENT_ID")
     fi
 
-    echo "  Starting bridge (mode: LIVE, strategy: $strategy_name${INSTRUMENT_ID:+, instrument_id: $INSTRUMENT_ID}${STARTING_CAPITAL:+, starting_capital: \$$STARTING_CAPITAL})..."
+    echo "  Starting bridge (mode: LIVE, strategy: $strategy_name${INSTRUMENT_ID:+, instrument_id: $INSTRUMENT_ID})..."
     nohup "$BRIDGE_BIN" --config "$BRIDGE_CFG" \
                         --mode live \
                         --strategy-name "$strategy_name" \
@@ -106,7 +103,7 @@ do_status() {
 do_start() {
     if [ -z "$FENRIR_CONFIG_OVERRIDE" ]; then
         echo "ERROR: live_run.sh requires an explicit fenrir config."
-        echo "Usage: $0 start <fenrir-config> [--starting-capital N]"
+        echo "Usage: $0 start <fenrir-config> [--instrument-id N]"
         exit 1
     fi
 
@@ -152,8 +149,6 @@ shift || true
 FENRIR_CONFIG_OVERRIDE=""
 while [ $# -gt 0 ]; do
     case "$1" in
-        --starting-capital)   STARTING_CAPITAL="$2"; shift 2 ;;
-        --starting-capital=*) STARTING_CAPITAL="${1#--starting-capital=}"; shift ;;
         --instrument-id)      INSTRUMENT_ID="$2"; shift 2 ;;
         --instrument-id=*)    INSTRUMENT_ID="${1#--instrument-id=}"; shift ;;
         -*)                   echo "Unknown flag: $1"; exit 1 ;;
@@ -165,14 +160,14 @@ while [ $# -gt 0 ]; do
             ;;
     esac
 done
-export STARTING_CAPITAL INSTRUMENT_ID
+export INSTRUMENT_ID
 
 case "$SUBCMD" in
     start)  do_start ;;
     stop)   do_stop ;;
     status) do_status ;;
     *)
-        echo "Usage: $0 start <fenrir-config> [--starting-capital N]"
+        echo "Usage: $0 start <fenrir-config> [--instrument-id N]"
         echo "       $0 stop"
         echo "       $0 status"
         exit 1

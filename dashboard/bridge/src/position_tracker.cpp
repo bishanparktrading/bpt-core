@@ -33,9 +33,9 @@ PositionTracker::FillResult PositionTracker::apply(encode::Side side, double qty
     }
 
     net_qty_ = next_net;
-    equity_ += realized;
+    cumulative_pnl_ += realized;
 
-    return { realized, equity_, net_qty_, avg_entry_ };
+    return { realized, cumulative_pnl_, net_qty_, avg_entry_ };
 }
 
 }  // namespace bridge

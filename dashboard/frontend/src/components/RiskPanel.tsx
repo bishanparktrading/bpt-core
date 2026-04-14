@@ -18,15 +18,17 @@ interface RiskPanelProps {
 }
 
 export function RiskPanel(props: RiskPanelProps = {}) {
+  // Two modes — see EquityChart for the same split:
+  //   1. Live/paper — Total PnL / Return / Max DD come from the heimdall
+  //      AccountSnapshot history in the store. Sharpe / Win Rate / Fills
+  //      still come from the local fill stream.
+  //   2. Archive — props.fills + props.startingCapital + optional precomputed.
   const liveFills = useStore((s) => s.fills)
-  const liveCap = useStore((s) => s.startingCapital)
+  const accountHistory = useStore((s) => s.accountHistory)
+  const isArchive = props.fills !== undefined
   const fills = props.fills ?? liveFills
-  const startingCapital = props.startingCapital ?? liveCap
+  const startingCapital = props.startingCapital ?? 0
 
-  // All risk metrics are derived from the fill stream, not pushed from the
-  // bridge — this keeps the bridge's responsibility surface small.
-  // If precomputed metrics are supplied (archive view from summary.json),
-  // use them directly instead of re-deriving from the fill stream.
   let totalPnl: number
   let returnPct: number
   let maxDdPct: number
@@ -41,11 +43,10 @@ export function RiskPanel(props: RiskPanelProps = {}) {
     sharpe     = props.precomputed.sharpe
     winRate    = props.precomputed.winRate
     totalFills = props.precomputed.totalFills
-  } else {
+  } else if (isArchive) {
     totalPnl  = fills.length ? fills[fills.length - 1].equity - startingCapital : 0
     returnPct = startingCapital ? (totalPnl / startingCapital) * 100 : 0
 
-    // Peak-to-trough drawdown on the equity curve
     let peak = startingCapital
     let maxDd = 0
     for (const f of fills) {
@@ -55,19 +56,47 @@ export function RiskPanel(props: RiskPanelProps = {}) {
     }
     maxDdPct = maxDd * 100
 
-    // Realised PnL per fill → simple Sharpe estimate
     const realised = fills.filter((f) => f.realizedPnl !== 0).map((f) => f.realizedPnl)
     const mean = realised.length ? realised.reduce((a, b) => a + b, 0) / realised.length : 0
     const variance = realised.length
       ? realised.reduce((a, b) => a + (b - mean) ** 2, 0) / realised.length
       : 0
-    const std = Math.sqrt(variance)
-    sharpe = std > 0 ? mean / std : 0
+    sharpe = variance > 0 ? mean / Math.sqrt(variance) : 0
 
-    // Win rate on the realised-PnL fills (the closing leg of each round trip)
     const wins = realised.filter((p) => p > 0).length
     winRate = realised.length ? (wins / realised.length) * 100 : 0
     totalFills = fills.length
+  } else {
+    // Live mode — anchor on the first observed account equity; deltas from
+    // there give Total PnL / Return / Max DD. Sharpe and Win Rate still come
+    // from the fill stream because account snapshots don't carry per-trade
+    // realised PnL.
+    const first = accountHistory[0]?.equity ?? 0
+    const last = accountHistory[accountHistory.length - 1]?.equity ?? first
+    totalPnl  = first ? last - first : 0
+    returnPct = first ? (totalPnl / first) * 100 : 0
+
+    let peak = first
+    let maxDd = 0
+    for (const a of accountHistory) {
+      if (a.equity > peak) peak = a.equity
+      if (peak > 0) {
+        const dd = (peak - a.equity) / peak
+        if (dd > maxDd) maxDd = dd
+      }
+    }
+    maxDdPct = maxDd * 100
+
+    const realised = liveFills.filter((f) => f.realizedPnl !== 0).map((f) => f.realizedPnl)
+    const mean = realised.length ? realised.reduce((a, b) => a + b, 0) / realised.length : 0
+    const variance = realised.length
+      ? realised.reduce((a, b) => a + (b - mean) ** 2, 0) / realised.length
+      : 0
+    sharpe = variance > 0 ? mean / Math.sqrt(variance) : 0
+
+    const wins = realised.filter((p) => p > 0).length
+    winRate = realised.length ? (wins / realised.length) * 100 : 0
+    totalFills = liveFills.length
   }
 
   const pnlColour =

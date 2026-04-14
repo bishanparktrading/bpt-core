@@ -10,8 +10,7 @@ std::string session(std::string_view symbol,
                     std::string_view strategy,
                     std::string_view exchange,
                     std::string_view mode,
-                    std::string_view instrument_type,
-                    double starting_capital) {
+                    std::string_view instrument_type) {
     return json{
         {"type", "session"},
         {"symbol", symbol},
@@ -19,7 +18,6 @@ std::string session(std::string_view symbol,
         {"exchange", exchange},
         {"mode", mode},
         {"instrumentType", instrument_type},
-        {"startingCapital", starting_capital},
     }.dump();
 }
 
@@ -74,6 +72,15 @@ std::string position(std::string_view symbol,
         {"netQty", net_qty},
         {"avgEntry", avg_entry},
         {"unrealizedPnl", unrealized_pnl},
+    }.dump();
+}
+
+std::string account(uint64_t ts_ns, double balance, double equity) {
+    return json{
+        {"type", "account"},
+        {"ts", ts_ns},
+        {"balance", balance},
+        {"equity", equity},
     }.dump();
 }
 

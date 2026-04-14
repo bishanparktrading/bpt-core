@@ -30,7 +30,7 @@ set -euo pipefail
 
 STACK_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 BRIDGE_BIN="$STACK_DIR/build/dashboard/bridge/bridge"
-BRIDGE_CFG="$STACK_DIR/dashboard/bridge/config/bridge.backtest.toml"
+BRIDGE_CFG="$STACK_DIR/dashboard/bridge/config/bridge.live.toml"
 BRIDGE_LOG_DIR="$STACK_DIR/dashboard/bridge/logs"
 BRIDGE_PID="$STACK_DIR/dashboard/bridge/.bridge.pid"
 BACKTEST_SH="$STACK_DIR/scripts/backtest.sh"
@@ -79,15 +79,14 @@ bridge_start() {
     local strategy_name
     strategy_name="$(derive_strategy_name "${FENRIR_CONFIG_OVERRIDE:-}")"
 
+    # NB: bridge no longer takes --starting-capital — it's a backtest concept
+    # only forwarded to jormungandr via backtest.sh.
     local extra_args=()
-    if [ -n "${STARTING_CAPITAL:-}" ]; then
-        extra_args+=(--starting-capital "$STARTING_CAPITAL")
-    fi
     if [ -n "${INSTRUMENT_ID:-}" ]; then
         extra_args+=(--instrument-id "$INSTRUMENT_ID")
     fi
 
-    echo "  Starting bridge (mode: backtest, strategy: $strategy_name${INSTRUMENT_ID:+, instrument_id: $INSTRUMENT_ID}${STARTING_CAPITAL:+, starting_capital: \$$STARTING_CAPITAL})..."
+    echo "  Starting bridge (mode: backtest, strategy: $strategy_name${INSTRUMENT_ID:+, instrument_id: $INSTRUMENT_ID})..."
     nohup "$BRIDGE_BIN" --config "$BRIDGE_CFG" \
                         --mode backtest \
                         --strategy-name "$strategy_name" \

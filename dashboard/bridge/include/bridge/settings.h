@@ -14,6 +14,7 @@ struct Settings {
     ygg::config::StreamConfig exec_report{"aeron:ipc", 3002};   // Heimdall → Fenrir/dashboard
     ygg::config::StreamConfig control_command{"aeron:ipc", 9003}; // bridge → Fenrir (halt/resume)
     ygg::config::StreamConfig portfolio_snapshot{"aeron:ipc", 9004}; // Fenrir → bridge (portfolio state)
+    ygg::config::StreamConfig account_snapshot{"aeron:ipc", 3004};   // Heimdall → bridge (live balance)
 
     // WebSocket
     uint16_t ws_port{8080};
@@ -24,7 +25,6 @@ struct Settings {
     std::string exchange{"OKX"};        // display only
     std::string mode{"paper"};          // display only; "paper" | "live"
     std::string instrument_type{"SPOT"}; // display only; "SPOT" | "PERP" | "FUTURE" | "OPTION"
-    double      starting_capital{100'000.0};
 
     // Instrument filter: when non-zero, the bridge drops MD ticks and fills
     // that aren't for this instrument_id.  When zero, everything is forwarded

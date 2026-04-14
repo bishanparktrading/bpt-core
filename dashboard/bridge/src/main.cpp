@@ -1,6 +1,7 @@
 // bridge — subscribes to Aeron MD + exec report streams, broadcasts JSON
 // messages over WebSocket to the dashboard frontend.
 
+#include "bridge/account_subscriber.h"
 #include "bridge/exec_subscriber.h"
 #include "bridge/md_subscriber.h"
 #include "bridge/message_encoder.h"
@@ -25,8 +26,7 @@ int main(int argc, char** argv) {
     std::string exchange_override;          // --exchange         → session.exchange
     std::string mode_override;              // --mode             → session.mode
     std::string instrument_type_override;   // --instrument-type  → session.instrument_type
-    double      starting_capital_override = 0.0;  // --starting-capital → session.starting_capital
-    uint64_t    instrument_id_override    = 0;    // --instrument-id   → session.instrument_id
+    uint64_t    instrument_id_override = 0; // --instrument-id    → session.instrument_id
 
     for (int i = 1; i < argc - 1; ++i) {
         const std::string arg(argv[i]);
@@ -36,10 +36,6 @@ int main(int argc, char** argv) {
         if (arg == "--exchange")          exchange_override       = argv[i + 1];
         if (arg == "--mode")              mode_override           = argv[i + 1];
         if (arg == "--instrument-type")   instrument_type_override = argv[i + 1];
-        if (arg == "--starting-capital") {
-            try { starting_capital_override = std::stod(argv[i + 1]); }
-            catch (const std::exception&) { /* ignore, default stays */ }
-        }
         if (arg == "--instrument-id") {
             try { instrument_id_override = std::stoull(argv[i + 1]); }
             catch (const std::exception&) { /* ignore, default stays */ }
@@ -61,7 +57,6 @@ int main(int argc, char** argv) {
     if (!exchange_override.empty())        settings.exchange         = exchange_override;
     if (!mode_override.empty())            settings.mode             = mode_override;
     if (!instrument_type_override.empty()) settings.instrument_type  = instrument_type_override;
-    if (starting_capital_override > 0)     settings.starting_capital = starting_capital_override;
     if (instrument_id_override > 0)        settings.instrument_id    = instrument_id_override;
 
     ygg::logging::init("bridge", settings.logging);
@@ -69,16 +64,16 @@ int main(int argc, char** argv) {
     ygg::log::info("[bridge] md_data stream={}  exec_report stream={}  control stream={}",
                    settings.md_data.stream_id, settings.exec_report.stream_id,
                    settings.control_command.stream_id);
-    ygg::log::info("[bridge] mode={} strategy={} symbol={}@{} starting_capital=${:.2f} instrument_filter={}",
+    ygg::log::info("[bridge] mode={} strategy={} symbol={}@{} instrument_filter={}",
                    settings.mode, settings.strategy, settings.symbol, settings.exchange,
-                   settings.starting_capital,
                    settings.instrument_id == 0 ? "(none)" : std::to_string(settings.instrument_id));
 
     // ── Aeron ────────────────────────────────────────────────────────────────
     auto aeron = ygg::aeron::connect(settings.media_driver_dir);
 
-    bridge::MdSubscriber   md_sub(aeron, settings.md_data.channel, settings.md_data.stream_id);
-    bridge::ExecSubscriber exec_sub(aeron, settings.exec_report.channel, settings.exec_report.stream_id);
+    bridge::MdSubscriber      md_sub(aeron, settings.md_data.channel, settings.md_data.stream_id);
+    bridge::ExecSubscriber    exec_sub(aeron, settings.exec_report.channel, settings.exec_report.stream_id);
+    bridge::AccountSubscriber account_sub(aeron, settings.account_snapshot.channel, settings.account_snapshot.stream_id);
 
     // ── Portfolio snapshot subscription (Fenrir → bridge) ────────────────────
     // Fenrir publishes JSON at ~10Hz with option legs, Greeks, and vol surface.
@@ -159,12 +154,14 @@ int main(int argc, char** argv) {
                                        settings.strategy,
                                        settings.exchange,
                                        settings.mode,
-                                       settings.instrument_type,
-                                       settings.starting_capital));
+                                       settings.instrument_type));
     ws.publish(bridge::MsgKind::Status, bridge::encode::status("live"));
 
     // ── Position state (bridge is authoritative) ─────────────────────────────
-    bridge::PositionTracker tracker(settings.starting_capital);
+    // Tracker baseline is 0; per-fill `equity` = cumulative realized PnL since
+    // session start. Absolute equity is sourced from heimdall AccountSnapshots
+    // (see account_subscriber + the dashboard's accountHistory).
+    bridge::PositionTracker tracker;
     double last_mid = 0.0;
 
     // Tick throttle — BBO mids update ~1000 Hz but the dashboard only needs
@@ -215,6 +212,15 @@ int main(int argc, char** argv) {
                                          status_s));
     });
 
+    // Account snapshot handler — forwards live exchange balance/equity to the
+    // frontend. The dashboard uses these as the canonical equity baseline so
+    // the equity curve reflects the actual exchange account, not a static
+    // starting_capital config value.
+    account_sub.set_handler([&](const bridge::AccountSubscriber::Snapshot& s) {
+        ws.publish(bridge::MsgKind::Order,
+                   bridge::encode::account(s.ts_ns, s.available_balance, s.total_equity));
+    });
+
     exec_sub.set_handler([&](const bridge::ExecSubscriber::Fill& f) {
         if (settings.instrument_id != 0 && f.instrument_id != settings.instrument_id) return;
 
@@ -232,7 +238,7 @@ int main(int argc, char** argv) {
                                         f.price,
                                         f.fee,
                                         res.realized_pnl,
-                                        res.equity));
+                                        res.cumulative_pnl));
 
         const double unreal = last_mid > 0 ? tracker.unrealized_pnl(last_mid) : 0.0;
         ws.publish(bridge::MsgKind::Position,
@@ -244,6 +250,7 @@ int main(int argc, char** argv) {
         int work = 0;
         work += md_sub.poll(32);
         work += exec_sub.poll(32);
+        work += account_sub.poll(8);
 
         // Poll portfolio snapshots from fenrir and relay as-is to WS clients.
         // The JSON from fenrir already has type:"portfolio" so the frontend

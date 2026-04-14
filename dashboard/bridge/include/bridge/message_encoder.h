@@ -11,14 +11,16 @@ namespace bridge::encode {
 enum class Side : uint8_t { Buy, Sell };
 
 // { "type":"session", "symbol":"...", "strategy":"...", "exchange":"...",
-//   "mode":"paper|live", "instrumentType":"SPOT|PERP|FUTURE|OPTION",
-//   "startingCapital":100000 }
+//   "mode":"paper|live", "instrumentType":"SPOT|PERP|FUTURE|OPTION" }
+//
+// Equity baseline is sourced from heimdall AccountSnapshots ("account"
+// messages), not from a static config value. The dashboard derives the
+// equity curve and risk metrics from those snapshots.
 std::string session(std::string_view symbol,
                     std::string_view strategy,
                     std::string_view exchange,
                     std::string_view mode,
-                    std::string_view instrument_type,
-                    double starting_capital);
+                    std::string_view instrument_type);
 
 // { "type":"status", "state":"live" }   // "live" | "mock" | "halted" | "off"
 std::string status(std::string_view state);
@@ -44,6 +46,12 @@ std::string position(std::string_view symbol,
                      double net_qty,
                      double avg_entry,
                      double unrealized_pnl);
+
+// { "type":"account", "ts":..., "balance":..., "equity":... }
+// Live exchange account snapshot from heimdall — used as the canonical
+// equity baseline so the dashboard reflects the actual exchange balance
+// rather than a static `starting_capital` config value.
+std::string account(uint64_t ts_ns, double balance, double equity);
 
 // { "type":"order", "ts":..., "orderId":..., "symbol":"...", "side":"BUY",
 //   "orderType":"LIMIT", "price":..., "qty":..., "filledQty":...,

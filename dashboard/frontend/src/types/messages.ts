@@ -20,10 +20,13 @@ export type Side = 'BUY' | 'SELL'
 export type InstrumentType = 'SPOT' | 'PERP' | 'FUTURE' | 'OPTION'
 
 // Sent once at the start of a session (and replayed to mid-run joiners).
+//
+// No starting_capital field — equity for live/paper sessions is sourced
+// from heimdall AccountSnapshots (relayed by the bridge as `account`
+// messages). Backtest archive views read equity from summary.json instead.
 export interface SessionMsg {
   type: 'session'
   symbol: string
-  startingCapital: number
   strategy: string              // e.g. "MomentumStrategy" — display only
   exchange: string              // e.g. "OKX" — display only
   mode: RunMode                 // paper | live | mock — display only
@@ -57,6 +60,16 @@ export interface FillMsg {
   fee: number         // in quote currency
   realizedPnl: number
   equity: number
+}
+
+// Live exchange account snapshot from heimdall, relayed by the bridge.
+// The dashboard uses these as the canonical equity baseline so the equity
+// curve reflects the actual exchange balance, not a static config value.
+export interface AccountMsg {
+  type: 'account'
+  ts: number          // ns since epoch
+  balance: number     // available balance (e.g. USDC)
+  equity: number      // total account equity (falls back to balance when 0)
 }
 
 // Current net position.  Emitted by the bridge after every fill.
@@ -130,4 +143,4 @@ export interface PortfolioMsg {
   }>
 }
 
-export type Msg = SessionMsg | StatusMsg | TickMsg | FillMsg | PositionMsg | OrderMsg | PortfolioMsg
+export type Msg = SessionMsg | StatusMsg | TickMsg | FillMsg | PositionMsg | OrderMsg | PortfolioMsg | AccountMsg

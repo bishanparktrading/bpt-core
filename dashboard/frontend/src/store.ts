@@ -53,7 +53,12 @@ interface State {
   strategy: string
   exchange: string
   instrumentType: InstrumentType | null
-  startingCapital: number
+
+  // Live exchange account — canonical equity source for live/paper.
+  // Backtest archive views never populate these and use summary.json instead.
+  accountBalance: number
+  accountEquity: number
+  accountHistory: Array<{ ts: number; equity: number }>
 
   // Market
   firstPrice: number     // set on the first tick; used for top-bar % change
@@ -104,7 +109,11 @@ const initialState = {
   strategy: '',
   exchange: '',
   instrumentType: null as InstrumentType | null,
-  startingCapital: 0,
+  // Live exchange account snapshots from heimdall, relayed by the bridge.
+  // The EquityChart and RiskPanel use these as the canonical equity series.
+  accountBalance: 0,
+  accountEquity: 0,
+  accountHistory: [] as Array<{ ts: number; equity: number }>,
   firstPrice: 0,
   price: 0,
   netQty: 0,
@@ -128,7 +137,6 @@ export const useStore = create<State>((set) => ({
         case 'session':
           return {
             symbol: msg.symbol,
-            startingCapital: msg.startingCapital,
             strategy: msg.strategy,
             exchange: msg.exchange,
             mode: msg.mode,
@@ -197,6 +205,25 @@ export const useStore = create<State>((set) => ({
             avgEntry: msg.avgEntry,
             unrealizedPnl: msg.unrealizedPnl,
           }
+
+        case 'account': {
+          // Append to history, but dedupe by second so multiple snapshots
+          // in the same second collapse to the most recent value (otherwise
+          // lightweight-charts errors on duplicate timestamps).
+          const tsSec = Math.floor(msg.ts / 1_000_000_000)
+          const last = state.accountHistory[state.accountHistory.length - 1]
+          let history: Array<{ ts: number; equity: number }>
+          if (last && Math.floor(last.ts / 1_000_000_000) === tsSec) {
+            history = [...state.accountHistory.slice(0, -1), { ts: msg.ts, equity: msg.equity }]
+          } else {
+            history = [...state.accountHistory, { ts: msg.ts, equity: msg.equity }]
+          }
+          return {
+            accountBalance: msg.balance,
+            accountEquity: msg.equity,
+            accountHistory: history,
+          }
+        }
 
         case 'portfolio': {
           const legs: OptionLeg[] = msg.legs

@@ -30,10 +30,15 @@ const CHART_THEME = {
 }
 
 export function EquityChart(props: EquityChartProps = {}) {
-  const liveFills = useStore((s) => s.fills)
-  const liveCap = useStore((s) => s.startingCapital)
-  const fills = props.fills ?? liveFills
-  const startingCapital = props.startingCapital ?? liveCap
+  // Two modes:
+  //   1. Live/paper — driven by heimdall AccountSnapshots in the store.
+  //      props.fills is undefined; we plot accountHistory directly.
+  //   2. Archive — caller passes `fills` (with absolute equity values from
+  //      summary.json) and a startingCapital anchor. No store access.
+  const accountHistory = useStore((s) => s.accountHistory)
+  const isArchive = props.fills !== undefined
+  const fills = props.fills ?? []
+  const startingCapital = props.startingCapital ?? 0
   const hostRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<'Area'> | null>(null)
@@ -96,27 +101,37 @@ export function EquityChart(props: EquityChartProps = {}) {
     const series = seriesRef.current
     if (!series) return
 
-    // Anchor point at the starting capital just before the first fill so the
-    // line starts flat at $100k and visibly responds to the first trade.
-    // Dedupe by second-granularity time: lightweight-charts requires strictly
-    // ascending timestamps, but multiple fills can land in the same second
-    // (common with market-making / arb strategies). Keep the latest equity
-    // for each second so the curve reflects the most recent state.
-    const firstTs = fills.length ? Math.floor(fills[0].ts / 1_000_000_000) - 60 : 0
+    // Lightweight-charts requires strictly ascending timestamps, so dedupe by
+    // second-granularity time and keep the latest value per second.
     const byTime = new Map<number, number>()
-    for (const f of fills) {
-      byTime.set(Math.floor(f.ts / 1_000_000_000), f.equity)
+    if (isArchive) {
+      for (const f of fills) {
+        byTime.set(Math.floor(f.ts / 1_000_000_000), f.equity)
+      }
+    } else {
+      for (const a of accountHistory) {
+        byTime.set(Math.floor(a.ts / 1_000_000_000), a.equity)
+      }
     }
-    const points = [
-      { time: firstTs as UTCTimestamp, value: startingCapital },
-      ...[...byTime.entries()]
-        .sort(([a], [b]) => a - b)
-        .map(([t, v]) => ({ time: t as UTCTimestamp, value: v })),
-    ]
+
+    // Anchor point just before the first event so the line starts flat
+    // and visibly responds to the first change. In archive mode the
+    // anchor is the run's starting capital; in live mode it's the first
+    // observed account equity (no static capital baseline exists).
+    const sorted = [...byTime.entries()].sort(([a], [b]) => a - b)
+    const points: Array<{ time: UTCTimestamp; value: number }> = []
+    if (sorted.length > 0) {
+      const anchorTime = (sorted[0][0] - 60) as UTCTimestamp
+      const anchorVal = isArchive ? startingCapital : sorted[0][1]
+      points.push({ time: anchorTime, value: anchorVal })
+    }
+    for (const [t, v] of sorted) {
+      points.push({ time: t as UTCTimestamp, value: v })
+    }
 
     series.setData(points)
     chartRef.current?.timeScale().fitContent()
-  }, [fills, startingCapital])
+  }, [fills, startingCapital, accountHistory, isArchive])
 
   return <div className="chart-host" ref={hostRef} />
 }

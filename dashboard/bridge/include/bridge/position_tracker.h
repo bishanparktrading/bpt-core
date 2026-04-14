@@ -7,15 +7,18 @@
 namespace bridge {
 
 // Running position state derived from a stream of fills.
-// Responsible for computing realised PnL and equity — the bridge is the
-// authoritative source of these values, the frontend just displays them.
+//
+// Tracks net qty / avg entry and the cumulative realized PnL since session
+// start. Absolute account equity is sourced from heimdall AccountSnapshots
+// in the dashboard — this class deliberately has no notion of a starting
+// capital baseline.
 class PositionTracker {
 public:
-    explicit PositionTracker(double starting_capital) : starting_capital_(starting_capital), equity_(starting_capital) {}
+    PositionTracker() = default;
 
     struct FillResult {
-        double realized_pnl;   // realised on this fill (0 unless closing/reducing)
-        double equity;         // equity after this fill
+        double realized_pnl;       // realized on this fill (0 unless closing/reducing)
+        double cumulative_pnl;     // running total of realized PnL since session start
         double net_qty;
         double avg_entry;
     };
@@ -24,8 +27,7 @@ public:
 
     double net_qty()       const noexcept { return net_qty_;  }
     double avg_entry()     const noexcept { return avg_entry_; }
-    double equity()        const noexcept { return equity_;   }
-    double starting_capital() const noexcept { return starting_capital_; }
+    double cumulative_pnl() const noexcept { return cumulative_pnl_; }
 
     // Mark-to-market PnL given the current market price.
     double unrealized_pnl(double mark_price) const noexcept {
@@ -34,8 +36,7 @@ public:
     }
 
 private:
-    double starting_capital_;
-    double equity_;
+    double cumulative_pnl_{0.0};
     double net_qty_{0.0};
     double avg_entry_{0.0};
 };

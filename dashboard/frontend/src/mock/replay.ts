@@ -14,7 +14,6 @@ interface ReplayConfig {
   symbol: string
   strategy: string
   exchange: string
-  startingCapital: number
   intervalMs?: number   // time between fills (default 1200)
   initialDelayMs?: number
 }
@@ -47,11 +46,11 @@ class PositionTracker {
 }
 
 export function startMockReplay(cfg: ReplayConfig): () => void {
-  const { fills, symbol, strategy, exchange, startingCapital, intervalMs = 1200, initialDelayMs = 500 } = cfg
+  const { fills, symbol, strategy, exchange, intervalMs = 1200, initialDelayMs = 500 } = cfg
   const dispatch = (msg: Msg) => useStore.getState().handleMessage(msg)
 
   useStore.getState().reset()
-  dispatch({ type: 'session', symbol, startingCapital, strategy, exchange, mode: 'mock' })
+  dispatch({ type: 'session', symbol, strategy, exchange, mode: 'mock' })
   dispatch({ type: 'status', state: 'mock' })
 
   const tracker = new PositionTracker()

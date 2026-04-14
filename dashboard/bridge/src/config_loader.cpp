@@ -44,6 +44,8 @@ Settings load(const std::string& path) {
             (*aeron)["control_command"].as_table(), s.control_command.channel, s.control_command.stream_id);
         s.portfolio_snapshot = load_stream(
             (*aeron)["portfolio_snapshot"].as_table(), s.portfolio_snapshot.channel, s.portfolio_snapshot.stream_id);
+        s.account_snapshot = load_stream(
+            (*aeron)["account_snapshot"].as_table(), s.account_snapshot.channel, s.account_snapshot.stream_id);
     }
 
     // WebSocket
@@ -58,7 +60,6 @@ Settings load(const std::string& path) {
         if (auto v = (*sess)["exchange"].value<std::string>()) s.exchange = *v;
         if (auto v = (*sess)["mode"].value<std::string>()) s.mode = *v;
         if (auto v = (*sess)["instrument_type"].value<std::string>()) s.instrument_type = *v;
-        if (auto v = (*sess)["starting_capital"].value<double>()) s.starting_capital = *v;
         if (auto v = (*sess)["instrument_id"].value<int64_t>())
             s.instrument_id = static_cast<uint64_t>(*v);
     }

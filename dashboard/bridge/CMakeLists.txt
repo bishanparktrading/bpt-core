@@ -7,6 +7,7 @@ add_library(bridge_lib
     src/message_encoder.cpp
     src/position_tracker.cpp
     src/ws_server.cpp
+    src/account_subscriber.cpp
     src/exec_subscriber.cpp
     src/md_subscriber.cpp
     src/config_loader.cpp

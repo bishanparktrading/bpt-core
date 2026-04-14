@@ -62,14 +62,13 @@ export default function App() {
         symbol: 'BTC-USDT',
         strategy: 'VwapReversion',
         exchange: 'OKX',
-        startingCapital: 100_000,
         intervalMs: 1200,
       })
     }
     return connectWebSocket({ url: WS_URL })
   }, [])
 
-  const finalEquity = fills.length ? fills[fills.length - 1].equity : 100_000
+  const finalEquity = fills.length ? fills[fills.length - 1].equity : 0
 
   // Options data — use live store data if available, fall back to mock.
   const storeLegs = useStore((s) => s.optionLegs)
