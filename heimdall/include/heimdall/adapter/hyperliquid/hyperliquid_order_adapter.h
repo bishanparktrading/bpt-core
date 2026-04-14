@@ -5,7 +5,13 @@
 #include "heimdall/adapter/hyperliquid/hyperliquid_exec_parser.h"
 #include "heimdall/adapter/hyperliquid/hyperliquid_signer.h"
 
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/ssl/context.hpp>
+#include <boost/asio/ssl/stream.hpp>
+#include <boost/beast/core/tcp_stream.hpp>
+#include <boost/beast/ssl/ssl_stream.hpp>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 
@@ -42,7 +48,19 @@ private:
     void handle_message(const std::string& payload, uint64_t recv_ns);
 
     // HTTPS POST to Hyperliquid REST endpoint.
+    //
+    // Uses a persistent TCP/TLS connection (https_stream_) that is lazily
+    // established on the first call and reused for subsequent requests.
+    // Each order previously paid ~1 s for TCP SYN + TLS 1.2 handshake +
+    // TLS shutdown; reusing the connection drops that to one RTT per
+    // request. On I/O error the stream is reset and one retry is attempted.
+    //
+    // Called from both the OrderProcessor thread (send_new_order / cancel /
+    // modify) and the detached account-snapshot thread in heimdall_app's
+    // main loop, so it's protected by https_mutex_.
     std::string https_post(const std::string& path, const std::string& body);
+    void https_connect();   // must be called with https_mutex_ held
+    void https_close() noexcept;
 
     bool enabled_{false};  // false if private_key credential is empty
     std::string wallet_address_;
@@ -54,6 +72,12 @@ private:
     // send_cancel looks up the mapping here. Single-threaded access from
     // the OrderProcessor thread (send_new_order/send_cancel never overlap).
     std::unordered_map<uint64_t, uint64_t> client_to_exch_oid_;
+
+    // Persistent TLS connection to the HL REST endpoint.
+    std::mutex https_mutex_;
+    boost::asio::io_context https_ioc_;
+    boost::asio::ssl::context https_ssl_ctx_{boost::asio::ssl::context::tls_client};
+    std::unique_ptr<boost::beast::ssl_stream<boost::beast::tcp_stream>> https_stream_;
 };
 
 }  // namespace heimdall::adapter

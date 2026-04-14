@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <stdexcept>
 #include <string>
+#include <yggdrasil/util/tsc_clock.h>
 
 namespace heimdall::adapter {
 
@@ -88,39 +89,105 @@ HyperliquidOrderAdapter::HyperliquidOrderAdapter(const config::AdapterConfig& cf
     }
 }
 
-std::string HyperliquidOrderAdapter::https_post(const std::string& path, const std::string& body) {
-    net::io_context ioc;
-    ssl::context ssl_ctx(ssl::context::tls_client);
-    ssl_ctx.set_default_verify_paths();
-    ssl_ctx.set_verify_mode(ssl::verify_peer);
+void HyperliquidOrderAdapter::https_connect() {
+    // Lazily initialize the ssl::context on first connect so ctor stays cheap.
+    static bool ssl_ctx_ready = false;
+    if (!ssl_ctx_ready) {
+        https_ssl_ctx_.set_default_verify_paths();
+        https_ssl_ctx_.set_verify_mode(ssl::verify_peer);
+        ssl_ctx_ready = true;
+    }
 
-    tcp::resolver resolver(ioc);
-    beast::ssl_stream<beast::tcp_stream> stream(ioc, ssl_ctx);
+    https_stream_ = std::make_unique<beast::ssl_stream<beast::tcp_stream>>(https_ioc_, https_ssl_ctx_);
 
-    if (!SSL_set_tlsext_host_name(stream.native_handle(), cfg_.rest_host.c_str()))
+    if (!SSL_set_tlsext_host_name(https_stream_->native_handle(), cfg_.rest_host.c_str())) {
+        https_stream_.reset();
         throw std::runtime_error("SSL_set_tlsext_host_name failed");
+    }
 
-    auto results = resolver.resolve(cfg_.rest_host, cfg_.rest_port);
-    beast::get_lowest_layer(stream).connect(results);
-    stream.handshake(ssl::stream_base::client);
+    tcp::resolver resolver(https_ioc_);
+    const auto results = resolver.resolve(cfg_.rest_host, cfg_.rest_port);
+    beast::get_lowest_layer(*https_stream_).connect(results);
+    https_stream_->handshake(ssl::stream_base::client);
+
+    // No SO_LINGER timer on the socket; HL closes idle connections after a
+    // while and we reconnect lazily. No read/write timeout either — the
+    // TLS handshake is the slow part and it only happens here.
+
+    ygg::log::info("[Heimdall] HyperliquidOrderAdapter: TLS connected to {}:{}",
+                   cfg_.rest_host, cfg_.rest_port);
+}
+
+void HyperliquidOrderAdapter::https_close() noexcept {
+    if (!https_stream_) return;
+    beast::error_code ec;
+    https_stream_->shutdown(ec);
+    // beast::get_lowest_layer(*https_stream_).socket().close(ec);  // implicit on dtor
+    https_stream_.reset();
+}
+
+std::string HyperliquidOrderAdapter::https_post(const std::string& path, const std::string& body) {
+    std::lock_guard<std::mutex> lock(https_mutex_);
 
     http::request<http::string_body> req(http::verb::post, path, 11);
     req.set(http::field::host, cfg_.rest_host);
     req.set(http::field::user_agent, "heimdall/0.1");
     req.set(http::field::content_type, "application/json");
+    req.keep_alive(true);
     req.body() = body;
     req.prepare_payload();
 
-    http::write(stream, req);
+    // One retry on I/O error: HL closes idle keep-alive connections after
+    // ~60 s, so the first send on a stale connection throws. Reconnect
+    // once and resend before giving up.
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        try {
+            const uint64_t t0 = ygg::util::TscClock::now_epoch_ns();
 
-    beast::flat_buffer buf;
-    http::response<http::string_body> res;
-    http::read(stream, buf, res);
+            const bool needed_connect = !https_stream_;
+            if (needed_connect)
+                https_connect();
+            const uint64_t t_conn = ygg::util::TscClock::now_epoch_ns();
 
-    beast::error_code ec;
-    stream.shutdown(ec);
+            http::write(*https_stream_, req);
+            const uint64_t t_write = ygg::util::TscClock::now_epoch_ns();
 
-    return res.body();
+            beast::flat_buffer buf;
+            http::response<http::string_body> res;
+            http::read(*https_stream_, buf, res);
+            const uint64_t t_read = ygg::util::TscClock::now_epoch_ns();
+
+            // HL sends `Connection: close` on some error responses; honour it.
+            if (res.keep_alive() == false)
+                https_close();
+
+            // Per-request timing breakdown. At DEBUG so the log isn't spammed
+            // in steady-state operation; enable to trace latency regressions.
+            // `server+read` dominates on Hyperliquid because each /exchange
+            // call waits for block inclusion on HL's L1 (~500 ms blocks,
+            // observed 74–1600 ms per request). TLS pooling eliminates
+            // connect cost but HL's commit latency is upstream of us.
+            ygg::log::debug("[Heimdall] HyperliquidOrderAdapter: https_post {} "
+                            "total={:.1f}ms  connect={:.1f}ms  write={:.2f}ms  server+read={:.1f}ms  reused={}",
+                            path,
+                            (t_read  - t0)     / 1e6,
+                            (t_conn  - t0)     / 1e6,
+                            (t_write - t_conn) / 1e6,
+                            (t_read  - t_write)/ 1e6,
+                            !needed_connect);
+
+            return res.body();
+        } catch (const std::exception& e) {
+            ygg::log::warn("[Heimdall] HyperliquidOrderAdapter: https_post attempt {} failed: {}",
+                           attempt, e.what());
+            https_close();
+            if (attempt == 1) throw;  // bubble up after retry
+        }
+    }
+
+    // Unreachable — the loop either returns on success or throws on the
+    // second failure. Present to satisfy compiler return analysis.
+    throw std::runtime_error("https_post: unreachable");
 }
 
 void HyperliquidOrderAdapter::handle_message(const std::string& payload, uint64_t recv_ns) {
@@ -339,9 +406,12 @@ void HyperliquidOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& 
         try {
             auto rj = json::parse(resp).as_object();
             const std::string status = rj.contains("status") ? std::string(rj.at("status").as_string()) : "";
-            const uint64_t now_ns = static_cast<uint64_t>(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::system_clock::now().time_since_epoch()).count());
+            // TscClock, not system_clock — order_processor's created_ns is
+            // TscClock-sourced, and subtracting across different clocks
+            // silently measures clock skew as phantom latency (order-ack
+            // RTT was showing ~1.5 s of pure skew on top of real ~200 ms
+            // network RTT). Everything on heimdall's read path is TscClock.
+            const uint64_t now_ns = ygg::util::TscClock::now_epoch_ns();
 
             auto emit = [&](ES::Value es, RR::Value rr, uint64_t filled_qty,
                             uint64_t exch_oid) {
@@ -492,9 +562,7 @@ void HyperliquidOrderAdapter::send_cancel(const bifrost::protocol::CancelOrder& 
             const std::string status = rj.contains("status") ? std::string(rj.at("status").as_string()) : "";
             if (status != "ok") return;
 
-            const uint64_t now_ns = static_cast<uint64_t>(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::system_clock::now().time_since_epoch()).count());
+            const uint64_t now_ns = ygg::util::TscClock::now_epoch_ns();
 
             ExecEvent ev{};
             ev.order_id = cancel.orderId();
