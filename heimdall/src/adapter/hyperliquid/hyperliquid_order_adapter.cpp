@@ -191,23 +191,182 @@ std::string HyperliquidOrderAdapter::https_post(const std::string& path, const s
 }
 
 void HyperliquidOrderAdapter::handle_message(const std::string& payload, uint64_t recv_ns) {
-    auto root = json::parse(payload);
-    if (!root.is_object())
+    // Cheap early-outs for small frames HL sends (`{"channel":"pong"}`,
+    // subscriptionResponse acks, etc.) — skip full JSON parse overhead.
+    if (payload.size() < 16) return;
+
+    json::value root;
+    try {
+        root = json::parse(payload);
+    } catch (const std::exception&) {
         return;
+    }
+    if (!root.is_object()) return;
     const auto& obj = root.as_object();
 
     auto channel_it = obj.find("channel");
     auto data_it = obj.find("data");
-    if (channel_it == obj.end() || data_it == obj.end())
-        return;
+    if (channel_it == obj.end() || data_it == obj.end()) return;
+    if (!channel_it->value().is_string()) return;
 
-    if (std::string(channel_it->value().as_string()) == "user") {
+    const std::string_view channel(channel_it->value().as_string());
+
+    if (channel == "user") {
         const auto& data = data_it->value().as_object();
         auto fills_it = data.find("fills");
-        if (fills_it == data.end())
-            return;
+        if (fills_it == data.end()) return;
         parser_.handle_fills(fills_it->value().as_array(), recv_ns);
+        return;
     }
+
+    if (channel == "error") {
+        // Protocol-level error (e.g. HL rejecting an envelope it can't
+        // parse, like the `modify` action which isn't supported over the
+        // WS post endpoint). These come back WITHOUT an id so we can't
+        // match them to a specific pending post. Fail all in-flight
+        // senders with the error text so they unblock immediately
+        // instead of waiting for the 5 s timeout.
+        std::string err;
+        if (data_it->value().is_string()) {
+            err = std::string(data_it->value().as_string());
+        } else {
+            err = json::serialize(data_it->value());
+        }
+        ygg::log::warn("[Heimdall] HyperliquidOrderAdapter: HL WS channel=error: {}",
+                       err.substr(0, 200));
+        fail_pending_posts("HL WS error: " + err);
+        return;
+    }
+
+    if (channel == "post") {
+        // Post response: {"channel":"post","data":{"id":<N>,"response":{
+        //   "type":"action","payload":{...}} | {"type":"error","payload":"msg"}}}
+        if (!data_it->value().is_object()) return;
+        const auto& data = data_it->value().as_object();
+
+        auto id_it = data.find("id");
+        if (id_it == data.end() || !id_it->value().is_int64()) return;
+        const uint64_t id = static_cast<uint64_t>(id_it->value().as_int64());
+
+        // Serialize the response.payload (or the error string) — caller
+        // parses exactly what the REST /exchange body used to return.
+        std::string body;
+        auto response_it = data.find("response");
+        if (response_it != data.end() && response_it->value().is_object()) {
+            const auto& resp = response_it->value().as_object();
+            auto type_it = resp.find("type");
+            auto payload_it = resp.find("payload");
+            if (type_it != resp.end() && payload_it != resp.end() &&
+                type_it->value().is_string()) {
+                const std::string_view t(type_it->value().as_string());
+                if (t == "action") {
+                    body = json::serialize(payload_it->value());
+                } else if (t == "error") {
+                    // Wrap HL error strings in the same shape send_new_order
+                    // already handles: {"status":"err","response":"<msg>"}
+                    json::object wrapper;
+                    wrapper["status"] = "err";
+                    wrapper["response"] = payload_it->value();
+                    body = json::serialize(wrapper);
+                }
+            }
+        }
+
+        // Resolve the matching promise under the mutex. Missing id =
+        // stale response (e.g. arrived after we timed out) — drop it.
+        std::lock_guard<std::mutex> lock(pending_posts_mutex_);
+        auto it = pending_posts_.find(id);
+        if (it == pending_posts_.end()) return;
+        try {
+            it->second.set_value(std::move(body));
+        } catch (const std::future_error&) {
+            // Promise already satisfied — ignore.
+        }
+        pending_posts_.erase(it);
+    }
+}
+
+std::string HyperliquidOrderAdapter::ws_post_action(const json::value& action,
+                                                    uint64_t nonce,
+                                                    const SignedTransaction& sig) {
+    // Snapshot the current stream — a reconnect after this point can't
+    // pull the rug out from under us; the old shared_ptr keeps the stream
+    // alive until this function returns.
+    std::shared_ptr<WsStream> stream;
+    {
+        std::lock_guard<std::mutex> lock(ws_lifecycle_mutex_);
+        stream = ws_stream_;
+    }
+    if (!stream) {
+        throw std::runtime_error("HL WS not connected");
+    }
+
+    const uint64_t id = next_post_id_.fetch_add(1, std::memory_order_relaxed);
+
+    // Build the wrapped request. action is re-used by reference — no copy.
+    json::object signature;
+    signature["r"] = "0x" + sig.r;
+    signature["s"] = "0x" + sig.s;
+    signature["v"] = sig.v;
+
+    json::object payload;
+    payload["action"] = action;
+    payload["nonce"] = nonce;
+    payload["signature"] = std::move(signature);
+
+    json::object inner_request;
+    inner_request["type"] = "action";
+    inner_request["payload"] = std::move(payload);
+
+    json::object envelope;
+    envelope["method"] = "post";
+    envelope["id"] = id;
+    envelope["request"] = std::move(inner_request);
+
+    const std::string frame = json::serialize(envelope);
+
+    // Register the pending promise BEFORE writing, so a fast response
+    // can't arrive between write and registration.
+    std::future<std::string> fut;
+    {
+        std::lock_guard<std::mutex> lock(pending_posts_mutex_);
+        fut = pending_posts_[id].get_future();
+    }
+
+    try {
+        std::lock_guard<std::mutex> lock(ws_write_mutex_);
+        stream->write(boost::asio::buffer(frame));
+    } catch (const std::exception& e) {
+        // Write failed — remove the registered promise and propagate.
+        std::lock_guard<std::mutex> lock(pending_posts_mutex_);
+        pending_posts_.erase(id);
+        throw;
+    }
+
+    // Block until the reader resolves the promise or we time out.
+    // HL p99 is ~2 s so 5 s is a generous ceiling; anything longer
+    // means the connection is likely dead and we want to surface that
+    // as an error so the caller can REJECT and the strategy moves on.
+    const auto status = fut.wait_for(std::chrono::seconds(5));
+    if (status != std::future_status::ready) {
+        std::lock_guard<std::mutex> lock(pending_posts_mutex_);
+        pending_posts_.erase(id);
+        throw std::runtime_error("HL WS post timeout");
+    }
+
+    return fut.get();
+}
+
+void HyperliquidOrderAdapter::fail_pending_posts(const std::string& reason) {
+    std::lock_guard<std::mutex> lock(pending_posts_mutex_);
+    for (auto& [id, promise] : pending_posts_) {
+        try {
+            promise.set_exception(std::make_exception_ptr(std::runtime_error(reason)));
+        } catch (const std::future_error&) {
+            // Already satisfied — ignore.
+        }
+    }
+    pending_posts_.clear();
 }
 
 void HyperliquidOrderAdapter::connect_and_run() {
@@ -224,7 +383,7 @@ void HyperliquidOrderAdapter::connect_and_run() {
                    cfg_.ws_path);
 
     tcp::resolver resolver(ioc_);
-    auto ws = std::make_unique<websocket::stream<beast::ssl_stream<beast::tcp_stream>>>(ioc_, ssl_ctx_);
+    auto ws = std::make_shared<WsStream>(ioc_, ssl_ctx_);
 
     auto results = resolver.resolve(cfg_.ws_host, cfg_.ws_port);
     beast::get_lowest_layer(*ws).connect(results);
@@ -236,6 +395,14 @@ void HyperliquidOrderAdapter::connect_and_run() {
     ws->set_option(websocket::stream_base::decorator(
         [](websocket::request_type& req) { req.set(boost::beast::http::field::user_agent, "heimdall/0.1"); }));
     ws->handshake(cfg_.ws_host, cfg_.ws_path);
+
+    // Publish the stream so send_new_order / send_cancel can write to it
+    // via ws_post_action from the OrderProcessor thread. Do this AFTER
+    // the handshake completes so senders never see a half-open stream.
+    {
+        std::lock_guard<std::mutex> lock(ws_lifecycle_mutex_);
+        ws_stream_ = ws;
+    }
 
     // Subscribe to userFills for the main wallet. The real address comes
     // from credentials (HYPERLIQUID_WALLET_ADDRESS). A placeholder zero
@@ -252,6 +419,7 @@ void HyperliquidOrderAdapter::connect_and_run() {
         sub_detail["type"] = "userFills";
         sub_detail["user"] = wallet_address_;
         sub_msg["subscription"] = sub_detail;
+        std::lock_guard<std::mutex> lock(ws_write_mutex_);
         ws->write(net::buffer(json::serialize(sub_msg)));
         ygg::log::info("[Heimdall] HyperliquidOrderAdapter: subscribed userFills for {}", wallet_address_);
     }
@@ -278,6 +446,7 @@ void HyperliquidOrderAdapter::connect_and_run() {
                 break;
             try {
                 static const std::string msg = R"({"method":"ping"})";
+                std::lock_guard<std::mutex> lock(ws_write_mutex_);
                 ws->write(net::buffer(msg));
                 ygg::log::info("[Heimdall] HyperliquidOrderAdapter: ping sent");
             } catch (const std::exception& e) {
@@ -299,6 +468,20 @@ void HyperliquidOrderAdapter::connect_and_run() {
         }
     } join_guard{ping_stop, ping_thread};
 
+    // On exit from the read loop (normal or via exception), clear the
+    // published ws_stream_ and fail any pending post futures so no
+    // OrderProcessor-thread caller waits forever on a dead connection.
+    struct StreamGuard {
+        HyperliquidOrderAdapter* self;
+        ~StreamGuard() {
+            {
+                std::lock_guard<std::mutex> lock(self->ws_lifecycle_mutex_);
+                self->ws_stream_.reset();
+            }
+            self->fail_pending_posts("HL WS disconnected");
+        }
+    } stream_guard{this};
+
     beast::flat_buffer buf;
     while (!stop_flag_.load(std::memory_order_relaxed)) {
         beast::error_code ec;
@@ -311,7 +494,7 @@ void HyperliquidOrderAdapter::connect_and_run() {
         if (ec)
             throw beast::system_error(ec);
 
-        uint64_t recv_ns = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
+        uint64_t recv_ns = ygg::util::WallClock::now_ns();
         handle_message(std::string(static_cast<const char*>(buf.data().data()), buf.data().size()), recv_ns);
         buf.consume(buf.size());
     }
@@ -369,17 +552,11 @@ void HyperliquidOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& 
         const uint64_t nonce = signer_->next_nonce();
         auto tx = signer_->sign_l1_action(action, nonce);
 
-        json::object signature;
-        signature["r"] = "0x" + tx.r;
-        signature["s"] = "0x" + tx.s;
-        signature["v"] = tx.v;
-
-        json::object req;
-        req["action"] = std::move(action);
-        req["nonce"] = nonce;
-        req["signature"] = std::move(signature);
-
-        std::string resp = https_post("/exchange", json::serialize(req));
+        // Post over the existing heimdall WS (shared with userFills sub)
+        // instead of opening a fresh HTTPS /exchange request. Response
+        // payload shape is identical to the REST body, so downstream
+        // parsing below is unchanged.
+        const std::string resp = ws_post_action(action, nonce, tx);
         ygg::log::info("[Heimdall] HyperliquidOrderAdapter: new order id={} side={} px={} sz={} resp={}",
                        order.orderId(),
                        is_buy ? "BUY" : "SELL",
@@ -529,17 +706,7 @@ void HyperliquidOrderAdapter::send_cancel(const bifrost::protocol::CancelOrder& 
         const uint64_t nonce = signer_->next_nonce();
         auto tx = signer_->sign_l1_action(action, nonce);
 
-        json::object signature;
-        signature["r"] = "0x" + tx.r;
-        signature["s"] = "0x" + tx.s;
-        signature["v"] = tx.v;
-
-        json::object req;
-        req["action"] = std::move(action);
-        req["nonce"] = nonce;
-        req["signature"] = std::move(signature);
-
-        std::string resp = https_post("/exchange", json::serialize(req));
+        const std::string resp = ws_post_action(action, nonce, tx);
         ygg::log::info("[Heimdall] HyperliquidOrderAdapter: cancel id={} resp={}",
                        cancel.orderId(), resp);
 
@@ -624,17 +791,20 @@ void HyperliquidOrderAdapter::send_modify(const bifrost::protocol::ModifyOrder& 
         const uint64_t nonce = signer_->next_nonce();
         auto tx = signer_->sign_l1_action(action, nonce);
 
+        // HL doesn't accept the `modify` action over the WS post
+        // endpoint — it returns `{"channel":"error","data":"Error parsing
+        // JSON into valid websocket request: ..."}` at parse time.
+        // Fall back to REST for modify only; order/cancel still go via WS.
+        json::object req;
+        req["action"] = std::move(action);
+        req["nonce"] = nonce;
         json::object signature;
         signature["r"] = "0x" + tx.r;
         signature["s"] = "0x" + tx.s;
         signature["v"] = tx.v;
-
-        json::object req;
-        req["action"] = std::move(action);
-        req["nonce"] = nonce;
         req["signature"] = std::move(signature);
 
-        std::string resp = https_post("/exchange", json::serialize(req));
+        const std::string resp = https_post("/exchange", json::serialize(req));
         ygg::log::debug("[Heimdall] HyperliquidOrderAdapter: modify resp={}", resp);
     } catch (const std::exception& e) {
         ygg::log::error("[Heimdall] HyperliquidOrderAdapter: send_modify failed: {}", e.what());
