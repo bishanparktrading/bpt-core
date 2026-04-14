@@ -8,7 +8,6 @@
 #include <bifrost_protocol/RejectReason.h>
 
 #include <chrono>
-#include <nlohmann/json.hpp>
 #include <thread>
 #include <yggdrasil/signal.h>
 
@@ -114,22 +113,12 @@ FenrirApp::FenrirApp(config::AppConfig cfg, std::shared_ptr<aeron::Aeron> aeron)
         }
     }
 
-    // Portfolio snapshot publication — JSON serialized strategy state
-    // published every ~100ms for the dashboard's options panels.
-    if (!cfg_.backtest_mode && ac.dashboard_snapshot.stream_id != 0) {
-        const int64_t reg_id = aeron->addPublication(
-            ac.dashboard_snapshot.channel, ac.dashboard_snapshot.stream_id);
-        for (int i = 0; i < 500; ++i) {
-            dashboard_snapshot_pub_ = aeron->findPublication(reg_id);
-            if (dashboard_snapshot_pub_) break;
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
-        if (dashboard_snapshot_pub_) {
-            ygg::log::info("[Fenrir] Dashboard snapshot publication ready on stream {}",
-                           ac.dashboard_snapshot.stream_id);
-        } else {
-            ygg::log::warn("[Fenrir] Dashboard snapshot publication unavailable");
-        }
+    // Portfolio snapshot publication — JSON-serialized strategy state for
+    // the dashboard's options panels, throttled to ~10 Hz inside the
+    // publisher. Disabled in backtest mode.
+    if (!cfg_.backtest_mode) {
+        portfolio_snap_pub_ = std::make_unique<dashboard::PortfolioSnapshotPublisher>(
+            aeron, ac.dashboard_snapshot.channel, ac.dashboard_snapshot.stream_id);
     }
 }
 
@@ -402,70 +391,9 @@ void FenrirApp::run() {
             check_service_liveness();
             report_latency_stats();
 
-            // Publish portfolio snapshot to the dashboard bridge at ~10Hz.
-            if (dashboard_snapshot_pub_) {
-                const uint64_t now_ns = ygg::util::TscClock::now_epoch_ns();
-                if (now_ns - last_snapshot_ns_ >= 100'000'000ULL) {
-                    last_snapshot_ns_ = now_ns;
-                    auto ps = strategy_->get_portfolio_state();
-                    if (!ps.legs.empty() || !ps.surface_points.empty()) {
-                        nlohmann::json j;
-                        j["type"] = "portfolio";
-                        j["ts"] = now_ns;
-                        j["delta"] = ps.portfolio_delta;
-                        j["gamma"] = ps.portfolio_gamma;
-                        j["vega"] = ps.portfolio_vega;
-                        j["theta"] = ps.portfolio_theta;
-                        j["unrealizedPnl"] = ps.total_unrealized_pnl;
-                        j["realizedPnl"] = ps.total_realized_pnl;
-
-                        auto& legs = j["legs"];
-                        legs = nlohmann::json::array();
-                        for (const auto& l : ps.legs) {
-                            legs.push_back({
-                                {"instrumentId", l.instrument_id},
-                                {"symbol", l.symbol},
-                                {"underlying", l.underlying},
-                                {"expiry", l.expiry_date},
-                                {"strike", l.strike},
-                                {"isCall", l.is_call},
-                                {"isOption", l.is_option},
-                                {"qty", l.qty},
-                                {"entryPrice", l.entry_price},
-                                {"markPrice", l.mark_price},
-                                {"iv", l.iv},
-                                {"delta", l.delta},
-                                {"gamma", l.gamma},
-                                {"vega", l.vega},
-                                {"theta", l.theta},
-                                {"unrealizedPnl", l.unrealized_pnl},
-                            });
-                        }
-
-                        auto& surf = j["surface"];
-                        surf = nlohmann::json::array();
-                        for (const auto& sp : ps.surface_points) {
-                            surf.push_back({
-                                {"instrumentId", sp.instrument_id},
-                                {"expiry", sp.expiry_date},
-                                {"strike", sp.strike},
-                                {"isCall", sp.is_call},
-                                {"iv", sp.iv},
-                                {"bidIv", sp.bid_iv},
-                                {"askIv", sp.ask_iv},
-                                {"delta", sp.delta},
-                                {"tte", sp.time_to_expiry},
-                            });
-                        }
-
-                        auto payload = j.dump();
-                        aeron::AtomicBuffer buf(
-                            reinterpret_cast<uint8_t*>(payload.data()),
-                            static_cast<aeron::util::index_t>(payload.size()));
-                        dashboard_snapshot_pub_->offer(buf, 0,
-                            static_cast<aeron::util::index_t>(payload.size()));
-                    }
-                }
+            if (portfolio_snap_pub_ && portfolio_snap_pub_->is_active()) {
+                portfolio_snap_pub_->publish_if_due(strategy_->get_portfolio_state(),
+                                                    ygg::util::TscClock::now_epoch_ns());
             }
         }
 

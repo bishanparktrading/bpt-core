@@ -2,6 +2,7 @@ add_library(fenrir_lib
     app/fenrir_app.cpp
     backtest/backtest_client.cpp
     config/config.cpp
+    dashboard/portfolio_snapshot_publisher.cpp
     metrics/metrics.cpp
     refdata/refdata_client.cpp
     refdata/instrument_cache.cpp

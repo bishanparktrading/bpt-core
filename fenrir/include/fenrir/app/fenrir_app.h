@@ -2,6 +2,7 @@
 
 #include "fenrir/backtest/backtest_client.h"
 #include "fenrir/config/config.h"
+#include "fenrir/dashboard/portfolio_snapshot_publisher.h"
 #include "fenrir/md/md_client.h"
 #include "fenrir/metrics/metrics.h"
 #include "fenrir/order/order_gateway_client.h"
@@ -46,7 +47,7 @@ private:
     std::unique_ptr<strategy::IStrategy> strategy_;
     std::unique_ptr<backtest::BacktestClient> backtest_client_;
     std::shared_ptr<aeron::Subscription> dashboard_ctrl_sub_;
-    std::shared_ptr<aeron::Publication> dashboard_snapshot_pub_;
+    std::unique_ptr<dashboard::PortfolioSnapshotPublisher> portfolio_snap_pub_;
 
     bool refdata_ready_{false};
     bool surtr_ready_{false};
@@ -78,7 +79,6 @@ private:
     ygg::util::LatencyHistogram order_lat_hist_;
     uint64_t curr_tick_ts_ns_{0};     // T0 of the tick currently being processed
     uint64_t last_lat_report_ns_{0};  // TSC ns of the last latency report
-    uint64_t last_snapshot_ns_{0};    // TSC ns of the last portfolio snapshot
 };
 
 }  // namespace fenrir
