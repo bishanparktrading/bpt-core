@@ -12,6 +12,7 @@ add_library(heimdall_lib
     adapter/common/order_adapter_base.cpp
     adapter/binance/binance_order_adapter.cpp
     adapter/binance/binance_exec_parser.cpp
+    adapter/okx/okx_action_codec.cpp
     adapter/okx/okx_order_adapter.cpp
     adapter/okx/okx_exec_parser.cpp
     adapter/deribit/deribit_order_adapter.cpp

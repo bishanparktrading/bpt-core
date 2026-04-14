@@ -1,6 +1,7 @@
 #include "heimdall/adapter/okx/okx_order_adapter.h"
 
 #include "heimdall/adapter/common/credentials.h"
+#include "heimdall/adapter/okx/okx_action_codec.h"
 
 #include <bifrost_protocol/ExchangeId.h>
 #include <bifrost_protocol/ExecStatus.h>
@@ -367,70 +368,22 @@ void OKXOrderAdapter::connect_and_run() {
 }
 
 void OKXOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& order) {
-    using OT = bifrost::protocol::OrderType;
-    using OS = bifrost::protocol::OrderSide;
-    using TIF = bifrost::protocol::TimeInForce;
-
     const std::string exchange_symbol = order.getExchangeSymbolAsString();
-
-    std::string cloid = session_prefix_ + "G" + std::to_string(order.orderId());
+    const std::string cloid = session_prefix_ + "G" + std::to_string(order.orderId());
     parser_.register_order(cloid, order.orderId());
 
-    std::string side_str = (order.side() == OS::BUY) ? "buy" : "sell";
-    std::string type_str;
-    if (order.orderType() == OT::MARKET)
-        type_str = "market";
-    else if (order.orderType() == OT::POST_ONLY)
-        type_str = "post_only";
-    else
-        type_str = "limit";
-
-    std::string tif_str;
-    switch (order.timeInForce()) {
-        case TIF::IOC:
-            tif_str = "ioc";
-            break;
-        case TIF::FOK:
-            tif_str = "fok";
-            break;
-        default:
-            tif_str = "gtc";
-            break;
-    }
-
-    json::object arg;
-    arg["instId"] = exchange_symbol;
-    // wseeapap endpoint requires instIdCode
-    if (auto it = inst_id_codes_.find(exchange_symbol); it != inst_id_codes_.end())
-        arg["instIdCode"] = it->second;
-    // Perpetuals/futures use cross margin; spot uses cash.
-    bool is_perp =
-        exchange_symbol.find("-SWAP") != std::string::npos || exchange_symbol.find("-FUTURES") != std::string::npos;
-    arg["tdMode"] = is_perp ? "cross" : "cash";
-    arg["side"] = side_str;
-    arg["ordType"] = type_str;
-    {
-        // Convert Fenrir qty (base_currency * kQtyScale) → OKX sz (contracts).
-        // SWAP/FUTURES: sz = qty_base / ctVal.  SPOT: ctVal=1, sz = qty_base.
-        double qty_base = static_cast<double>(order.quantity()) / kQtyScale;
-        double ctval = 1.0;
-        if (auto it = contract_sizes_.find(exchange_symbol); it != contract_sizes_.end())
-            ctval = it->second;
-        arg["sz"] = std::to_string(qty_base / ctval);
-    }
-    arg["clOrdId"] = cloid;
-    if (order.orderType() != OT::MARKET) {
-        arg["px"] = std::to_string(static_cast<double>(order.price()) / kPriceScale);
-    }
-
-    json::object msg;
-    msg["id"] = "r" + std::to_string(ws_req_id_.fetch_add(1, std::memory_order_relaxed));
-    msg["op"] = "order";
-    json::array args;
-    args.push_back(arg);
-    msg["args"] = std::move(args);
-
-    std::string frame = json::serialize(msg);
+    const okx::OrderSpec spec{
+        exchange_symbol,
+        order.side(),
+        order.orderType(),
+        order.timeInForce(),
+        order.price(),
+        order.quantity(),
+        cloid,
+    };
+    const uint64_t req_id = ws_req_id_.fetch_add(1, std::memory_order_relaxed);
+    const std::string frame = json::serialize(
+        okx::build_order_action(spec, req_id, inst_id_codes_, contract_sizes_));
     auto emit_rejection = [&]() {
         uint64_t ts = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
         ExecEvent rej;
@@ -466,20 +419,11 @@ void OKXOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& order) {
 }
 
 void OKXOrderAdapter::send_cancel(const bifrost::protocol::CancelOrder& cancel, const std::string& native_symbol) {
-    std::string cloid = session_prefix_ + "G" + std::to_string(cancel.orderId());
+    const std::string cloid = session_prefix_ + "G" + std::to_string(cancel.orderId());
+    const uint64_t req_id = ws_req_id_.fetch_add(1, std::memory_order_relaxed);
+    const std::string frame = json::serialize(
+        okx::build_cancel_action(native_symbol, cloid, req_id));
 
-    json::object arg;
-    arg["instId"] = native_symbol;
-    arg["clOrdId"] = cloid;
-
-    json::object msg;
-    msg["id"] = "c" + std::to_string(ws_req_id_.fetch_add(1, std::memory_order_relaxed));
-    msg["op"] = "cancel-order";
-    json::array args;
-    args.push_back(arg);
-    msg["args"] = std::move(args);
-
-    std::string frame = json::serialize(msg);
     std::lock_guard<std::mutex> lk(send_mu_);
     if (ws_send_) {
         try {
@@ -495,27 +439,10 @@ void OKXOrderAdapter::send_cancel_all(uint64_t instrument_id) {
 }
 
 void OKXOrderAdapter::send_modify(const bifrost::protocol::ModifyOrder& modify, const std::string& native_symbol) {
-    std::string cloid = session_prefix_ + "G" + std::to_string(modify.orderId());
+    const std::string cloid = session_prefix_ + "G" + std::to_string(modify.orderId());
+    const std::string frame = json::serialize(
+        okx::build_modify_action(native_symbol, cloid, modify.newPrice(), modify.newQuantity(), contract_sizes_));
 
-    json::object arg;
-    arg["instId"] = native_symbol;
-    arg["clOrdId"] = cloid;
-    arg["newPx"] = std::to_string(static_cast<double>(modify.newPrice()) / kPriceScale);
-    {
-        double qty_base = static_cast<double>(modify.newQuantity()) / kQtyScale;
-        double ctval = 1.0;
-        if (auto it = contract_sizes_.find(native_symbol); it != contract_sizes_.end())
-            ctval = it->second;
-        arg["newSz"] = std::to_string(qty_base / ctval);
-    }
-
-    json::object msg;
-    msg["op"] = "amend-order";
-    json::array args;
-    args.push_back(arg);
-    msg["args"] = std::move(args);
-
-    std::string frame = json::serialize(msg);
     std::lock_guard<std::mutex> lk(send_mu_);
     if (ws_send_) {
         try {
