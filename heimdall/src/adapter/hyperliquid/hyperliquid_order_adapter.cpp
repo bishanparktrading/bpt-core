@@ -42,6 +42,8 @@ namespace hlcodec = heimdall::adapter::hyperliquid;
 HyperliquidOrderAdapter::HyperliquidOrderAdapter(const config::AdapterConfig& cfg, const ExchangeCredentials& creds)
     : OrderAdapterBase(cfg),
       wallet_address_(creds.wallet_address) {
+    https_client_ = std::make_unique<hyperliquid::HyperliquidHttpsClient>(cfg.rest_host, cfg.rest_port);
+
     parser_.on_exec_event = [this](const ExecEvent& ev) {
         if (!exec_queue_.try_push(ev))
             ygg::log::error("[Hyperliquid] exec_queue full — dropped ExecEvent order_id={}", ev.order_id);
@@ -62,106 +64,9 @@ HyperliquidOrderAdapter::HyperliquidOrderAdapter(const config::AdapterConfig& cf
     }
 }
 
-void HyperliquidOrderAdapter::https_connect() {
-    // Lazily initialize the ssl::context on first connect so ctor stays cheap.
-    static bool ssl_ctx_ready = false;
-    if (!ssl_ctx_ready) {
-        https_ssl_ctx_.set_default_verify_paths();
-        https_ssl_ctx_.set_verify_mode(ssl::verify_peer);
-        ssl_ctx_ready = true;
-    }
-
-    https_stream_ = std::make_unique<beast::ssl_stream<beast::tcp_stream>>(https_ioc_, https_ssl_ctx_);
-
-    if (!SSL_set_tlsext_host_name(https_stream_->native_handle(), cfg_.rest_host.c_str())) {
-        https_stream_.reset();
-        throw std::runtime_error("SSL_set_tlsext_host_name failed");
-    }
-
-    tcp::resolver resolver(https_ioc_);
-    const auto results = resolver.resolve(cfg_.rest_host, cfg_.rest_port);
-    beast::get_lowest_layer(*https_stream_).connect(results);
-    https_stream_->handshake(ssl::stream_base::client);
-
-    // No SO_LINGER timer on the socket; HL closes idle connections after a
-    // while and we reconnect lazily. No read/write timeout either — the
-    // TLS handshake is the slow part and it only happens here.
-
-    ygg::log::info("[Heimdall] HyperliquidOrderAdapter: TLS connected to {}:{}",
-                   cfg_.rest_host, cfg_.rest_port);
-}
-
-void HyperliquidOrderAdapter::https_close() noexcept {
-    if (!https_stream_) return;
-    beast::error_code ec;
-    https_stream_->shutdown(ec);
-    // beast::get_lowest_layer(*https_stream_).socket().close(ec);  // implicit on dtor
-    https_stream_.reset();
-}
-
-std::string HyperliquidOrderAdapter::https_post(const std::string& path, const std::string& body) {
-    std::lock_guard<std::mutex> lock(https_mutex_);
-
-    http::request<http::string_body> req(http::verb::post, path, 11);
-    req.set(http::field::host, cfg_.rest_host);
-    req.set(http::field::user_agent, "heimdall/0.1");
-    req.set(http::field::content_type, "application/json");
-    req.keep_alive(true);
-    req.body() = body;
-    req.prepare_payload();
-
-    // One retry on I/O error: HL closes idle keep-alive connections after
-    // ~60 s, so the first send on a stale connection throws. Reconnect
-    // once and resend before giving up.
-    for (int attempt = 0; attempt < 2; ++attempt) {
-        try {
-            const uint64_t t0 = ygg::util::TscClock::now_epoch_ns();
-
-            const bool needed_connect = !https_stream_;
-            if (needed_connect)
-                https_connect();
-            const uint64_t t_conn = ygg::util::TscClock::now_epoch_ns();
-
-            http::write(*https_stream_, req);
-            const uint64_t t_write = ygg::util::TscClock::now_epoch_ns();
-
-            beast::flat_buffer buf;
-            http::response<http::string_body> res;
-            http::read(*https_stream_, buf, res);
-            const uint64_t t_read = ygg::util::TscClock::now_epoch_ns();
-
-            // HL sends `Connection: close` on some error responses; honour it.
-            if (res.keep_alive() == false)
-                https_close();
-
-            // Per-request timing breakdown. At DEBUG so the log isn't spammed
-            // in steady-state operation; enable to trace latency regressions.
-            // `server+read` dominates on Hyperliquid because each /exchange
-            // call waits for block inclusion on HL's L1 (~500 ms blocks,
-            // observed 74–1600 ms per request). TLS pooling eliminates
-            // connect cost but HL's commit latency is upstream of us.
-            ygg::log::debug("[Heimdall] HyperliquidOrderAdapter: https_post {} "
-                            "total={:.1f}ms  connect={:.1f}ms  write={:.2f}ms  server+read={:.1f}ms  reused={}",
-                            path,
-                            (t_read  - t0)     / 1e6,
-                            (t_conn  - t0)     / 1e6,
-                            (t_write - t_conn) / 1e6,
-                            (t_read  - t_write)/ 1e6,
-                            !needed_connect);
-
-            return res.body();
-        } catch (const std::exception& e) {
-            ygg::log::warn("[Heimdall] HyperliquidOrderAdapter: https_post attempt {} failed: {}",
-                           attempt, e.what());
-            https_close();
-            if (attempt == 1) throw;  // bubble up after retry
-        }
-    }
-
-    // Unreachable — the loop either returns on success or throws on the
-    // second failure. Present to satisfy compiler return analysis.
-    throw std::runtime_error("https_post: unreachable");
-}
+// HTTPS/REST path extracted to HyperliquidHttpsClient — see
+// hyperliquid_https_client.{h,cpp}. The adapter holds an instance via
+// https_client_ and delegates `/info` + modify fallback to it.
 
 void HyperliquidOrderAdapter::handle_message(const std::string& payload, uint64_t recv_ns) {
     // Cheap early-outs for small frames HL sends (`{"channel":"pong"}`,
@@ -611,7 +516,7 @@ void HyperliquidOrderAdapter::send_modify(const bifrost::protocol::ModifyOrder& 
         signature["v"] = tx.v;
         req["signature"] = std::move(signature);
 
-        const std::string resp = https_post("/exchange", json::serialize(req));
+        const std::string resp = https_client_->post("/exchange", json::serialize(req));
         ygg::log::debug("[Heimdall] HyperliquidOrderAdapter: modify resp={}", resp);
     } catch (const std::exception& e) {
         ygg::log::error("[Heimdall] HyperliquidOrderAdapter: send_modify failed: {}", e.what());
@@ -646,7 +551,7 @@ AccountSnapshotData HyperliquidOrderAdapter::fetch_account_snapshot(uint64_t cor
     json::object req_body;
     req_body["type"] = "clearinghouseState";
     req_body["user"] = wallet_address;
-    std::string resp = https_post("/info", json::serialize(json::value(req_body)));
+    std::string resp = https_client_->post("/info", json::serialize(json::value(req_body)));
 
     try {
         auto j = json::parse(resp).as_object();

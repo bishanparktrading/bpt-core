@@ -4,13 +4,9 @@
 #include "heimdall/adapter/common/order_adapter_base.h"
 #include "heimdall/adapter/hyperliquid/hyperliquid_exec_emitter.h"
 #include "heimdall/adapter/hyperliquid/hyperliquid_exec_parser.h"
+#include "heimdall/adapter/hyperliquid/hyperliquid_https_client.h"
 #include "heimdall/adapter/hyperliquid/hyperliquid_signer.h"
 
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ssl/context.hpp>
-#include <boost/asio/ssl/stream.hpp>
-#include <boost/beast/core/tcp_stream.hpp>
-#include <boost/beast/ssl/ssl_stream.hpp>
 #include <boost/beast/websocket.hpp>
 #include <boost/beast/websocket/ssl.hpp>
 #include <boost/json/fwd.hpp>
@@ -53,13 +49,6 @@ protected:
 private:
     void handle_message(const std::string& payload, uint64_t recv_ns);
 
-    // HTTPS POST to Hyperliquid REST endpoint. Still used for /info
-    // queries (clearinghouseState, meta) which are unsigned public reads
-    // and don't benefit from the WS post path.
-    std::string https_post(const std::string& path, const std::string& body);
-    void https_connect();   // must be called with https_mutex_ held
-    void https_close() noexcept;
-
     // WebSocket post action API — the fast path for signed exchange actions.
     //
     // HL exposes a `{"method":"post","id":N,"request":{"type":"action",
@@ -92,11 +81,9 @@ private:
     // the OrderProcessor thread (send_new_order/send_cancel never overlap).
     std::unordered_map<uint64_t, uint64_t> client_to_exch_oid_;
 
-    // Persistent TLS connection to the HL REST endpoint (used by /info).
-    std::mutex https_mutex_;
-    boost::asio::io_context https_ioc_;
-    boost::asio::ssl::context https_ssl_ctx_{boost::asio::ssl::context::tls_client};
-    std::unique_ptr<boost::beast::ssl_stream<boost::beast::tcp_stream>> https_stream_;
+    // REST client for /info queries (clearinghouseState, meta) and as
+    // a fallback for signed actions the WS post path can't handle (modify).
+    std::unique_ptr<hyperliquid::HyperliquidHttpsClient> https_client_;
 
     // WS stream shared with the read loop + ping thread + order senders.
     // shared_ptr so a reconnect in connect_and_run() doesn't pull the
