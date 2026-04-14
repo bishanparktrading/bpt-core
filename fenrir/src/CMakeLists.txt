@@ -33,6 +33,7 @@ target_link_libraries(fenrir_lib PUBLIC
     bifrost::protocol
     fmt::fmt
     tomlplusplus::tomlplusplus
+    prometheus-cpp::pull
     Threads::Threads
 )
 

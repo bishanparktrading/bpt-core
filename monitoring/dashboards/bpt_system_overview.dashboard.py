@@ -75,17 +75,21 @@ HEALTH_THRESHOLDS = [
 
 health_panels = [
     stat("muninn",   'muninn_healthy or on() vector(0)',
-         x=0,  y=0, thresholds=HEALTH_THRESHOLDS),
+         x=0,  y=0, w=3, thresholds=HEALTH_THRESHOLDS),
     stat("huginn",   'huginn_healthy or on() vector(0)',
-         x=4,  y=0, thresholds=HEALTH_THRESHOLDS),
+         x=3,  y=0, w=3, thresholds=HEALTH_THRESHOLDS),
     stat("heimdall", 'heimdall_healthy or on() vector(0)',
-         x=8,  y=0, thresholds=HEALTH_THRESHOLDS),
-    stat("scrape up", 'min(up)',
-         x=12, y=0, thresholds=HEALTH_THRESHOLDS),
+         x=6,  y=0, w=3, thresholds=HEALTH_THRESHOLDS),
+    stat("fenrir",   'fenrir_healthy or on() vector(0)',
+         x=9,  y=0, w=3, thresholds=HEALTH_THRESHOLDS),
+    stat("strategy active", 'fenrir_strategy_active or on() vector(0)',
+         x=12, y=0, w=3, thresholds=HEALTH_THRESHOLDS),
+    stat("trading paused", 'fenrir_trading_paused or on() vector(0)',
+         x=15, y=0, w=3),
     stat("open orders", 'heimdall_open_orders',
-         x=16, y=0),
+         x=18, y=0, w=3),
     stat("instruments", 'muninn_instruments_total',
-         x=20, y=0),
+         x=21, y=0, w=3),
 ]
 
 
@@ -145,7 +149,25 @@ latency_panels = [
             target('histogram_quantile(0.99, sum(rate(heimdall_order_ack_rtt_ns_bucket[5m])) by (le)) / 1000',
                    'p99'),
         ],
-        x=0, y=17, w=24, h=8,
+        x=0, y=17, w=12, h=8,
+    ),
+    # Fenrir internal latency. Measures T0 = huginn tick publish time →
+    # T3 = strategy callback returns (and the order-placed subset). The
+    # heimdall panel above is the EXCHANGE round-trip; this one isolates
+    # our own code path, which should be microseconds on a healthy box.
+    graph(
+        "Fenrir tick→strategy latency — µs",
+        [
+            target('histogram_quantile(0.50, sum(rate(fenrir_tick_to_strategy_ns_bucket[5m])) by (le)) / 1000',
+                   'tick p50'),
+            target('histogram_quantile(0.99, sum(rate(fenrir_tick_to_strategy_ns_bucket[5m])) by (le)) / 1000',
+                   'tick p99'),
+            target('histogram_quantile(0.50, sum(rate(fenrir_tick_to_order_ns_bucket[5m])) by (le)) / 1000',
+                   'order p50'),
+            target('histogram_quantile(0.99, sum(rate(fenrir_tick_to_order_ns_bucket[5m])) by (le)) / 1000',
+                   'order p99'),
+        ],
+        x=12, y=17, w=12, h=8,
     ),
 ]
 
@@ -176,7 +198,7 @@ error_panels = [
 
 dashboard = Dashboard(
     title="BPT System Overview",
-    description="Operational health for muninn / huginn / heimdall.",
+    description="Operational health for muninn / huginn / heimdall / fenrir.",
     tags=["bpt", "ops"],
     timezone="browser",
     refresh="10s",

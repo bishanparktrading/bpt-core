@@ -186,6 +186,7 @@ void FenrirApp::wire_md_callbacks() {
             if (bbo_count <= 3)
                 ygg::log::debug("[Latency] bbo raw delta={}ns", delta);
             tick_lat_hist_.record(delta);
+            metrics_.tick_to_strategy_ns_hist->Observe(static_cast<double>(delta));
         }
     };
 
@@ -196,8 +197,11 @@ void FenrirApp::wire_md_callbacks() {
         curr_tick_ts_ns_ = tick.timestampNs();
         strategy_->on_trade(tick);
         const uint64_t t3 = ygg::util::TscClock::now_epoch_ns();
-        if (t3 > curr_tick_ts_ns_)
-            tick_lat_hist_.record(t3 - curr_tick_ts_ns_);
+        if (t3 > curr_tick_ts_ns_) {
+            const uint64_t delta = t3 - curr_tick_ts_ns_;
+            tick_lat_hist_.record(delta);
+            metrics_.tick_to_strategy_ns_hist->Observe(static_cast<double>(delta));
+        }
     };
 
     md_client_->on_order_book = [this](const bifrost::protocol::MdOrderBook& book) {
@@ -205,8 +209,11 @@ void FenrirApp::wire_md_callbacks() {
             curr_tick_ts_ns_ = book.timestampNs();
             strategy_->on_order_book(book);
             const uint64_t t3 = ygg::util::TscClock::now_epoch_ns();
-            if (t3 > curr_tick_ts_ns_)
-                tick_lat_hist_.record(t3 - curr_tick_ts_ns_);
+            if (t3 > curr_tick_ts_ns_) {
+                const uint64_t delta = t3 - curr_tick_ts_ns_;
+                tick_lat_hist_.record(delta);
+                metrics_.tick_to_strategy_ns_hist->Observe(static_cast<double>(delta));
+            }
         }
     };
 }
@@ -231,7 +238,9 @@ void FenrirApp::wire_vol_callbacks() {
 void FenrirApp::wire_order_callbacks() {
     if (order_mgr_) {
         order_mgr_->on_order_placed = [this](uint64_t /*order_id*/) {
-            order_lat_hist_.record(ygg::util::TscClock::now_epoch_ns() - curr_tick_ts_ns_);
+            const uint64_t delta = ygg::util::TscClock::now_epoch_ns() - curr_tick_ts_ns_;
+            order_lat_hist_.record(delta);
+            metrics_.tick_to_order_ns_hist->Observe(static_cast<double>(delta));
         };
     }
 

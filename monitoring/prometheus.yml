@@ -2,9 +2,6 @@
 #
 # The bpt services run on the docker host (WSL), so we scrape them via
 # host.docker.internal which docker-compose maps to the host gateway.
-# Fenrir is intentionally absent — its metrics module is a no-op stub
-# today. Add it once fenrir/metrics/metrics.h is replaced with the real
-# prometheus-cpp implementation.
 
 global:
   scrape_interval: 5s          # ops dashboards want sub-10s freshness
@@ -31,6 +28,12 @@ scrape_configs:
       - targets: ['host.docker.internal:9101']
         labels:
           service: muninn
+
+  - job_name: fenrir
+    static_configs:
+      - targets: ['host.docker.internal:9104']
+        labels:
+          service: fenrir
 
   - job_name: prometheus
     static_configs:
