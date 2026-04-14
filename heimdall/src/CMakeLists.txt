@@ -10,6 +10,10 @@ add_library(heimdall_lib
     order/order_state_manager.cpp
     order/order_processor.cpp
     adapter/common/order_adapter_base.cpp
+    adapter/binance/binance_action_codec.cpp
+    adapter/binance/binance_auth.cpp
+    adapter/binance/binance_https_client.cpp
+    adapter/binance/binance_user_data_ws.cpp
     adapter/binance/binance_order_adapter.cpp
     adapter/binance/binance_exec_parser.cpp
     adapter/okx/okx_action_codec.cpp

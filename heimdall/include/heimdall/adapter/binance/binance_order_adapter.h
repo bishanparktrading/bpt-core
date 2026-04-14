@@ -1,25 +1,29 @@
 #pragma once
 
 #include "heimdall/adapter/binance/binance_exec_parser.h"
+#include "heimdall/adapter/binance/binance_https_client.h"
+#include "heimdall/adapter/binance/binance_user_data_ws.h"
 #include "heimdall/adapter/common/credentials.h"
 #include "heimdall/adapter/common/order_adapter_base.h"
 
-#include <chrono>
-#include <cstdint>
 #include <string>
 
 namespace heimdall::adapter {
 
-// BinanceOrderAdapter connects to the Binance user data stream (via listenKey)
-// for execution reports and places/cancels orders via REST (POST
-// /api/v3/order).
+// BinanceOrderAdapter places orders via REST (POST /api/v3/order) and
+// subscribes to the user-data WebSocket (via listenKey) for exec
+// reports. Transport is split across four components:
+//
+//   - binance_https_client  — TLS REST client
+//   - binance_auth          — query-string HMAC-SHA256 signer
+//   - binance_action_codec  — pure query-param builders
+//   - binance_user_data_ws  — listenKey lifecycle + read loop
+//
+// The adapter itself is pure orchestration: ctor wiring, send_*
+// methods that compose codec + auth + https_client, and a user-data
+// dispatch callback into BinanceExecParser.
 //
 // Credentials are passed directly via ExchangeCredentials (api_key, secret_key).
-//
-// listenKey lifecycle:
-//   On connect: POST /api/v3/userDataStream to create listenKey.
-//   Every 30 minutes: PUT /api/v3/userDataStream to extend.
-//   On disconnect: DELETE /api/v3/userDataStream.
 class BinanceOrderAdapter : public OrderAdapterBase {
 public:
     BinanceOrderAdapter(const config::AdapterConfig& cfg, const ExchangeCredentials& creds);
@@ -41,31 +45,14 @@ protected:
     void connect_and_run() override;
 
 private:
-    // HTTPS helper: synchronous POST/PUT/DELETE to Binance REST API.
-    std::string https_request(const std::string& method,
-                              const std::string& path,
-                              const std::string& body,
-                              bool with_api_key);
-
-    // Build a signed query string for private REST endpoints.
-    std::string sign_query(const std::string& params) const;
-
-    // listenKey management.
-    std::string create_listen_key();
-    void extend_listen_key(const std::string& listen_key);
-    void delete_listen_key(const std::string& listen_key);
-
-    // Route a raw userDataStream WebSocket event to the parser.
     void handle_user_data_message(const std::string& payload, uint64_t recv_ns);
 
     std::string api_key_;
     std::string secret_key_;
 
-    // Track last listenKey ping time
-    std::chrono::steady_clock::time_point last_ping_;
-    std::string listen_key_;
-
     BinanceExecParser parser_;
+    binance::BinanceHttpsClient https_client_;
+    binance::BinanceUserDataWs user_data_ws_;
 };
 
 }  // namespace heimdall::adapter

@@ -3,8 +3,6 @@
 #include <bifrost_protocol/ExchangeId.h>
 #include <bifrost_protocol/ExecStatus.h>
 #include <bifrost_protocol/FeeCurrency.h>
-#include <bifrost_protocol/OrderSide.h>
-#include <bifrost_protocol/OrderType.h>
 #include <bifrost_protocol/RejectReason.h>
 
 #include <boost/json.hpp>
@@ -102,6 +100,83 @@ void BinanceExecParser::handle_execution_report(const json::object& obj, uint64_
         ev.reject_reason = RR::EXCHANGE_ERROR;
     } else {
         return;  // ignore PENDING_CANCEL and other types
+    }
+
+    if (on_exec_event)
+        on_exec_event(ev);
+}
+
+void BinanceExecParser::handle_order_response(const json::object& obj,
+                                               uint64_t order_id,
+                                               bifrost::protocol::OrderSide::Value side,
+                                               bifrost::protocol::OrderType::Value order_type,
+                                               uint64_t recv_ns) {
+    using ES = bifrost::protocol::ExecStatus;
+    using RR = bifrost::protocol::RejectReason;
+
+    ExecEvent ev{};
+    ev.order_id = order_id;
+    ev.exchange_id = bifrost::protocol::ExchangeId::BINANCE;
+    ev.instrument_id = 0;
+    ev.local_ts_ns = recv_ns;
+    ev.reject_reason = RR::OK;
+    ev.side = side;
+    ev.order_type = order_type;
+
+    // Binance error response has "code" field (negative integer).
+    if (auto code_it = obj.find("code"); code_it != obj.end()) {
+        auto msg_it = obj.find("msg");
+        std::string msg = (msg_it != obj.end()) ? std::string(msg_it->value().as_string()) : "?";
+        ygg::log::error(
+            "[Heimdall] BinanceExecParser: exchange rejected order={} code={} msg={}",
+            order_id,
+            code_it->value().as_int64(),
+            msg);
+        ev.exchange_ts_ns = recv_ns;
+        ev.status = ES::REJECTED;
+        ev.reject_reason = RR::EXCHANGE_ERROR;
+        if (on_exec_event)
+            on_exec_event(ev);
+        return;
+    }
+
+    if (auto oit = obj.find("orderId"); oit != obj.end())
+        ev.exchange_order_id = static_cast<uint64_t>(oit->value().as_int64());
+
+    ev.price = static_cast<int64_t>(std::stod(std::string(obj.at("price").as_string())) * kScale);
+    ev.filled_qty = static_cast<uint64_t>(std::stod(std::string(obj.at("executedQty").as_string())) * kScale);
+    const uint64_t total_qty = static_cast<uint64_t>(std::stod(std::string(obj.at("origQty").as_string())) * kScale);
+    ev.remaining_qty = total_qty > ev.filled_qty ? total_qty - ev.filled_qty : 0;
+
+    if (auto tsit = obj.find("transactTime"); tsit != obj.end())
+        ev.exchange_ts_ns = static_cast<uint64_t>(tsit->value().as_int64()) * 1000000ULL;
+    else
+        ev.exchange_ts_ns = recv_ns;
+
+    // Fee: sum fills if present.
+    ev.fee = 0;
+    ev.fee_currency = bifrost::protocol::FeeCurrency::USDT;
+    if (auto fit = obj.find("fills"); fit != obj.end() && fit->value().is_array()) {
+        for (const auto& fill : fit->value().as_array()) {
+            const auto& f = fill.as_object();
+            ev.fee += static_cast<int64_t>(std::stod(std::string(f.at("commission").as_string())) * kScale);
+            if (auto fcit = f.find("commissionAsset"); fcit != f.end())
+                ev.fee_currency = parse_fee_currency(std::string(fcit->value().as_string()));
+        }
+    }
+
+    const std::string status = std::string(obj.at("status").as_string());
+    if (status == "NEW")
+        ev.status = ES::ACKED;
+    else if (status == "FILLED")
+        ev.status = ES::FILLED;
+    else if (status == "PARTIALLY_FILLED")
+        ev.status = ES::PARTIAL;
+    else if (status == "CANCELED" || status == "EXPIRED")
+        ev.status = ES::CANCELLED;
+    else {
+        ev.status = ES::REJECTED;
+        ev.reject_reason = RR::EXCHANGE_ERROR;
     }
 
     if (on_exec_event)
