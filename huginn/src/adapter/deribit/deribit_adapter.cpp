@@ -127,7 +127,10 @@ void DeribitAdapter::read_loop(ygg::ws::AnyWsStream& ws) {
             throw beast::system_error(ec);
 
         last_recv = std::chrono::steady_clock::now();
-        uint64_t recv_ns = ygg::util::TscClock::now_epoch_ns();
+        // WallClock, not TscClock — this timestamp crosses a process boundary
+        // (huginn → fenrir via Aeron SBE) and would suffer from per-process
+        // TscClock calibration drift. See HyperliquidAdapter for details.
+        uint64_t recv_ns = ygg::util::WallClock::now_ns();
         std::string_view msg(static_cast<const char*>(buf.data().data()), buf.data().size());
         push_frame(msg, recv_ns);
         buf.consume(buf.size());

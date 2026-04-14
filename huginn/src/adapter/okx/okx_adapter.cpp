@@ -133,7 +133,10 @@ void OkxAdapter::read_loop(ygg::ws::AnyWsStream& ws) {
 
         last_recv = std::chrono::steady_clock::now();
 
-        uint64_t recv_ns = ygg::util::TscClock::now_epoch_ns();
+        // See HyperliquidAdapter for the WallClock vs TscClock rationale:
+        // this timestamp is serialized into SBE MD messages and compared
+        // across process boundaries, so it has to be from CLOCK_REALTIME.
+        uint64_t recv_ns = ygg::util::WallClock::now_ns();
         std::string_view msg(static_cast<const char*>(buf.data().data()), buf.data().size());
 
         if (msg == "ping") {

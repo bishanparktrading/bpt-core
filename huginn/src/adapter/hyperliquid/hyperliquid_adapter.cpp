@@ -122,7 +122,12 @@ void HyperliquidAdapter::read_loop(ygg::ws::AnyWsStream& ws) {
             throw beast::system_error(ec);
 
         last_recv = std::chrono::steady_clock::now();
-        uint64_t recv_ns = ygg::util::TscClock::now_epoch_ns();
+        // WallClock (not TscClock): this timestamp is serialized into the
+        // SBE MD message and compared by downstream services (fenrir) on
+        // receipt. TscClock calibration is per-process and drifts across
+        // services, which manifests as uint64 underflow in fenrir's
+        // tick→strategy latency histogram.
+        uint64_t recv_ns = ygg::util::WallClock::now_ns();
         push_frame(std::string_view(static_cast<const char*>(buf.data().data()), buf.data().size()), recv_ns);
         buf.consume(buf.size());
     }

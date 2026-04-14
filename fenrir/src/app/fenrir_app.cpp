@@ -178,9 +178,14 @@ void FenrirApp::wire_md_callbacks() {
         metrics_.md_ticks_total->Increment();
         if (trading_paused_ || trading_halted_) return;
 
+        // Cross-service timestamp comparison: huginn stamps tick.timestampNs()
+        // with WallClock (CLOCK_REALTIME), so we read the same clock here.
+        // Using TscClock would inherit per-process calibration drift and
+        // silently underflow the delta when fenrir's calibration is behind
+        // huginn's.
         curr_tick_ts_ns_ = tick.timestampNs();
         strategy_->on_bbo(tick);
-        const uint64_t t3 = ygg::util::TscClock::now_epoch_ns();
+        const uint64_t t3 = ygg::util::WallClock::now_ns();
         if (t3 > curr_tick_ts_ns_) {
             const uint64_t delta = t3 - curr_tick_ts_ns_;
             if (bbo_count <= 3)
@@ -196,7 +201,7 @@ void FenrirApp::wire_md_callbacks() {
 
         curr_tick_ts_ns_ = tick.timestampNs();
         strategy_->on_trade(tick);
-        const uint64_t t3 = ygg::util::TscClock::now_epoch_ns();
+        const uint64_t t3 = ygg::util::WallClock::now_ns();
         if (t3 > curr_tick_ts_ns_) {
             const uint64_t delta = t3 - curr_tick_ts_ns_;
             tick_lat_hist_.record(delta);
@@ -208,7 +213,7 @@ void FenrirApp::wire_md_callbacks() {
         if (!trading_paused_ && !trading_halted_) {
             curr_tick_ts_ns_ = book.timestampNs();
             strategy_->on_order_book(book);
-            const uint64_t t3 = ygg::util::TscClock::now_epoch_ns();
+            const uint64_t t3 = ygg::util::WallClock::now_ns();
             if (t3 > curr_tick_ts_ns_) {
                 const uint64_t delta = t3 - curr_tick_ts_ns_;
                 tick_lat_hist_.record(delta);
@@ -238,7 +243,11 @@ void FenrirApp::wire_vol_callbacks() {
 void FenrirApp::wire_order_callbacks() {
     if (order_mgr_) {
         order_mgr_->on_order_placed = [this](uint64_t /*order_id*/) {
-            const uint64_t delta = ygg::util::TscClock::now_epoch_ns() - curr_tick_ts_ns_;
+            // curr_tick_ts_ns_ is WallClock-sourced (stamped by huginn and
+            // re-read via tick.timestampNs()), so this side must match.
+            const uint64_t now = ygg::util::WallClock::now_ns();
+            if (now <= curr_tick_ts_ns_) return;
+            const uint64_t delta = now - curr_tick_ts_ns_;
             order_lat_hist_.record(delta);
             metrics_.tick_to_order_ns_hist->Observe(static_cast<double>(delta));
         };

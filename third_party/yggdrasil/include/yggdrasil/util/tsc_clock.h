@@ -1,17 +1,40 @@
 #pragma once
 
-// yggdrasil/tsc_clock.h — Fast timestamps using the CPU invariant TSC.
+// yggdrasil/tsc_clock.h — Fast timestamps using the CPU invariant TSC,
+// plus a drop-in CLOCK_REALTIME helper for cross-process timestamps.
 //
 // Requires: x86-64 with invariant TSC (all modern Intel/AMD CPUs since ~2008).
 //
 // Usage:
-//   ygg::util::TscClock::calibrate();              // once at startup, blocks ~10ms
-//   uint64_t t = ygg::util::TscClock::now_epoch_ns();  // ~4ns vs ~20ns for vDSO
+//   ygg::util::TscClock::calibrate();                  // once at startup, blocks ~10ms
+//   uint64_t t = ygg::util::TscClock::now_epoch_ns();  // ~4ns (intra-process only)
+//   uint64_t w = ygg::util::WallClock::now_ns();       // ~20ns (cross-process safe)
+//
+// TscClock is per-process: two services running on the same host calibrate
+// independently and their TSC→wall extrapolations drift relative to each
+// other. For timestamps that cross a process boundary (e.g. an Aeron SBE
+// message stamped by one service and compared by another), use WallClock —
+// it reads CLOCK_REALTIME directly so both sides see the same kernel time.
 
 #include <cstdint>
+#include <time.h>
 #include <x86intrin.h>
 
 namespace ygg::util {
+
+// CLOCK_REALTIME wrapper, for cross-process / cross-service timestamps.
+// Slower than TscClock (~20 ns vs ~4 ns) but not subject to per-process
+// calibration drift. Use for any timestamp that will be serialized and
+// read by another process.
+class WallClock {
+public:
+    [[nodiscard]] static inline uint64_t now_ns() noexcept {
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        return static_cast<uint64_t>(ts.tv_sec) * 1'000'000'000ULL +
+               static_cast<uint64_t>(ts.tv_nsec);
+    }
+};
 
 // Fast monotonic and wall-clock timestamps using the CPU invariant TSC.
 //

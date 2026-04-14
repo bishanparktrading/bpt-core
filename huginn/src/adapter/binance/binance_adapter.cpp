@@ -105,7 +105,10 @@ void BinanceAdapter::read_loop(ygg::ws::AnyWsStream& ws) {
             throw beast::system_error(ec);
 
         last_recv = std::chrono::steady_clock::now();
-        uint64_t recv_ns = ygg::util::TscClock::now_epoch_ns();
+        // WallClock, not TscClock — this timestamp crosses a process boundary
+        // (huginn → fenrir via Aeron SBE) and would suffer from per-process
+        // TscClock calibration drift. See HyperliquidAdapter for details.
+        uint64_t recv_ns = ygg::util::WallClock::now_ns();
         push_frame(std::string_view(static_cast<const char*>(buf.data().data()), buf.data().size()), recv_ns);
         buf.consume(buf.size());
     }
