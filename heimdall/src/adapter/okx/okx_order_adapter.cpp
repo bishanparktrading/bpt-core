@@ -25,6 +25,7 @@ OKXOrderAdapter::OKXOrderAdapter(const config::AdapterConfig& cfg, const Exchang
       secret_key_(creds.secret_key),
       passphrase_(creds.passphrase),
       https_client_(cfg_, creds),
+      instruments_(https_client_),
       ws_client_(ioc_, ssl_ctx_, cfg_) {
     uint32_t epoch_s = static_cast<uint32_t>(
         std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
@@ -43,58 +44,12 @@ OKXOrderAdapter::OKXOrderAdapter(const config::AdapterConfig& cfg, const Exchang
         [this](const std::string& payload, uint64_t recv_ns) { handle_message(payload, recv_ns); });
 }
 
-void OKXOrderAdapter::fetch_inst_id_codes() {
-    // Fetch instIdCodes for all instrument types we might trade.
-    const std::vector<std::string> inst_types = {"SPOT", "SWAP", "FUTURES", "MARGIN"};
-    for (const auto& inst_type : inst_types) {
-        try {
-            std::string resp = https_client_.get_unsigned("/api/v5/public/instruments?instType=" + inst_type);
-            auto root = json::parse(resp);
-            if (!root.is_object())
-                continue;
-            auto data_it = root.as_object().find("data");
-            if (data_it == root.as_object().end() || !data_it->value().is_array())
-                continue;
-            bool is_contract_type = inst_type == "SWAP" || inst_type == "FUTURES" || inst_type == "OPTION";
-            for (const auto& item : data_it->value().as_array()) {
-                const auto& d = item.as_object();
-                auto id_it = d.find("instId");
-                auto code_it = d.find("instIdCode");
-                if (id_it != d.end() && code_it != d.end()) {
-                    std::string inst_id = std::string(id_it->value().as_string());
-                    int64_t code = code_it->value().is_int64() ? code_it->value().as_int64()
-                                                               : std::stoll(std::string(code_it->value().as_string()));
-                    inst_id_codes_[inst_id] = code;
-
-                    // ctVal: base currency per contract for SWAP/FUTURES.
-                    // SPOT/MARGIN: sz is in base currency, treat as ctVal=1.
-                    double ctval = 1.0;
-                    if (is_contract_type) {
-                        auto ctval_it = d.find("ctVal");
-                        if (ctval_it != d.end() && ctval_it->value().is_string()) {
-                            std::string sv = std::string(ctval_it->value().as_string());
-                            if (!sv.empty())
-                                ctval = std::stod(sv);
-                        }
-                    }
-                    contract_sizes_[inst_id] = ctval;
-                }
-            }
-        } catch (const std::exception& e) {
-            ygg::log::warn("[Heimdall] OKXOrderAdapter: fetch_inst_id_codes({}) failed: {}", inst_type, e.what());
-        }
-    }
-    ygg::log::info("[Heimdall] OKXOrderAdapter: loaded {} instIdCodes, {} contract sizes from REST",
-                   inst_id_codes_.size(),
-                   contract_sizes_.size());
-    parser_.set_contract_sizes(contract_sizes_);
-}
-
 void OKXOrderAdapter::start() {
-    // instIdCodes are only available from the real OKX REST API — skip in backtest
+    // Instruments are only available from the real OKX REST API — skip in backtest
     // (use_tls=false means we're talking to a local simulation server).
     if (cfg_.use_tls) {
-        fetch_inst_id_codes();
+        instruments_.fetch();
+        parser_.set_contract_sizes(instruments_.contract_sizes());
         fetch_and_log_account_config();
     }
     OrderAdapterBase::start();
@@ -185,7 +140,7 @@ void OKXOrderAdapter::send_new_order(const bifrost::protocol::NewOrder& order) {
     };
     const uint64_t req_id = ws_req_id_.fetch_add(1, std::memory_order_relaxed);
     const std::string frame = json::serialize(
-        okx::build_order_action(spec, req_id, inst_id_codes_, contract_sizes_));
+        okx::build_order_action(spec, req_id, instruments_.inst_id_codes(), instruments_.contract_sizes()));
     auto emit_rejection = [&]() {
         uint64_t ts = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
         ExecEvent rej;
@@ -237,7 +192,8 @@ void OKXOrderAdapter::send_cancel_all(uint64_t instrument_id) {
 void OKXOrderAdapter::send_modify(const bifrost::protocol::ModifyOrder& modify, const std::string& native_symbol) {
     const std::string cloid = session_prefix_ + "G" + std::to_string(modify.orderId());
     const std::string frame = json::serialize(
-        okx::build_modify_action(native_symbol, cloid, modify.newPrice(), modify.newQuantity(), contract_sizes_));
+        okx::build_modify_action(native_symbol, cloid, modify.newPrice(), modify.newQuantity(),
+                                 instruments_.contract_sizes()));
 
     try {
         ws_client_.send(frame);

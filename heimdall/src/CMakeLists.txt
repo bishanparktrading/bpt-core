@@ -15,6 +15,7 @@ add_library(heimdall_lib
     adapter/okx/okx_action_codec.cpp
     adapter/okx/okx_auth.cpp
     adapter/okx/okx_https_client.cpp
+    adapter/okx/okx_instruments_service.cpp
     adapter/okx/okx_ws_client.cpp
     adapter/okx/okx_order_adapter.cpp
     adapter/okx/okx_exec_parser.cpp

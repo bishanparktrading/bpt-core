@@ -4,11 +4,11 @@
 #include "heimdall/adapter/common/order_adapter_base.h"
 #include "heimdall/adapter/okx/okx_exec_parser.h"
 #include "heimdall/adapter/okx/okx_https_client.h"
+#include "heimdall/adapter/okx/okx_instruments_service.h"
 #include "heimdall/adapter/okx/okx_ws_client.h"
 
 #include <atomic>
 #include <string>
-#include <unordered_map>
 
 namespace heimdall::adapter {
 
@@ -47,9 +47,6 @@ protected:
 private:
     void handle_message(const std::string& payload, uint64_t recv_ns);
 
-    // Fetched at startup from /api/v5/public/instruments.
-    void fetch_inst_id_codes();
-
     // Fetch /api/v5/account/config at startup and log acctLv + perm.
     // Warns prominently if the account is Level 1 (spot-only) because
     // any attempt to trade derivatives will fail with OKX sCode 51155
@@ -67,15 +64,12 @@ private:
     // with orders from previous sessions still live on OKX.
     std::string session_prefix_;
 
-    // instId -> instIdCode (fetched from REST at startup, required by wseeapap endpoint)
-    std::unordered_map<std::string, int64_t> inst_id_codes_;
-    // instId -> contract size — also pushed to parser_ after fetch_inst_id_codes().
-    std::unordered_map<std::string, double> contract_sizes_;
     // WS request id counter
     std::atomic<uint64_t> ws_req_id_{1};
 
     OKXExecParser parser_;
     okx::OKXHttpsClient https_client_;
+    okx::OKXInstrumentsService instruments_;
     okx::OKXWsClient ws_client_;
 };
 
