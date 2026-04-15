@@ -7,6 +7,7 @@
 #include "fenrir/strategy/funding_arb_strategy.h"
 #include "fenrir/strategy/hmm_strategy.h"
 #include "fenrir/strategy/momentum_strategy.h"
+#include "fenrir/strategy/ofi_strategy.h"
 #include "fenrir/strategy/regime_switch_strategy.h"
 #include "fenrir/strategy/short_vol_strategy.h"
 #include "fenrir/strategy/vwap_reversion_strategy.h"
@@ -27,6 +28,10 @@ std::unique_ptr<IStrategy> StrategyFactory::create(const config::FenrirConfig& c
 
     if (type == "MomentumStrategy") {
         return std::make_unique<MomentumStrategy>(cfg.correlation_id, cfg.strategy, refdata, md, order_mgr);
+    }
+
+    if (type == "OFIStrategy") {
+        return std::make_unique<OFIStrategy>(cfg.correlation_id, cfg.strategy, refdata, md, order_mgr);
     }
 
     if (type == "VwapReversionStrategy") {

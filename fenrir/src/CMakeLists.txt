@@ -13,10 +13,12 @@ add_library(fenrir_lib
     strategy/hmm_filter.cpp
     strategy/hmm_strategy.cpp
     strategy/momentum_strategy.cpp
+    strategy/ofi_strategy.cpp
     strategy/position_tracker.cpp
     strategy/avellaneda_stoikov_strategy.cpp
     strategy/funding_arb_strategy.cpp
     strategy/hurst_estimator.cpp
+    strategy/ofi_calculator.cpp
     strategy/regime_switch_strategy.cpp
     strategy/vwap_reversion_strategy.cpp
     strategy/realized_vol_estimator.cpp
