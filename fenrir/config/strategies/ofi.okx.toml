@@ -39,19 +39,24 @@ ofi_window_ms    = 1000     # 1s rolling sum — OFI decays fast in crypto
 order_book_depth = 5        # forwarded to huginn via md subscription
 
 # ── Entry / exit thresholds ───────────────────────────────────────
-# FIRST GUESSES — need tuning from live paper data. Log the raw
-# ofi_value to Prometheus during the first run, inspect the
-# distribution, and pick entry at roughly the 95th percentile.
-entry_threshold  = 0.35
-exit_threshold   = 0.15     # flip exits on weaker evidence than entries
+# v2 tuning from 30-min live run on OKX demo BTC/USDT spot. v1
+# entry=0.35 was below the 50th percentile of crossings and fired
+# on mostly-noise, producing 94 entries / 86 signal-flips / mean
+# pnl ~0 bps. v2 targets the p90 of the observed distribution
+# (abs ofi 1.03 at p90) to keep only the conviction signals, and
+# widens the exit threshold so signal-flip exits require a real
+# reversal rather than the noise bounce we saw.
+entry_threshold  = 1.0
+exit_threshold   = 0.4
 
 # ── Risk per position ─────────────────────────────────────────────
-# In bps from entry mid. OFI horizon is seconds, so keep both tight
-# and let the time_stop be the primary exit.
-stop_bps         = 8
+# Wider stop since stops hit 5x more often than targets in v1 —
+# suggests stop was capturing normal noise. Cooldown doubled to
+# reduce over-trading on back-to-back flips.
+stop_bps         = 10
 target_bps       = 12
 max_hold_seconds = 30
-cooldown_ticks   = 20       # skip re-entry for 20 order book updates after exit
+cooldown_ticks   = 40
 
 # ── Execution gates ───────────────────────────────────────────────
 qty_usd          = 200      # fixed notional per entry

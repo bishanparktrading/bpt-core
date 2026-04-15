@@ -16,6 +16,7 @@
 #include <bifrost_protocol/OrderSide.h>
 
 #include <cstdint>
+#include <deque>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -56,6 +57,21 @@ public:
 private:
     enum class Position : uint8_t { FLAT, LONG, SHORT };
 
+    // Post-fill mark-out tracker. Records fill price + time + signed
+    // direction and logs the mid move at 1s / 5s / 30s anchors so we
+    // can tell whether the OFI signal actually caught a real move or
+    // we were adversely selected. Diagnostic only — no trading logic
+    // hangs off these values.
+    struct MarkOut {
+        double fill_price{0.0};
+        uint64_t fill_ns{0};
+        int side_sign{0};        // +1 for BUY/LONG, -1 for SELL/SHORT
+        uint64_t order_id{0};
+        bool logged_1s{false};
+        bool logged_5s{false};
+        bool logged_30s{false};
+    };
+
     struct InstrumentState {
         uint64_t instrument_id{0};
         std::string symbol;
@@ -80,12 +96,21 @@ private:
         // Cooldown after exit (in book ticks)
         int cooldown_ticks_remaining{0};
 
+        // Pending mark-out diagnostics — pushed on every fill, popped
+        // once the 30s anchor has been logged. Capped at a dozen entries
+        // so a stuck tick stream can't grow this unbounded.
+        std::deque<MarkOut> pending_markouts;
+
         explicit InstrumentState(OFICalculator::Config ofi_cfg) : ofi(ofi_cfg) {}
     };
 
     void try_enter(InstrumentState& st, double ofi_value, uint64_t now_ns);
     void try_exit(InstrumentState& st, double ofi_value, uint64_t now_ns);
     void fire_order(InstrumentState& st, bifrost::protocol::OrderSide::Value side, double qty_usd);
+
+    // Walk pending_markouts and emit a log line for any anchor that
+    // has been crossed. Called from on_bbo after bid/ask are refreshed.
+    void check_markouts(InstrumentState& st, uint64_t now_ns);
 
     uint64_t correlation_id_;
 

@@ -163,6 +163,9 @@ void OFIStrategy::on_bbo(const bifrost::protocol::MdMarketData& tick) {
     st.ask = ask;
     st.last_bbo_ns = tick.timestampNs();
 
+    // Walk pending mark-outs with the freshly updated mid.
+    check_markouts(st, st.last_bbo_ns);
+
     // Time-based exit: check even on BBO ticks so positions don't overrun
     // max_hold while waiting for the next book update.
     if (st.pos != Position::FLAT && max_hold_ns_ > 0 &&
@@ -319,6 +322,50 @@ void OFIStrategy::fire_order(InstrumentState& st,
     order_to_instrument_[oid] = st.instrument_id;
 }
 
+// ── Mark-out diagnostic ─────────────────────────────────────────────────────
+
+void OFIStrategy::check_markouts(InstrumentState& st, uint64_t now_ns) {
+    if (st.pending_markouts.empty())
+        return;
+    if (st.bid <= 0.0 || st.ask <= 0.0)
+        return;
+    const double mid = (st.bid + st.ask) * 0.5;
+
+    constexpr uint64_t k1s = 1'000'000'000ULL;
+    constexpr uint64_t k5s = 5ULL * 1'000'000'000ULL;
+    constexpr uint64_t k30s = 30ULL * 1'000'000'000ULL;
+
+    auto log_markout = [&](const char* label, const MarkOut& mo) {
+        const double move = (mid - mo.fill_price) * static_cast<double>(mo.side_sign);
+        const double bps = (mo.fill_price > 0.0) ? (move / mo.fill_price * 1e4) : 0.0;
+        ygg::log::info("[OFI markout] {} order_id={} side={} fill={:.4f} mid={:.4f} {}={:+.2f}bps",
+                       st.symbol, mo.order_id,
+                       mo.side_sign > 0 ? "LONG" : "SHORT",
+                       mo.fill_price, mid, label, bps);
+    };
+
+    for (auto& mo : st.pending_markouts) {
+        const uint64_t age = (now_ns > mo.fill_ns) ? (now_ns - mo.fill_ns) : 0;
+        if (!mo.logged_1s && age >= k1s) {
+            log_markout("t+1s", mo);
+            mo.logged_1s = true;
+        }
+        if (!mo.logged_5s && age >= k5s) {
+            log_markout("t+5s", mo);
+            mo.logged_5s = true;
+        }
+        if (!mo.logged_30s && age >= k30s) {
+            log_markout("t+30s", mo);
+            mo.logged_30s = true;
+        }
+    }
+
+    // Evict fully-logged entries from the front. Anchors are monotonic
+    // so once 30s is logged the entry is done.
+    while (!st.pending_markouts.empty() && st.pending_markouts.front().logged_30s)
+        st.pending_markouts.pop_front();
+}
+
 // ── Execution reports ───────────────────────────────────────────────────────
 
 void OFIStrategy::on_exec_report(const bifrost::protocol::ExecutionReport& rpt) {
@@ -347,6 +394,24 @@ void OFIStrategy::on_exec_report(const bifrost::protocol::ExecutionReport& rpt) 
                        bifrost::protocol::ExecStatus::c_str(status),
                        static_cast<double>(rpt.filledQty()) / kQtyScale,
                        static_cast<double>(rpt.price()) / kPriceScale);
+    }
+
+    // Mark-out diagnostic: on the FINAL fill (status=FILLED) of each
+    // order, record the fill price + time + signed direction. on_bbo
+    // walks the deque and emits mid-mark-out logs at 1s / 5s / 30s
+    // anchors. We deliberately skip PARTIAL so IOC sweeps hitting
+    // multiple levels produce one mark-out per order, not one per
+    // level. Cap the deque at a dozen so a pathological fill burst
+    // can't grow it unbounded.
+    if (status == ExecStatus::FILLED) {
+        if (st.pending_markouts.size() < 12) {
+            MarkOut mo;
+            mo.fill_price = static_cast<double>(rpt.price()) / kPriceScale;
+            mo.fill_ns = st.last_bbo_ns;
+            mo.side_sign = (rpt.side() == bifrost::protocol::OrderSide::BUY) ? +1 : -1;
+            mo.order_id = order_id;
+            st.pending_markouts.push_back(mo);
+        }
     }
 
     const bool is_terminal =
