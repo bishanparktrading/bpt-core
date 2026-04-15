@@ -46,7 +46,7 @@ struct OrderSpec {
     bifrost::protocol::OrderType::Value order_type;
     bifrost::protocol::TimeInForce::Value tif;
     int64_t                             price_e8;        // natural * 1e8
-    uint64_t                            quantity_e5;     // base currency * 1e5
+    uint64_t                            quantity_e8;     // base currency * 1e8
     std::string                         cloid;           // client order id
 };
 
@@ -71,7 +71,7 @@ struct OrderSpec {
 [[nodiscard]] boost::json::value build_modify_action(std::string_view inst_id,
                                                      std::string_view cloid,
                                                      int64_t new_price_e8,
-                                                     uint64_t new_quantity_e5,
+                                                     uint64_t new_quantity_e8,
                                                      const ContractSizes& contract_sizes);
 
 }  // namespace heimdall::adapter::okx

@@ -17,7 +17,10 @@ namespace heimdall::adapter {
 namespace json = boost::json;
 
 static constexpr double kPriceScale = 1e8;
-static constexpr double kQtyScale = 1e5;
+// Wire qty scale is 1e8 across all heimdall adapters — matches Binance,
+// Hyperliquid, Deribit, and the SBE protocol. Was 1e5 before the qty-
+// scale fix; see okx_action_codec.cpp for the bug write-up.
+static constexpr double kQtyScale = 1e8;
 
 static bifrost::protocol::FeeCurrency::Value parse_fee_ccy(const std::string& ccy) {
     using FC = bifrost::protocol::FeeCurrency;

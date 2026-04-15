@@ -9,7 +9,10 @@ namespace json = boost::json;
 
 namespace {
 constexpr double kPriceScale = 1e8;
-constexpr double kQtyScale   = 1e5;
+// Internal wire scale is 1e8 across all adapters and the SBE protocol —
+// matches Binance, Hyperliquid, Deribit, and order.quantity() directly.
+// Before the fix this was 1e5 which made every OKX order 1000x too large.
+constexpr double kQtyScale   = 1e8;
 
 const char* side_str(bifrost::protocol::OrderSide::Value s) {
     using OS = bifrost::protocol::OrderSide;
@@ -32,13 +35,13 @@ const char* tif_str(bifrost::protocol::TimeInForce::Value tif) {
     }
 }
 
-// Convert fenrir's base-currency qty (base * kQtyScale) to OKX's wire
-// size (contracts). SWAP/FUTURES: sz = qty_base / ctVal. SPOT/MARGIN
-// fall through to ctVal = 1.0.
-std::string size_to_contracts(uint64_t quantity_e5,
+// Convert fenrir's base-currency qty (base * 1e8) to OKX's wire size
+// (contracts). SWAP/FUTURES: sz = qty_base / ctVal. SPOT/MARGIN fall
+// through to ctVal = 1.0.
+std::string size_to_contracts(uint64_t quantity_e8,
                               std::string_view inst_id,
                               const ContractSizes& contract_sizes) {
-    const double qty_base = static_cast<double>(quantity_e5) / kQtyScale;
+    const double qty_base = static_cast<double>(quantity_e8) / kQtyScale;
     double ctval = 1.0;
     if (auto it = contract_sizes.find(std::string(inst_id)); it != contract_sizes.end())
         ctval = it->second;
@@ -76,7 +79,7 @@ json::value build_order_action(const OrderSpec& spec,
     arg["ordType"] = ord_type_str(spec.order_type);
     (void)spec.tif;  // OKX infers tif from ordType (post_only, ioc, fok, limit=gtc)
 
-    arg["sz"]      = size_to_contracts(spec.quantity_e5, spec.inst_id, contract_sizes);
+    arg["sz"]      = size_to_contracts(spec.quantity_e8, spec.inst_id, contract_sizes);
     arg["clOrdId"] = spec.cloid;
 
     if (spec.order_type != bifrost::protocol::OrderType::MARKET) {
@@ -107,13 +110,13 @@ json::value build_cancel_action(std::string_view inst_id,
 json::value build_modify_action(std::string_view inst_id,
                                  std::string_view cloid,
                                  int64_t new_price_e8,
-                                 uint64_t new_quantity_e5,
+                                 uint64_t new_quantity_e8,
                                  const ContractSizes& contract_sizes) {
     json::object arg;
     arg["instId"]  = std::string(inst_id);
     arg["clOrdId"] = std::string(cloid);
     arg["newPx"]   = std::to_string(static_cast<double>(new_price_e8) / kPriceScale);
-    arg["newSz"]   = size_to_contracts(new_quantity_e5, inst_id, contract_sizes);
+    arg["newSz"]   = size_to_contracts(new_quantity_e8, inst_id, contract_sizes);
 
     json::object msg;
     msg["op"] = "amend-order";

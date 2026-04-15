@@ -213,28 +213,55 @@ AccountSnapshotData OKXOrderAdapter::fetch_account_snapshot(uint64_t correlation
     snap.timestamp_ns = ts_ns;
 
     try {
-        // Balance endpoint — totalEq and availBal.
+        // Balance endpoint — totalEq and per-ccy availBal/eq details.
         auto bal_resp = https_client_.get_signed("/api/v5/account/balance");
         auto bal_j = json::parse(bal_resp);
-        if (bal_j.is_object() && bal_j.as_object().contains("data") && bal_j.as_object().at("data").is_array()) {
-            const auto& data = bal_j.as_object().at("data").as_array();
-            if (!data.empty() && data[0].is_object()) {
-                const auto& d = data[0].as_object();
+        if (!bal_j.is_object()) {
+            ygg::log::warn("[Heimdall] OKXOrderAdapter: balance response is not an object: {}",
+                           bal_resp.substr(0, 400));
+        } else {
+            const auto& root = bal_j.as_object();
+            // OKX wraps errors in {code, msg, data:[]}. Surface any non-zero
+            // code prominently so we don't silently swallow auth / clock
+            // failures like 50112.
+            if (root.contains("code") && std::string(root.at("code").as_string()) != "0") {
+                ygg::log::warn("[Heimdall] OKXOrderAdapter: /account/balance error code={} msg={} body={}",
+                               std::string(root.at("code").as_string()),
+                               root.contains("msg") ? std::string(root.at("msg").as_string()) : "",
+                               bal_resp.substr(0, 400));
+            } else if (root.contains("data") && root.at("data").is_array() &&
+                       !root.at("data").as_array().empty() && root.at("data").as_array()[0].is_object()) {
+                const auto& d = root.at("data").as_array()[0].as_object();
                 if (d.contains("totalEq"))
                     snap.total_equity_e8 =
                         static_cast<int64_t>(std::round(std::stod(std::string(d.at("totalEq").as_string())) * 1e8));
-                // Sum availBal across USDT details.
+                // Per-ccy detail scan: capture USDT availBal AND log every
+                // non-zero eq line so we can see what the account actually
+                // holds even when USDT is empty.
                 if (d.contains("details") && d.at("details").is_array()) {
                     for (const auto& detail : d.at("details").as_array()) {
                         if (!detail.is_object())
                             continue;
                         const auto& de = detail.as_object();
-                        if (de.contains("ccy") && std::string(de.at("ccy").as_string()) == "USDT" &&
-                            de.contains("availBal"))
-                            snap.available_balance_e8 = static_cast<int64_t>(
-                                std::round(std::stod(std::string(de.at("availBal").as_string())) * 1e8));
+                        const std::string ccy = de.contains("ccy") ? std::string(de.at("ccy").as_string()) : "";
+                        const std::string eq = de.contains("eq") ? std::string(de.at("eq").as_string()) : "0";
+                        const std::string avail =
+                            de.contains("availBal") ? std::string(de.at("availBal").as_string()) : "0";
+                        // Log anything with non-trivial equity so funding-account
+                        // vs trading-account / wrong-ccy mismatches show up.
+                        if (!eq.empty() && std::stod(eq) > 0.0)
+                            ygg::log::info("[OKX balance detail] ccy={} eq={} availBal={}", ccy, eq, avail);
+                        if (ccy == "USDT" && de.contains("availBal"))
+                            snap.available_balance_e8 =
+                                static_cast<int64_t>(std::round(std::stod(avail) * 1e8));
                     }
                 }
+                ygg::log::info("[Heimdall] OKXOrderAdapter: /account/balance totalEq={:.4f} USDT availBal={:.4f}",
+                               static_cast<double>(snap.total_equity_e8) / 1e8,
+                               static_cast<double>(snap.available_balance_e8) / 1e8);
+            } else {
+                ygg::log::warn("[Heimdall] OKXOrderAdapter: balance response missing data[]: {}",
+                               bal_resp.substr(0, 400));
             }
         }
     } catch (const std::exception& e) {

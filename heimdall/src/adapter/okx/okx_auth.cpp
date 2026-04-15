@@ -4,6 +4,8 @@
 #include <boost/beast/http/verb.hpp>
 #include <boost/json.hpp>
 #include <chrono>
+#include <cstdio>
+#include <ctime>
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/evp.h>
@@ -21,6 +23,26 @@ uint64_t epoch_seconds_now() {
         std::chrono::duration_cast<std::chrono::seconds>(
             std::chrono::system_clock::now().time_since_epoch())
             .count());
+}
+
+// OKX REST auth requires the timestamp as ISO 8601 UTC with millisecond
+// precision, e.g. "2026-04-15T05:54:43.123Z". The same string is used
+// in the prehash string and in the OK-ACCESS-TIMESTAMP header. (The WS
+// public/auth login uses Unix epoch seconds instead — two different
+// formats for the same account, both documented.)
+std::string iso8601_now_ms() {
+    const auto now = std::chrono::system_clock::now();
+    const auto ms_part = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             now.time_since_epoch()) % 1000;
+    const std::time_t t = std::chrono::system_clock::to_time_t(now);
+    std::tm tm_utc{};
+    gmtime_r(&t, &tm_utc);
+    char date_buf[32];
+    std::strftime(date_buf, sizeof(date_buf), "%Y-%m-%dT%H:%M:%S", &tm_utc);
+    char out[48];
+    std::snprintf(out, sizeof(out), "%s.%03lldZ", date_buf,
+                  static_cast<long long>(ms_part.count()));
+    return out;
 }
 }  // namespace
 
@@ -78,7 +100,7 @@ void sign_get_request(http::request<http::string_body>& req,
                       std::string_view secret_key,
                       std::string_view passphrase,
                       bool testnet) {
-    const std::string ts_str = std::to_string(epoch_seconds_now());
+    const std::string ts_str = iso8601_now_ms();
     const std::string prehash = ts_str + "GET" + std::string(path);
     const std::string sign = hmac_sha256_b64(secret_key, prehash);
 
