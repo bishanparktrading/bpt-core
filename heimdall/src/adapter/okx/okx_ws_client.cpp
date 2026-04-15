@@ -7,8 +7,10 @@
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/websocket.hpp>
 #include <boost/beast/websocket/ssl.hpp>
+#include <atomic>
 #include <chrono>
 #include <stdexcept>
+#include <thread>
 #include <yggdrasil/logging.h>
 #include <yggdrasil/util/tsc_clock.h>
 
@@ -60,28 +62,57 @@ void OKXWsClient::run(std::atomic<bool>& stop_flag, std::atomic<bool>& connected
         connected.store(true, std::memory_order_relaxed);
         ygg::log::info("[Heimdall] OKXWsClient connected, waiting for login");
 
-        auto last_ping = std::chrono::steady_clock::now();
+        // Dedicated ping thread. Beast's websocket::stream::read() ignores
+        // lowest_layer::expires_after — once inside read() it blocks until
+        // a frame arrives regardless of any underlying-stream timer. An
+        // in-loop ping-check-on-timeout therefore can't work: if no data
+        // is coming in, read() sits forever and OKX closes us at 30s idle.
+        //
+        // The ping thread writes "ping" text frames through the same
+        // ws_send_ path used by callers. Beast guarantees concurrent
+        // read+write as long as each direction is single-threaded, and
+        // send_mu_ already serialises all writers. JoinGuard ensures the
+        // thread is stopped and joined before run_loop unwinds — both on
+        // clean exit and on the thrown-exception path.
+        std::atomic<bool> ping_stop{false};
+        std::thread ping_thread([this, &ping_stop]() {
+            while (!ping_stop.load(std::memory_order_relaxed)) {
+                for (int i = 0; i < 10 && !ping_stop.load(std::memory_order_relaxed); ++i)
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                if (ping_stop.load(std::memory_order_relaxed))
+                    break;
+                try {
+                    bool sent = false;
+                    {
+                        std::lock_guard<std::mutex> lk(send_mu_);
+                        if (ws_send_) {
+                            ws_send_("ping");
+                            sent = true;
+                        }
+                    }
+                    if (sent)
+                        ygg::log::info("[Heimdall] OKXWsClient heartbeat ping sent");
+                } catch (const std::exception& e) {
+                    ygg::log::warn("[Heimdall] OKXWsClient: ping write failed: {}", e.what());
+                    break;  // reader will detect the dead connection and reconnect
+                }
+            }
+        });
+
+        struct JoinGuard {
+            std::atomic<bool>& stop;
+            std::thread& th;
+            ~JoinGuard() {
+                stop.store(true, std::memory_order_relaxed);
+                if (th.joinable()) th.join();
+            }
+        } join_guard{ping_stop, ping_thread};
+
         try {
             beast::flat_buffer buf;
             while (!stop_flag.load(std::memory_order_relaxed)) {
-                auto now = std::chrono::steady_clock::now();
-                if (now - last_ping >= std::chrono::seconds(15)) {
-                    {
-                        std::lock_guard<std::mutex> lk(send_mu_);
-                        if (ws_send_)
-                            ws_send_("ping");
-                    }
-                    last_ping = now;
-                }
-
-                beast::get_lowest_layer(ws).expires_after(std::chrono::seconds(5));
                 beast::error_code ec;
                 ws.read(buf, ec);
-
-                if (ec == beast::error::timeout) {
-                    buf.consume(buf.size());
-                    continue;
-                }
                 if (ec)
                     throw beast::system_error(ec);
 
@@ -125,7 +156,14 @@ void OKXWsClient::run(std::atomic<bool>& stop_flag, std::atomic<bool>& connected
         ws.set_option(websocket::stream_base::decorator(
             [](websocket::request_type& req) { req.set(beast::http::field::user_agent, "heimdall/0.1"); }));
         ws.handshake(cfg_.ws_host, cfg_.ws_path);
-        ws.set_option(websocket::stream_base::timeout{std::chrono::seconds(15), websocket::stream_base::none(), false});
+        // IMPORTANT: do NOT call set_option(stream_base::timeout{...}) here.
+        // When Beast's own timeout layer is installed, it takes over the
+        // lowest-layer timer and silently ignores expires_after() calls.
+        // That breaks the read loop below, which relies on a 5s
+        // expires_after to unblock read() periodically so the 10s text-ping
+        // heartbeat can fire. Without that, the first session after connect
+        // hangs inside read() for the full 30s of OKX idle and then gets
+        // closed server-side.
         run_loop(ws);
         return;
     }
