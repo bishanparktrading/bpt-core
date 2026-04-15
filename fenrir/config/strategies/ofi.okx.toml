@@ -1,8 +1,9 @@
 [fenrir.strategy]
 type = "OFIStrategy"
 enabled = true
-# Multi-asset: OKX's two deepest perp books.
-instruments = ["BTC/USDT:SWAP", "ETH/USDT:SWAP"]
+# BTC spot only — OKX demo derivatives are gated behind accredited-
+# investor tier in SG, so we run against spot for the first live run.
+instruments = ["BTC/USDT:SPOT"]
 md_exchanges = ["OKX"]
 
 [fenrir.strategy.venue_exec.OKX]
