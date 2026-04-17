@@ -13,7 +13,7 @@ namespace bpt::refdata::config {
 // Mirrors the pattern used by MdGateway and OrderGateway adapters.
 struct AdapterConfig {
     std::string exchange;     // BINANCE | OKX | HYPERLIQUID
-    std::string secret_name;  // AWS Secrets Manager secret name, e.g. "bpt/testnet/OKX"
+    std::string secret_name;  // systemd-creds name (slashes normalized to '-'); e.g. "bpt/testnet/OKX" → bpt-testnet-OKX
     bool enabled{true};       // false = adapter is declared but not initialised at startup
     bool simulated{false};    // OKX demo trading — injects x-simulated-trading: 1
     std::string rest_host;

@@ -5,7 +5,7 @@
 
 namespace bpt::refdata::adapter {
 
-// Exchange credentials populated at startup from AWS Secrets Manager (or a local
+// Exchange credentials populated at startup from systemd-creds (or a local
 // JSON file).  Passed directly to adapter constructors — never retained beyond
 // adapter initialisation except inside the adapter itself.
 struct ExchangeCredentials {

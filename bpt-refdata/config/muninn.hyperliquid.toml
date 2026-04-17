@@ -1,7 +1,7 @@
 # Instance config — LIVE, Hyperliquid mainnet.
 # Pairs with scripts/live-hl.sh. Credentials for HL mainnet are loaded
 # via exchange_config → config/exchanges/live.toml → secret_name
-# "bpt/prod/HYPERLIQUID" (AWS Secrets Manager in deployed mode, or
+# "bpt/prod/HYPERLIQUID" (systemd-creds in deployed mode, or
 # ~/.bpt-secrets/ locally — see muninn/config/exchanges/testnet.toml
 # header comment for the local loading convention).
 environment = "live"

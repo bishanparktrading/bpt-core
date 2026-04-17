@@ -26,7 +26,7 @@ struct RiskConfig {
 
 struct AdapterConfig {
     std::string exchange;
-    std::string secret_name;  // AWS Secrets Manager secret name, e.g. "bpt/testnet/OKX"
+    std::string secret_name;  // systemd-creds name (slashes normalized to '-'); e.g. "bpt/testnet/OKX" → bpt-testnet-OKX
     bool testnet{false};
     std::string rest_host;
     std::string rest_port{"443"};

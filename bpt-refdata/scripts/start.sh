@@ -35,8 +35,8 @@ if [ ! -f "$BINARY" ]; then
     exit 1
 fi
 
-# BPT_ENV selects the secrets backend. Default is "qa" → AWS Secrets Manager.
-# Set BPT_ENV=local explicitly to read from ~/.bpt-secrets/ for offline dev.
+# Credentials come from systemd-creds ($CREDENTIALS_DIRECTORY) in deployed mode,
+# or from ~/.bpt-secrets/ as a dev fallback when $CREDENTIALS_DIRECTORY is unset.
 export BPT_ENV="${BPT_ENV:-qa}"
 
 # ── Truncate log so startup polling is clean ──────────────────────

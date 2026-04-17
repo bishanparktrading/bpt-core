@@ -15,6 +15,6 @@
         "nlohmann-json",
         "gtest",
         {"name": "prometheus-cpp", "features": ["pull"]},
-        {"name": "aws-sdk-cpp", "default-features": false, "features": ["s3", "secretsmanager"]}
+        {"name": "aws-sdk-cpp", "default-features": false, "features": ["s3"]}
     ]
 }

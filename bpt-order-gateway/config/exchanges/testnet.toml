@@ -1,8 +1,8 @@
 # Exchange adapter endpoints — TESTNET / demo trading
 # Source of truth for testnet exchange connectivity.
 # Edit this file when adding a new exchange or changing an endpoint.
-# Credentials are loaded from AWS Secrets Manager at startup using secret_name.
-# Local dev (BPT_ENV=local): reads ~/.bpt-secrets/<secret_name>.json instead.
+# Credentials are delivered via systemd-creds at service start, keyed by secret_name.
+# Dev fallback: reads ~/.bpt-secrets/<secret_name> (KEY=value format) when CREDENTIALS_DIRECTORY is unset.
 
 [[adapters]]
 exchange    = "BINANCE"
