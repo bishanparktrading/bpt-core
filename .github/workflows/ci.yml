@@ -18,6 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       cpp: ${{ steps.filter.outputs.cpp }}
+      backtester_cmake: ${{ steps.filter.outputs.backtester_cmake }}
       transport: ${{ steps.filter.outputs.transport }}
       frontend: ${{ steps.filter.outputs.frontend }}
     steps:
@@ -35,9 +36,14 @@ jobs:
               - 'config/exchanges/**'
               - 'MODULE.bazel'
               - 'MODULE.bazel.lock'
-              - 'CMakeLists.txt'
               - '.bazelrc'
               - '.bazelignore'
+              - '.github/workflows/ci.yml'
+            backtester_cmake:
+              - 'bpt-backtester/**'
+              - 'messages/**'
+              - 'third_party/yggdrasil/**'
+              - 'CMakeLists.txt'
               - 'vcpkg.json'
               - '.github/workflows/ci.yml'
             transport:
@@ -76,11 +82,15 @@ jobs:
       - name: Bazel test //...
         run: bazel test //... --test_output=errors
 
-  # ── C++ services via CMake + vcpkg (legacy build, kept for release tarball) ─
-  cpp-cmake:
-    name: C++ build & test (CMake)
+  # ── Backtester via CMake + vcpkg (only service still on CMake) ─────────────
+  # Survives because bpt-backtester uses Arrow/Parquet, which don't have a
+  # clean Bazel story yet. Narrow path filter — only fires when backtester
+  # or its CMake-only transitive deps (top-level CMakeLists, vcpkg.json,
+  # messages, yggdrasil) change. Every other service is Bazel-only now.
+  cpp-backtester-cmake:
+    name: Backtester build & test (CMake)
     needs: changes
-    if: needs.changes.outputs.cpp == 'true'
+    if: needs.changes.outputs.backtester_cmake == 'true'
     runs-on: ubuntu-24.04
 
     env:

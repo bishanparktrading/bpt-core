@@ -19,51 +19,34 @@ Monorepo for a low-latency algorithmic trading system. All inter-service communi
 
 ## Requirements
 
-### System
-
 - GCC 13+ (C++23)
-- OpenSSL 3
-- Java 17 (for the Aeron media driver)
-
-Plus one of the two supported build systems below.
-
-### Build system — pick one
-
-Both are supported side-by-side; they produce equivalent binaries. Bazel gives hermetic, reproducible builds with a remote cache; CMake has the existing deploy integration.
-
-**Bazel (recommended for development):**
-
 - Bazel 7+ with bzlmod enabled
-- All deps fetched automatically via `MODULE.bazel` (BCR modules + `http_archive` for the rest)
+- Java 17 (for the Aeron media driver)
+- Node.js 20 (for the dashboard frontend)
 
-**CMake (legacy / current production path):**
-
-- CMake 3.20+ and Ninja
-- vcpkg for most C++ deps; FetchContent for Aeron + fast_float
-- Arrow & Parquet (Apache apt repo — see CI workflow for install steps)
-
-vcpkg packages installed automatically during CMake configure:
-
-```
-fmt  spdlog  tomlplusplus  boost-beast  boost-asio  boost-json  boost-system
-simdjson  openssl  nlohmann-json  gtest  prometheus-cpp  libsecp256k1
-```
+Bazel is the primary build system. CMake survives only for `bpt-backtester`
+(Arrow/Parquet dep has no clean Bazel story yet) and will be retired entirely
+once backtester's Parquet I/O is replaced or `rules_foreign_cc` is wired in.
 
 ## Building
 
-### Bazel
+### Bazel — everything except backtester
 
 ```bash
-bazel build //...                       # everything
+bazel build //...                       # all libs + binaries + tests
 bazel test  //...                       # run all test targets
 bazel build -c opt //...                # release build
 bazel build //bpt-md-gateway/...        # one service
 bazel build //bpt-order-gateway:bpt-order-gateway  # just a binary
 ```
 
-Built artifacts land under `bazel-bin/<path>/`. These are symlinks into Bazel's out-of-tree cache; the `bazel-*` symlinks are `.gitignore`'d.
+Built artifacts land under `bazel-bin/<path>/` — symlinks into Bazel's
+out-of-tree cache. `bazel-*` symlinks are `.gitignore`'d.
 
-### CMake
+### CMake — backtester only
+
+Backtester still requires CMake + vcpkg + Arrow/Parquet from the Apache apt
+repo. Only set this up if you actually need to build `jormungandr`:
 
 ```bash
 git clone https://github.com/microsoft/vcpkg.git
@@ -72,9 +55,17 @@ git clone https://github.com/microsoft/vcpkg.git
 cmake -B build -G Ninja \
   -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake
-cmake --build build -j$(nproc)
+cmake --build build --target jormungandr -j$(nproc)
 ctest --test-dir build --output-on-failure -j$(nproc)
 ```
+
+vcpkg packages consumed (backtester surface only):
+
+```
+fmt  tomlplusplus  boost-system  boost-json  prometheus-cpp  gtest
+```
+
+Plus `libarrow-dev` + `libparquet-dev` from the Apache apt repo.
 
 ## Running the stack (OKX demo)
 
@@ -91,22 +82,20 @@ ctest --test-dir build --output-on-failure -j$(nproc)
 
 ## Deploying to a remote host
 
-Build a release tarball:
+Clone the repo on the trading box, build with Bazel, install systemd units:
 
 ```bash
-./scripts/package.sh --version 1.0.0 --out-dir dist/
-# → dist/bpt-core-1.0.0-linux-x86_64.tar.gz
+git clone git@github.com:bishanparktrading/bpt-core.git /opt/bpt/bpt-core
+cd /opt/bpt/bpt-core
+bazel build -c opt //...
+./deploy/generate-units.sh
+systemctl --user enable --now bpt-config-sync.timer
+systemctl --user start bpt-stack.target
 ```
 
-Copy and install:
-
-```bash
-scp dist/bpt-core-1.0.0-linux-x86_64.tar.gz user@host:/opt/bpt/
-ssh user@host 'cd /opt/bpt && tar -xzf bpt-core-1.0.0-linux-x86_64.tar.gz \
-  && cd bpt-core-1.0.0-linux-x86_64 && sudo ./install.sh'
-```
-
-Tagged releases are also published as GitHub Release assets — push a `v*` tag to trigger the release workflow.
+The `bpt-config-sync.timer` pulls config changes from origin daily; service
+binaries get refreshed by re-running `bazel build -c opt //...` on the box
+when code changes ship.
 
 ## Project layout
 
@@ -257,9 +246,16 @@ EOF
 
 ## CI
 
-Two GitHub Actions workflows:
+GitHub Actions workflows are path-filtered so each PR only runs what's
+actually needed:
 
-- **ci.yml** — runs on every push and PR to `main`; builds Debug and runs all tests
-- **release.yml** — runs on `v*` tags; builds Release and publishes a deployment tarball as a GitHub Release asset
+| Workflow | Triggers on | What it does |
+|---|---|---|
+| `ci.yml` | C++ / transport / frontend changes | Bazel build+test, CMake backtester build, Gradle transport, npm frontend |
+| `ci-ops.yml` | `bpt-ops/**` | ruff + pytest for the Python ops toolkit |
+| `ci-mapping.yml` | `config/instruments/**` | diff guard on instrument mapping PRs |
+| `ci-exchange-catalog.yml` | `messages/exchanges.yaml` + related | drift guard between YAML / Python / C++ catalogs |
+| `ops-instrument-mapping.yml` | daily cron + manual | refreshes the instrument mapping, opens a PR |
 
-Caches: vcpkg installation, compiled vcpkg packages (keyed on `vcpkg.json`), FetchContent downloads (keyed on `CMakeLists.txt`), and Bazel's remote cache.
+Release is no longer tag-triggered — deploy is a `git pull` + `bazel build -c
+opt //...` on the trading box, orchestrated by `deploy/generate-units.sh`.
