@@ -65,3 +65,43 @@ def test_emit_binance_spot_has_suffix_in_forward_key(tmp_path: Path):
     assert spot_keys, "expected at least one _SPOT-suffixed forward key for Binance"
     for k in spot_keys:
         assert binance["reverse"][str(binance["forward"][k])]["type"] == "SPOT"
+
+
+def test_emit_is_idempotent_when_only_timestamp_differs(tmp_path: Path):
+    """Second run with same content + different timestamp must preserve the
+    original file byte-for-byte. This is what prevents the daily ops cron
+    from opening a no-op PR just because wall-clock time moved."""
+    first = reconcile.build(_fixture_raws(), now_ms=1745000000000)
+    emit.write_per_exchange(first, tmp_path)
+
+    first_bytes = {
+        p.name: p.read_bytes()
+        for p in tmp_path.glob("instrument_mapping.*.json")
+    }
+
+    # Same semantic content, different timestamp
+    second = reconcile.build(_fixture_raws(), now_ms=9999999999999)
+    emit.write_per_exchange(second, tmp_path)
+
+    second_bytes = {
+        p.name: p.read_bytes()
+        for p in tmp_path.glob("instrument_mapping.*.json")
+    }
+
+    assert first_bytes == second_bytes, "emit must be byte-idempotent on timestamp-only changes"
+
+
+def test_emit_does_advance_timestamp_on_real_content_change(tmp_path: Path):
+    """Conversely: if a new instrument appears, the timestamp should update."""
+    first = reconcile.build(_fixture_raws(), now_ms=1745000000000)
+    emit.write_per_exchange(first, tmp_path)
+
+    # Add a new instrument — semantic change
+    augmented = _fixture_raws() + [
+        RawInstrument(ExchangeId.OKX, "XRP-USDT", "XRP", "USDT", "SPOT"),
+    ]
+    second = reconcile.build(augmented, now_ms=9999999999999)
+    emit.write_per_exchange(second, tmp_path)
+
+    okx = json.loads((tmp_path / "instrument_mapping.okx.json").read_text())
+    assert okx["exported_at"] == 9999999999999
