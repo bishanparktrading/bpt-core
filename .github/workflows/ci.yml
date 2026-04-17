@@ -10,9 +10,77 @@ permissions:
   contents: read
 
 jobs:
-  # ── C++ services (CMake + vcpkg) ───────────────────────────────────────────
-  cpp:
-    name: C++ build & test
+  # ── Path filter ────────────────────────────────────────────────────────────
+  # Decides which downstream jobs need to run based on what actually changed.
+  # On push events, dorny/paths-filter compares against the previous commit;
+  # on PR events, against the base branch. Both modes handle this correctly.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      cpp: ${{ steps.filter.outputs.cpp }}
+      transport: ${{ steps.filter.outputs.transport }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            cpp:
+              - 'bpt-*/**'
+              - 'dashboard/bridge/**'
+              - 'messages/**'
+              - 'third_party/**'
+              - 'config/instruments/**'
+              - 'config/exchanges/**'
+              - 'MODULE.bazel'
+              - 'MODULE.bazel.lock'
+              - 'CMakeLists.txt'
+              - '.bazelrc'
+              - '.bazelignore'
+              - 'vcpkg.json'
+              - '.github/workflows/ci.yml'
+            transport:
+              - 'transport/**'
+              - '.github/workflows/ci.yml'
+            frontend:
+              - 'dashboard/frontend/**'
+              - '.github/workflows/ci.yml'
+
+  # ── C++ services via Bazel (primary build) ─────────────────────────────────
+  cpp-bazel:
+    name: C++ build & test (Bazel)
+    needs: changes
+    if: needs.changes.outputs.cpp == 'true'
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bazel with caching
+        uses: bazel-contrib/setup-bazel@0.14.0
+        with:
+          bazelisk-cache: true
+          disk-cache: true
+          repository-cache: true
+          external-cache: true
+
+      - name: Install system deps (openssl headers for Bazel-built targets)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends libssl-dev pkg-config
+
+      - name: Bazel build //...
+        run: bazel build //...
+
+      - name: Bazel test //...
+        run: bazel test //... --test_output=errors
+
+  # ── C++ services via CMake + vcpkg (legacy build, kept for release tarball) ─
+  cpp-cmake:
+    name: C++ build & test (CMake)
+    needs: changes
+    if: needs.changes.outputs.cpp == 'true'
     runs-on: ubuntu-24.04
 
     env:
@@ -22,9 +90,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ── Restore all caches before any installation step ───────────────────
-      # vcpkg installation itself — skip clone+bootstrap on hit.
-      # Bump the key suffix (v1 → v2 etc.) to force a fresh vcpkg when needed.
       - name: Restore vcpkg
         uses: actions/cache@v4
         id: vcpkg-cache
@@ -32,8 +97,6 @@ jobs:
           path: ${{ env.VCPKG_ROOT }}
           key: vcpkg-${{ runner.os }}-v1
 
-      # Compiled vcpkg package archives — keyed on vcpkg.json so a dep change
-      # triggers a full rebuild of only the changed packages.
       - name: Restore vcpkg binary packages
         uses: actions/cache@v4
         id: vcpkg-pkgs-cache
@@ -42,8 +105,6 @@ jobs:
           key: vcpkg-pkgs-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
           restore-keys: vcpkg-pkgs-${{ runner.os }}-
 
-      # Aeron + fast_float FetchContent — source + compiled artifacts.
-      # Keyed on CMakeLists.txt so a version bump triggers a fresh fetch.
       - name: Restore FetchContent (Aeron + fast_float)
         uses: actions/cache@v4
         id: deps-cache
@@ -52,7 +113,6 @@ jobs:
           key: cmake-deps-${{ runner.os }}-${{ hashFiles('CMakeLists.txt') }}
           restore-keys: cmake-deps-${{ runner.os }}-
 
-      # ── System packages ───────────────────────────────────────────────────
       - name: Install apt dependencies
         run: |
           sudo apt-get update -q
@@ -62,7 +122,6 @@ jobs:
             libssl-dev pkg-config \
             curl wget
 
-      # Arrow 16.x from the official Apache apt repo — matches local conda version.
       - name: Install Arrow & Parquet
         run: |
           wget -q https://apache.jfrog.io/artifactory/arrow/ubuntu/apache-arrow-apt-source-latest-noble.deb
@@ -70,7 +129,6 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y libarrow-dev libparquet-dev
 
-      # ── vcpkg ─────────────────────────────────────────────────────────────
       - name: Bootstrap vcpkg
         if: steps.vcpkg-cache.outputs.cache-hit != 'true'
         run: |
@@ -80,7 +138,6 @@ jobs:
       - name: Create vcpkg binary cache dir
         run: mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
 
-      # ── CMake ─────────────────────────────────────────────────────────────
       - name: Configure
         run: |
           cmake -B build -G Ninja \
@@ -89,10 +146,6 @@ jobs:
             -DCMAKE_CXX_COMPILER=g++-13 \
             -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
 
-      # Save caches immediately after configure — before build can fail.
-      # Keys are suffixed with run_id so concurrent runs don't collide trying
-      # to write the same key. Restore uses prefix matching (restore-keys) so
-      # it picks up any previously saved entry regardless of the run_id suffix.
       - name: Save vcpkg binary packages
         uses: actions/cache/save@v4
         if: always() && steps.vcpkg-pkgs-cache.outputs.cache-hit != 'true'
@@ -113,9 +166,11 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure -j$(nproc)
 
-  # ── Bifrost-fabric (Gradle / Java 17) ─────────────────────────────────────
+  # ── Aeron media driver (Java / Gradle) ─────────────────────────────────────
   transport:
-    name: Bifrost-fabric build & test
+    name: Transport (Aeron MediaDriver, Java)
+    needs: changes
+    if: needs.changes.outputs.transport == 'true'
     runs-on: ubuntu-24.04
 
     steps:
@@ -127,7 +182,6 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # Gradle dependency cache — setup-gradle handles this automatically.
       - name: Setup Gradle cache
         uses: gradle/actions/setup-gradle@v3
 
@@ -148,3 +202,33 @@ jobs:
         with:
           name: transport-jar
           path: transport/build/libs/*-all.jar
+
+  # ── Dashboard frontend (TypeScript / Vite) ─────────────────────────────────
+  frontend:
+    name: Dashboard frontend (lint + build)
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: dashboard/frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: dashboard/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (tsc -b + vite build)
+        run: npm run build
