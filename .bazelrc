@@ -15,5 +15,8 @@ test --test_output=errors
 # Compatibility — allow external deps that haven't migrated to Bazel 9 yet
 build --incompatible_autoload_externally=+@rules_cc
 
+# Boost.Asio: enable OpenSSL-backed TLS (md-gateway adapters use wss://)
+build --@boost.asio//:ssl=openssl
+
 # Performance
 build --jobs=auto
