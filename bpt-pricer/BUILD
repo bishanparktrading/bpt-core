@@ -1,4 +1,5 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 cc_library(
@@ -26,5 +27,25 @@ cc_test(
     deps = [
         ":pricer_core",
         "@googletest//:gtest_main",
+    ],
+)
+
+cc_binary(
+    name = "bpt-pricer",
+    srcs = [
+        "src/main.cpp",
+        "src/app/pricer_app.cpp",
+        "src/config/config.cpp",
+        "src/surface/surface_builder.cpp",
+        "src/messaging/vol_surface_publisher.cpp",
+        "src/messaging/status_publisher.cpp",
+        "src/md/md_subscriber.cpp",
+        "src/refdata/refdata_subscriber.cpp",
+    ],
+    deps = [
+        ":pricer_core",
+        "//third_party/yggdrasil",
+        "@fmt",
+        "@tomlplusplus//:tomlplusplus",
     ],
 )

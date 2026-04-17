@@ -20,7 +20,7 @@ namespace bpt::refdata::adapter {
 //   POST /api/v2  method=public/get_instruments  — instruments per currency x kind
 //   Fees: maker_commission / taker_commission returned in instrument data
 //
-// Funding rates have moved to Huginn.
+// Funding rates have moved to MdGateway.
 //
 // Hourly poll:
 //   Re-fetches instruments endpoints to detect listing changes.
@@ -33,7 +33,7 @@ public:
     ~DeribitRefDataAdapter() override = default;
 
     void fetchSnapshot() override;
-    void subscribeDeltas() override {}  // no-op: funding rates in Huginn
+    void subscribeDeltas() override {}  // no-op: funding rates in MdGateway
     void fetchInstrumentListing() override;
     void stop() override {}  // no-op: no WS thread
 

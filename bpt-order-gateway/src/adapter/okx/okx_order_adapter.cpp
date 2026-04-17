@@ -56,7 +56,7 @@ void OKXOrderAdapter::start() {
 }
 
 void OKXOrderAdapter::handle_message(const std::string& payload, uint64_t recv_ns) {
-    ygg::log::info("[Heimdall] OKXOrderAdapter WS rx: {}", payload.substr(0, 500));
+    ygg::log::info("[OrderGateway] OKXOrderAdapter WS rx: {}", payload.substr(0, 500));
     auto root = json::parse(payload);
     if (!root.is_object())
         return;
@@ -71,12 +71,12 @@ void OKXOrderAdapter::handle_message(const std::string& payload, uint64_t recv_n
                 code = std::string(cit->value().as_string());
             if (auto mit = obj.find("msg"); mit != obj.end())
                 msg = std::string(mit->value().as_string());
-            ygg::log::error("[Heimdall] OKXOrderAdapter: error event code={} msg={}", code, msg);
+            ygg::log::error("[OrderGateway] OKXOrderAdapter: error event code={} msg={}", code, msg);
         } else {
-            ygg::log::info("[Heimdall] OKXOrderAdapter: event={}", event);
+            ygg::log::info("[OrderGateway] OKXOrderAdapter: event={}", event);
         }
         if (event == "login") {
-            ygg::log::info("[Heimdall] OKXOrderAdapter: login successful");
+            ygg::log::info("[OrderGateway] OKXOrderAdapter: login successful");
             logged_in_.store(true, std::memory_order_release);
             json::object sub_msg;
             sub_msg["op"] = "subscribe";
@@ -161,13 +161,13 @@ void OKXOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
     try {
         if (!ws_client_.send(frame)) {
             ygg::log::warn(
-                "[Heimdall] OKXOrderAdapter: send_new_order: WS not connected, "
+                "[OrderGateway] OKXOrderAdapter: send_new_order: WS not connected, "
                 "rejecting order={}",
                 order.orderId());
             emit_rejection();
         }
     } catch (const std::exception& e) {
-        ygg::log::error("[Heimdall] OKXOrderAdapter: send_new_order failed: {}", e.what());
+        ygg::log::error("[OrderGateway] OKXOrderAdapter: send_new_order failed: {}", e.what());
         emit_rejection();
     }
 }
@@ -181,12 +181,12 @@ void OKXOrderAdapter::send_cancel(const bpt::messages::CancelOrder& cancel, cons
     try {
         ws_client_.send(frame);
     } catch (const std::exception& e) {
-        ygg::log::error("[Heimdall] OKXOrderAdapter: send_cancel failed: {}", e.what());
+        ygg::log::error("[OrderGateway] OKXOrderAdapter: send_cancel failed: {}", e.what());
     }
 }
 
 void OKXOrderAdapter::send_cancel_all(uint64_t instrument_id) {
-    ygg::log::warn("[Heimdall] OKXOrderAdapter: send_cancel_all called instrument_id={}", instrument_id);
+    ygg::log::warn("[OrderGateway] OKXOrderAdapter: send_cancel_all called instrument_id={}", instrument_id);
 }
 
 void OKXOrderAdapter::send_modify(const bpt::messages::ModifyOrder& modify, const std::string& native_symbol) {
@@ -198,7 +198,7 @@ void OKXOrderAdapter::send_modify(const bpt::messages::ModifyOrder& modify, cons
     try {
         ws_client_.send(frame);
     } catch (const std::exception& e) {
-        ygg::log::error("[Heimdall] OKXOrderAdapter: send_modify failed: {}", e.what());
+        ygg::log::error("[OrderGateway] OKXOrderAdapter: send_modify failed: {}", e.what());
     }
 }
 
@@ -217,7 +217,7 @@ AccountSnapshotData OKXOrderAdapter::fetch_account_snapshot(uint64_t correlation
         auto bal_resp = https_client_.get_signed("/api/v5/account/balance");
         auto bal_j = json::parse(bal_resp);
         if (!bal_j.is_object()) {
-            ygg::log::warn("[Heimdall] OKXOrderAdapter: balance response is not an object: {}",
+            ygg::log::warn("[OrderGateway] OKXOrderAdapter: balance response is not an object: {}",
                            bal_resp.substr(0, 400));
         } else {
             const auto& root = bal_j.as_object();
@@ -225,7 +225,7 @@ AccountSnapshotData OKXOrderAdapter::fetch_account_snapshot(uint64_t correlation
             // code prominently so we don't silently swallow auth / clock
             // failures like 50112.
             if (root.contains("code") && std::string(root.at("code").as_string()) != "0") {
-                ygg::log::warn("[Heimdall] OKXOrderAdapter: /account/balance error code={} msg={} body={}",
+                ygg::log::warn("[OrderGateway] OKXOrderAdapter: /account/balance error code={} msg={} body={}",
                                std::string(root.at("code").as_string()),
                                root.contains("msg") ? std::string(root.at("msg").as_string()) : "",
                                bal_resp.substr(0, 400));
@@ -256,16 +256,16 @@ AccountSnapshotData OKXOrderAdapter::fetch_account_snapshot(uint64_t correlation
                                 static_cast<int64_t>(std::round(std::stod(avail) * 1e8));
                     }
                 }
-                ygg::log::info("[Heimdall] OKXOrderAdapter: /account/balance totalEq={:.4f} USDT availBal={:.4f}",
+                ygg::log::info("[OrderGateway] OKXOrderAdapter: /account/balance totalEq={:.4f} USDT availBal={:.4f}",
                                static_cast<double>(snap.total_equity_e8) / 1e8,
                                static_cast<double>(snap.available_balance_e8) / 1e8);
             } else {
-                ygg::log::warn("[Heimdall] OKXOrderAdapter: balance response missing data[]: {}",
+                ygg::log::warn("[OrderGateway] OKXOrderAdapter: balance response missing data[]: {}",
                                bal_resp.substr(0, 400));
             }
         }
     } catch (const std::exception& e) {
-        ygg::log::warn("[Heimdall] OKXOrderAdapter: failed to fetch balance: {}", e.what());
+        ygg::log::warn("[OrderGateway] OKXOrderAdapter: failed to fetch balance: {}", e.what());
     }
 
     try {
@@ -297,10 +297,10 @@ AccountSnapshotData OKXOrderAdapter::fetch_account_snapshot(uint64_t correlation
             }
         }
     } catch (const std::exception& e) {
-        ygg::log::warn("[Heimdall] OKXOrderAdapter: failed to fetch positions: {}", e.what());
+        ygg::log::warn("[OrderGateway] OKXOrderAdapter: failed to fetch positions: {}", e.what());
     }
 
-    ygg::log::info("[Heimdall] OKXOrderAdapter: account snapshot fetched — balance={:.2f} positions={}",
+    ygg::log::info("[OrderGateway] OKXOrderAdapter: account snapshot fetched — balance={:.2f} positions={}",
                    static_cast<double>(snap.available_balance_e8) / 1e8,
                    snap.positions.size());
     return snap;

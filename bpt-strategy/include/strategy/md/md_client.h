@@ -52,7 +52,7 @@ public:
     int poll(int fragment_limit = 10);
 
     // Fired for each BBO tick received from the MD service.
-    // Mutually exclusive with on_order_book — Huginn publishes one or the other
+    // Mutually exclusive with on_order_book — MdGateway publishes one or the other
     // depending on its order_book_depth config (0 = BBO, N > 0 = order book).
     OnBboFn on_bbo;
 
@@ -60,10 +60,10 @@ public:
     OnTradeFn on_trade;
 
     // Fired for each order book snapshot received from the MD service.
-    // Only populated when Huginn is configured with order_book_depth > 0.
+    // Only populated when MdGateway is configured with order_book_depth > 0.
     OnOrderBookFn on_order_book;
 
-    // Fired each time a MdServiceHeartbeat is received from Huginn.
+    // Fired each time a MdServiceHeartbeat is received from MdGateway.
     // Used by StrategyApp to track local receipt time for the liveness watchdog.
     OnServiceHeartbeatFn on_service_heartbeat;
 

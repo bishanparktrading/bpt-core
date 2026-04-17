@@ -12,7 +12,7 @@
 namespace bpt::strategy::metrics {
 
 // Prometheus metrics exposed by Strategy on the metrics_port from config.
-// Mirrors the shape of HeimdallMetrics / MD GatewayMetrics for consistency
+// Mirrors the shape of OrderGatewayMetrics / MD GatewayMetrics for consistency
 // across services — same struct-of-pointers layout, same shutdown()
 // semantics, per-label families resolved via accessor methods.
 //

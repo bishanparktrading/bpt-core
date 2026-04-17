@@ -17,7 +17,7 @@ class OkxMdSession;
 //
 // Listens on a configurable port and serves OKX-format WebSocket messages
 // (same protocol as ws.okx.com:8443/ws/v5/public).
-// Huginn's OKXAdapter connects here instead of the real exchange when
+// MdGateway's OKXAdapter connects here instead of the real exchange when
 // backtest_mode is active.
 //
 // Supported channels:

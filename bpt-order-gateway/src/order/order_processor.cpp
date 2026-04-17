@@ -19,7 +19,7 @@ namespace bpt::order_gateway::order {
 OrderProcessor::OrderProcessor(messaging::ExecReportPublisher& exec_pub,
                                OrderStateManager& state_mgr,
                                risk::RiskChecker& risk_checker,
-                               metrics::HeimdallMetrics& metrics,
+                               metrics::OrderGatewayMetrics& metrics,
                                const std::vector<std::shared_ptr<adapter::IOrderAdapter>>& adapters)
     : exec_pub_(exec_pub),
       state_mgr_(state_mgr),
@@ -72,7 +72,7 @@ void OrderProcessor::on_exec_event(const adapter::ExecEvent& ev) {
     metrics_.exec_report(exch, lifecycle_str(new_lc)).Increment();
 
     // RTT = time from NewOrder insertion (created_ns) to first exchange ack.
-    // Measures order placement latency end-to-end through Heimdall + exchange.
+    // Measures order placement latency end-to-end through OrderGateway + exchange.
     if (new_lc == OL::ACKED) {
         if (const auto* st = state_mgr_.get(ev.order_id)) {
             if (ev.local_ts_ns > st->created_ns)
@@ -89,7 +89,7 @@ void OrderProcessor::on_new_order(const bpt::messages::NewOrder& order) {
     using RR = bpt::messages::RejectReason;
     using FC = bpt::messages::FeeCurrency;
 
-    ygg::log::debug("[Heimdall] NewOrder: id={} exchange={} instrument_id={} qty={}",
+    ygg::log::debug("[OrderGateway] NewOrder: id={} exchange={} instrument_id={} qty={}",
                     order.orderId(),
                     static_cast<int>(order.exchangeId()),
                     order.instrumentId(),
@@ -119,7 +119,7 @@ void OrderProcessor::on_new_order(const bpt::messages::NewOrder& order) {
                           FC::USDT,
                           ts,
                           ts);
-        ygg::log::warn("[Heimdall] Order {} rejected by risk: reason={}",
+        ygg::log::warn("[OrderGateway] Order {} rejected by risk: reason={}",
                        order.orderId(),
                        static_cast<int>(result.error()));
         metrics_.risk_reject(exch).Increment();
@@ -144,7 +144,7 @@ void OrderProcessor::on_new_order(const bpt::messages::NewOrder& order) {
                           FC::USDT,
                           ts,
                           ts);
-        ygg::log::warn("[Heimdall] Order {} rejected: adapter not connected", order.orderId());
+        ygg::log::warn("[OrderGateway] Order {} rejected: adapter not connected", order.orderId());
         // Risk check already incremented the open-order counter — undo it so
         // the counter doesn't accumulate while the adapter is down.
         risk_checker_.on_order_closed(order.exchangeId());
@@ -152,7 +152,7 @@ void OrderProcessor::on_new_order(const bpt::messages::NewOrder& order) {
     }
 
     // exchange_symbol is resolved by Strategy before publishing the NewOrder
-    // message and carried in-band, so Heimdall never needs a symbol lookup.
+    // message and carried in-band, so OrderGateway never needs a symbol lookup.
     // We store it in state for cancel and modify operations.
     OrderState st;
     st.order_id = order.orderId();
@@ -172,7 +172,7 @@ void OrderProcessor::on_new_order(const bpt::messages::NewOrder& order) {
 }
 
 void OrderProcessor::on_cancel(const bpt::messages::CancelOrder& cancel) {
-    ygg::log::debug("[Heimdall] CancelOrder: id={} exchange={}",
+    ygg::log::debug("[OrderGateway] CancelOrder: id={} exchange={}",
                     cancel.orderId(),
                     static_cast<int>(cancel.exchangeId()));
 
@@ -184,7 +184,7 @@ void OrderProcessor::on_cancel(const bpt::messages::CancelOrder& cancel) {
     // cancel request; it was stored at NewOrder time.
     const auto* st = state_mgr_.get(cancel.orderId());
     if (!st) {
-        ygg::log::warn("[Heimdall] CancelOrder {}: order not found in state", cancel.orderId());
+        ygg::log::warn("[OrderGateway] CancelOrder {}: order not found in state", cancel.orderId());
         return;
     }
 
@@ -194,7 +194,7 @@ void OrderProcessor::on_cancel(const bpt::messages::CancelOrder& cancel) {
 void OrderProcessor::on_cancel_all(const bpt::messages::CancelAll& msg) {
     using EX = bpt::messages::ExchangeId;
 
-    ygg::log::debug("[Heimdall] CancelAll: exchange={} instrument_id={}",
+    ygg::log::debug("[OrderGateway] CancelAll: exchange={} instrument_id={}",
                     static_cast<int>(msg.exchangeId()),
                     msg.instrumentId());
 
@@ -202,7 +202,7 @@ void OrderProcessor::on_cancel_all(const bpt::messages::CancelAll& msg) {
         // Kill switch path — atomically disables trading so no new orders can
         // pass the risk check, then drains every open order across all venues.
         risk_checker_.set_trading_enabled(false);
-        ygg::log::warn("[Heimdall] Kill switch activated — cancelling all open orders");
+        ygg::log::warn("[OrderGateway] Kill switch activated — cancelling all open orders");
         state_mgr_.for_each_open([&](OrderState& st) {
             auto* adapter = find_adapter(st.exchange_id);
             if (adapter)
@@ -216,7 +216,7 @@ void OrderProcessor::on_cancel_all(const bpt::messages::CancelAll& msg) {
 }
 
 void OrderProcessor::on_modify(const bpt::messages::ModifyOrder& modify) {
-    ygg::log::debug("[Heimdall] ModifyOrder: id={} exchange={}",
+    ygg::log::debug("[OrderGateway] ModifyOrder: id={} exchange={}",
                     modify.orderId(),
                     static_cast<int>(modify.exchangeId()));
 
@@ -226,7 +226,7 @@ void OrderProcessor::on_modify(const bpt::messages::ModifyOrder& modify) {
 
     const auto* st = state_mgr_.get(modify.orderId());
     if (!st) {
-        ygg::log::warn("[Heimdall] ModifyOrder {}: order not found in state", modify.orderId());
+        ygg::log::warn("[OrderGateway] ModifyOrder {}: order not found in state", modify.orderId());
         return;
     }
 
@@ -240,7 +240,7 @@ void OrderProcessor::check_stale_orders(uint64_t stale_timeout_ns) {
     // iterating over it in check_stale.
     stale_ids_scratch_.clear();
     state_mgr_.check_stale(cur_ns, stale_timeout_ns, [&](const OrderState& st) {
-        ygg::log::warn("[Heimdall] Stale order detected: id={} exchange={} age_ms={}",
+        ygg::log::warn("[OrderGateway] Stale order detected: id={} exchange={} age_ms={}",
                        st.order_id,
                        static_cast<int>(st.exchange_id),
                        (cur_ns - st.last_update_ns) / 1'000'000ULL);

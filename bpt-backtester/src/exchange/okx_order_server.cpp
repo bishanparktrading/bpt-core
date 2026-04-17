@@ -25,7 +25,7 @@ static std::string dbl(double v) {
 }
 
 // OKX execution report pushed on the "orders" channel.
-// Backtester only emits the fill state — Heimdall's adapter handles fills only
+// Backtester only emits the fill state — OrderGateway's adapter handles fills only
 // (no ACKED/PARTIAL lifecycle needed).
 static std::string format_execution_report(const matching::FillReport& fill, uint64_t order_id_int) {
     namespace json = boost::json;
@@ -65,7 +65,7 @@ static std::string format_execution_report(const matching::FillReport& fill, uin
 // ── OkxOrderSession ───────────────────────────────────────────────────────────
 
 // OKX uses a single WS channel for both order submission (incoming) and
-// execution reports (outgoing).  Heimdall connects and sends op messages.
+// execution reports (outgoing).  OrderGateway connects and sends op messages.
 class OkxOrderSession : public std::enable_shared_from_this<OkxOrderSession> {
 public:
     explicit OkxOrderSession(tcp::socket socket, matching::MatchingEngine& engine, std::atomic<uint64_t>& order_id_seq)
@@ -101,7 +101,7 @@ private:
         ws_.async_read(buf_, [self = shared_from_this()](beast::error_code ec, std::size_t) { self->on_read(ec); });
     }
 
-    // Handles incoming op messages from Heimdall:
+    // Handles incoming op messages from OrderGateway:
     //   {"op":"order","args":[{"instId":"BTC-USDT-SWAP","clOrdId":"G42","side":"buy",
     //                          "ordType":"limit","px":"30000","sz":"1"}]}
     //   {"op":"cancel-order","args":[{"instId":"BTC-USDT-SWAP","clOrdId":"G42"}]}
@@ -114,7 +114,7 @@ private:
         std::string text = beast::buffers_to_string(buf_.data());
         buf_.consume(buf_.size());
 
-        // Heimdall sends plain-text "ping" keepalives — respond and continue.
+        // OrderGateway sends plain-text "ping" keepalives — respond and continue.
         if (text == "ping") {
             send(std::make_shared<std::string>("pong"));
             do_read();
@@ -138,7 +138,7 @@ private:
                 ack["msg"] = "";
                 send(std::make_shared<std::string>(boost::json::serialize(ack)));
             } else if (op == "subscribe") {
-                // Heimdall subscribes to the "orders" channel after login — ack silently.
+                // OrderGateway subscribes to the "orders" channel after login — ack silently.
                 (void)op;
             }
         } catch (const std::exception& e) {

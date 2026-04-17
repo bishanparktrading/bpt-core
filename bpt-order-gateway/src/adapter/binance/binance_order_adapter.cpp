@@ -79,7 +79,7 @@ void BinanceOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
 
     try {
         const std::string resp = https_client_.request("POST", "/api/v3/order?" + signed_params, "", true);
-        ygg::log::debug("[Heimdall] BinanceOrderAdapter: new order resp={}", resp);
+        ygg::log::debug("[OrderGateway] BinanceOrderAdapter: new order resp={}", resp);
 
         const uint64_t recv_ns = ygg::util::WallClock::now_ns();
         auto root = json::parse(resp);
@@ -87,7 +87,7 @@ void BinanceOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
             return;
         parser_.handle_order_response(root.as_object(), order.orderId(), order.side(), order.orderType(), recv_ns);
     } catch (const std::exception& e) {
-        ygg::log::error("[Heimdall] BinanceOrderAdapter: send_new_order failed: {}", e.what());
+        ygg::log::error("[OrderGateway] BinanceOrderAdapter: send_new_order failed: {}", e.what());
         emit_rejection();
     }
 }
@@ -99,16 +99,16 @@ void BinanceOrderAdapter::send_cancel(const bpt::messages::CancelOrder& cancel, 
 
     try {
         const std::string resp = https_client_.request("DELETE", "/api/v3/order?" + signed_params, "", true);
-        ygg::log::debug("[Heimdall] BinanceOrderAdapter: cancel resp={}", resp);
+        ygg::log::debug("[OrderGateway] BinanceOrderAdapter: cancel resp={}", resp);
     } catch (const std::exception& e) {
-        ygg::log::error("[Heimdall] BinanceOrderAdapter: send_cancel failed: {}", e.what());
+        ygg::log::error("[OrderGateway] BinanceOrderAdapter: send_cancel failed: {}", e.what());
     }
 }
 
 void BinanceOrderAdapter::send_cancel_all(uint64_t instrument_id) {
     (void)instrument_id;
     ygg::log::warn(
-        "[Heimdall] BinanceOrderAdapter: send_cancel_all called with "
+        "[OrderGateway] BinanceOrderAdapter: send_cancel_all called with "
         "instrument_id={}",
         instrument_id);
 }
@@ -129,7 +129,7 @@ void BinanceOrderAdapter::send_modify(const bpt::messages::ModifyOrder& modify, 
         https_client_.request("DELETE", "/api/v3/order?" + signed_cancel, "", true);
         https_client_.request("POST", "/api/v3/order?" + signed_new, "", true);
     } catch (const std::exception& e) {
-        ygg::log::error("[Heimdall] BinanceOrderAdapter: send_modify failed: {}", e.what());
+        ygg::log::error("[OrderGateway] BinanceOrderAdapter: send_modify failed: {}", e.what());
     }
 }
 
@@ -187,10 +187,10 @@ AccountSnapshotData BinanceOrderAdapter::fetch_account_snapshot(uint64_t correla
             }
         }
     } catch (const std::exception& e) {
-        ygg::log::error("[Heimdall] BinanceOrderAdapter: failed to parse account snapshot: {}", e.what());
+        ygg::log::error("[OrderGateway] BinanceOrderAdapter: failed to parse account snapshot: {}", e.what());
     }
 
-    ygg::log::info("[Heimdall] BinanceOrderAdapter: account snapshot fetched — balance={:.2f} positions={}",
+    ygg::log::info("[OrderGateway] BinanceOrderAdapter: account snapshot fetched — balance={:.2f} positions={}",
                    static_cast<double>(snap.available_balance_e8) / 1e8,
                    snap.positions.size());
     return snap;

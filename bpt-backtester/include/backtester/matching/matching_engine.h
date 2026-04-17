@@ -28,7 +28,7 @@ public:
     // Updates the L2 book snapshot and attempts to fill pending limit orders.
     void on_market_event(const data::MarketEvent& event);
 
-    // Called from the order WS/REST server when Heimdall submits an order.
+    // Called from the order WS/REST server when OrderGateway submits an order.
     // MARKET orders fill synchronously against the current book; the fill
     // callback fires before this returns.
     // LIMIT orders are queued and filled on future book updates.

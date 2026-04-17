@@ -81,7 +81,7 @@ public:
     virtual void on_bbo(const bpt::messages::MdMarketData& tick) = 0;
     virtual void on_trade(const bpt::messages::MdTrade& tick) = 0;
 
-    // Fired when Huginn is configured with order_book_depth > 0.
+    // Fired when MdGateway is configured with order_book_depth > 0.
     // Default no-op — only market-making strategies need to override this.
     virtual void on_order_book(const bpt::messages::MdOrderBook& /*book*/) {}
 
@@ -90,7 +90,7 @@ public:
     // Default no-op — only options strategies need to override this.
     virtual void on_vol_surface(bpt::messages::VolSurface& /*surface*/) {}
 
-    // Fired for every execution report from Heimdall.
+    // Fired for every execution report from OrderGateway.
     // Default no-op — strategies that manage positions must override this.
     virtual void on_exec_report(const bpt::messages::ExecutionReport& /*rpt*/) {}
 
@@ -118,7 +118,7 @@ public:
     // resting orders and fire offsetting market IOCs to flatten every
     // non-zero position. This runs on the main thread with the order
     // path still wired up, so fires go through the normal OrderManager
-    // → Heimdall → exchange path. StrategyApp drains exec reports for a
+    // → OrderGateway → exchange path. StrategyApp drains exec reports for a
     // short window after this returns so fills have a chance to be
     // acked before the process exits.
     //

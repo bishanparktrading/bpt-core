@@ -86,7 +86,7 @@ void ShortVolStrategy::start() {
     ygg::log::info("[ShortVol] Strategy started");
 
     // Subscribe to perp BBO for delta-hedging + option BBO for Pricer vol surface computation.
-    // Pricer passively reads stream 2002, so we subscribe to options here to drive Huginn.
+    // Pricer passively reads stream 2002, so we subscribe to options here to drive MdGateway.
     if (md_client_) {
         std::vector<md::MdClient::InstrumentDesc> subs;
         for (const auto& [key, state] : states_) {
@@ -102,7 +102,7 @@ void ShortVolStrategy::start() {
             }
         }
 
-        // Subscribe to all option instruments so Huginn publishes their BBOs on stream 2002.
+        // Subscribe to all option instruments so MdGateway publishes their BBOs on stream 2002.
         // Pricer reads these passively to compute implied vol surfaces.
         const auto all = refdata_.cache().get_all();
         int option_count = 0;

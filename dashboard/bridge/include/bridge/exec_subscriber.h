@@ -10,7 +10,7 @@
 
 namespace bridge {
 
-// Subscribes to Heimdall's exec report stream and delivers decoded fills
+// Subscribes to OrderGateway's exec report stream and delivers decoded fills
 // and order lifecycle events.
 class ExecSubscriber {
 public:

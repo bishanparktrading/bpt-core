@@ -487,7 +487,7 @@ void StrategyApp::check_service_liveness() {
     if (order_gw_ && last_gw_hb_recv_ns_ != 0) {
         const uint64_t age_ns = now_ns - last_gw_hb_recv_ns_;
         if (age_ns > threshold_ns) {
-            ygg::log::warn("[Strategy] Heimdall heartbeat stale ({:.1f}s, threshold={:.1f}s) — pausing trading",
+            ygg::log::warn("[Strategy] OrderGateway heartbeat stale ({:.1f}s, threshold={:.1f}s) — pausing trading",
                            age_ns / 1e9,
                            threshold_ns / 1e9);
             stale = true;

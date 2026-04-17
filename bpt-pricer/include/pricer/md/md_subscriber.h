@@ -9,9 +9,9 @@
 
 namespace bpt::pricer::md {
 
-// Passive MD subscriber — reads BBO ticks from Huginn's stream 2002.
+// Passive MD subscriber — reads BBO ticks from MdGateway's stream 2002.
 // Pricer is a read-only consumer; it does not send subscription requests.
-// (Strategy's subscriptions drive what Huginn publishes.)
+// (Strategy's subscriptions drive what MdGateway publishes.)
 class MdSubscriber {
 public:
     using BboCallback = std::function<void(uint64_t instrument_id, double bid, double ask, uint64_t timestamp_ns)>;

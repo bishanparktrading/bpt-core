@@ -16,7 +16,7 @@ namespace bpt::refdata::adapter {
 // Lifecycle:
 //   1. Construct (no network activity)
 //   2. fetchSnapshot()     — blocking REST snapshot; populates registry; sets isReady()
-//   3. subscribeDeltas()   — no-op (funding rates moved to Huginn; no WS needed)
+//   3. subscribeDeltas()   — no-op (funding rates moved to MdGateway; no WS needed)
 //   4. stop()              — no-op
 //
 // Hourly REST poll for instrument listing changes is driven externally
@@ -28,7 +28,7 @@ public:
     // Blocking REST snapshot fetch — MUST complete before subscribeDeltas().
     virtual void fetchSnapshot() = 0;
 
-    // No-op: funding rates have moved to Huginn; no WS subscriptions needed.
+    // No-op: funding rates have moved to MdGateway; no WS subscriptions needed.
     virtual void subscribeDeltas() = 0;
 
     // Re-fetch the instrument listing from REST (called hourly by main loop).

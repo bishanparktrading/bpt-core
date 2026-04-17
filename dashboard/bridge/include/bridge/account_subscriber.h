@@ -9,7 +9,7 @@
 
 namespace bridge {
 
-// Subscribes to Heimdall's AccountSnapshot stream (default 3004) and
+// Subscribes to OrderGateway's AccountSnapshot stream (default 3004) and
 // delivers decoded balance / equity / open-position state from the live
 // exchange account.
 //

@@ -74,7 +74,7 @@ Settings load(const std::string& path) {
         settings.control = load_stream((*aeron)["control"].as_table(), "aeron:ipc", 1003);
         settings.fee_schedule = load_stream((*aeron)["fee_schedule"].as_table(), "aeron:ipc", 1004);
         settings.refdata_status = load_stream((*aeron)["refdata_status"].as_table(), "aeron:ipc", 1006);
-        // Note: stream 1005 (funding_rate) has moved to Huginn — no longer loaded here
+        // Note: stream 1005 (funding_rate) has moved to MdGateway — no longer loaded here
     }
 
     if (auto v = root["instrument_poll_interval_s"].value<int64_t>())

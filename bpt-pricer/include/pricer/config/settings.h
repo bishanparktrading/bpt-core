@@ -15,7 +15,7 @@ struct LoggingConfig {
 struct Settings {
     std::string media_driver_dir;
 
-    // MD input (reads from Huginn stream 2002)
+    // MD input (reads from MdGateway stream 2002)
     ygg::config::StreamConfig md_input;
 
     // Refdata input (reads from Sindri streams 1001-1002)

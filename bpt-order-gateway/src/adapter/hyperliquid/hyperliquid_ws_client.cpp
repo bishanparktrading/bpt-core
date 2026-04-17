@@ -84,7 +84,7 @@ void HyperliquidWsClient::handle_frame(const std::string& payload, uint64_t recv
         } else {
             err = json::serialize(data_it->value());
         }
-        ygg::log::warn("[Heimdall] HyperliquidWsClient: HL WS channel=error: {}",
+        ygg::log::warn("[OrderGateway] HyperliquidWsClient: HL WS channel=error: {}",
                        err.substr(0, 200));
         fail_pending_posts("HL WS error: " + err);
         return;
@@ -212,7 +212,7 @@ void HyperliquidWsClient::fail_pending_posts(const std::string& reason) {
 }
 
 void HyperliquidWsClient::run(std::atomic<bool>& stop_flag, std::atomic<bool>& connected) {
-    ygg::log::info("[Heimdall] HyperliquidWsClient connecting WS {}:{}{}",
+    ygg::log::info("[OrderGateway] HyperliquidWsClient connecting WS {}:{}{}",
                    host_, port_, path_);
 
     tcp::resolver resolver(ioc_);
@@ -242,7 +242,7 @@ void HyperliquidWsClient::run(std::atomic<bool>& stop_flag, std::atomic<bool>& c
     // to silently reject the subscription, leaving the connection idle
     // and closed after ~60 s.
     if (wallet_address_.empty()) {
-        ygg::log::warn("[Heimdall] HyperliquidWsClient: wallet_address empty — "
+        ygg::log::warn("[OrderGateway] HyperliquidWsClient: wallet_address empty — "
                        "skipping userFills subscribe. WS will idle-close.");
     } else {
         json::object sub_msg;
@@ -253,11 +253,11 @@ void HyperliquidWsClient::run(std::atomic<bool>& stop_flag, std::atomic<bool>& c
         sub_msg["subscription"] = sub_detail;
         std::lock_guard<std::mutex> lock(write_mutex_);
         ws->write(net::buffer(json::serialize(sub_msg)));
-        ygg::log::info("[Heimdall] HyperliquidWsClient: subscribed userFills for {}", wallet_address_);
+        ygg::log::info("[OrderGateway] HyperliquidWsClient: subscribed userFills for {}", wallet_address_);
     }
 
     connected.store(true, std::memory_order_relaxed);
-    ygg::log::info("[Heimdall] HyperliquidWsClient connected");
+    ygg::log::info("[OrderGateway] HyperliquidWsClient connected");
 
     // Dedicated ping thread. HL closes idle WS after ~60 s; Beast's
     // websocket::stream supports concurrent read+write across threads
@@ -273,9 +273,9 @@ void HyperliquidWsClient::run(std::atomic<bool>& stop_flag, std::atomic<bool>& c
                 static const std::string msg = R"({"method":"ping"})";
                 std::lock_guard<std::mutex> lock(write_mutex_);
                 ws->write(net::buffer(msg));
-                ygg::log::info("[Heimdall] HyperliquidWsClient: ping sent");
+                ygg::log::info("[OrderGateway] HyperliquidWsClient: ping sent");
             } catch (const std::exception& e) {
-                ygg::log::warn("[Heimdall] HyperliquidWsClient: ping write failed: {}", e.what());
+                ygg::log::warn("[OrderGateway] HyperliquidWsClient: ping write failed: {}", e.what());
                 // Don't throw — let the reader detect the dead connection
                 // and trigger reconnect via the normal error path.
                 break;

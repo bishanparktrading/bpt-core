@@ -44,13 +44,13 @@ StrategyMetrics::StrategyMetrics(int port) {
 
     auto& mdt = prometheus::BuildCounter()
                     .Name("strategy_md_ticks_total")
-                    .Help("Total MD ticks received from Huginn")
+                    .Help("Total MD ticks received from MdGateway")
                     .Register(*registry);
     md_ticks_total = &mdt.Add({});
 
     auto& er = prometheus::BuildCounter()
                    .Name("strategy_exec_reports_total")
-                   .Help("Total ExecReports received from Heimdall")
+                   .Help("Total ExecReports received from OrderGateway")
                    .Register(*registry);
     exec_reports_total = &er.Add({});
 

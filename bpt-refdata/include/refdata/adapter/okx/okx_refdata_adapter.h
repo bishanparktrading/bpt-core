@@ -20,7 +20,7 @@ namespace bpt::refdata::adapter {
 //   GET /api/v5/public/instruments?instType=SWAP  — perpetual swap instruments
 //   GET /api/v5/account/trade-fee                 — fee schedules (requires API key)
 //
-// Funding rates have moved to Huginn (OKX funding-rate WS channel).
+// Funding rates have moved to MdGateway (OKX funding-rate WS channel).
 //
 // Hourly poll:
 //   Re-fetches instruments endpoints to detect listing changes.
@@ -33,7 +33,7 @@ public:
     ~OKXRefDataAdapter() override = default;
 
     void fetchSnapshot() override;
-    void subscribeDeltas() override {}  // no-op: funding rates in Huginn
+    void subscribeDeltas() override {}  // no-op: funding rates in MdGateway
     void fetchInstrumentListing() override;
     void stop() override {}  // no-op: no WS thread
 

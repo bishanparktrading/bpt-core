@@ -86,7 +86,7 @@ void OrderSubscriber::handle_fragment(aeron::AtomicBuffer& buf,
             on_account_snapshot_request(msg);
 
     } else {
-        ygg::log::warn("[Heimdall] OrderSubscriber: unknown templateId={}", tmpl);
+        ygg::log::warn("[OrderGateway] OrderSubscriber: unknown templateId={}", tmpl);
     }
 }
 

@@ -1,4 +1,5 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 # Core order-gateway components needed by tests — no network adapters.
@@ -32,5 +33,57 @@ cc_test(
     deps = [
         ":order_gateway_core",
         "@googletest//:gtest_main",
+    ],
+)
+
+cc_binary(
+    name = "bpt-order-gateway",
+    srcs = [
+        "src/main.cpp",
+        "src/app/gateway_app.cpp",
+        "src/messaging/account_snapshot_publisher.cpp",
+        "src/messaging/exec_report_publisher.cpp",
+        "src/messaging/heartbeat_publisher.cpp",
+        "src/messaging/order_subscriber.cpp",
+        "src/metrics/metrics.cpp",
+        "src/order/order_processor.cpp",
+        "src/refdata/instrument_cache.cpp",
+        "src/refdata/refdata_client.cpp",
+        "src/adapter/common/beast_https_client.cpp",
+        "src/adapter/common/order_adapter_base.cpp",
+        "src/adapter/binance/binance_action_codec.cpp",
+        "src/adapter/binance/binance_auth.cpp",
+        "src/adapter/binance/binance_https_client.cpp",
+        "src/adapter/binance/binance_user_data_ws.cpp",
+        "src/adapter/binance/binance_order_adapter.cpp",
+        "src/adapter/binance/binance_exec_parser.cpp",
+        "src/adapter/okx/okx_action_codec.cpp",
+        "src/adapter/okx/okx_auth.cpp",
+        "src/adapter/okx/okx_https_client.cpp",
+        "src/adapter/okx/okx_instruments_service.cpp",
+        "src/adapter/okx/okx_ws_client.cpp",
+        "src/adapter/okx/okx_order_adapter.cpp",
+        "src/adapter/okx/okx_exec_parser.cpp",
+        "src/adapter/deribit/deribit_action_codec.cpp",
+        "src/adapter/deribit/deribit_ws_client.cpp",
+        "src/adapter/deribit/deribit_order_adapter.cpp",
+        "src/adapter/deribit/deribit_exec_parser.cpp",
+        "src/adapter/hyperliquid/hyperliquid_exec_emitter.cpp",
+        "src/adapter/hyperliquid/hyperliquid_https_client.cpp",
+        "src/adapter/hyperliquid/hyperliquid_ws_client.cpp",
+        "src/adapter/hyperliquid/hyperliquid_order_adapter.cpp",
+    ],
+    deps = [
+        ":order_gateway_core",
+        "//third_party/yggdrasil",
+        "@boost.asio",
+        "@boost.beast",
+        "@boost.json",
+        "@boost.system",
+        "@fmt",
+        "@openssl",
+        "@prometheus_cpp//:core",
+        "@prometheus_cpp//:pull",
+        "@tomlplusplus//:tomlplusplus",
     ],
 )

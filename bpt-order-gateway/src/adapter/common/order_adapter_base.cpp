@@ -45,7 +45,7 @@ void OrderAdapterBase::run() {
             connect_and_run();
         } catch (const std::exception& e) {
             if (!stop_flag_.load(std::memory_order_relaxed)) {
-                ygg::log::error("[Heimdall] {} error: {}, reconnecting in {}ms",
+                ygg::log::error("[OrderGateway] {} error: {}, reconnecting in {}ms",
                                 exchange_name(),
                                 e.what(),
                                 reconnect_delay().count());

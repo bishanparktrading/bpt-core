@@ -10,10 +10,10 @@ namespace bpt::md_gateway::config {
 
 struct AeronConfig {
     std::string media_driver_dir;
-    ygg::config::StreamConfig control{"aeron:ipc", 2001};       // Strategy → Huginn subscription control
-    ygg::config::StreamConfig data{"aeron:ipc", 2002};          // Huginn → Strategy market data
-    ygg::config::StreamConfig ack_hb{"aeron:ipc", 2003};        // Huginn → Strategy acks + heartbeats
-    ygg::config::StreamConfig funding_rate{"aeron:ipc", 1005};  // Huginn → Strategy funding rates
+    ygg::config::StreamConfig control{"aeron:ipc", 2001};       // Strategy → MdGateway subscription control
+    ygg::config::StreamConfig data{"aeron:ipc", 2002};          // MdGateway → Strategy market data
+    ygg::config::StreamConfig ack_hb{"aeron:ipc", 2003};        // MdGateway → Strategy acks + heartbeats
+    ygg::config::StreamConfig funding_rate{"aeron:ipc", 1005};  // MdGateway → Strategy funding rates
 };
 
 struct AdapterConfig {

@@ -4,13 +4,13 @@
 
 namespace bpt::order_gateway::metrics {
 
-HeimdallMetrics::HeimdallMetrics(uint16_t port) {
+OrderGatewayMetrics::OrderGatewayMetrics(uint16_t port) {
     registry = std::make_shared<prometheus::Registry>();
 
     exposer = std::make_unique<prometheus::Exposer>("0.0.0.0:" + std::to_string(port));
     exposer->RegisterCollectable(registry);
 
-    auto& h = prometheus::BuildGauge().Name("order_gateway_healthy").Help("1 if Heimdall is running").Register(*registry);
+    auto& h = prometheus::BuildGauge().Name("order_gateway_healthy").Help("1 if OrderGateway is running").Register(*registry);
     healthy = &h.Add({});
     healthy->Set(1.0);
 

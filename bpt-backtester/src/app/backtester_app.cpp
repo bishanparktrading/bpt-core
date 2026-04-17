@@ -94,8 +94,8 @@ BacktesterApp::BacktesterApp(config::Settings settings) : settings_(std::move(se
 }
 
 void BacktesterApp::run() {
-    // Wait for at least one Huginn subscriber to connect before releasing data.
-    // Without this gate, Backtester would exhaust all data before Huginn has
+    // Wait for at least one MdGateway subscriber to connect before releasing data.
+    // Without this gate, Backtester would exhaust all data before MdGateway has
     // had a chance to connect and subscribe.
     const uint32_t timeout_s = settings_.simulation.subscriber_wait_timeout_s;
     ygg::log::info("[Backtester] Waiting for subscriber (timeout={}s)...", timeout_s);

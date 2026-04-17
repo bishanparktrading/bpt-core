@@ -27,11 +27,11 @@ struct AeronConfig {
     ygg::config::StreamConfig md_control{"aeron:ipc", 0};
     ygg::config::StreamConfig md_data{"aeron:ipc", 0};
     ygg::config::StreamConfig md_ack_hb{"aeron:ipc", 0};
-    // Order gateway streams (optional — stream_id 0 means Heimdall client is not started)
-    ygg::config::StreamConfig order{"aeron:ipc", 0};             // Strategy → Heimdall
-    ygg::config::StreamConfig exec_report{"aeron:ipc", 0};       // Heimdall → Strategy (ExecutionReport)
-    ygg::config::StreamConfig heartbeat{"aeron:ipc", 0};         // Heimdall → Strategy (OrderGatewayHeartbeat)
-    ygg::config::StreamConfig account_snapshot{"aeron:ipc", 0};  // Heimdall → Strategy (AccountSnapshot id=27)
+    // Order gateway streams (optional — stream_id 0 means OrderGateway client is not started)
+    ygg::config::StreamConfig order{"aeron:ipc", 0};             // Strategy → OrderGateway
+    ygg::config::StreamConfig exec_report{"aeron:ipc", 0};       // OrderGateway → Strategy (ExecutionReport)
+    ygg::config::StreamConfig heartbeat{"aeron:ipc", 0};         // OrderGateway → Strategy (OrderGatewayHeartbeat)
+    ygg::config::StreamConfig account_snapshot{"aeron:ipc", 0};  // OrderGateway → Strategy (AccountSnapshot id=27)
     // Pricer vol surface streams (optional — stream_id 0 means vol surface client is not started)
     ygg::config::StreamConfig vol_surface{"aeron:ipc", 0};   // Pricer → Strategy (VolSurface id=21)
     ygg::config::StreamConfig pricer_status{"aeron:ipc", 0};  // PricerHeartbeat id=22, PricerReady id=23

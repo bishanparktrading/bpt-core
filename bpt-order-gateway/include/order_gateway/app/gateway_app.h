@@ -19,9 +19,9 @@
 
 namespace bpt::order_gateway {
 
-class HeimdallApp {
+class OrderGatewayApp {
 public:
-    HeimdallApp(config::Settings cfg,
+    OrderGatewayApp(config::Settings cfg,
                 std::shared_ptr<aeron::Aeron> aeron,
                 std::map<std::string, adapter::ExchangeCredentials> creds);
     void run();
@@ -29,7 +29,7 @@ public:
 private:
     config::Settings cfg_;
     std::shared_ptr<aeron::Aeron> aeron_;
-    metrics::HeimdallMetrics metrics_;
+    metrics::OrderGatewayMetrics metrics_;
     std::shared_ptr<messaging::ExecReportPublisher> exec_pub_;
     std::shared_ptr<messaging::AccountSnapshotPublisher> account_snap_pub_;
     std::shared_ptr<messaging::HeartbeatPublisher> hb_pub_;

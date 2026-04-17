@@ -1,4 +1,4 @@
-#include "md_gateway/app/bpt-md-gateway_app.h"
+#include "md_gateway/app/md_gateway_app.h"
 #include "md_gateway/config/settings.h"
 
 #include <chrono>

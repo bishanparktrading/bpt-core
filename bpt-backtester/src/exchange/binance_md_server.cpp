@@ -253,7 +253,7 @@ void BinanceMdServer::push(const data::MarketEvent& event) {
 
             // Each session may have subscribed with a different depth stream
             // name (e.g. @depth5 vs @depth5@100ms).  Use their exact name so
-            // stream routing in Huginn's adapter works correctly.
+            // stream routing in MdGateway's adapter works correctly.
             for (const auto& s : sessions_) {
                 std::string stream = s->depth_stream_for(sym);
                 if (!stream.empty()) {

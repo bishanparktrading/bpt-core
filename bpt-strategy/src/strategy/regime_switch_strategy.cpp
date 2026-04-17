@@ -25,7 +25,7 @@ using bpt::messages::TimeInForce;
 namespace bpt::strategy::strategy {
 
 static constexpr double kPriceScale = 1e8;
-static constexpr double kQtyScale = 1e8;                           // must match Heimdall's kScale
+static constexpr double kQtyScale = 1e8;                           // must match OrderGateway's kScale
 static constexpr uint64_t kBarIntervalDefault = 1'000'000'000ULL;  // 1s in ns
 
 const char* RegimeSwitchStrategy::regime_name(Regime r) {
@@ -231,7 +231,7 @@ void RegimeSwitchStrategy::on_order_book(const bpt::messages::MdOrderBook& book)
 
     // For now, log depth info periodically for diagnostics.
     // Future: use order book imbalance to bias regime detection or signal generation.
-    // The BBO is already published separately by Huginn alongside the order book,
+    // The BBO is already published separately by MdGateway alongside the order book,
     // so on_bbo still drives all strategy logic.
 }
 

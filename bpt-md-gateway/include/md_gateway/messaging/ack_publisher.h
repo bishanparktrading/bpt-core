@@ -17,7 +17,7 @@
 namespace bpt::md_gateway::messaging {
 
 // Publishes MdSubscriptionAck, MdSubscriptionHeartbeat, and MdServiceHeartbeat
-// on the Huginn→Strategy ack/heartbeat stream (2003).
+// on the MdGateway→Strategy ack/heartbeat stream (2003).
 //
 // Called from both the main poll thread (acks after subscription processing)
 // and the service heartbeat timer.  Uses the same aeron::Publication thread-safety

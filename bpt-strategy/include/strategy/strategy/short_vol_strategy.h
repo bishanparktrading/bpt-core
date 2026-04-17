@@ -31,8 +31,8 @@ namespace bpt::strategy::strategy {
 //
 // Data flow:
 //   - Reads VolSurface from Pricer (stream 4001) for IV, Greeks, option BBO.
-//   - Reads perp BBO from Huginn (stream 2002) for delta-hedge execution prices.
-//   - Sends option + perp orders to Heimdall (stream 3001).
+//   - Reads perp BBO from MdGateway (stream 2002) for delta-hedge execution prices.
+//   - Sends option + perp orders to OrderGateway (stream 3001).
 //
 // Single-threaded: all callbacks called from the main poll loop.
 class ShortVolStrategy : public IStrategy {

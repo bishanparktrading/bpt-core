@@ -18,7 +18,7 @@ class BinanceOrderSession;
 // Mock Binance order REST + user-data-stream WS server for backtesting.
 //
 // Listens on a configurable port and implements the subset of the Binance order
-// API that Heimdall's BinanceAdapter uses:
+// API that OrderGateway's BinanceAdapter uses:
 //
 //   POST   /api/v3/userDataStream  → {"listenKey":"backtester-stream"}
 //   PUT    /api/v3/userDataStream  → 200 OK (keepalive)

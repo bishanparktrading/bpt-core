@@ -1,4 +1,5 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 # Pure-logic strategy utilities — no Aeron, no network deps.
@@ -34,5 +35,45 @@ cc_test(
     deps = [
         ":strategy_core",
         "@googletest//:gtest_main",
+    ],
+)
+
+cc_binary(
+    name = "bpt-strategy",
+    srcs = [
+        "src/main.cpp",
+        "src/app/strategy_app.cpp",
+        "src/app/startup_gate.cpp",
+        "src/backtest/backtest_client.cpp",
+        "src/config/config.cpp",
+        "src/dashboard/portfolio_snapshot_publisher.cpp",
+        "src/metrics/metrics.cpp",
+        "src/refdata/refdata_client.cpp",
+        "src/refdata/fee_cache.cpp",
+        "src/refdata/funding_rate_cache.cpp",
+        "src/strategy/canonical_resolver.cpp",
+        "src/strategy/hmm_filter.cpp",
+        "src/strategy/hmm_strategy.cpp",
+        "src/strategy/momentum_strategy.cpp",
+        "src/strategy/ofi_strategy.cpp",
+        "src/strategy/avellaneda_stoikov_strategy.cpp",
+        "src/strategy/funding_arb_strategy.cpp",
+        "src/strategy/regime_switch_strategy.cpp",
+        "src/strategy/vwap_reversion_strategy.cpp",
+        "src/strategy/short_vol_strategy.cpp",
+        "src/strategy/strategy_factory.cpp",
+        "src/md/md_client.cpp",
+        "src/vol/vol_surface_client.cpp",
+        "src/order/order_gateway_client.cpp",
+        "src/order/order_manager.cpp",
+    ],
+    deps = [
+        ":strategy_core",
+        "//third_party/yggdrasil",
+        "@fmt",
+        "@nlohmann_json//:nlohmann_json",
+        "@prometheus_cpp//:core",
+        "@prometheus_cpp//:pull",
+        "@tomlplusplus//:tomlplusplus",
     ],
 )

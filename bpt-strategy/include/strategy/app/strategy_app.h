@@ -70,7 +70,7 @@ private:
     // a manual halt.
     bool trading_halted_{false};
     uint64_t last_md_hb_recv_ns_{0};  // steady_clock receipt time of last MD Gateway heartbeat
-    uint64_t last_gw_hb_recv_ns_{0};  // steady_clock receipt time of last Heimdall heartbeat
+    uint64_t last_gw_hb_recv_ns_{0};  // steady_clock receipt time of last OrderGateway heartbeat
     uint64_t last_liveness_check_ns_{0};
 
     // Latency histograms — T0 = bpt-md-gateway receipt timestamp in MD message (TSC ns).

@@ -8,7 +8,7 @@
 
 namespace bridge {
 
-// Subscribes to Huginn's MD data stream and delivers a mid-price tick callback.
+// Subscribes to MdGateway's MD data stream and delivers a mid-price tick callback.
 // Thin wrapper around the Aeron subscription — all decoding happens inline.
 class MdSubscriber {
 public:

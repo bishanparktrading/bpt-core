@@ -336,7 +336,7 @@ void AvellanedaStoikovStrategy::on_bbo(const bpt::messages::MdMarketData& tick) 
         return;  // don't compute or place new quotes while halted
 
     // ── Compute AS quotes ──────────────────────────────────────────────────
-    // Heimdall encodes quantity at 1e8 fixed-point (same scale as price).
+    // OrderGateway encodes quantity at 1e8 fixed-point (same scale as price).
     // Divide by 1e8 to convert raw position to base units (BTC).
     const double net_qty = static_cast<double>(positions_.net_qty(tick.instrumentId(), st.exchange_id)) / 1e8;
 

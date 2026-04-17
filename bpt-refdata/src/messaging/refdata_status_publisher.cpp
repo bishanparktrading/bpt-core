@@ -35,7 +35,7 @@ void RefdataStatusPublisher::publish_ready(uint8_t exchanges_loaded,
         .exchangesLoaded(exchanges_loaded)
         .instrumentCount(instrument_count)
         .feeSchedulesLoaded(fee_schedules_loaded ? uint8_t{1} : uint8_t{0})
-        .fundingRatesLoaded(uint8_t{0});  // Funding rates moved to Huginn; always 0 from Refdata
+        .fundingRatesLoaded(uint8_t{0});  // Funding rates moved to MdGateway; always 0 from Refdata
 
     aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), kBufSize);
     aeron_offer(*publication_, ab, static_cast<aeron::util::index_t>(kBufSize), "refdata_ready");

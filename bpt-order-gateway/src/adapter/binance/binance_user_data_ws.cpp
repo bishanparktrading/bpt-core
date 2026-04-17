@@ -55,12 +55,12 @@ void BinanceUserDataWs::delete_listen_key(const std::string& listen_key) {
 }
 
 void BinanceUserDataWs::run(std::atomic<bool>& stop_flag, std::atomic<bool>& connected) {
-    ygg::log::info("[Heimdall] BinanceUserDataWs: creating listen key");
+    ygg::log::info("[OrderGateway] BinanceUserDataWs: creating listen key");
     const std::string listen_key = create_listen_key();
 
     if (listen_key.empty()) {
         ygg::log::warn(
-            "[Heimdall] BinanceUserDataWs: no listen key — REST-only "
+            "[OrderGateway] BinanceUserDataWs: no listen key — REST-only "
             "mode (exec reports from order response)");
         connected.store(true, std::memory_order_relaxed);
         while (!stop_flag.load(std::memory_order_relaxed))
@@ -68,7 +68,7 @@ void BinanceUserDataWs::run(std::atomic<bool>& stop_flag, std::atomic<bool>& con
         return;
     }
 
-    ygg::log::info("[Heimdall] BinanceUserDataWs: connecting WS for user data stream");
+    ygg::log::info("[OrderGateway] BinanceUserDataWs: connecting WS for user data stream");
     const std::string ws_path = cfg_.ws_path + "/" + listen_key;
 
     tcp::resolver resolver(ioc_);
@@ -86,7 +86,7 @@ void BinanceUserDataWs::run(std::atomic<bool>& stop_flag, std::atomic<bool>& con
     ws.handshake(cfg_.ws_host, ws_path);
 
     connected.store(true, std::memory_order_relaxed);
-    ygg::log::info("[Heimdall] BinanceUserDataWs: connected");
+    ygg::log::info("[OrderGateway] BinanceUserDataWs: connected");
 
     auto last_ping = std::chrono::steady_clock::now();
 
@@ -120,7 +120,7 @@ void BinanceUserDataWs::run(std::atomic<bool>& stop_flag, std::atomic<bool>& con
     try {
         delete_listen_key(listen_key);
     } catch (const std::exception& e) {
-        ygg::log::warn("[Heimdall] BinanceUserDataWs: delete_listen_key failed: {}", e.what());
+        ygg::log::warn("[OrderGateway] BinanceUserDataWs: delete_listen_key failed: {}", e.what());
     }
     beast::error_code ec;
     ws.close(websocket::close_code::normal, ec);

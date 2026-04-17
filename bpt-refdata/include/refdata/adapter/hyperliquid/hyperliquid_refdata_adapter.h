@@ -19,7 +19,7 @@ namespace bpt::refdata::adapter {
 //   POST /info {"type":"meta"}             — all instrument metadata
 //   POST /info {"type":"userFees"}         — fee schedule (requires wallet address)
 //
-// Funding rates have moved to Huginn (Hyperliquid activeAssetCtx WS channel).
+// Funding rates have moved to MdGateway (Hyperliquid activeAssetCtx WS channel).
 //
 // Hourly poll:
 //   Re-fetches /info meta to detect new/delisted instruments.
@@ -32,7 +32,7 @@ public:
     ~HyperliquidRefDataAdapter() override = default;
 
     void fetchSnapshot() override;
-    void subscribeDeltas() override {}  // no-op: funding rates in Huginn
+    void subscribeDeltas() override {}  // no-op: funding rates in MdGateway
     void fetchInstrumentListing() override;
     void stop() override {}  // no-op: no WS thread
 

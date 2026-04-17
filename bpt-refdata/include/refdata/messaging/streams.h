@@ -9,7 +9,7 @@ constexpr int REFDATA_CONTROL_STREAM_ID = 1003;   // Strategy → Refdata (RefDa
 
 // Exchange-sourced refdata (Refdata → Strategy)
 constexpr int FEE_SCHEDULE_STREAM_ID = 1004;  // FeeSchedule messages
-// Note: stream 1005 (FundingRate) has moved to Huginn — same stream ID, same wire format
+// Note: stream 1005 (FundingRate) has moved to MdGateway — same stream ID, same wire format
 constexpr int MUNINN_STATUS_STREAM_ID = 1006;  // RefDataReady + RefDataError messages
 
 }  // namespace bpt::refdata::messaging

@@ -18,7 +18,7 @@ class OkxOrderSession;
 // Mock OKX order WebSocket server for backtesting.
 //
 // Listens on a configurable port and implements the subset of the OKX order
-// API that Heimdall's OKXAdapter uses:
+// API that OrderGateway's OKXAdapter uses:
 //
 //   WS /ws/v5/private  — single bidirectional channel for both order ops and fills
 //

@@ -44,7 +44,7 @@ bool OKXWsClient::send(const std::string& frame) {
 }
 
 void OKXWsClient::run(std::atomic<bool>& stop_flag, std::atomic<bool>& connected) {
-    ygg::log::info("[Heimdall] OKXWsClient connecting {}:{}{} (tls={})",
+    ygg::log::info("[OrderGateway] OKXWsClient connecting {}:{}{} (tls={})",
                    cfg_.ws_host, cfg_.ws_port, cfg_.ws_path, cfg_.use_tls);
 
     // Generic WS message loop — works for both TLS and plain-TCP stream types.
@@ -60,7 +60,7 @@ void OKXWsClient::run(std::atomic<bool>& stop_flag, std::atomic<bool>& connected
             ws.write(net::buffer(login_msg_builder_()));
 
         connected.store(true, std::memory_order_relaxed);
-        ygg::log::info("[Heimdall] OKXWsClient connected, waiting for login");
+        ygg::log::info("[OrderGateway] OKXWsClient connected, waiting for login");
 
         // Dedicated ping thread. Beast's websocket::stream::read() ignores
         // lowest_layer::expires_after — once inside read() it blocks until
@@ -91,9 +91,9 @@ void OKXWsClient::run(std::atomic<bool>& stop_flag, std::atomic<bool>& connected
                         }
                     }
                     if (sent)
-                        ygg::log::info("[Heimdall] OKXWsClient heartbeat ping sent");
+                        ygg::log::info("[OrderGateway] OKXWsClient heartbeat ping sent");
                 } catch (const std::exception& e) {
-                    ygg::log::warn("[Heimdall] OKXWsClient: ping write failed: {}", e.what());
+                    ygg::log::warn("[OrderGateway] OKXWsClient: ping write failed: {}", e.what());
                     break;  // reader will detect the dead connection and reconnect
                 }
             }

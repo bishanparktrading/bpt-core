@@ -45,16 +45,16 @@ HyperliquidOrderAdapter::HyperliquidOrderAdapter(const config::AdapterConfig& cf
 
     if (creds.private_key.empty()) {
         enabled_ = false;
-        ygg::log::warn("[Heimdall] HyperliquidOrderAdapter: disabled — private_key not set");
+        ygg::log::warn("[OrderGateway] HyperliquidOrderAdapter: disabled — private_key not set");
         return;
     }
     try {
         signer_ = std::make_unique<HyperliquidSigner>(creds.private_key, !cfg.testnet);
         enabled_ = true;
-        ygg::log::info("[Heimdall] HyperliquidOrderAdapter: signer loaded");
+        ygg::log::info("[OrderGateway] HyperliquidOrderAdapter: signer loaded");
     } catch (const std::exception& e) {
         enabled_ = false;
-        ygg::log::warn("[Heimdall] HyperliquidOrderAdapter: disabled — {}", e.what());
+        ygg::log::warn("[OrderGateway] HyperliquidOrderAdapter: disabled — {}", e.what());
     }
 }
 
@@ -64,7 +64,7 @@ HyperliquidOrderAdapter::HyperliquidOrderAdapter(const config::AdapterConfig& cf
 
 void HyperliquidOrderAdapter::connect_and_run() {
     if (!enabled_) {
-        ygg::log::warn("[Heimdall] HyperliquidOrderAdapter: running in disabled mode");
+        ygg::log::warn("[OrderGateway] HyperliquidOrderAdapter: running in disabled mode");
         while (!stop_flag_.load(std::memory_order_relaxed))
             std::this_thread::sleep_for(std::chrono::seconds(1));
         return;
@@ -74,7 +74,7 @@ void HyperliquidOrderAdapter::connect_and_run() {
 
 void HyperliquidOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
     if (!enabled_ || !signer_) {
-        ygg::log::error("[Heimdall] HyperliquidOrderAdapter: disabled, cannot send order");
+        ygg::log::error("[OrderGateway] HyperliquidOrderAdapter: disabled, cannot send order");
         return;
     }
 
@@ -116,7 +116,7 @@ void HyperliquidOrderAdapter::send_new_order(const bpt::messages::NewOrder& orde
         // payload shape is identical to the REST body, so downstream
         // parsing below is unchanged.
         const std::string resp = ws_client_->post_action(action, nonce, tx);
-        ygg::log::info("[Heimdall] HyperliquidOrderAdapter: new order id={} side={} tif={} px={} sz={} resp={}",
+        ygg::log::info("[OrderGateway] HyperliquidOrderAdapter: new order id={} side={} tif={} px={} sz={} resp={}",
                        order.orderId(),
                        is_buy ? "BUY" : "SELL",
                        hlcodec::tif_to_string(hl_tif),
@@ -143,7 +143,7 @@ void HyperliquidOrderAdapter::send_new_order(const bpt::messages::NewOrder& orde
                 parser_.register_order(exch_oid, client_id, qty_e8);
             });
     } catch (const std::exception& e) {
-        ygg::log::error("[Heimdall] HyperliquidOrderAdapter: send_new_order failed: {}", e.what());
+        ygg::log::error("[OrderGateway] HyperliquidOrderAdapter: send_new_order failed: {}", e.what());
         // Defensive: synthesize a REJECTED so fenrir doesn't wedge waiting.
         const hyperliquid::OrderContext ctx{
             order.orderId(),
@@ -160,7 +160,7 @@ void HyperliquidOrderAdapter::send_new_order(const bpt::messages::NewOrder& orde
 void HyperliquidOrderAdapter::send_cancel(const bpt::messages::CancelOrder& cancel,
                                           const std::string& native_symbol) {
     if (!enabled_ || !signer_) {
-        ygg::log::error("[Heimdall] HyperliquidOrderAdapter: disabled, cannot cancel order");
+        ygg::log::error("[OrderGateway] HyperliquidOrderAdapter: disabled, cannot cancel order");
         return;
     }
 
@@ -169,7 +169,7 @@ void HyperliquidOrderAdapter::send_cancel(const bpt::messages::CancelOrder& canc
     // send_new_order populated when it received the ACK.
     auto it = client_to_exch_oid_.find(cancel.orderId());
     if (it == client_to_exch_oid_.end()) {
-        ygg::log::warn("[Heimdall] HyperliquidOrderAdapter: cancel id={}: no exch_oid mapping — order never ACKed or already terminal",
+        ygg::log::warn("[OrderGateway] HyperliquidOrderAdapter: cancel id={}: no exch_oid mapping — order never ACKed or already terminal",
                        cancel.orderId());
         return;
     }
@@ -182,7 +182,7 @@ void HyperliquidOrderAdapter::send_cancel(const bpt::messages::CancelOrder& canc
         auto tx = signer_->sign_l1_action(action, nonce);
 
         const std::string resp = ws_client_->post_action(action, nonce, tx);
-        ygg::log::info("[Heimdall] HyperliquidOrderAdapter: cancel id={} resp={}",
+        ygg::log::info("[OrderGateway] HyperliquidOrderAdapter: cancel id={} resp={}",
                        cancel.orderId(), resp);
 
         exec_emitter_.emit_cancel_response(
@@ -192,7 +192,7 @@ void HyperliquidOrderAdapter::send_cancel(const bpt::messages::CancelOrder& canc
                 exch_oid_to_client_.erase(exch_oid);
             });
     } catch (const std::exception& e) {
-        ygg::log::error("[Heimdall] HyperliquidOrderAdapter: send_cancel failed: {}", e.what());
+        ygg::log::error("[OrderGateway] HyperliquidOrderAdapter: send_cancel failed: {}", e.what());
     }
 }
 
@@ -205,11 +205,11 @@ void HyperliquidOrderAdapter::send_cancel_all(uint64_t instrument_id) {
     // This matches the Python scripts/flatten_hl_positions.py flow and
     // works regardless of scheduleCancel volume gating.
     if (!enabled_ || !signer_) {
-        ygg::log::error("[Heimdall] HyperliquidOrderAdapter: disabled, cannot cancel_all");
+        ygg::log::error("[OrderGateway] HyperliquidOrderAdapter: disabled, cannot cancel_all");
         return;
     }
 
-    ygg::log::warn("[Heimdall] HyperliquidOrderAdapter: send_cancel_all(instrument_id={}) "
+    ygg::log::warn("[OrderGateway] HyperliquidOrderAdapter: send_cancel_all(instrument_id={}) "
                    "— cancelling ALL open orders on wallet (HL bulk cancel is not per-instrument)",
                    instrument_id);
 
@@ -222,12 +222,12 @@ void HyperliquidOrderAdapter::send_cancel_all(uint64_t instrument_id) {
 
         auto parsed = json::parse(info_resp);
         if (!parsed.is_array()) {
-            ygg::log::warn("[Heimdall] cancel_all: unexpected openOrders response: {}", info_resp);
+            ygg::log::warn("[OrderGateway] cancel_all: unexpected openOrders response: {}", info_resp);
             return;
         }
         const auto& orders = parsed.as_array();
         if (orders.empty()) {
-            ygg::log::info("[Heimdall] cancel_all: no open orders to cancel");
+            ygg::log::info("[OrderGateway] cancel_all: no open orders to cancel");
             return;
         }
 
@@ -248,7 +248,7 @@ void HyperliquidOrderAdapter::send_cancel_all(uint64_t instrument_id) {
             cancels.push_back(std::move(c));
         }
         if (cancels.empty()) {
-            ygg::log::info("[Heimdall] cancel_all: no cancellable orders after parse");
+            ygg::log::info("[OrderGateway] cancel_all: no cancellable orders after parse");
             return;
         }
 
@@ -271,17 +271,17 @@ void HyperliquidOrderAdapter::send_cancel_all(uint64_t instrument_id) {
 
         const std::string cancel_resp =
             https_client_->post("/exchange", json::serialize(req));
-        ygg::log::info("[Heimdall] cancel_all: submitted batch cancel for {} order(s), resp={}",
+        ygg::log::info("[OrderGateway] cancel_all: submitted batch cancel for {} order(s), resp={}",
                        orders.size(), cancel_resp);
     } catch (const std::exception& e) {
-        ygg::log::error("[Heimdall] send_cancel_all failed: {}", e.what());
+        ygg::log::error("[OrderGateway] send_cancel_all failed: {}", e.what());
     }
 }
 
 void HyperliquidOrderAdapter::send_modify(const bpt::messages::ModifyOrder& modify,
                                           const std::string& native_symbol) {
     if (!enabled_ || !signer_) {
-        ygg::log::error("[Heimdall] HyperliquidOrderAdapter: disabled, cannot modify order");
+        ygg::log::error("[OrderGateway] HyperliquidOrderAdapter: disabled, cannot modify order");
         return;
     }
 
@@ -309,9 +309,9 @@ void HyperliquidOrderAdapter::send_modify(const bpt::messages::ModifyOrder& modi
         req["signature"] = std::move(signature);
 
         const std::string resp = https_client_->post("/exchange", json::serialize(req));
-        ygg::log::debug("[Heimdall] HyperliquidOrderAdapter: modify resp={}", resp);
+        ygg::log::debug("[OrderGateway] HyperliquidOrderAdapter: modify resp={}", resp);
     } catch (const std::exception& e) {
-        ygg::log::error("[Heimdall] HyperliquidOrderAdapter: send_modify failed: {}", e.what());
+        ygg::log::error("[OrderGateway] HyperliquidOrderAdapter: send_modify failed: {}", e.what());
     }
 }
 
@@ -326,14 +326,14 @@ AccountSnapshotData HyperliquidOrderAdapter::fetch_account_snapshot(uint64_t cor
     snap.timestamp_ns = ts_ns;
 
     if (!enabled_) {
-        ygg::log::warn("[Heimdall] HyperliquidOrderAdapter: disabled — returning empty snapshot");
+        ygg::log::warn("[OrderGateway] HyperliquidOrderAdapter: disabled — returning empty snapshot");
         return snap;
     }
 
     // Wallet address required for clearinghouseState query.
     if (wallet_address_.empty()) {
         ygg::log::warn(
-            "[Heimdall] HyperliquidOrderAdapter: wallet_address not set — "
+            "[OrderGateway] HyperliquidOrderAdapter: wallet_address not set — "
             "returning empty account snapshot");
         return snap;
     }
@@ -388,11 +388,11 @@ AccountSnapshotData HyperliquidOrderAdapter::fetch_account_snapshot(uint64_t cor
             }
         }
     } catch (const std::exception& e) {
-        ygg::log::error("[Heimdall] HyperliquidOrderAdapter: failed to parse account snapshot: {}", e.what());
+        ygg::log::error("[OrderGateway] HyperliquidOrderAdapter: failed to parse account snapshot: {}", e.what());
     }
 
     ygg::log::info(
-        "[Heimdall] HyperliquidOrderAdapter: account snapshot fetched — balance={:.2f} "
+        "[OrderGateway] HyperliquidOrderAdapter: account snapshot fetched — balance={:.2f} "
         "positions={}",
         static_cast<double>(snap.available_balance_e8) / 1e8,
         snap.positions.size());

@@ -20,7 +20,7 @@ namespace bpt::refdata::adapter {
 //   GET /fapi/v1/exchangeInfo     — futures/perp instruments
 //   GET /sapi/v1/asset/tradeFee   — fee schedules (requires API key)
 //
-// Funding rates have moved to Huginn (Binance !markPrice@arr@1s WS stream).
+// Funding rates have moved to MdGateway (Binance !markPrice@arr@1s WS stream).
 //
 // Hourly poll:
 //   Re-fetches /api/v3/exchangeInfo + /fapi/v1/exchangeInfo to detect listing changes.
@@ -33,7 +33,7 @@ public:
     ~BinanceRefDataAdapter() override = default;
 
     void fetchSnapshot() override;
-    void subscribeDeltas() override {}  // no-op: funding rates in Huginn
+    void subscribeDeltas() override {}  // no-op: funding rates in MdGateway
     void fetchInstrumentListing() override;
     void stop() override {}  // no-op: no WS thread
 

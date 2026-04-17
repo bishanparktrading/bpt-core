@@ -12,7 +12,7 @@
 
 namespace bpt::md_gateway::messaging {
 
-// Publishes normalised market-data structs on the Huginn→Strategy data stream
+// Publishes normalised market-data structs on the MdGateway→Strategy data stream
 // (stream 2002).
 //
 // Encoding is delegated to MdEncoder (struct → SBE bytes into a stack buffer).

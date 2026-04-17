@@ -15,7 +15,7 @@ namespace bpt::backtester::clock {
 // ClockMaster drives the backtest event loop.
 //
 // Iterates over all events from DataLoader in timestamp order, dispatches
-// each to the appropriate mock WS server (Huginn picks them up) and to the
+// each to the appropriate mock WS server (MdGateway picks them up) and to the
 // matching engine and results collector.
 //
 // When ctrl_pub and ack_sub are provided, ClockMaster gates each tick:

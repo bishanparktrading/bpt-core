@@ -1,4 +1,4 @@
-#include "md_gateway/app/bpt-md-gateway_app.h"
+#include "md_gateway/app/md_gateway_app.h"
 
 #include "md_gateway/adapter/binance/binance_adapter.h"
 #include "md_gateway/adapter/deribit/deribit_adapter.h"

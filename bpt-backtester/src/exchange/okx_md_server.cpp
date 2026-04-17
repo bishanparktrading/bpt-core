@@ -84,7 +84,7 @@ static std::string format_books5(const data::OrderBookRecord& ob) {
 }
 
 // bbo-tbt format: top-of-book only (one bid + one ask level).
-// Huginn subscribes with depth=0 → bbo-tbt channel.
+// MdGateway subscribes with depth=0 → bbo-tbt channel.
 static std::string format_bbo_tbt(const data::OrderBookRecord& ob) {
     namespace json = boost::json;
 
@@ -153,7 +153,7 @@ private:
         std::string text = beast::buffers_to_string(buf_.data());
         buf_.consume(buf_.size());
 
-        // Huginn sends a plain-text "ping" (not JSON) for keepalives.
+        // MdGateway sends a plain-text "ping" (not JSON) for keepalives.
         if (text == "ping") {
             send(std::make_shared<std::string>("pong"));
             do_read();

@@ -15,7 +15,7 @@ struct InstrumentConfig {
     std::string symbol;    // Exchange-native symbol e.g. BTCUSDT, BTC-USDT-SWAP, BTC
 };
 
-// Localhost WS ports that Huginn and Heimdall connect to instead of real exchanges.
+// Localhost WS ports that MdGateway and OrderGateway connect to instead of real exchanges.
 struct EndpointConfig {
     uint16_t binance_md_port{9100};
     uint16_t okx_md_port{9101};
@@ -39,7 +39,7 @@ struct SimulationConfig {
     std::string start;  // ISO8601 e.g. "2026-01-01T00:00:00Z"
     std::string end;    // ISO8601 e.g. "2026-01-31T23:59:59Z"
     bool allow_partial_data{false};
-    uint32_t subscriber_wait_timeout_s{60};  // Wait up to N seconds for Huginn to connect
+    uint32_t subscriber_wait_timeout_s{60};  // Wait up to N seconds for MdGateway to connect
     SimLatencyConfig latency;
 };
 

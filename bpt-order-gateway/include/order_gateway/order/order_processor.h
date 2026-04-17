@@ -21,7 +21,7 @@ namespace bpt::order_gateway::order {
 // OrderProcessor is the single point of coordination for all order lifecycle
 // events on the hot-path thread.  It owns the logic connecting the four core
 // components — ExecReportPublisher, OrderStateManager, RiskChecker, and
-// HeimdallMetrics — so that main.cpp is purely wiring and polling.
+// OrderGatewayMetrics — so that main.cpp is purely wiring and polling.
 //
 // Threading: all public methods must be called from the same thread.  The
 // underlying components (OrderStateManager, RiskChecker) are not thread-safe
@@ -37,7 +37,7 @@ public:
     OrderProcessor(messaging::ExecReportPublisher& exec_pub,
                    OrderStateManager& state_mgr,
                    risk::RiskChecker& risk_checker,
-                   metrics::HeimdallMetrics& metrics,
+                   metrics::OrderGatewayMetrics& metrics,
                    const std::vector<std::shared_ptr<adapter::IOrderAdapter>>& adapters);
 
     // Called by each adapter's on_exec_event callback when an exchange event
@@ -113,7 +113,7 @@ private:
     messaging::ExecReportPublisher& exec_pub_;
     OrderStateManager& state_mgr_;
     risk::RiskChecker& risk_checker_;
-    metrics::HeimdallMetrics& metrics_;
+    metrics::OrderGatewayMetrics& metrics_;
     // O(1) adapter lookup by ExchangeId value (0=ALL unused, 1=BINANCE, …, 4=DERIBIT).
     std::array<adapter::IOrderAdapter*, 5> adapter_by_id_{};
     // Pre-allocated scratch buffer for check_stale_orders to avoid hot-path heap alloc.

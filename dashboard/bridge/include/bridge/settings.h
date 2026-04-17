@@ -10,11 +10,11 @@ namespace bridge::config {
 struct Settings {
     // Aeron
     std::string             media_driver_dir{"/dev/shm/aeron-bifrost"};
-    ygg::config::StreamConfig md_data{"aeron:ipc", 2002};       // Huginn → everyone
-    ygg::config::StreamConfig exec_report{"aeron:ipc", 3002};   // Heimdall → Strategy/dashboard
+    ygg::config::StreamConfig md_data{"aeron:ipc", 2002};       // MdGateway → everyone
+    ygg::config::StreamConfig exec_report{"aeron:ipc", 3002};   // OrderGateway → Strategy/dashboard
     ygg::config::StreamConfig control_command{"aeron:ipc", 9003}; // bridge → Strategy (halt/resume)
     ygg::config::StreamConfig portfolio_snapshot{"aeron:ipc", 9004}; // Strategy → bridge (portfolio state)
-    ygg::config::StreamConfig account_snapshot{"aeron:ipc", 3004};   // Heimdall → bridge (live balance)
+    ygg::config::StreamConfig account_snapshot{"aeron:ipc", 3004};   // OrderGateway → bridge (live balance)
     ygg::config::StreamConfig toxicity{"aeron:ipc", 0};             // Analytics → bridge (ToxicityUpdate)
 
     // WebSocket

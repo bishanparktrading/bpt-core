@@ -42,7 +42,7 @@ bool DeribitWsClient::send(const std::string& frame) {
 }
 
 void DeribitWsClient::run(std::atomic<bool>& stop_flag, std::atomic<bool>& connected) {
-    ygg::log::info("[Heimdall] DeribitWsClient connecting {}:{}{}", cfg_.ws_host, cfg_.ws_port, cfg_.ws_path);
+    ygg::log::info("[OrderGateway] DeribitWsClient connecting {}:{}{}", cfg_.ws_host, cfg_.ws_port, cfg_.ws_path);
 
     tcp::resolver resolver(ioc_);
     websocket::stream<beast::ssl_stream<beast::tcp_stream>> ws(ioc_, ssl_ctx_);
@@ -79,7 +79,7 @@ void DeribitWsClient::run(std::atomic<bool>& stop_flag, std::atomic<bool>& conne
         ws.write(net::buffer(login_msg_builder_()));
 
     connected.store(true, std::memory_order_relaxed);
-    ygg::log::info("[Heimdall] DeribitWsClient connected, waiting for auth");
+    ygg::log::info("[OrderGateway] DeribitWsClient connected, waiting for auth");
 
     try {
         beast::flat_buffer buf;

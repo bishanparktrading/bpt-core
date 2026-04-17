@@ -11,7 +11,7 @@
 
 namespace bpt::order_gateway::metrics {
 
-struct HeimdallMetrics {
+struct OrderGatewayMetrics {
     std::shared_ptr<prometheus::Registry> registry;
     std::unique_ptr<prometheus::Exposer> exposer;
 
@@ -27,7 +27,7 @@ struct HeimdallMetrics {
     // Order ACK round-trip time: order placed → first exec report received (ns)
     prometheus::Family<prometheus::Histogram>* order_ack_rtt_fam{};
 
-    explicit HeimdallMetrics(uint16_t port);
+    explicit OrderGatewayMetrics(uint16_t port);
 
     void shutdown() {
         if (healthy)

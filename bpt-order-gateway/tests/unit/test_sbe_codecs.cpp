@@ -1,4 +1,4 @@
-// SBE encode/decode round-trip tests for Heimdall order gateway messages.
+// SBE encode/decode round-trip tests for OrderGateway order gateway messages.
 // Tests messages 10–15: NewOrder, CancelOrder, CancelAll, ModifyOrder,
 // ExecutionReport, OrderGatewayHeartbeat. No Aeron, no network.
 

@@ -56,7 +56,7 @@ bool HyperliquidExecEmitter::emit_order_response(const std::string& resp,
         const uint64_t now_ns = ygg::util::TscClock::now_epoch_ns();
 
         if (status != "ok") {
-            ygg::log::warn("[Heimdall] HL emitter: order rejected, status={}", status);
+            ygg::log::warn("[OrderGateway] HL emitter: order rejected, status={}", status);
             ExecEvent ev = make_skeleton(ctx, now_ns);
             ev.status = ES::REJECTED;
             ev.reject_reason = RR::EXCHANGE_ERROR;
@@ -105,13 +105,13 @@ bool HyperliquidExecEmitter::emit_order_response(const std::string& resp,
             const uint64_t exch_oid = f.contains("oid") ? f.at("oid").to_number<uint64_t>() : 0;
             if (exch_oid != 0 && on_acked) on_acked(exch_oid);
             ygg::log::debug(
-                "[Heimdall] HL emitter: fill-on-placement client_id={} exch_oid={} — waiting for userFills",
+                "[OrderGateway] HL emitter: fill-on-placement client_id={} exch_oid={} — waiting for userFills",
                 ctx.client_order_id, exch_oid);
             return true;
         }
 
         if (s0.contains("error")) {
-            ygg::log::warn("[Heimdall] HL emitter: order error: {}",
+            ygg::log::warn("[OrderGateway] HL emitter: order error: {}",
                            std::string(s0.at("error").as_string()));
             ExecEvent ev = make_skeleton(ctx, now_ns);
             ev.status = ES::REJECTED;
@@ -123,7 +123,7 @@ bool HyperliquidExecEmitter::emit_order_response(const std::string& resp,
 
         return false;
     } catch (const std::exception& e) {
-        ygg::log::warn("[Heimdall] HL emitter: failed to parse order resp: {} resp={}",
+        ygg::log::warn("[OrderGateway] HL emitter: failed to parse order resp: {} resp={}",
                        e.what(), resp);
         emit_rejected(ctx);
         return true;
@@ -166,7 +166,7 @@ bool HyperliquidExecEmitter::emit_cancel_response(const std::string& resp,
                             if (err.find("filled") != std::string_view::npos) {
                                 ambiguous_already_filled = true;
                                 ygg::log::warn(
-                                    "[Heimdall] HL emitter: cancel id={} raced with fill "
+                                    "[OrderGateway] HL emitter: cancel id={} raced with fill "
                                     "(HL says '{}') — skipping CANCELLED emit, waiting for "
                                     "userFills to deliver the real state",
                                     client_order_id, err);
@@ -197,7 +197,7 @@ bool HyperliquidExecEmitter::emit_cancel_response(const std::string& resp,
         if (on_cancelled) on_cancelled();
         return true;
     } catch (const std::exception& e) {
-        ygg::log::warn("[Heimdall] HL emitter: failed to parse cancel resp: {}", e.what());
+        ygg::log::warn("[OrderGateway] HL emitter: failed to parse cancel resp: {}", e.what());
         return false;
     }
 }

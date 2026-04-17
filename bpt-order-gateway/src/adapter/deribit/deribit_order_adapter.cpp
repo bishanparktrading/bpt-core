@@ -43,7 +43,7 @@ DeribitOrderAdapter::DeribitOrderAdapter(const config::AdapterConfig& cfg, const
 }
 
 void DeribitOrderAdapter::handle_message(const std::string& payload, uint64_t recv_ns) {
-    ygg::log::info("[Heimdall] DeribitOrderAdapter WS rx: {}", payload.substr(0, 500));
+    ygg::log::info("[OrderGateway] DeribitOrderAdapter WS rx: {}", payload.substr(0, 500));
     auto root = json::parse(payload);
     if (!root.is_object())
         return;
@@ -95,7 +95,7 @@ void DeribitOrderAdapter::handle_message(const std::string& payload, uint64_t re
             code = cit->value().to_number<int64_t>();
         if (auto mit = err.find("message"); mit != err.end())
             errmsg = std::string(mit->value().as_string());
-        ygg::log::error("[Heimdall] DeribitOrderAdapter: JSON-RPC error code={} msg={}", code, errmsg);
+        ygg::log::error("[OrderGateway] DeribitOrderAdapter: JSON-RPC error code={} msg={}", code, errmsg);
         return;
     }
 
@@ -106,7 +106,7 @@ void DeribitOrderAdapter::handle_message(const std::string& payload, uint64_t re
 
     // Auth response
     if (res.find("access_token") != res.end()) {
-        ygg::log::info("[Heimdall] DeribitOrderAdapter: authenticated successfully");
+        ygg::log::info("[OrderGateway] DeribitOrderAdapter: authenticated successfully");
         logged_in_.store(true, std::memory_order_release);
 
         const auto next_id = [this] { return jsonrpc_id_.fetch_add(1, std::memory_order_relaxed); };
@@ -168,7 +168,7 @@ void DeribitOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
 
     if (!logged_in_.load(std::memory_order_acquire)) {
         ygg::log::info(
-            "[Heimdall] DeribitOrderAdapter: queuing order {} (not yet "
+            "[OrderGateway] DeribitOrderAdapter: queuing order {} (not yet "
             "authenticated)",
             order.orderId());
         std::lock_guard<std::mutex> lk(pending_mu_);
@@ -179,13 +179,13 @@ void DeribitOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
     try {
         if (!ws_client_.send(frame)) {
             ygg::log::warn(
-                "[Heimdall] DeribitOrderAdapter: send_new_order: WS not "
+                "[OrderGateway] DeribitOrderAdapter: send_new_order: WS not "
                 "connected, rejecting order={}",
                 order.orderId());
             emit_rejection();
         }
     } catch (const std::exception& e) {
-        ygg::log::error("[Heimdall] DeribitOrderAdapter: send_new_order failed: {}", e.what());
+        ygg::log::error("[OrderGateway] DeribitOrderAdapter: send_new_order failed: {}", e.what());
         emit_rejection();
     }
 }
@@ -196,7 +196,7 @@ void DeribitOrderAdapter::send_cancel(const bpt::messages::CancelOrder& cancel,
     const std::string exch_oid = parser_.get_exchange_order_id(cancel.orderId());
     if (exch_oid.empty()) {
         ygg::log::warn(
-            "[Heimdall] DeribitOrderAdapter: send_cancel: no exchange "
+            "[OrderGateway] DeribitOrderAdapter: send_cancel: no exchange "
             "order_id for order={}",
             cancel.orderId());
         return;
@@ -207,13 +207,13 @@ void DeribitOrderAdapter::send_cancel(const bpt::messages::CancelOrder& cancel,
     try {
         ws_client_.send(frame);
     } catch (const std::exception& e) {
-        ygg::log::error("[Heimdall] DeribitOrderAdapter: send_cancel failed: {}", e.what());
+        ygg::log::error("[OrderGateway] DeribitOrderAdapter: send_cancel failed: {}", e.what());
     }
 }
 
 void DeribitOrderAdapter::send_cancel_all(uint64_t instrument_id) {
     ygg::log::warn(
-        "[Heimdall] DeribitOrderAdapter: send_cancel_all called "
+        "[OrderGateway] DeribitOrderAdapter: send_cancel_all called "
         "instrument_id={} — not supported without instrument name",
         instrument_id);
 }
@@ -223,7 +223,7 @@ void DeribitOrderAdapter::send_modify(const bpt::messages::ModifyOrder& modify,
     const std::string exch_oid = parser_.get_exchange_order_id(modify.orderId());
     if (exch_oid.empty()) {
         ygg::log::warn(
-            "[Heimdall] DeribitOrderAdapter: send_modify: no exchange "
+            "[OrderGateway] DeribitOrderAdapter: send_modify: no exchange "
             "order_id for order={}",
             modify.orderId());
         return;
@@ -234,13 +234,13 @@ void DeribitOrderAdapter::send_modify(const bpt::messages::ModifyOrder& modify,
     try {
         ws_client_.send(frame);
     } catch (const std::exception& e) {
-        ygg::log::error("[Heimdall] DeribitOrderAdapter: send_modify failed: {}", e.what());
+        ygg::log::error("[OrderGateway] DeribitOrderAdapter: send_modify failed: {}", e.what());
     }
 }
 
 AccountSnapshotData DeribitOrderAdapter::fetch_account_snapshot(uint64_t correlation_id) {
     ygg::log::warn(
-        "[Heimdall] DeribitOrderAdapter: fetch_account_snapshot not implemented — returning empty "
+        "[OrderGateway] DeribitOrderAdapter: fetch_account_snapshot not implemented — returning empty "
         "snapshot");
     AccountSnapshotData snap;
     snap.exchange_id = bpt::messages::ExchangeId::DERIBIT;

@@ -1,4 +1,4 @@
-// Unit tests for Heimdall adapter order normalisation logic.
+// Unit tests for OrderGateway adapter order normalisation logic.
 //
 // Tests the JSON parsing logic from BinanceOrderAdapter and OKXOrderAdapter
 // using extracted pure normaliser structs — no network, no Aeron, no threads.

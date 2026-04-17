@@ -10,7 +10,7 @@
 namespace bpt::refdata::config {
 
 // Per-exchange REST + WebSocket endpoint configuration.
-// Mirrors the pattern used by Huginn and Heimdall adapters.
+// Mirrors the pattern used by MdGateway and OrderGateway adapters.
 struct AdapterConfig {
     std::string exchange;     // BINANCE | OKX | HYPERLIQUID
     std::string secret_name;  // AWS Secrets Manager secret name, e.g. "bpt/testnet/OKX"
@@ -52,7 +52,7 @@ struct Settings {
     ygg::config::StreamConfig control;
 
     // Exchange-sourced refdata streams (1004, 1006)
-    // Note: stream 1005 (FundingRate) has moved to Huginn
+    // Note: stream 1005 (FundingRate) has moved to MdGateway
     ygg::config::StreamConfig fee_schedule;
     ygg::config::StreamConfig refdata_status;
 

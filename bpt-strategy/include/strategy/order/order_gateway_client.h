@@ -71,8 +71,8 @@ public:
                      int64_t new_price,
                      uint64_t new_quantity);
 
-    // Request an account snapshot from Heimdall for the given exchange.
-    // Heimdall will fetch from the exchange REST API and publish an AccountSnapshot
+    // Request an account snapshot from OrderGateway for the given exchange.
+    // OrderGateway will fetch from the exchange REST API and publish an AccountSnapshot
     // on the account_snapshot stream.
     void send_account_snapshot_request(bpt::messages::ExchangeId::Value exchange_id, uint64_t correlation_id);
 

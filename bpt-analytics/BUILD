@@ -1,4 +1,5 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 cc_library(
@@ -27,5 +28,21 @@ cc_test(
     deps = [
         ":analytics_core",
         "@googletest//:gtest_main",
+    ],
+)
+
+# Deployable binary (bpt-analytics) — test-friendly `analytics_core` plus the
+# Aeron-coupled app + config loader.
+cc_binary(
+    name = "bpt-analytics",
+    srcs = [
+        "src/main.cpp",
+        "src/app/tyr_app.cpp",
+        "src/config/config.cpp",
+    ],
+    deps = [
+        ":analytics_core",
+        "//third_party/yggdrasil",
+        "@tomlplusplus//:tomlplusplus",
     ],
 )

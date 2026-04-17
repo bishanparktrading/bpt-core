@@ -53,10 +53,10 @@ void OKXInstrumentsService::fetch() {
                 contract_sizes_[inst_id] = ctval;
             }
         } catch (const std::exception& e) {
-            ygg::log::warn("[Heimdall] OKXInstrumentsService: fetch({}) failed: {}", inst_type, e.what());
+            ygg::log::warn("[OrderGateway] OKXInstrumentsService: fetch({}) failed: {}", inst_type, e.what());
         }
     }
-    ygg::log::info("[Heimdall] OKXInstrumentsService: loaded {} instIdCodes, {} contract sizes from REST",
+    ygg::log::info("[OrderGateway] OKXInstrumentsService: loaded {} instIdCodes, {} contract sizes from REST",
                    inst_id_codes_.size(),
                    contract_sizes_.size());
 }
