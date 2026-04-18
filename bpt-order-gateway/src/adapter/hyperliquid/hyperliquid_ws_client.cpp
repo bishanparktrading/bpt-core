@@ -1,16 +1,13 @@
 #include "order_gateway/adapter/hyperliquid/hyperliquid_ws_client.h"
 
-#include <boost/asio/connect.hpp>
-#include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
-#include <boost/beast/ssl.hpp>
 #include <boost/json.hpp>
 #include <chrono>
-#include <stdexcept>
 #include <thread>
 #include <yggdrasil/logging.h>
 #include <yggdrasil/util/tsc_clock.h>
+#include <yggdrasil/ws/ws_connect.h>
 
 namespace bpt::order_gateway::adapter::hyperliquid {
 
@@ -19,7 +16,6 @@ namespace websocket = beast::websocket;
 namespace net = boost::asio;
 namespace ssl = net::ssl;
 namespace json = boost::json;
-using tcp = net::ip::tcp;
 
 HyperliquidWsClient::HyperliquidWsClient(net::io_context& ioc,
                                          ssl::context& ssl_ctx,
@@ -215,20 +211,16 @@ void HyperliquidWsClient::run(std::atomic<bool>& stop_flag, std::atomic<bool>& c
     ygg::log::info("[OrderGateway] HyperliquidWsClient connecting WS {}:{}{}",
                    host_, port_, path_);
 
-    tcp::resolver resolver(ioc_);
-    auto ws = std::make_shared<WsStream>(ioc_, ssl_ctx_);
-
-    auto results = resolver.resolve(host_, port_);
-    beast::get_lowest_layer(*ws).connect(results);
-
-    if (!SSL_set_tlsext_host_name(ws->next_layer().native_handle(), host_.c_str()))
-        throw std::runtime_error("SSL_set_tlsext_host_name failed");
-    ws->next_layer().handshake(ssl::stream_base::client);
-
-    ws->set_option(websocket::stream_base::decorator([](websocket::request_type& req) {
-        req.set(beast::http::field::user_agent, "bpt-order-gateway/0.1");
-    }));
-    ws->handshake(host_, path_);
+    // ygg::ws::ws_connect handles resolve → TCP → TLS SNI + verify →
+    // WS handshake with the standard user-agent header. Returns
+    // unique_ptr<WsStream>; convert to shared_ptr because post_action
+    // senders on the OrderProcessor thread share the same stream with
+    // the reader on this thread.
+    auto ws_owned = ygg::ws::ws_connect(ioc_, ssl_ctx_, host_, port_, path_,
+                                        /*so_rcvbuf_bytes=*/0,
+                                        /*connect_timeout_ms=*/30000,
+                                        /*user_agent=*/"bpt-order-gateway/0.1");
+    std::shared_ptr<WsStream> ws(ws_owned.release());
 
     // Publish the stream so post_action can write to it from the
     // OrderProcessor thread. Do this only AFTER the handshake completes

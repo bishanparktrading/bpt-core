@@ -3,16 +3,12 @@
 // Persistent WebSocket client for Deribit's JSON-RPC endpoint. Owns
 // one connection session's read loop and thread-safe send.
 //
-// Unlike OKX's ws_client, there is no ping thread — Deribit's
-// heartbeat is application-level via `public/set_heartbeat` +
-// `test_request` handled inside the adapter's message_handler, so
-// the ws_client just does raw connect + login + read.
-//
-// Lifecycle: the client shares the adapter's io_context + ssl_context
-// (OrderAdapterBase owns both and drives reconnect via connect_and_run).
-// run() blocks for one session; on exit — clean or thrown — the send
-// callback is cleared so a concurrent send() call sees disconnected
-// state and returns false.
+// Inherits the connect/read/send scaffolding from ygg::ws::RunLoop;
+// this class only implements the Deribit-specific bits:
+//   - build & send the JSON-RPC `public/auth` message on handshake
+//   - forward each inbound frame to the adapter's message_handler
+//   - no ping thread — Deribit uses application-level set_heartbeat +
+//     test_request handled inside the adapter's message_handler.
 
 #include "order_gateway/config/settings.h"
 
@@ -21,12 +17,12 @@
 #include <boost/asio/ssl/context.hpp>
 #include <cstdint>
 #include <functional>
-#include <mutex>
 #include <string>
+#include <yggdrasil/ws/run_loop.h>
 
 namespace bpt::order_gateway::adapter::deribit {
 
-class DeribitWsClient {
+class DeribitWsClient : public ygg::ws::RunLoop {
 public:
     using MessageHandler = std::function<void(const std::string& payload, uint64_t recv_ns)>;
     using LoginMsgBuilder = std::function<std::string()>;
@@ -42,13 +38,12 @@ public:
 
     // One connection session. Blocks on the read loop until stop_flag
     // goes true or the connection throws. Sets `connected` to true
-    // right after handshake (before the login reply arrives).
+    // right after handshake completes (before the auth reply arrives).
     void run(std::atomic<bool>& stop_flag, std::atomic<bool>& connected);
 
-    // Thread-safe frame send. Returns false if not currently connected.
-    // Throws only on raw write error — callers treat a thrown send as
-    // a disconnect.
-    bool send(const std::string& frame);
+protected:
+    void on_handshake_complete() override;
+    void on_frame(std::string_view payload, uint64_t recv_ns) override;
 
 private:
     boost::asio::io_context& ioc_;
@@ -56,9 +51,6 @@ private:
     const config::AdapterConfig& cfg_;
     MessageHandler message_handler_;
     LoginMsgBuilder login_msg_builder_;
-
-    mutable std::mutex send_mu_;
-    std::function<void(const std::string&)> ws_send_;
 };
 
 }  // namespace bpt::order_gateway::adapter::deribit
