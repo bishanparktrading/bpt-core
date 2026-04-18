@@ -37,6 +37,15 @@ java \
   -jar "${SBE_JAR}" \
   "${SCHEMA}"
 
+# SBE's cpp generator writes to a directory derived from the package
+# (e.g. `bpt.messages` → `bpt_messages/`). Our includes are `<messages/...>`
+# (single dir segment), so rename post-generation. The namespace inside
+# the code remains `bpt::messages` — only the on-disk directory differs.
+if [[ -d "${OUT_DIR}/bpt_messages" ]]; then
+  rm -rf "${OUT_DIR}/messages"
+  mv "${OUT_DIR}/bpt_messages" "${OUT_DIR}/messages"
+fi
+
 echo "[sbe] Generation complete."
 echo "[sbe] Files written to ${OUT_DIR}:"
 find "${OUT_DIR}" -type f | sort | sed 's|^|  |'

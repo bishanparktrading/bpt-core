@@ -1,17 +1,17 @@
 /* Generated SBE (Simple Binary Encoding) message codec */
-#ifndef _BIFROST_PROTOCOL_INSTRUMENTSTATUS_CXX_H_
-#define _BIFROST_PROTOCOL_INSTRUMENTSTATUS_CXX_H_
+#ifndef _BPT_MESSAGES_INSTRUMENTSTATUS_CXX_H_
+#define _BPT_MESSAGES_INSTRUMENTSTATUS_CXX_H_
 
 #if !defined(__STDC_LIMIT_MACROS)
-#define __STDC_LIMIT_MACROS 1
+#  define __STDC_LIMIT_MACROS 1
 #endif
 
 #include <cstdint>
 #include <iomanip>
 #include <limits>
 #include <ostream>
-#include <sstream>
 #include <stdexcept>
+#include <sstream>
 #include <string>
 
 #define SBE_NULLVALUE_INT8 (std::numeric_limits<std::int8_t>::min)()
@@ -26,9 +26,11 @@
 namespace bpt {
 namespace messages {
 
-class InstrumentStatus {
+class InstrumentStatus
+{
 public:
-    enum Value {
+    enum Value
+    {
         ACTIVE = static_cast<std::uint8_t>(0),
         INACTIVE = static_cast<std::uint8_t>(1),
         HALTED = static_cast<std::uint8_t>(2),
@@ -36,48 +38,43 @@ public:
         NULL_VALUE = static_cast<std::uint8_t>(255)
     };
 
-    static InstrumentStatus::Value get(const std::uint8_t value) {
-        switch (value) {
-            case static_cast<std::uint8_t>(0):
-                return ACTIVE;
-            case static_cast<std::uint8_t>(1):
-                return INACTIVE;
-            case static_cast<std::uint8_t>(2):
-                return HALTED;
-            case static_cast<std::uint8_t>(3):
-                return PRE_DELIVERY;
-            case static_cast<std::uint8_t>(255):
-                return NULL_VALUE;
+    static InstrumentStatus::Value get(const std::uint8_t value)
+    {
+        switch (value)
+        {
+            case static_cast<std::uint8_t>(0): return ACTIVE;
+            case static_cast<std::uint8_t>(1): return INACTIVE;
+            case static_cast<std::uint8_t>(2): return HALTED;
+            case static_cast<std::uint8_t>(3): return PRE_DELIVERY;
+            case static_cast<std::uint8_t>(255): return NULL_VALUE;
         }
 
         throw std::runtime_error("unknown value for enum InstrumentStatus [E103]");
     }
 
-    static const char* c_str(const InstrumentStatus::Value value) {
-        switch (value) {
-            case ACTIVE:
-                return "ACTIVE";
-            case INACTIVE:
-                return "INACTIVE";
-            case HALTED:
-                return "HALTED";
-            case PRE_DELIVERY:
-                return "PRE_DELIVERY";
-            case NULL_VALUE:
-                return "NULL_VALUE";
+    static const char *c_str(const InstrumentStatus::Value value)
+    {
+        switch (value)
+        {
+            case ACTIVE: return "ACTIVE";
+            case INACTIVE: return "INACTIVE";
+            case HALTED: return "HALTED";
+            case PRE_DELIVERY: return "PRE_DELIVERY";
+            case NULL_VALUE: return "NULL_VALUE";
         }
 
         throw std::runtime_error("unknown value for enum InstrumentStatus [E103]:");
     }
 
-    template <typename CharT, typename Traits>
-    friend std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os,
-                                                         InstrumentStatus::Value m) {
+    template<typename CharT, typename Traits>
+    friend std::basic_ostream<CharT, Traits> & operator << (
+        std::basic_ostream<CharT, Traits> &os, InstrumentStatus::Value m)
+    {
         return os << InstrumentStatus::c_str(m);
     }
 };
 
-}  // namespace protocol
-}  // namespace bpt
+}
+}
 
 #endif
