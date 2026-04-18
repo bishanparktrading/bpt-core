@@ -1,5 +1,7 @@
 #include "strategy/strategy/avellaneda_stoikov_strategy.h"
 
+#include "strategy/strategy/reconciler.h"
+
 #include <messages/DeltaUpdateType.h>
 #include <messages/ExchangeId.h>
 #include <messages/ExecStatus.h>
@@ -1090,6 +1092,40 @@ void AvellanedaStoikovStrategy::on_shutdown_flatten() {
     if (cancels > 0 || unwinds > 0)
         ygg::log::warn("[AS] shutdown flatten: cancelled {} resting order(s), fired {} unwind IOC(s)",
                        cancels, unwinds);
+}
+
+void AvellanedaStoikovStrategy::on_account_snapshot(bpt::messages::AccountSnapshot& snap) {
+    // Reconcile: build an instrument_id → exchangeSymbol map restricted
+    // to instruments this strategy actually trades on the snap's
+    // exchange (state_ already has both, keyed by instrument_id). The
+    // reconciler compares our PositionTracker against the snap's
+    // positions[] and reports anything diverging by more than the
+    // threshold.
+    //
+    // Threshold: 1e4 in 1e8 scale = 0.0001 of a base unit (~$10 at
+    // BTC prices, ~$0.40 at ETH prices). Smaller than the smallest
+    // order_qty we place (0.0001 BTC); bigger than floating-point
+    // rounding noise. Tune per-venue later if needed.
+    const auto exchange_id = snap.exchangeId();
+    std::unordered_map<uint64_t, std::string> symbol_map;
+    symbol_map.reserve(state_.size());
+    for (const auto& [id, st] : state_) {
+        if (st.exchange_id == exchange_id) symbol_map[id] = st.symbol;
+    }
+    if (symbol_map.empty()) return;  // nothing we care about on this exchange
+
+    constexpr int64_t kDivergenceThresholdE8 = 10000;  // 0.0001 base units
+
+    const auto divergences = reconcile(positions_, snap, symbol_map, kDivergenceThresholdE8);
+    for (const auto& d : divergences) {
+        ygg::log::warn(
+            "[AS] RECONCILIATION DIVERGENCE instrument_id={} symbol='{}' "
+            "our_net_qty={:.8f} exchange_net_qty={:.8f} diff={:.8f}",
+            d.instrument_id, d.exchange_symbol,
+            static_cast<double>(d.our_net_qty_e8) / 1e8,
+            static_cast<double>(d.exchange_net_qty_e8) / 1e8,
+            static_cast<double>(d.diff_e8) / 1e8);
+    }
 }
 
 bool AvellanedaStoikovStrategy::has_pending_flatten() const {
