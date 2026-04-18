@@ -33,5 +33,8 @@ cc_library(
 cc_binary(
     name = "bridge",
     srcs = ["src/main.cpp"],
-    deps = [":bridge_lib"],
+    deps = [
+        ":bridge_lib",
+        "@cli11",
+    ],
 )

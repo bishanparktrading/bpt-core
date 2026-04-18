@@ -2,6 +2,7 @@
 #include "refdata/app/refdata_app.h"
 #include "refdata/config/settings.h"
 
+#include <CLI/CLI.hpp>
 #include <chrono>
 #include <map>
 #include <string>
@@ -14,11 +15,12 @@
 int main(int argc, char** argv) {
     ygg::signal::install();
 
+    CLI::App app{"bpt-refdata — instrument reference data service"};
     std::string config_path = "config/bpt-refdata.toml";
-    for (int i = 1; i < argc - 1; ++i) {
-        if (std::string(argv[i]) == "--config")
-            config_path = argv[i + 1];
-    }
+    app.add_option("-c,--config", config_path, "Path to TOML config file")
+        ->capture_default_str()
+        ->check(CLI::ExistingFile);
+    CLI11_PARSE(app, argc, argv);
 
     bpt::refdata::config::Settings settings;
     try {

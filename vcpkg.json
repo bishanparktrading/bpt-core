@@ -8,6 +8,7 @@
         {"name": "boost-system", "default-features": false},
         {"name": "boost-json",   "default-features": false},
         "gtest",
-        {"name": "prometheus-cpp", "features": ["pull"]}
+        {"name": "prometheus-cpp", "features": ["pull"]},
+        "cli11"
     ]
 }

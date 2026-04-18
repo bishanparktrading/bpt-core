@@ -43,6 +43,7 @@ cc_binary(
     deps = [
         ":analytics_core",
         "//third_party/yggdrasil",
+        "@cli11",
         "@tomlplusplus//:tomlplusplus",
     ],
 )

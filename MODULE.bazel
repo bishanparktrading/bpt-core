@@ -6,6 +6,7 @@ module(
 # ── Google Test ──────────────────────────────────────────────────────────────
 bazel_dep(name = "googletest", version = "1.17.0")
 
+
 # ── fmt ──────────────────────────────────────────────────────────────────────
 bazel_dep(name = "fmt", version = "11.1.4")
 
@@ -46,6 +47,14 @@ http_archive(
     urls = ["https://github.com/marzer/tomlplusplus/archive/refs/tags/v3.4.0.tar.gz"],
     strip_prefix = "tomlplusplus-3.4.0",
     build_file = "//third_party:tomlplusplus.BUILD",
+)
+
+# ── CLI11 (BCR target uses a legacy cc_library load — use custom http_archive) ─
+http_archive(
+    name = "cli11",
+    urls = ["https://github.com/CLIUtils/CLI11/archive/refs/tags/v2.5.0.tar.gz"],
+    strip_prefix = "CLI11-2.5.0",
+    build_file = "//third_party:cli11.BUILD",
 )
 
 # ── secp256k1 (no BCR module — custom http_archive) ─────────────────────────

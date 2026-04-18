@@ -3,6 +3,7 @@
 
 #include <Aeron.h>
 
+#include <CLI/CLI.hpp>
 #include <execinfo.h>
 #include <string>
 #include <yggdrasil/aeron/aeron_utils.h>
@@ -13,7 +14,12 @@
 int main(int argc, char* argv[]) {
     ygg::signal::install();
 
-    const std::string config_path = (argc > 1) ? argv[1] : "config/fenrir.toml";
+    CLI::App app{"bpt-strategy — strategy engine"};
+    std::string config_path = "config/fenrir.toml";
+    app.add_option("-c,--config", config_path, "Path to TOML config file")
+        ->capture_default_str()
+        ->check(CLI::ExistingFile);
+    CLI11_PARSE(app, argc, argv);
 
     bpt::strategy::config::AppConfig app_cfg;
     try {

@@ -4,6 +4,7 @@
 #include "backtester/app/backtester_app.h"
 #include "backtester/config/settings.h"
 
+#include <CLI/CLI.hpp>
 #include <optional>
 #include <string>
 #include <yggdrasil/logging.h>
@@ -12,24 +13,15 @@
 int main(int argc, char* argv[]) {
     ygg::signal::install();
 
-    // Arg parsing: first non-flag positional is the config path.
-    // Flags: --starting-capital <N>  (overrides [results] starting_capital)
+    CLI::App app{"bpt-backtester — replay-driven backtest runner"};
     std::string config_path = "config/backtester.toml";
     std::optional<double> starting_capital_override;
-
-    for (int i = 1; i < argc; ++i) {
-        std::string arg(argv[i]);
-        if (arg == "--starting-capital" && i + 1 < argc) {
-            try {
-                starting_capital_override = std::stod(argv[i + 1]);
-            } catch (const std::exception&) {
-                // Ignore parse errors; default stays
-            }
-            ++i;
-        } else if (!arg.empty() && arg[0] != '-') {
-            config_path = std::move(arg);
-        }
-    }
+    app.add_option("-c,--config", config_path, "Path to TOML config file")
+        ->capture_default_str()
+        ->check(CLI::ExistingFile);
+    app.add_option("--starting-capital", starting_capital_override,
+                   "Override [results].starting_capital");
+    CLI11_PARSE(app, argc, argv);
 
     bpt::backtester::config::Settings settings;
     try {

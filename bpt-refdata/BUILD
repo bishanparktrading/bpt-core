@@ -63,6 +63,7 @@ cc_binary(
     deps = [
         ":refdata_lib",
         "//third_party/yggdrasil",
+        "@cli11",
         "@fmt",
         "@tomlplusplus//:tomlplusplus",
     ],

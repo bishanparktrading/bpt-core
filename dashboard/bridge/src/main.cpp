@@ -12,6 +12,7 @@
 #include "bridge/ws_server.h"
 
 #include <Aeron.h>
+#include <CLI/CLI.hpp>
 #include <chrono>
 #include <string>
 #include <thread>
@@ -22,27 +23,25 @@
 int main(int argc, char** argv) {
     ygg::signal::install();
 
+    CLI::App app{"bpt-bridge — Aeron → WebSocket forwarder for dashboard"};
     std::string config_path = "config/bridge.toml";
-    std::string strategy_override;          // --strategy-name    → session.strategy
-    std::string symbol_override;            // --symbol           → session.symbol
-    std::string exchange_override;          // --exchange         → session.exchange
-    std::string mode_override;              // --mode             → session.mode
-    std::string instrument_type_override;   // --instrument-type  → session.instrument_type
-    uint64_t    instrument_id_override = 0; // --instrument-id    → session.instrument_id
-
-    for (int i = 1; i < argc - 1; ++i) {
-        const std::string arg(argv[i]);
-        if (arg == "--config")            config_path             = argv[i + 1];
-        if (arg == "--strategy-name")     strategy_override       = argv[i + 1];
-        if (arg == "--symbol")            symbol_override         = argv[i + 1];
-        if (arg == "--exchange")          exchange_override       = argv[i + 1];
-        if (arg == "--mode")              mode_override           = argv[i + 1];
-        if (arg == "--instrument-type")   instrument_type_override = argv[i + 1];
-        if (arg == "--instrument-id") {
-            try { instrument_id_override = std::stoull(argv[i + 1]); }
-            catch (const std::exception&) { /* ignore, default stays */ }
-        }
-    }
+    std::string strategy_override;
+    std::string symbol_override;
+    std::string exchange_override;
+    std::string mode_override;
+    std::string instrument_type_override;
+    uint64_t    instrument_id_override = 0;
+    app.add_option("-c,--config", config_path, "Path to TOML config file")
+        ->capture_default_str()
+        ->check(CLI::ExistingFile);
+    app.add_option("--strategy-name", strategy_override, "Override session.strategy");
+    app.add_option("--symbol", symbol_override, "Override session.symbol");
+    app.add_option("--exchange", exchange_override, "Override session.exchange");
+    app.add_option("--mode", mode_override, "Override session.mode (paper|live|mock)");
+    app.add_option("--instrument-type", instrument_type_override,
+                   "Override session.instrument_type (SPOT|PERP|FUTURE|OPTION)");
+    app.add_option("--instrument-id", instrument_id_override, "Override session.instrument_id");
+    CLI11_PARSE(app, argc, argv);
 
     bridge::config::Settings settings;
     try {

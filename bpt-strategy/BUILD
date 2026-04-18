@@ -74,6 +74,7 @@ cc_binary(
     deps = [
         ":strategy_core",
         "//third_party/yggdrasil",
+        "@cli11",
         "@fmt",
         "@nlohmann_json//:nlohmann_json",
         "@prometheus_cpp//:core",

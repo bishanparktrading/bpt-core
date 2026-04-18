@@ -1,6 +1,7 @@
 #include "md_gateway/app/md_gateway_app.h"
 #include "md_gateway/config/settings.h"
 
+#include <CLI/CLI.hpp>
 #include <chrono>
 #include <string>
 #include <yggdrasil/aeron/aeron_utils.h>
@@ -11,7 +12,12 @@
 int main(int argc, char* argv[]) {
     ygg::signal::install();
 
-    const std::string config_path = (argc > 1) ? argv[1] : "config/bpt-md-gateway.toml";
+    CLI::App app{"bpt-md-gateway — market data aggregator"};
+    std::string config_path = "config/bpt-md-gateway.toml";
+    app.add_option("-c,--config", config_path, "Path to TOML config file")
+        ->capture_default_str()
+        ->check(CLI::ExistingFile);
+    CLI11_PARSE(app, argc, argv);
 
     bpt::md_gateway::config::Settings cfg;
     try {

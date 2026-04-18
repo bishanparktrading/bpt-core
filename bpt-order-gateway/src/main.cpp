@@ -4,6 +4,7 @@
 #include "order_gateway/app/gateway_app.h"
 #include "order_gateway/config/settings.h"
 
+#include <CLI/CLI.hpp>
 #include <map>
 #include <string>
 #include <sys/prctl.h>
@@ -18,7 +19,12 @@ int main(int argc, char* argv[]) {
 
     ygg::signal::install();
 
-    const std::string config_path = (argc > 1) ? argv[1] : "config/order-gateway.toml";
+    CLI::App app{"bpt-order-gateway — order routing + risk enforcement"};
+    std::string config_path = "config/order-gateway.toml";
+    app.add_option("-c,--config", config_path, "Path to TOML config file")
+        ->capture_default_str()
+        ->check(CLI::ExistingFile);
+    CLI11_PARSE(app, argc, argv);
 
     bpt::order_gateway::config::Settings cfg;
     try {

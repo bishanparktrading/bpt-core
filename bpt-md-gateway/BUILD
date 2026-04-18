@@ -33,6 +33,7 @@ cc_library(
         "@boost.asio",
         "@boost.beast",
         "@boost.system",
+        "@cli11",
         "@fast_float//:fast_float",
         "@fmt",
         "@openssl",

@@ -53,6 +53,7 @@ find_package(Threads        REQUIRED)
 find_package(GTest          REQUIRED)
 find_package(Arrow   REQUIRED)
 find_package(Parquet REQUIRED)
+find_package(CLI11   CONFIG REQUIRED)
 
 # ── Libraries + the one remaining service ────────────────────────────────────
 add_subdirectory(third_party/yggdrasil)

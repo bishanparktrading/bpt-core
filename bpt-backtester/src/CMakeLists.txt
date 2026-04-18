@@ -34,4 +34,4 @@ target_link_libraries(backtester_lib PUBLIC
 
 add_executable(jormungandr main.cpp)
 
-target_link_libraries(jormungandr PRIVATE backtester_lib)
+target_link_libraries(jormungandr PRIVATE backtester_lib CLI11::CLI11)

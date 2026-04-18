@@ -1,6 +1,7 @@
 #include "analytics/app/tyr_app.h"
 #include "analytics/config/settings.h"
 
+#include <CLI/CLI.hpp>
 #include <string>
 #include <yggdrasil/aeron/aeron_utils.h>
 #include <yggdrasil/logging.h>
@@ -9,11 +10,12 @@
 int main(int argc, char** argv) {
     ygg::signal::install();
 
-    std::string config_path = (argc > 1 && argv[1][0] != '-') ? argv[1] : "config/tyr.toml";
-    for (int i = 1; i < argc - 1; ++i) {
-        if (std::string(argv[i]) == "--config")
-            config_path = argv[i + 1];
-    }
+    CLI::App app{"bpt-analytics — markouts, toxicity, fill-rate analytics"};
+    std::string config_path = "config/tyr.toml";
+    app.add_option("-c,--config", config_path, "Path to TOML config file")
+        ->capture_default_str()
+        ->check(CLI::ExistingFile);
+    CLI11_PARSE(app, argc, argv);
 
     bpt::analytics::config::Settings settings;
     try {
