@@ -19,11 +19,15 @@ namespace bpt::order_gateway::order {
 OrderProcessor::OrderProcessor(messaging::ExecReportPublisher& exec_pub,
                                OrderStateManager& state_mgr,
                                risk::RiskChecker& risk_checker,
+                               risk::PnlTracker& pnl_tracker,
+                               double max_daily_loss_usd,
                                metrics::OrderGatewayMetrics& metrics,
                                const std::vector<std::shared_ptr<adapter::IOrderAdapter>>& adapters)
     : exec_pub_(exec_pub),
       state_mgr_(state_mgr),
       risk_checker_(risk_checker),
+      pnl_tracker_(pnl_tracker),
+      max_daily_loss_usd_(max_daily_loss_usd),
       metrics_(metrics) {
     adapter_by_id_.fill(nullptr);
     for (const auto& a : adapters) {
@@ -36,6 +40,7 @@ OrderProcessor::OrderProcessor(messaging::ExecReportPublisher& exec_pub,
 
 void OrderProcessor::on_exec_event(const adapter::ExecEvent& ev) {
     using OL = OrderLifecycle;
+    using ES = bpt::messages::ExecStatus;
 
     const OL new_lc = exec_status_to_lifecycle(ev.status);
 
@@ -45,6 +50,29 @@ void OrderProcessor::on_exec_event(const adapter::ExecEvent& ev) {
     // by a few ms and cause uint64 underflow in the stale check. The adapter
     // timestamp still flows through the published ExecReport below.
     state_mgr_.update(ev.order_id, new_lc, ev.exchange_order_id, ev.filled_qty, ev.remaining_qty, now_ns());
+
+    // Daily-loss kill switch. Every FILLED/PARTIAL fill updates realized
+    // P&L; if it crosses below -max_daily_loss_usd we flip the existing
+    // RiskChecker kill switch so subsequent NewOrders reject at the
+    // pretrade gate. The latch intentionally sticks across UTC midnight
+    // rollovers — re-enabling requires a restart so an operator has a
+    // chance to look at WHY we lost that much today.
+    if ((ev.status == ES::FILLED || ev.status == ES::PARTIAL) && ev.filled_qty > 0) {
+        pnl_tracker_.on_fill(ev.exchange_id, ev.instrument_id, ev.side,
+                             ev.price, ev.filled_qty, ev.local_ts_ns);
+        if (!daily_loss_latched_ && max_daily_loss_usd_ > 0.0) {
+            const double daily = pnl_tracker_.daily_realized_pnl_usd(ev.local_ts_ns);
+            if (daily < -max_daily_loss_usd_) {
+                daily_loss_latched_ = true;
+                risk_checker_.set_trading_enabled(false);
+                ygg::log::error(
+                    "[OrderGateway] DAILY LOSS KILL SWITCH — realized P&L "
+                    "{:.2f} USD < limit {:.2f} USD. Trading halted. "
+                    "Restart service after human review to resume.",
+                    daily, -max_daily_loss_usd_);
+            }
+        }
+    }
 
     // Release the open-order risk slot before publishing the exec report so
     // that Strategy can immediately place a replacement order if needed.

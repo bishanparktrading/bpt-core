@@ -4,6 +4,7 @@
 #include "order_gateway/messaging/exec_report_publisher.h"
 #include "order_gateway/metrics/metrics.h"
 #include "order_gateway/order/order_state_manager.h"
+#include "order_gateway/risk/pnl_tracker.h"
 #include "order_gateway/risk/risk_checker.h"
 
 #include <messages/CancelAll.h>
@@ -37,6 +38,8 @@ public:
     OrderProcessor(messaging::ExecReportPublisher& exec_pub,
                    OrderStateManager& state_mgr,
                    risk::RiskChecker& risk_checker,
+                   risk::PnlTracker& pnl_tracker,
+                   double max_daily_loss_usd,
                    metrics::OrderGatewayMetrics& metrics,
                    const std::vector<std::shared_ptr<adapter::IOrderAdapter>>& adapters);
 
@@ -113,6 +116,11 @@ private:
     messaging::ExecReportPublisher& exec_pub_;
     OrderStateManager& state_mgr_;
     risk::RiskChecker& risk_checker_;
+    risk::PnlTracker& pnl_tracker_;
+    // 0 disables the daily-loss check. Read once at construction; live
+    // updates would race with the fill path, use a setter if needed.
+    const double max_daily_loss_usd_;
+    bool daily_loss_latched_{false};
     metrics::OrderGatewayMetrics& metrics_;
     // O(1) adapter lookup by ExchangeId value (0=ALL unused, 1=BINANCE, …, 4=DERIBIT).
     std::array<adapter::IOrderAdapter*, 5> adapter_by_id_{};

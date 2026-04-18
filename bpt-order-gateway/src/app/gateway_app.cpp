@@ -76,7 +76,9 @@ OrderGatewayApp::OrderGatewayApp(config::Settings cfg,
         ygg::log::info("[OrderGateway] Started adapter: {}", a_cfg.exchange);
     }
 
-    processor_ = std::make_unique<order::OrderProcessor>(*exec_pub_, state_mgr_, risk_checker_, metrics_, adapters_);
+    processor_ = std::make_unique<order::OrderProcessor>(*exec_pub_, state_mgr_, risk_checker_,
+                                                         pnl_tracker_, cfg_.gateway.risk.max_daily_loss_usd,
+                                                         metrics_, adapters_);
 
     order_sub_->on_new_order = [this](const bpt::messages::NewOrder& o) {
         processor_->on_new_order(o);

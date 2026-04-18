@@ -8,6 +8,7 @@ cc_library(
     srcs = [
         "src/config/loader.cpp",
         "src/order/order_state_manager.cpp",
+        "src/risk/pnl_tracker.cpp",
         "src/risk/risk_checker.cpp",
         "src/adapter/hyperliquid/hyperliquid_action_codec.cpp",
         "src/adapter/hyperliquid/hyperliquid_exec_parser.cpp",

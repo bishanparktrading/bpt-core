@@ -34,6 +34,13 @@ max_order_size_usd = 1000.0
 max_notional_per_order_usd = 5000.0
 max_open_orders_per_venue = 50
 max_orders_per_second = 10
+# Latched kill switch: when realized P&L for the UTC day drops below
+# this threshold, all subsequent NewOrders reject with RISK_REJECTED.
+# Latch is NOT auto-cleared at midnight — operator must restart the
+# service after reviewing why we lost that much. 0 disables the check.
+# Set small here to exercise the halt on demo-trading fills; raise for
+# real use.
+max_daily_loss_usd = 50.0
 
 [metrics]
 port = 9103

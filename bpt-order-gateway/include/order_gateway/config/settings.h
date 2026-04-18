@@ -22,6 +22,13 @@ struct RiskConfig {
     double max_notional_per_order_usd{5000.0};
     uint32_t max_open_orders_per_venue{50};
     uint32_t max_orders_per_second{10};
+    // Daily-loss kill switch. Computed from realized P&L on fills via
+    // PnlTracker. When breached, RiskChecker.set_trading_enabled(false)
+    // is flipped and all subsequent orders reject with RISK_REJECTED.
+    // The latch is intentionally not auto-cleared at UTC midnight — a
+    // human must restart the service so someone looks at what happened.
+    // 0 disables the check.
+    double max_daily_loss_usd{0.0};
 };
 
 struct AdapterConfig {

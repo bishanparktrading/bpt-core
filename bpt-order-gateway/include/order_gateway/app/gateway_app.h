@@ -10,6 +10,7 @@
 #include "order_gateway/metrics/metrics.h"
 #include "order_gateway/order/order_processor.h"
 #include "order_gateway/order/order_state_manager.h"
+#include "order_gateway/risk/pnl_tracker.h"
 #include "order_gateway/risk/risk_checker.h"
 
 #include <map>
@@ -35,6 +36,7 @@ private:
     std::shared_ptr<messaging::HeartbeatPublisher> hb_pub_;
     std::shared_ptr<messaging::OrderSubscriber> order_sub_;
     risk::RiskChecker risk_checker_;
+    risk::PnlTracker pnl_tracker_;
     order::OrderStateManager state_mgr_;
     std::vector<std::shared_ptr<adapter::IOrderAdapter>> adapters_;
     std::unique_ptr<order::OrderProcessor> processor_;
