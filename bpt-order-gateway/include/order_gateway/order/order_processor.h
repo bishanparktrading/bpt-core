@@ -40,6 +40,7 @@ public:
                    risk::RiskChecker& risk_checker,
                    risk::PnlTracker& pnl_tracker,
                    double max_daily_loss_usd,
+                   double max_position_usd,
                    metrics::OrderGatewayMetrics& metrics,
                    const std::vector<std::shared_ptr<adapter::IOrderAdapter>>& adapters);
 
@@ -121,6 +122,8 @@ private:
     // updates would race with the fill path, use a setter if needed.
     const double max_daily_loss_usd_;
     bool daily_loss_latched_{false};
+    // 0 disables the position check.
+    const double max_position_usd_;
     metrics::OrderGatewayMetrics& metrics_;
     // O(1) adapter lookup by ExchangeId value (0=ALL unused, 1=BINANCE, …, 4=DERIBIT).
     std::array<adapter::IOrderAdapter*, 5> adapter_by_id_{};

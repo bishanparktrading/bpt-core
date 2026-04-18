@@ -92,6 +92,8 @@ Settings load(const std::string& path) {
                 s.gateway.risk.max_orders_per_second = static_cast<uint32_t>(*v);
             if (auto v = (*r)["max_daily_loss_usd"].value<double>())
                 s.gateway.risk.max_daily_loss_usd = *v;
+            if (auto v = (*r)["max_position_usd"].value<double>())
+                s.gateway.risk.max_position_usd = *v;
         }
     }
 

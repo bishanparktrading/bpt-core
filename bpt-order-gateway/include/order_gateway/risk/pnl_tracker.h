@@ -57,6 +57,14 @@ public:
     // against exchange-reported AccountSnapshot.
     [[nodiscard]] double session_realized_pnl_usd() const noexcept { return session_pnl_usd_; }
 
+    // Signed net position for a specific (exchange, instrument), in
+    // base units × 1e8. Positive = long, negative = short, 0 = flat or
+    // never traded. Used by the max_position_usd pretrade gate — the
+    // caller multiplies by the order's price to get projected USD
+    // exposure after the new order would fill.
+    [[nodiscard]] int64_t net_qty_e8(bpt::messages::ExchangeId::Value exchange,
+                                      uint64_t instrument_id) const noexcept;
+
 private:
     static constexpr double kScale = 1e8;
 

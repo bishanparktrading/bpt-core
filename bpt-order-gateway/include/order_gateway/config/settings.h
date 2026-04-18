@@ -29,6 +29,14 @@ struct RiskConfig {
     // human must restart the service so someone looks at what happened.
     // 0 disables the check.
     double max_daily_loss_usd{0.0};
+    // Pretrade check: rejects a NewOrder if the PROJECTED position
+    // (current net_qty + order direction × order_qty) × order_price
+    // would exceed this cap in absolute terms. 0 disables.
+    // Uses the order's own price as the mark, which is exact at fill
+    // time. Distinct from max_order_size_usd (caps a single order's
+    // notional) and max_notional_per_order_usd (redundant alias at
+    // this point, worth collapsing).
+    double max_position_usd{0.0};
 };
 
 struct AdapterConfig {

@@ -77,7 +77,9 @@ OrderGatewayApp::OrderGatewayApp(config::Settings cfg,
     }
 
     processor_ = std::make_unique<order::OrderProcessor>(*exec_pub_, state_mgr_, risk_checker_,
-                                                         pnl_tracker_, cfg_.gateway.risk.max_daily_loss_usd,
+                                                         pnl_tracker_,
+                                                         cfg_.gateway.risk.max_daily_loss_usd,
+                                                         cfg_.gateway.risk.max_position_usd,
                                                          metrics_, adapters_);
 
     order_sub_->on_new_order = [this](const bpt::messages::NewOrder& o) {

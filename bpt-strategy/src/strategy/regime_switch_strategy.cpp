@@ -118,10 +118,9 @@ RegimeSwitchStrategy::RegimeSwitchStrategy(uint64_t correlation_id,
                    max_spread_bps_,
                    bar_interval_ns_ / 1e9,
                    order_book_depth_);
-    ygg::log::info("[RS] risk: max_pos_usd={} max_order_usd={} max_daily_loss={}",
+    ygg::log::info("[RS] risk: max_pos_usd={} max_order_usd={}",
                    cfg.risk.max_position_usd,
-                   cfg.risk.max_order_size_usd,
-                   cfg.risk.max_daily_loss_usd);
+                   cfg.risk.max_order_size_usd);
     ygg::log::info("[RS] order IDs managed by OrderManager (globally unique)");
 }
 

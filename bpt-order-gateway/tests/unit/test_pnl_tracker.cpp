@@ -101,4 +101,44 @@ TEST(PnlTrackerTest, DifferentInstrumentsTrackIndependently) {
     EXPECT_DOUBLE_EQ(t.daily_realized_pnl_usd(ns_at(1)), 0.0);
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// net_qty_e8 accessor — used by the max_position_usd pretrade gate.
+// ──────────────────────────────────────────────────────────────────────────
+
+TEST(PnlTrackerTest, NetQtyZeroWhenUntouched) {
+    PnlTracker t;
+    EXPECT_EQ(t.net_qty_e8(ExchangeId::OKX, 999), 0);
+}
+
+TEST(PnlTrackerTest, NetQtyTracksLongPosition) {
+    PnlTracker t;
+    t.on_fill(ExchangeId::OKX, kInst, OrderSide::BUY, 100 * kScale, 3 * kScale, ns_at(1));
+    EXPECT_EQ(t.net_qty_e8(ExchangeId::OKX, kInst), 3 * kScale);
+    t.on_fill(ExchangeId::OKX, kInst, OrderSide::BUY, 110 * kScale, 2 * kScale, ns_at(1));
+    EXPECT_EQ(t.net_qty_e8(ExchangeId::OKX, kInst), 5 * kScale);
+}
+
+TEST(PnlTrackerTest, NetQtyTracksShortPosition) {
+    PnlTracker t;
+    t.on_fill(ExchangeId::OKX, kInst, OrderSide::SELL, 100 * kScale, 2 * kScale, ns_at(1));
+    EXPECT_EQ(t.net_qty_e8(ExchangeId::OKX, kInst), -2 * kScale);
+}
+
+TEST(PnlTrackerTest, NetQtyReturnsFlatAfterClose) {
+    PnlTracker t;
+    t.on_fill(ExchangeId::OKX, kInst, OrderSide::BUY, 100 * kScale, 2 * kScale, ns_at(1));
+    t.on_fill(ExchangeId::OKX, kInst, OrderSide::SELL, 110 * kScale, 2 * kScale, ns_at(1));
+    EXPECT_EQ(t.net_qty_e8(ExchangeId::OKX, kInst), 0);
+}
+
+TEST(PnlTrackerTest, NetQtyIsolatedBetweenInstruments) {
+    PnlTracker t;
+    t.on_fill(ExchangeId::OKX, 1, OrderSide::BUY, 100 * kScale, 3 * kScale, ns_at(1));
+    t.on_fill(ExchangeId::OKX, 2, OrderSide::SELL, 50 * kScale, 1 * kScale, ns_at(1));
+    EXPECT_EQ(t.net_qty_e8(ExchangeId::OKX, 1), 3 * kScale);
+    EXPECT_EQ(t.net_qty_e8(ExchangeId::OKX, 2), -1 * kScale);
+    // And not spilled across exchanges.
+    EXPECT_EQ(t.net_qty_e8(ExchangeId::HYPERLIQUID, 1), 0);
+}
+
 }  // namespace

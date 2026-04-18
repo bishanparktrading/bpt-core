@@ -89,4 +89,10 @@ double PnlTracker::daily_realized_pnl_usd(uint64_t now_ns) {
     return daily_pnl_usd_;
 }
 
+int64_t PnlTracker::net_qty_e8(bpt::messages::ExchangeId::Value exchange,
+                                uint64_t instrument_id) const noexcept {
+    const auto it = positions_.find(make_key(exchange, instrument_id));
+    return it == positions_.end() ? 0 : it->second.net_qty_e8;
+}
+
 }  // namespace bpt::order_gateway::risk

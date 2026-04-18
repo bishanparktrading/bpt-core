@@ -92,10 +92,9 @@ AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
         min_half_spread_bps_,
         drift_halflife_s_,
         drift_suppress_bps_);
-    ygg::log::info("[AS] risk: max_position_usd={} max_order_size_usd={} max_daily_loss_usd={}",
+    ygg::log::info("[AS] risk: max_position_usd={} max_order_size_usd={}",
                    cfg.risk.max_position_usd,
-                   cfg.risk.max_order_size_usd,
-                   cfg.risk.max_daily_loss_usd);
+                   cfg.risk.max_order_size_usd);
     ygg::log::info("[AS] order_book_depth={} queue_suppress_fill_prob_min={:.4f}",
                    static_cast<int>(order_book_depth_),
                    queue_suppress_fill_prob_min_);

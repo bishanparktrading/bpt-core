@@ -2,8 +2,10 @@
 
 #include <messages/ExecStatus.h>
 #include <messages/FeeCurrency.h>
+#include <messages/OrderSide.h>
 #include <messages/RejectReason.h>
 
+#include <cmath>
 #include <vector>
 #include <yggdrasil/logging.h>
 #include <yggdrasil/util/tsc_clock.h>
@@ -21,6 +23,7 @@ OrderProcessor::OrderProcessor(messaging::ExecReportPublisher& exec_pub,
                                risk::RiskChecker& risk_checker,
                                risk::PnlTracker& pnl_tracker,
                                double max_daily_loss_usd,
+                               double max_position_usd,
                                metrics::OrderGatewayMetrics& metrics,
                                const std::vector<std::shared_ptr<adapter::IOrderAdapter>>& adapters)
     : exec_pub_(exec_pub),
@@ -28,6 +31,7 @@ OrderProcessor::OrderProcessor(messaging::ExecReportPublisher& exec_pub,
       risk_checker_(risk_checker),
       pnl_tracker_(pnl_tracker),
       max_daily_loss_usd_(max_daily_loss_usd),
+      max_position_usd_(max_position_usd),
       metrics_(metrics) {
     adapter_by_id_.fill(nullptr);
     for (const auto& a : adapters) {
@@ -152,6 +156,39 @@ void OrderProcessor::on_new_order(const bpt::messages::NewOrder& order) {
                        static_cast<int>(result.error()));
         metrics_.risk_reject(exch).Increment();
         return;
+    }
+
+    // Position-cap check: projected net position × order price vs limit.
+    // Uses the order's own price as the mark — exact at fill time, and
+    // the only price the order-gateway has access to (no MD
+    // subscription here). Skipped for MARKET orders (price == 0) since
+    // the projection has no meaningful mark; rely on max_order_size_usd
+    // to cap those.
+    if (max_position_usd_ > 0.0 && order.price() > 0) {
+        using bpt::messages::OrderSide;
+        const int64_t cur_qty_e8 =
+            pnl_tracker_.net_qty_e8(order.exchangeId(), order.instrumentId());
+        const int64_t delta_e8 = (order.side() == OrderSide::BUY)
+            ? static_cast<int64_t>(order.quantity())
+            : -static_cast<int64_t>(order.quantity());
+        const int64_t projected_qty_e8 = cur_qty_e8 + delta_e8;
+        const double projected_qty = static_cast<double>(projected_qty_e8) / 1e8;
+        const double price = static_cast<double>(order.price()) / 1e8;
+        const double projected_usd = std::abs(projected_qty * price);
+        if (projected_usd > max_position_usd_) {
+            const uint64_t ts = now_ns();
+            exec_pub_.publish(order.orderId(), 0, order.exchangeId(), order.instrumentId(),
+                              ES::REJECTED, order.side(), order.orderType(), order.price(),
+                              0, order.quantity(), RR::RISK_REJECTED, 0, FC::USDT, ts, ts);
+            ygg::log::warn("[OrderGateway] Order {} rejected by position cap: "
+                           "projected=${:.2f} > limit=${:.2f}",
+                           order.orderId(), projected_usd, max_position_usd_);
+            metrics_.risk_reject(exch).Increment();
+            // Release the risk-checker slot since we've rejected — it was
+            // incremented inside risk_checker_.check above.
+            risk_checker_.on_order_closed(order.exchangeId());
+            return;
+        }
     }
 
     auto* adapter = find_adapter(order.exchangeId());

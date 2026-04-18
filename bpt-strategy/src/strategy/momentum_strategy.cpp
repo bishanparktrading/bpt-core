@@ -37,11 +37,9 @@ MomentumStrategy::MomentumStrategy(uint64_t correlation_id,
                    entry_threshold_,
                    cooldown_ns_ / 1'000'000ULL);
     ygg::log::info(
-        "[MomentumStrategy] risk: max_position_usd={} max_order_size_usd={} "
-        "max_daily_loss_usd={} max_open_orders={}",
+        "[MomentumStrategy] risk: max_position_usd={} max_order_size_usd={} max_open_orders={}",
         cfg.risk.max_position_usd,
         cfg.risk.max_order_size_usd,
-        cfg.risk.max_daily_loss_usd,
         cfg.risk.max_open_orders);
     ygg::log::info("[MomentumStrategy] schedule: require_refdata_ready={} md_staleness_threshold_ms={}",
                    cfg.schedule.require_refdata_ready,

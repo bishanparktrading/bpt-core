@@ -121,8 +121,11 @@ AppConfig AppConfig::load(const std::string& path) {
     if (auto* r = (*s)["risk"].as_table()) {
         sc.risk.max_position_usd = (*r)["max_position_usd"].value<double>().value_or(10000.0);
         sc.risk.max_order_size_usd = (*r)["max_order_size_usd"].value<double>().value_or(1000.0);
-        sc.risk.max_daily_loss_usd = (*r)["max_daily_loss_usd"].value<double>().value_or(500.0);
         sc.risk.max_open_orders = static_cast<uint32_t>((*r)["max_open_orders"].value<int64_t>().value_or(10));
+        // max_daily_loss_usd intentionally NOT parsed here — enforcement
+        // lives in order-gateway (see comment in RiskConfig). The TOML
+        // field is tolerated but ignored; toml++ silently skips unknown
+        // keys so legacy configs still load.
     }
 
     if (auto* sch = (*s)["schedule"].as_table()) {

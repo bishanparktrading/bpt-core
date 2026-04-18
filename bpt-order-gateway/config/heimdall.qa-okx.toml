@@ -41,6 +41,11 @@ max_orders_per_second = 10
 # Set small here to exercise the halt on demo-trading fills; raise for
 # real use.
 max_daily_loss_usd = 50.0
+# Pretrade cap on absolute position USD exposure per (exchange, instrument).
+# Projected as (current_net_qty + order_dir × order_qty) × order_price.
+# 0 disables the check. Set conservative for dev/qa; raise for prod based
+# on capital allocation decisions.
+max_position_usd = 5000.0
 
 [metrics]
 port = 9103

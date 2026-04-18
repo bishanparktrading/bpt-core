@@ -61,10 +61,20 @@ struct VenueExecConfig {
 };
 
 // Strategy-level risk limits.  All monetary values in USD-equivalent notional.
+//
+// These are declarative: strategies log them at startup so an operator can
+// see what the STRATEGY expects its risk envelope to be. Actual enforcement
+// lives in the order-gateway's risk module (`bpt-order-gateway/src/risk/`),
+// driven by `[order-gateway.risk]` TOML fields. The split is intentional —
+// risk enforcement must be single-point so a strategy bug can't bypass it.
+//
+// max_daily_loss_usd was REMOVED from this struct (2026-04-19): it existed
+// as a declarative field that was parsed, logged, and never enforced,
+// which was worse than not having it at all. The enforced daily-loss cap
+// lives in `[order-gateway.risk].max_daily_loss_usd` (see PnlTracker).
 struct RiskConfig {
     double max_position_usd{10000.0};   // Max net position per instrument per venue
     double max_order_size_usd{1000.0};  // Max single order size
-    double max_daily_loss_usd{500.0};   // Kill-switch: halt strategy if breached
     uint32_t max_open_orders{10};
 };
 

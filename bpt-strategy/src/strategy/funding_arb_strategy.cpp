@@ -93,10 +93,9 @@ FundingArbStrategy::FundingArbStrategy(uint64_t correlation_id,
         aggress_bps_,
         max_basis_loss_bps_,
         order_timeout_ns_ / 1'000'000'000ULL);
-    ygg::log::info("[FA] risk: max_position_usd={} max_order_size_usd={} max_daily_loss_usd={}",
+    ygg::log::info("[FA] risk: max_position_usd={} max_order_size_usd={}",
                    cfg.risk.max_position_usd,
-                   cfg.risk.max_order_size_usd,
-                   cfg.risk.max_daily_loss_usd);
+                   cfg.risk.max_order_size_usd);
     for (const auto& b : base_assets_)
         ygg::log::info("[FA] base asset: {}", b);
     ygg::log::info("[FA] order_id seed={}", seed);

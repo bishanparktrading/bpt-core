@@ -51,10 +51,9 @@ VwapReversionStrategy::VwapReversionStrategy(uint64_t correlation_id,
         exit_threshold_ * 100.0,
         stop_threshold_ * 100.0,
         cooldown_ns_ / 1'000'000ULL);
-    ygg::log::info("[VwapReversion] risk: max_position_usd={} max_order_size_usd={} max_daily_loss_usd={}",
+    ygg::log::info("[VwapReversion] risk: max_position_usd={} max_order_size_usd={}",
                    cfg.risk.max_position_usd,
-                   cfg.risk.max_order_size_usd,
-                   cfg.risk.max_daily_loss_usd);
+                   cfg.risk.max_order_size_usd);
     for (const auto& s : instruments_)
         ygg::log::info("[VwapReversion] instrument: {}", s);
 }
