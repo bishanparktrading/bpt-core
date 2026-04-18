@@ -43,7 +43,13 @@ DeribitOrderAdapter::DeribitOrderAdapter(const config::AdapterConfig& cfg, const
 }
 
 void DeribitOrderAdapter::handle_message(const std::string& payload, uint64_t recv_ns) {
-    ygg::log::info("[OrderGateway] DeribitOrderAdapter WS rx: {}", payload.substr(0, 500));
+    // NOTE: do NOT log the raw payload here. Deribit login/auth frames
+    // carry client_secret in plaintext JSON; authenticated
+    // subscription responses may embed refresh tokens. The downstream
+    // parsing below emits structured logs for event type / JSON-RPC id
+    // / error code / order state — that's the right diagnostic surface.
+    // Raw-payload visibility belongs behind a build flag or a dev-only
+    // debug channel, not an INFO log.
     auto root = json::parse(payload);
     if (!root.is_object())
         return;

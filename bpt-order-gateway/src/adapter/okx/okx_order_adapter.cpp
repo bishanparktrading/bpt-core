@@ -56,7 +56,13 @@ void OKXOrderAdapter::start() {
 }
 
 void OKXOrderAdapter::handle_message(const std::string& payload, uint64_t recv_ns) {
-    ygg::log::info("[OrderGateway] OKXOrderAdapter WS rx: {}", payload.substr(0, 500));
+    // NOTE: do NOT log the raw payload here. OKX login frames include
+    // the apiKey + passphrase + HMAC sign fields in plaintext JSON; the
+    // login response can echo parts of the request on error. The
+    // downstream parsing below emits structured logs (event type, code,
+    // msg, order IDs) that are the right diagnostic surface. If you need
+    // raw-payload visibility for debugging, gate it behind a build flag
+    // or a dev-only debug channel — never an INFO log in the hot path.
     auto root = json::parse(payload);
     if (!root.is_object())
         return;

@@ -245,7 +245,17 @@ void HyperliquidWsClient::run(std::atomic<bool>& stop_flag, std::atomic<bool>& c
         sub_msg["subscription"] = sub_detail;
         std::lock_guard<std::mutex> lock(write_mutex_);
         ws->write(net::buffer(json::serialize(sub_msg)));
-        ygg::log::info("[OrderGateway] HyperliquidWsClient: subscribed userFills for {}", wallet_address_);
+        // Log the wallet address in the canonical truncated form
+        // (first 6 + last 4 chars). Wallet addresses are public
+        // on-chain data, but linking them to our infra logs creates a
+        // correlation vector an attacker could use; the truncated form
+        // keeps the log grep-friendly for ops without handing over the
+        // whole address.
+        const auto truncate = [](const std::string& a) {
+            return a.size() > 10 ? a.substr(0, 6) + "…" + a.substr(a.size() - 4) : std::string{"<short>"};
+        };
+        ygg::log::info("[OrderGateway] HyperliquidWsClient: subscribed userFills for {}",
+                       truncate(wallet_address_));
     }
 
     connected.store(true, std::memory_order_relaxed);
