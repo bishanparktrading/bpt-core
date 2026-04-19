@@ -1,24 +1,17 @@
 #include "order_gateway/adapter/hyperliquid/hyperliquid_ws_client.h"
 
 #include <boost/beast/core.hpp>
-#include <boost/beast/http.hpp>
 #include <boost/json.hpp>
 #include <chrono>
-#include <thread>
 #include <yggdrasil/logging.h>
-#include <yggdrasil/util/tsc_clock.h>
 #include <yggdrasil/ws/ws_connect.h>
 
 namespace bpt::order_gateway::adapter::hyperliquid {
 
-namespace beast = boost::beast;
-namespace websocket = beast::websocket;
-namespace net = boost::asio;
-namespace ssl = net::ssl;
 namespace json = boost::json;
 
-HyperliquidWsClient::HyperliquidWsClient(net::io_context& ioc,
-                                         ssl::context& ssl_ctx,
+HyperliquidWsClient::HyperliquidWsClient(boost::asio::io_context& ioc,
+                                         boost::asio::ssl::context& ssl_ctx,
                                          std::string host,
                                          std::string port,
                                          std::string path,
@@ -34,9 +27,54 @@ void HyperliquidWsClient::set_user_fills_handler(UserFillsHandler h) {
     user_fills_handler_ = std::move(h);
 }
 
-void HyperliquidWsClient::handle_frame(const std::string& payload, uint64_t recv_ns) {
-    // Cheap early-outs for small frames HL sends (pong, subscription acks,
-    // etc.) — skip the full JSON parse.
+void HyperliquidWsClient::on_handshake_complete() {
+    if (wallet_address_.empty()) {
+        ygg::log::warn("[OrderGateway] HyperliquidWsClient: wallet_address empty — "
+                       "skipping userFills subscribe. WS will idle-close.");
+        return;
+    }
+    json::object sub_detail;
+    sub_detail["type"] = "userFills";
+    sub_detail["user"] = wallet_address_;
+    json::object sub_msg;
+    sub_msg["method"] = "subscribe";
+    sub_msg["subscription"] = std::move(sub_detail);
+
+    // Truncated-address form — see commit 26a04ad's log-leak audit.
+    const auto truncate = [](const std::string& a) {
+        return a.size() > 10 ? a.substr(0, 6) + "…" + a.substr(a.size() - 4) : std::string{"<short>"};
+    };
+    if (!send(json::serialize(sub_msg))) {
+        ygg::log::warn("[OrderGateway] HyperliquidWsClient: userFills subscribe send failed "
+                       "(not connected). WS will idle-close.");
+        return;
+    }
+    ygg::log::info("[OrderGateway] HyperliquidWsClient: subscribed userFills for {}",
+                   truncate(wallet_address_));
+}
+
+void HyperliquidWsClient::on_frame(std::string_view payload, uint64_t recv_ns) {
+    // Delegate to the legacy handle_frame implementation which takes a
+    // std::string. Cheap copy — frames are small, and the JSON parser
+    // works from std::string.
+    handle_frame(std::string(payload), recv_ns);
+}
+
+std::optional<ygg::ws::PingConfig> HyperliquidWsClient::ping_config() const {
+    // HL closes idle WS at ~60 s; 20 s keeps us well inside the window
+    // with margin for network jitter.
+    return ygg::ws::PingConfig{
+        std::chrono::seconds(20),
+        [] {
+            ygg::log::info("[OrderGateway] HyperliquidWsClient: ping sent");
+            return std::string{R"({"method":"ping"})"};
+        },
+    };
+}
+
+void HyperliquidWsClient::handle_frame(const std::string& payload, uint64_t /*recv_ns*/) {
+    // Cheap early-outs for small frames HL sends (pong, subscription
+    // acks, etc.) — skip the full JSON parse.
     if (payload.size() < 16) return;
 
     json::value root;
@@ -57,23 +95,19 @@ void HyperliquidWsClient::handle_frame(const std::string& payload, uint64_t recv
 
     if (channel == "userFills") {
         // HL sends { channel:"userFills", data:{ isSnapshot, user, fills:[...] } }.
-        // The subscription type is "userFills", and the response channel name
-        // matches — do NOT confuse with "user" (a legacy shorthand that HL no
+        // Do NOT confuse with "user" (a legacy shorthand that HL no
         // longer publishes). A mismatch here silently drops every fill.
         const auto& data = data_it->value().as_object();
         auto fills_it = data.find("fills");
         if (fills_it == data.end()) return;
-        if (user_fills_handler_) user_fills_handler_(fills_it->value().as_array(), recv_ns);
+        if (user_fills_handler_) user_fills_handler_(fills_it->value().as_array(), /*recv_ns=*/0);
         return;
     }
 
     if (channel == "error") {
-        // Protocol-level error (e.g. HL rejecting an envelope it can't
-        // parse, like `modify` which isn't supported over WS post).
-        // Comes back without an id, so we can't match it to a specific
-        // pending post — fail all in-flight senders with the error text
-        // so they unblock immediately instead of waiting for the 5 s
-        // timeout.
+        // Protocol-level error, no id — fail ALL in-flight senders
+        // with the error text so they unblock immediately instead of
+        // waiting for the 5 s timeout.
         std::string err;
         if (data_it->value().is_string()) {
             err = std::string(data_it->value().as_string());
@@ -87,8 +121,6 @@ void HyperliquidWsClient::handle_frame(const std::string& payload, uint64_t recv
     }
 
     if (channel == "post") {
-        // Post response: {"channel":"post","data":{"id":<N>,"response":{
-        //   "type":"action","payload":{...}} | {"type":"error","payload":"msg"}}}
         if (!data_it->value().is_object()) return;
         const auto& data = data_it->value().as_object();
 
@@ -96,8 +128,8 @@ void HyperliquidWsClient::handle_frame(const std::string& payload, uint64_t recv
         if (id_it == data.end() || !id_it->value().is_int64()) return;
         const uint64_t id = static_cast<uint64_t>(id_it->value().as_int64());
 
-        // Serialize the response.payload (or the error string) — caller
-        // parses exactly what the REST /exchange body used to return.
+        // Serialize response.payload (or error string) — caller parses
+        // exactly what the REST /exchange body used to return.
         std::string body;
         auto response_it = data.find("response");
         if (response_it != data.end() && response_it->value().is_object()) {
@@ -110,8 +142,6 @@ void HyperliquidWsClient::handle_frame(const std::string& payload, uint64_t recv
                 if (t == "action") {
                     body = json::serialize(payload_it->value());
                 } else if (t == "error") {
-                    // Wrap HL error strings in the same shape send_new_order
-                    // already handles: {"status":"err","response":"<msg>"}
                     json::object wrapper;
                     wrapper["status"] = "err";
                     wrapper["response"] = payload_it->value();
@@ -135,15 +165,6 @@ void HyperliquidWsClient::handle_frame(const std::string& payload, uint64_t recv
 std::string HyperliquidWsClient::post_action(const json::value& action,
                                               uint64_t nonce,
                                               const SignedTransaction& sig) {
-    std::shared_ptr<WsStream> stream;
-    {
-        std::lock_guard<std::mutex> lock(lifecycle_mutex_);
-        stream = stream_;
-    }
-    if (!stream) {
-        throw std::runtime_error("HL WS not connected");
-    }
-
     const uint64_t id = next_post_id_.fetch_add(1, std::memory_order_relaxed);
 
     json::object signature;
@@ -173,18 +194,23 @@ std::string HyperliquidWsClient::post_action(const json::value& action,
         fut = pending_posts_[id].get_future();
     }
 
+    // RunLoop::send handles the thread-safe write; returns false if
+    // the WS isn't currently connected (before run() starts or after
+    // it returns). Throws on raw write error.
     try {
-        std::lock_guard<std::mutex> lock(write_mutex_);
-        stream->write(net::buffer(frame));
-    } catch (const std::exception& e) {
+        if (!send(frame)) {
+            std::lock_guard<std::mutex> lock(pending_posts_mutex_);
+            pending_posts_.erase(id);
+            throw std::runtime_error("HL WS not connected");
+        }
+    } catch (...) {
         std::lock_guard<std::mutex> lock(pending_posts_mutex_);
         pending_posts_.erase(id);
         throw;
     }
 
     // HL p99 is ~2 s, so 5 s is a generous ceiling; anything longer
-    // means the connection is likely dead and we surface that as an
-    // error so the caller can REJECT and the strategy moves on.
+    // means the connection is likely dead.
     const auto status = fut.wait_for(std::chrono::seconds(5));
     if (status != std::future_status::ready) {
         std::lock_guard<std::mutex> lock(pending_posts_mutex_);
@@ -211,120 +237,23 @@ void HyperliquidWsClient::run(std::atomic<bool>& stop_flag, std::atomic<bool>& c
     ygg::log::info("[OrderGateway] HyperliquidWsClient connecting WS {}:{}{}",
                    host_, port_, path_);
 
-    // ygg::ws::ws_connect handles resolve → TCP → TLS SNI + verify →
-    // WS handshake with the standard user-agent header. Returns
-    // unique_ptr<WsStream>; convert to shared_ptr because post_action
-    // senders on the OrderProcessor thread share the same stream with
-    // the reader on this thread.
-    auto ws_owned = ygg::ws::ws_connect(ioc_, ssl_ctx_, host_, port_, path_,
-                                        /*so_rcvbuf_bytes=*/0,
-                                        /*connect_timeout_ms=*/30000,
-                                        /*user_agent=*/"bpt-order-gateway/0.1");
-    std::shared_ptr<WsStream> ws(ws_owned.release());
+    auto ws_ptr = ygg::ws::ws_connect(ioc_, ssl_ctx_, host_, port_, path_,
+                                      /*so_rcvbuf_bytes=*/0,
+                                      /*connect_timeout_ms=*/30000,
+                                      /*user_agent=*/"bpt-order-gateway/0.1");
 
-    // Publish the stream so post_action can write to it from the
-    // OrderProcessor thread. Do this only AFTER the handshake completes
-    // so senders never see a half-open stream.
-    {
-        std::lock_guard<std::mutex> lock(lifecycle_mutex_);
-        stream_ = ws;
-    }
-
-    // Subscribe to userFills. A placeholder zero address would cause HL
-    // to silently reject the subscription, leaving the connection idle
-    // and closed after ~60 s.
-    if (wallet_address_.empty()) {
-        ygg::log::warn("[OrderGateway] HyperliquidWsClient: wallet_address empty — "
-                       "skipping userFills subscribe. WS will idle-close.");
-    } else {
-        json::object sub_msg;
-        sub_msg["method"] = "subscribe";
-        json::object sub_detail;
-        sub_detail["type"] = "userFills";
-        sub_detail["user"] = wallet_address_;
-        sub_msg["subscription"] = sub_detail;
-        std::lock_guard<std::mutex> lock(write_mutex_);
-        ws->write(net::buffer(json::serialize(sub_msg)));
-        // Log the wallet address in the canonical truncated form
-        // (first 6 + last 4 chars). Wallet addresses are public
-        // on-chain data, but linking them to our infra logs creates a
-        // correlation vector an attacker could use; the truncated form
-        // keeps the log grep-friendly for ops without handing over the
-        // whole address.
-        const auto truncate = [](const std::string& a) {
-            return a.size() > 10 ? a.substr(0, 6) + "…" + a.substr(a.size() - 4) : std::string{"<short>"};
-        };
-        ygg::log::info("[OrderGateway] HyperliquidWsClient: subscribed userFills for {}",
-                       truncate(wallet_address_));
-    }
-
-    connected.store(true, std::memory_order_relaxed);
-    ygg::log::info("[OrderGateway] HyperliquidWsClient connected");
-
-    // Dedicated ping thread. HL closes idle WS after ~60 s; Beast's
-    // websocket::stream supports concurrent read+write across threads
-    // as long as each direction is single-threaded, so the reader stays
-    // in the run() loop and the ping thread writes under write_mutex_.
-    std::atomic<bool> ping_stop{false};
-    std::thread ping_thread([&, ws]() {
-        while (!ping_stop.load(std::memory_order_relaxed)) {
-            for (int i = 0; i < 20 && !ping_stop.load(std::memory_order_relaxed); ++i)
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-            if (ping_stop.load(std::memory_order_relaxed)) break;
-            try {
-                static const std::string msg = R"({"method":"ping"})";
-                std::lock_guard<std::mutex> lock(write_mutex_);
-                ws->write(net::buffer(msg));
-                ygg::log::info("[OrderGateway] HyperliquidWsClient: ping sent");
-            } catch (const std::exception& e) {
-                ygg::log::warn("[OrderGateway] HyperliquidWsClient: ping write failed: {}", e.what());
-                // Don't throw — let the reader detect the dead connection
-                // and trigger reconnect via the normal error path.
-                break;
-            }
-        }
-    });
-
-    struct JoinGuard {
-        std::atomic<bool>& stop;
-        std::thread& th;
-        ~JoinGuard() {
-            stop.store(true, std::memory_order_relaxed);
-            if (th.joinable()) th.join();
-        }
-    } join_guard{ping_stop, ping_thread};
-
-    // On exit (normal or via exception), clear the published stream_
-    // and fail any pending post futures so senders never wait forever.
-    struct StreamGuard {
+    // Fail any in-flight posts on exit, whether clean or exceptional.
+    // RunLoop's own SendGuard clears its internal stream pointer so
+    // RunLoop::send() returns false thereafter; new callers get "not
+    // connected" cleanly. This guard handles callers that were already
+    // parked on their future when the connection dropped.
+    struct PendingGuard {
         HyperliquidWsClient* self;
-        ~StreamGuard() {
-            {
-                std::lock_guard<std::mutex> lock(self->lifecycle_mutex_);
-                self->stream_.reset();
-            }
-            self->fail_pending_posts("HL WS disconnected");
-        }
-    } stream_guard{this};
+        ~PendingGuard() { self->fail_pending_posts("HL WS disconnected"); }
+    } pending_guard{this};
 
-    beast::flat_buffer buf;
-    while (!stop_flag.load(std::memory_order_relaxed)) {
-        beast::error_code ec;
-        ws->read(buf, ec);
-
-        if (ec == beast::error::timeout) {
-            buf.consume(buf.size());
-            continue;
-        }
-        if (ec) throw beast::system_error(ec);
-
-        const uint64_t recv_ns = ygg::util::WallClock::now_ns();
-        handle_frame(std::string(static_cast<const char*>(buf.data().data()), buf.data().size()),
-                     recv_ns);
-        buf.consume(buf.size());
-    }
-
-    ws->close(websocket::close_code::normal);
+    ygg::log::info("[OrderGateway] HyperliquidWsClient connected");
+    RunLoop::run(ygg::ws::AnyWsStream(std::move(ws_ptr)), stop_flag, connected);
 }
 
 }  // namespace bpt::order_gateway::adapter::hyperliquid
