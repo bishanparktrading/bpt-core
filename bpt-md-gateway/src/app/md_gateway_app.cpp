@@ -22,7 +22,7 @@ namespace bpt::md_gateway {
 MdGatewayApp::MdGatewayApp(config::Settings cfg, std::shared_ptr<aeron::Aeron> aeron)
     : cfg_(std::move(cfg)),
       aeron_(aeron),
-      metrics_(cfg_.metrics_host, cfg_.metrics_port),
+      metrics_(cfg_.metrics_host, cfg_.base.metrics_port),
       ack_pub_(aeron, cfg_.aeron.ack_hb.channel, cfg_.aeron.ack_hb.stream_id) {
     md_pub_ = std::make_shared<messaging::MdPublisher>(aeron, cfg_.aeron.data.channel, cfg_.aeron.data.stream_id);
     funding_pub_ = std::make_shared<messaging::FundingRatePublisher>(aeron,
@@ -143,10 +143,14 @@ void MdGatewayApp::run() {
             last_lat_report = now;
         }
     }
+}
 
+void MdGatewayApp::stop() {
+    // Called by bpt::app::run() after our run() loop exits on signal.
+    // Adapter WS threads + Prometheus exposer are drained here so the
+    // startup-log side-effects remain symmetric with teardown.
     sub_mgr_.stop_all();
     metrics_.shutdown();
-    bpt::common::log::info("MdGateway shutting down");
 }
 
 }  // namespace bpt::md_gateway

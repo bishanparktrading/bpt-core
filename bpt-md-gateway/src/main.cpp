@@ -2,22 +2,18 @@
 #include "md_gateway/config/settings.h"
 
 #include <CLI/CLI.hpp>
-#include <chrono>
+#include <memory>
 #include <string>
-#include <bpt_common/aeron/aeron_utils.h>
+#include <bpt_app/app.h>
 #include <bpt_common/logging.h>
-#include <bpt_common/signal.h>
-#include <bpt_common/util/tsc_clock.h>
 
 int main(int argc, char* argv[]) {
-    bpt::common::signal::install();
-
-    CLI::App app{"bpt-md-gateway — market data aggregator"};
+    CLI::App cli{"bpt-md-gateway — market data aggregator"};
     std::string config_path = "config/bpt-md-gateway.toml";
-    app.add_option("-c,--config", config_path, "Path to TOML config file")
+    cli.add_option("-c,--config", config_path, "Path to TOML config file")
         ->capture_default_str()
         ->check(CLI::ExistingFile);
-    CLI11_PARSE(app, argc, argv);
+    CLI11_PARSE(cli, argc, argv);
 
     bpt::md_gateway::config::Settings cfg;
     try {
@@ -28,19 +24,14 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    bpt::common::logging::init("bpt-md-gateway", cfg.logging);
-    bpt::common::util::TscClock::calibrate();
-
-    auto aeron = bpt::common::aeron::connect(cfg.aeron.media_driver_dir);
-    bpt::common::log::info("MdGateway connected to Aeron MediaDriver");
-
     try {
-        bpt::md_gateway::MdGatewayApp app(std::move(cfg), std::move(aeron));
-        app.run();
+        return bpt::app::run("bpt-md-gateway", std::move(cfg),
+            [](auto& settings, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
+                return std::make_unique<bpt::md_gateway::MdGatewayApp>(
+                    std::move(settings), ctx.aeron);
+            });
     } catch (const std::exception& e) {
         bpt::common::log::error("Fatal: {}", e.what());
         return 1;
     }
-
-    return 0;
 }

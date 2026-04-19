@@ -30,6 +30,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//messages",
+        "//bpt-app",
         "//bpt-common",
         "@boost.asio",
         "@boost.beast",
@@ -62,7 +63,9 @@ cc_binary(
     ],
     deps = [
         ":md_gateway_lib",
+        "//bpt-app",
         "//bpt-common",
+        "@cli11",
     ],
 )
 

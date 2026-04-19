@@ -3,13 +3,13 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <bpt_app/base_settings.h>
 #include <bpt_common/aeron/stream_config.h>
-#include <bpt_common/logging.h>
 
 namespace bpt::md_gateway::config {
 
 struct AeronConfig {
-    std::string media_driver_dir;
+    // media_driver_dir moved to BaseSettings; kept streams-only.
     bpt::common::config::StreamConfig control{"aeron:ipc", 2001};       // Strategy → MdGateway subscription control
     bpt::common::config::StreamConfig data{"aeron:ipc", 2002};          // MdGateway → Strategy market data
     bpt::common::config::StreamConfig ack_hb{"aeron:ipc", 2003};        // MdGateway → Strategy acks + heartbeats
@@ -68,7 +68,10 @@ struct AdapterConfig {
 };
 
 struct Settings {
-    std::string environment;             // "prod" | "qa" | "dev" — logged at startup, validated against exchange_cfg
+    // Shared lifecycle config (environment, media_driver_dir, logging,
+    // metrics_port, calibrate_tsc). Populated by bpt::app::load_base_settings().
+    bpt::app::BaseSettings base;
+
     std::vector<std::string> exchanges;  // exchanges to activate from exchange_config (e.g. ["OKX", "BINANCE"])
     AeronConfig aeron;
     std::vector<AdapterConfig> adapters;
@@ -79,13 +82,10 @@ struct Settings {
     // Interval (ms) between MdServiceHeartbeat messages on the ack/hb stream.
     uint32_t service_heartbeat_interval_ms{5000};
 
-    bpt::common::logging::LogConfig logging;
-
-    // Prometheus metrics endpoint.
+    // Prometheus metrics bind host. Port comes from base.metrics_port.
     // Restrict host to "127.0.0.1" in prod to prevent exposure to external networks.
     // Use "0.0.0.0" only if a separate scrape network interface is needed.
     std::string metrics_host{"127.0.0.1"};
-    uint16_t metrics_port{9102};
 };
 
 Settings load(const std::string& path);
