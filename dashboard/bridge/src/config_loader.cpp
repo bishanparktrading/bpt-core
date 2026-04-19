@@ -3,7 +3,7 @@
 #include <fmt/format.h>
 #include <stdexcept>
 #include <toml++/toml.hpp>
-#include <bpt_common/logging_toml.h>
+#include <bpt_app/base_settings.h>
 
 namespace bridge::config {
 
@@ -24,6 +24,13 @@ bpt::common::config::StreamConfig load_stream(const toml::table* t,
 Settings load(const std::string& path) {
     Settings s;
 
+    // Give base.media_driver_dir a bridge-specific default (matches the
+    // previous behaviour where Settings::media_driver_dir defaulted to
+    // /dev/shm/aeron-bifrost). load_base_settings only overrides from
+    // [aeron].media_driver_dir, so the pre-set default survives unless
+    // the TOML says otherwise.
+    s.base.media_driver_dir = "/dev/shm/aeron-bifrost";
+
     toml::table root;
     try {
         root = toml::parse_file(path);
@@ -32,10 +39,10 @@ Settings load(const std::string& path) {
             fmt::format("Failed to load bridge config {}: {}", path, std::string(e.description())));
     }
 
-    // Aeron
+    bpt::app::load_base_settings(root, s.base);
+
+    // Aeron stream IDs (media_driver_dir loaded above).
     if (auto* aeron = root["aeron"].as_table()) {
-        s.media_driver_dir =
-            (*aeron)["media_driver_dir"].value<std::string>().value_or(s.media_driver_dir);
         s.md_data =
             load_stream((*aeron)["md_data"].as_table(), s.md_data.channel, s.md_data.stream_id);
         s.exec_report = load_stream(
@@ -65,9 +72,6 @@ Settings load(const std::string& path) {
         if (auto v = (*sess)["instrument_id"].value<int64_t>())
             s.instrument_id = static_cast<uint64_t>(*v);
     }
-
-    // Logging
-    if (auto* l = root["logging"].as_table()) s.logging = bpt::common::logging::from_toml(*l);
 
     return s;
 }

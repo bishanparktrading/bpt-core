@@ -1,29 +1,16 @@
-// bridge — subscribes to Aeron MD + exec report streams, broadcasts JSON
-// messages over WebSocket to the dashboard frontend.
+// bridge — Aeron → WebSocket forwarder for the dashboard.
 
-#include <analytics/messaging/toxicity_update.h>
-
-#include "bridge/account_subscriber.h"
-#include "bridge/exec_subscriber.h"
-#include "bridge/md_subscriber.h"
-#include "bridge/message_encoder.h"
-#include "bridge/position_tracker.h"
+#include "bridge/bridge_app.h"
 #include "bridge/settings.h"
-#include "bridge/ws_server.h"
 
-#include <Aeron.h>
 #include <CLI/CLI.hpp>
-#include <chrono>
+#include <memory>
 #include <string>
-#include <thread>
-#include <bpt_common/aeron/aeron_utils.h>
+#include <bpt_app/app.h>
 #include <bpt_common/logging.h>
-#include <bpt_common/signal.h>
 
 int main(int argc, char** argv) {
-    bpt::common::signal::install();
-
-    CLI::App app{"bpt-bridge — Aeron → WebSocket forwarder for dashboard"};
+    CLI::App cli{"bpt-bridge — Aeron → WebSocket forwarder for dashboard"};
     std::string config_path = "config/bridge.toml";
     std::string strategy_override;
     std::string symbol_override;
@@ -31,17 +18,17 @@ int main(int argc, char** argv) {
     std::string mode_override;
     std::string instrument_type_override;
     uint64_t    instrument_id_override = 0;
-    app.add_option("-c,--config", config_path, "Path to TOML config file")
+    cli.add_option("-c,--config", config_path, "Path to TOML config file")
         ->capture_default_str()
         ->check(CLI::ExistingFile);
-    app.add_option("--strategy-name", strategy_override, "Override session.strategy");
-    app.add_option("--symbol", symbol_override, "Override session.symbol");
-    app.add_option("--exchange", exchange_override, "Override session.exchange");
-    app.add_option("--mode", mode_override, "Override session.mode (paper|live|mock)");
-    app.add_option("--instrument-type", instrument_type_override,
+    cli.add_option("--strategy-name", strategy_override, "Override session.strategy");
+    cli.add_option("--symbol", symbol_override, "Override session.symbol");
+    cli.add_option("--exchange", exchange_override, "Override session.exchange");
+    cli.add_option("--mode", mode_override, "Override session.mode (paper|live|mock)");
+    cli.add_option("--instrument-type", instrument_type_override,
                    "Override session.instrument_type (SPOT|PERP|FUTURE|OPTION)");
-    app.add_option("--instrument-id", instrument_id_override, "Override session.instrument_id");
-    CLI11_PARSE(app, argc, argv);
+    cli.add_option("--instrument-id", instrument_id_override, "Override session.instrument_id");
+    CLI11_PARSE(cli, argc, argv);
 
     bridge::config::Settings settings;
     try {
@@ -60,249 +47,13 @@ int main(int argc, char** argv) {
     if (!instrument_type_override.empty()) settings.instrument_type  = instrument_type_override;
     if (instrument_id_override > 0)        settings.instrument_id    = instrument_id_override;
 
-    bpt::common::logging::init("bridge", settings.logging);
-    bpt::common::log::info("bridge starting — ws :{}  aeron {}", settings.ws_port, settings.media_driver_dir);
-    bpt::common::log::info("[bridge] md_data stream={}  exec_report stream={}  control stream={}",
-                   settings.md_data.stream_id, settings.exec_report.stream_id,
-                   settings.control_command.stream_id);
-    bpt::common::log::info("[bridge] mode={} strategy={} symbol={}@{} instrument_filter={}",
-                   settings.mode, settings.strategy, settings.symbol, settings.exchange,
-                   settings.instrument_id == 0 ? "(none)" : std::to_string(settings.instrument_id));
-
-    // ── Aeron ────────────────────────────────────────────────────────────────
-    auto aeron = bpt::common::aeron::connect(settings.media_driver_dir);
-
-    bridge::MdSubscriber      md_sub(aeron, settings.md_data.channel, settings.md_data.stream_id);
-    bridge::ExecSubscriber    exec_sub(aeron, settings.exec_report.channel, settings.exec_report.stream_id);
-    bridge::AccountSubscriber account_sub(aeron, settings.account_snapshot.channel, settings.account_snapshot.stream_id);
-
-    // ── Portfolio snapshot subscription (Strategy → bridge) ────────────────────
-    // Strategy publishes JSON at ~10Hz with option legs, Greeks, and vol surface.
-    // The bridge relays it as-is to all WS clients.
-    std::shared_ptr<aeron::Subscription> snapshot_sub;
-    if (settings.portfolio_snapshot.stream_id != 0) {
-        snapshot_sub = bpt::common::aeron::wait_for_subscription(
-            aeron, settings.portfolio_snapshot.channel, settings.portfolio_snapshot.stream_id);
-        bpt::common::log::info("[bridge] portfolio snapshot subscription ready on stream {}",
-                       settings.portfolio_snapshot.stream_id);
+    try {
+        return bpt::app::run("bridge", std::move(settings),
+            [](auto& cfg, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
+                return std::make_unique<bridge::BridgeApp>(std::move(cfg), ctx.aeron);
+            });
+    } catch (const std::exception& e) {
+        bpt::common::log::error("Fatal: {}", e.what());
+        return 1;
     }
-
-    // ── Analytics toxicity subscription (optional) ──────────────────────────────────
-    std::shared_ptr<aeron::Subscription> tyr_sub;
-    if (settings.toxicity.stream_id != 0) {
-        tyr_sub = bpt::common::aeron::wait_for_subscription(
-            aeron, settings.toxicity.channel, settings.toxicity.stream_id);
-        bpt::common::log::info("[bridge] tyr toxicity subscription ready on stream {}",
-                       settings.toxicity.stream_id);
-    }
-
-    // ── Control publication (bridge → Strategy) ────────────────────────────────
-    // 1-byte command: 0x00 = HALT, 0x01 = RESUME.  No SBE — this is a
-    // lightweight control path, not a high-throughput data stream.
-    std::shared_ptr<aeron::Publication> ctrl_pub;
-    if (settings.control_command.stream_id != 0) {
-        ctrl_pub = bpt::common::aeron::wait_for_publication(
-            aeron, settings.control_command.channel, settings.control_command.stream_id);
-        bpt::common::log::info("[bridge] control publication ready on stream {}",
-                       settings.control_command.stream_id);
-    }
-
-    // ── WebSocket server ─────────────────────────────────────────────────────
-    bridge::WsServer ws(settings.ws_port);
-
-    ws.on_command = [&](const std::string& cmd) {
-        uint8_t ctrl_byte;
-        std::string status_str;
-
-        if (cmd == "halt") {
-            ctrl_byte = 0x00;
-            status_str = "halted";
-        } else if (cmd == "resume") {
-            ctrl_byte = 0x01;
-            status_str = "live";
-        } else {
-            bpt::common::log::warn("[bridge] unknown command: {}", cmd);
-            return;
-        }
-
-        // Publish to Strategy via Aeron
-        if (ctrl_pub) {
-            aeron::AtomicBuffer buf(reinterpret_cast<uint8_t*>(&ctrl_byte), 1);
-            auto result = ctrl_pub->offer(buf, 0, 1);
-            if (result < 0) {
-                bpt::common::log::warn("[bridge] control offer failed: {}", result);
-            }
-        }
-
-        // Broadcast status to all connected dashboard clients
-        ws.publish(bridge::MsgKind::Status, bridge::encode::status(status_str));
-        bpt::common::log::info("[bridge] command '{}' → status '{}'", cmd, status_str);
-    };
-
-    ws.start();
-
-    ws.publish(bridge::MsgKind::Session,
-               bridge::encode::session(settings.symbol,
-                                       settings.strategy,
-                                       settings.exchange,
-                                       settings.mode,
-                                       settings.instrument_type));
-    ws.publish(bridge::MsgKind::Status, bridge::encode::status("live"));
-
-    // ── Position state (bridge is authoritative) ─────────────────────────────
-    // Tracker baseline is 0; per-fill `equity` = cumulative realized PnL since
-    // session start. Absolute equity is sourced from order-gateway AccountSnapshots
-    // (see account_subscriber + the dashboard's accountHistory).
-    bridge::PositionTracker tracker;
-    double last_mid = 0.0;
-
-    // Tick throttle — BBO mids update ~1000 Hz but the dashboard only needs
-    // ~30 Hz for a smooth visual.  Drop intermediate ticks; the most-recent
-    // value always wins.  Fills and position messages bypass the throttle so
-    // every trade is delivered instantly.
-    using clock = std::chrono::steady_clock;
-    constexpr auto kTickMinInterval = std::chrono::milliseconds(33);  // ~30 Hz
-    auto last_tick_bcast = clock::now() - std::chrono::seconds(1);
-
-    // ── Handlers ─────────────────────────────────────────────────────────────
-    //
-    // When settings.instrument_id is non-zero, MD ticks and fills for other
-    // instruments are dropped before they reach the position tracker or the
-    // broadcast queue.  This is the cleanest way to run the dashboard for a
-    // single-instrument view of a multi-instrument strategy.
-
-    md_sub.set_handler([&](uint64_t instr, double mid, uint64_t ts_ns) {
-        if (settings.instrument_id != 0 && instr != settings.instrument_id) return;
-        last_mid = mid;
-        const auto now = clock::now();
-        if (now - last_tick_bcast < kTickMinInterval) return;
-        last_tick_bcast = now;
-        ws.publish(bridge::MsgKind::Tick, bridge::encode::tick(ts_ns, settings.symbol, mid));
-    });
-
-    // Order lifecycle handler — forwards all exec report statuses to the
-    // dashboard so it can display open/working orders.
-    exec_sub.set_order_handler([&](const bridge::ExecSubscriber::OrderEvent& ev) {
-        if (settings.instrument_id != 0 && ev.instrument_id != settings.instrument_id) return;
-
-        static const char* kStatusStr[] = {"acked", "filled", "partial", "rejected", "cancelled"};
-        static const char* kTypeStr[]   = {"MARKET", "LIMIT", "POST_ONLY"};
-
-        const char* status_s = ev.status < 5 ? kStatusStr[ev.status] : "unknown";
-        const char* type_s   = ev.order_type < 3 ? kTypeStr[ev.order_type] : "UNKNOWN";
-
-        ws.publish(bridge::MsgKind::Order,
-                   bridge::encode::order(ev.ts_ns,
-                                         ev.order_id,
-                                         settings.symbol,
-                                         ev.side,
-                                         type_s,
-                                         ev.price,
-                                         ev.qty,
-                                         ev.filled_qty,
-                                         ev.remaining_qty,
-                                         status_s));
-    });
-
-    // Account snapshot handler — forwards live exchange balance/equity to the
-    // frontend. The dashboard uses these as the canonical equity baseline so
-    // the equity curve reflects the actual exchange account, not a static
-    // starting_capital config value.
-    account_sub.set_handler([&](const bridge::AccountSubscriber::Snapshot& s) {
-        std::vector<bridge::encode::AccountPosition> positions;
-        positions.reserve(s.positions.size());
-        for (const auto& p : s.positions) {
-            positions.push_back({p.exchange_symbol, p.net_qty, p.avg_entry, p.unrealized_pnl});
-        }
-        std::vector<bridge::encode::AccountCurrencyBalance> ccy_balances;
-        ccy_balances.reserve(s.currency_balances.size());
-        for (const auto& cb : s.currency_balances) {
-            ccy_balances.push_back({cb.ccy, cb.equity, cb.available_balance});
-        }
-        ws.publish(bridge::MsgKind::Order,
-                   bridge::encode::account(s.ts_ns, s.available_balance, s.total_equity,
-                                           positions, ccy_balances));
-    });
-
-    exec_sub.set_handler([&](const bridge::ExecSubscriber::Fill& f) {
-        if (settings.instrument_id != 0 && f.instrument_id != settings.instrument_id) return;
-
-        const auto res = tracker.apply(f.side, f.qty, f.price);
-
-        static const char* kTypeStr[] = {"MARKET", "LIMIT", "POST_ONLY"};
-        const char* type_s = f.order_type < 3 ? kTypeStr[f.order_type] : "UNKNOWN";
-        ws.publish(bridge::MsgKind::Fill,
-                   bridge::encode::fill(f.ts_ns,
-                                        f.order_id,
-                                        settings.symbol,
-                                        f.side,
-                                        type_s,
-                                        f.qty,
-                                        f.price,
-                                        f.fee,
-                                        res.realized_pnl,
-                                        res.cumulative_pnl));
-
-        const double unreal = last_mid > 0 ? tracker.unrealized_pnl(last_mid) : 0.0;
-        ws.publish(bridge::MsgKind::Position,
-                   bridge::encode::position(settings.symbol, res.net_qty, res.avg_entry, unreal));
-    });
-
-    // ── Poll loop ────────────────────────────────────────────────────────────
-    while (bpt::common::signal::is_running()) {
-        int work = 0;
-        work += md_sub.poll(32);
-        work += exec_sub.poll(32);
-        work += account_sub.poll(8);
-
-        // Poll portfolio snapshots from fenrir and relay as-is to WS clients.
-        // The JSON from fenrir already has type:"portfolio" so the frontend
-        // can dispatch it directly.
-        if (snapshot_sub) {
-            work += snapshot_sub->poll(
-                [&ws](aeron::AtomicBuffer& buffer,
-                      aeron::util::index_t offset,
-                      aeron::util::index_t length,
-                      aeron::Header& /*hdr*/) {
-                    std::string json(
-                        reinterpret_cast<const char*>(buffer.buffer() + offset),
-                        static_cast<std::size_t>(length));
-                    ws.publish(bridge::MsgKind::Order, std::move(json));
-                },
-                1);
-        }
-
-        // Poll tyr toxicity updates and relay to frontend.
-        if (tyr_sub) {
-            work += tyr_sub->poll(
-                [&ws](aeron::AtomicBuffer& buffer,
-                      aeron::util::index_t offset,
-                      aeron::util::index_t length,
-                      aeron::Header& /*hdr*/) {
-                    if (static_cast<std::size_t>(length) != sizeof(bpt::analytics::messaging::ToxicityUpdate))
-                        return;
-                    bpt::analytics::messaging::ToxicityUpdate u;
-                    std::memcpy(&u, buffer.buffer() + offset, sizeof(u));
-                    double bid_m = u.bid_markout_5s_bps, ask_m = u.ask_markout_5s_bps;
-                    double bid_ar = u.bid_adverse_rate, ask_ar = u.ask_adverse_rate;
-                    uint32_t bid_n = u.bid_sample_count, ask_n = u.ask_sample_count;
-                    double bid_t = u.bid_toxicity_score, ask_t = u.ask_toxicity_score;
-                    double bid_fr = u.bid_fill_rate, ask_fr = u.ask_fill_rate;
-                    double bid_ttf = u.bid_ttf_ms, ask_ttf = u.ask_ttf_ms;
-                    ws.publish(bridge::MsgKind::Toxicity,
-                               bridge::encode::toxicity(bid_m, ask_m, bid_ar, ask_ar,
-                                                        bid_n, ask_n, bid_t, ask_t,
-                                                        bid_fr, ask_fr, bid_ttf, ask_ttf));
-                },
-                4);
-        }
-
-        if (work == 0) std::this_thread::sleep_for(std::chrono::microseconds(500));
-    }
-
-    bpt::common::log::info("bridge shutting down");
-    ws.publish(bridge::MsgKind::Status, bridge::encode::status("off"));
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    ws.stop();
-    return 0;
 }

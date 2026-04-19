@@ -6,6 +6,7 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 cc_library(
     name = "bridge_lib",
     srcs = [
+        "src/bridge_app.cpp",
         "src/message_encoder.cpp",
         "src/position_tracker.cpp",
         "src/ws_server.cpp",
@@ -20,6 +21,7 @@ cc_library(
     deps = [
         "//bpt-analytics:analytics_core",
         "//messages",
+        "//bpt-app",
         "//bpt-common",
         "@boost.asio",
         "@boost.beast",
@@ -35,6 +37,8 @@ cc_binary(
     srcs = ["src/main.cpp"],
     deps = [
         ":bridge_lib",
+        "//bpt-app",
+        "//bpt-common",
         "@cli11",
     ],
 )
