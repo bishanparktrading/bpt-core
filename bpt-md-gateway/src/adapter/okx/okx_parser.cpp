@@ -44,6 +44,17 @@ void OkxParser::parse(std::string_view payload,
             return;
     }
 
+    // `action` is present on the `books` channel (snapshot | update) and
+    // on `books5` (always snapshot). Absent on bbo-tbt / trades /
+    // funding-rate. Treat missing as snapshot — safe default since
+    // those channels don't carry deltas.
+    bool is_snapshot = true;
+    {
+        std::string_view action_sv;
+        if (!doc.find_field_unordered("action").get_string().get(action_sv))
+            is_snapshot = (action_sv == "snapshot");
+    }
+
     simdjson::ondemand::array data_arr;
     if (doc.find_field_unordered("data").get_array().get(data_arr))
         return;
@@ -77,7 +88,7 @@ void OkxParser::parse(std::string_view payload,
             handle_bbo(entry, instrument_id, recv_ns, parse_start_ns, pub);
             break;
         case Channel::Book:
-            handle_book(entry, instrument_id, recv_ns, parse_start_ns, depth, pub);
+            handle_book(entry, instrument_id, recv_ns, parse_start_ns, depth, is_snapshot, pub);
             break;
         case Channel::Trades:
             handle_trades(entry, instrument_id, recv_ns, pub);
@@ -140,60 +151,69 @@ void OkxParser::handle_book(simdjson::ondemand::object& entry,
                             uint64_t recv_ns,
                             uint64_t parse_start_ns,
                             uint8_t depth,
+                            bool is_snapshot,
                             messaging::IMdPublisher& pub) {
-    // books5 / books: top-N levels.  depth comes from the subscription map,
-    // already resolved by the caller — no second lookup needed.
-    md::MdOrderBook book;
-    book.timestamp_ns = recv_ns;
-    book.instrument_id = instrument_id;
-    book.bids.reserve(depth);
-    book.asks.reserve(depth);
+    // Apply snapshot-or-update against the per-instrument local state,
+    // then publish the top `depth` levels + derived BBO from that
+    // maintained book. For `books5` every message is a snapshot (action
+    // is always "snapshot"), so the state is effectively replaced each
+    // tick — no delta accumulation. For `books` the first message is a
+    // snapshot and subsequent messages carry updates; qty==0 at a level
+    // means "remove that level".
+    auto& state = book_state_[instrument_id];
+    if (is_snapshot) {
+        state.bids.clear();
+        state.asks.clear();
+    }
+
+    auto apply_side = [](simdjson::ondemand::array& outer, auto& side) {
+        for (auto level_res : outer) {
+            simdjson::ondemand::array lvl;
+            if (level_res.get_array().get(lvl))
+                continue;
+            double px = 0, qty = 0;
+            auto it = lvl.begin();
+            if (it.error())
+                continue;
+            (void)ygg::util::ff_double(*it, px);
+            if ((++it).error())
+                continue;
+            (void)ygg::util::ff_double(*it, qty);
+            if (qty == 0.0)
+                side.erase(px);
+            else
+                side[px] = qty;
+        }
+    };
 
     {
         simdjson::ondemand::array outer;
         if (entry["bids"].get_array().get(outer))
             return;
-        for (auto level_res : outer) {
-            if (book.bids.size() >= depth)
-                break;
-            simdjson::ondemand::array lvl;
-            if (level_res.get_array().get(lvl))
-                continue;
-            double px = 0, qty = 0;
-            auto it = lvl.begin();
-            if (it.error())
-                continue;
-            (void)ygg::util::ff_double(*it, px);
-            if ((++it).error())
-                continue;
-            (void)ygg::util::ff_double(*it, qty);
-            book.bids.emplace_back(px, qty);
-        }
+        apply_side(outer, state.bids);
     }
     {
         simdjson::ondemand::array outer;
         if (entry.find_field_unordered("asks").get_array().get(outer))
             return;
-        for (auto level_res : outer) {
-            if (book.asks.size() >= depth)
-                break;
-            simdjson::ondemand::array lvl;
-            if (level_res.get_array().get(lvl))
-                continue;
-            double px = 0, qty = 0;
-            auto it = lvl.begin();
-            if (it.error())
-                continue;
-            (void)ygg::util::ff_double(*it, px);
-            if ((++it).error())
-                continue;
-            (void)ygg::util::ff_double(*it, qty);
-            book.asks.emplace_back(px, qty);
-        }
+        apply_side(outer, state.asks);
     }
 
-    if (book.bids.empty() || book.asks.empty())
+    if (state.bids.empty() || state.asks.empty())
         return;
+
+    // Flatten top-`depth` of the maintained state into a fresh MdOrderBook
+    // for downstream. std::map iteration is in sort order (bids already
+    // descending via std::greater, asks ascending), so begin() is the top.
+    md::MdOrderBook book;
+    book.timestamp_ns = recv_ns;
+    book.instrument_id = instrument_id;
+    book.bids.reserve(depth);
+    book.asks.reserve(depth);
+    for (auto it = state.bids.begin(); it != state.bids.end() && book.bids.size() < depth; ++it)
+        book.bids.emplace_back(it->first, it->second);
+    for (auto it = state.asks.begin(); it != state.asks.end() && book.asks.size() < depth; ++it)
+        book.asks.emplace_back(it->first, it->second);
 
     uint64_t lat_ns = ygg::util::TscClock::now_mono_ns() - parse_start_ns;
     decode_lat_.record(lat_ns);

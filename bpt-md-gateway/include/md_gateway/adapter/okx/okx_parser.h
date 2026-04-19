@@ -3,6 +3,8 @@
 #include "md_gateway/adapter/common/i_exchange_parser.h"
 #include "md_gateway/adapter/common/subscription_map.h"
 
+#include <map>
+#include <unordered_map>
 #include <yggdrasil/util/latency_histogram.h>
 
 namespace bpt::md_gateway::adapter {
@@ -53,7 +55,25 @@ private:
                      uint64_t recv_ns,
                      uint64_t parse_start_ns,
                      uint8_t depth,
+                     bool is_snapshot,
                      messaging::IMdPublisher& pub);
+
+    // Per-instrument local book state. OKX's `books` channel is
+    // delta-based (snapshot then updates) — without tracking state we'd
+    // publish the top of each delta slice as BBO, which is the
+    // channel's *changes* rather than top-of-book. For `books5` the
+    // every-message-is-a-snapshot contract holds, but we feed it
+    // through the same state machine so the downstream view of the
+    // ladder is consistent across depths.
+    //
+    // std::map ordered descending (bids) / ascending (asks) — best
+    // price is always at begin(). Iteration cost is O(depth) per
+    // publish; update cost is O(log n).
+    struct BookState {
+        std::map<double, double, std::greater<>> bids;
+        std::map<double, double, std::less<>>    asks;
+    };
+    std::unordered_map<uint64_t, BookState> book_state_;
 
     void handle_trades(simdjson::ondemand::object& entry,
                        uint64_t instrument_id,

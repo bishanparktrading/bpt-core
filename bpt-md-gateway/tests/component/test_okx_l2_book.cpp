@@ -124,5 +124,161 @@ TEST(OkxL2BookTest, SingleLevelPublishesBothBboAndBook) {
     EXPECT_EQ(f.pub.last_order_book->asks.size(), 1u);
 }
 
+// ---------------------------------------------------------------------------
+// Stateful `books` channel — snapshot + update deltas
+// ---------------------------------------------------------------------------
+// OKX's `books` channel (depth>5) is delta-based: the first message is a
+// full snapshot, subsequent messages carry only changed levels. The
+// parser has to maintain a per-instrument book state so the published
+// BBO reflects actual top-of-book, not the top of the delta slice.
+
+TEST(OkxL2BookTest, SnapshotThenUpdateTracksBbo) {
+    OkxL2Fixture f;
+    f.subs.subscribe(1001, "BTC-USDT-SWAP", 10);
+
+    // Snapshot: best bid 100, best ask 101.
+    f.inject(
+        R"({"arg":{"channel":"books","instId":"BTC-USDT-SWAP"},"action":"snapshot","data":[{
+            "bids":[["100","1","0","1"],["99","2","0","1"],["98","3","0","1"]],
+            "asks":[["101","1","0","1"],["102","2","0","1"],["103","3","0","1"]]
+        }]})",
+        100ULL);
+    ASSERT_TRUE(f.pub.last_bbo.has_value());
+    EXPECT_DOUBLE_EQ(f.pub.last_bbo->bid_price, 100.0);
+    EXPECT_DOUBLE_EQ(f.pub.last_bbo->ask_price, 101.0);
+
+    // Update touches only deep levels (98 and 103). Top of book must be
+    // unchanged — before the fix the old code would have published
+    // bbo={bid=98, ask=103} because it read the top of the delta slice.
+    f.inject(
+        R"({"arg":{"channel":"books","instId":"BTC-USDT-SWAP"},"action":"update","data":[{
+            "bids":[["98","5","0","1"]],
+            "asks":[["103","7","0","1"]]
+        }]})",
+        200ULL);
+    ASSERT_TRUE(f.pub.last_bbo.has_value());
+    EXPECT_DOUBLE_EQ(f.pub.last_bbo->bid_price, 100.0) << "Top bid must not follow the delta";
+    EXPECT_DOUBLE_EQ(f.pub.last_bbo->ask_price, 101.0) << "Top ask must not follow the delta";
+}
+
+TEST(OkxL2BookTest, UpdateWithZeroQtyRemovesLevel) {
+    OkxL2Fixture f;
+    f.subs.subscribe(1001, "BTC-USDT-SWAP", 10);
+
+    f.inject(
+        R"({"arg":{"channel":"books","instId":"BTC-USDT-SWAP"},"action":"snapshot","data":[{
+            "bids":[["100","1","0","1"],["99","2","0","1"]],
+            "asks":[["101","1","0","1"],["102","2","0","1"]]
+        }]})",
+        100ULL);
+
+    // Remove best bid (qty==0 on 100). Top should fall to 99.
+    f.inject(
+        R"({"arg":{"channel":"books","instId":"BTC-USDT-SWAP"},"action":"update","data":[{
+            "bids":[["100","0","0","0"]],
+            "asks":[]
+        }]})",
+        200ULL);
+    ASSERT_TRUE(f.pub.last_bbo.has_value());
+    EXPECT_DOUBLE_EQ(f.pub.last_bbo->bid_price, 99.0);
+    EXPECT_DOUBLE_EQ(f.pub.last_bbo->ask_price, 101.0);
+}
+
+TEST(OkxL2BookTest, UpdateAddsNewBestLevel) {
+    OkxL2Fixture f;
+    f.subs.subscribe(1001, "BTC-USDT-SWAP", 10);
+
+    f.inject(
+        R"({"arg":{"channel":"books","instId":"BTC-USDT-SWAP"},"action":"snapshot","data":[{
+            "bids":[["100","1","0","1"]],
+            "asks":[["101","1","0","1"]]
+        }]})",
+        100ULL);
+
+    // Update inserts a new tighter level on each side.
+    f.inject(
+        R"({"arg":{"channel":"books","instId":"BTC-USDT-SWAP"},"action":"update","data":[{
+            "bids":[["100.5","1","0","1"]],
+            "asks":[["100.7","1","0","1"]]
+        }]})",
+        200ULL);
+    ASSERT_TRUE(f.pub.last_bbo.has_value());
+    EXPECT_DOUBLE_EQ(f.pub.last_bbo->bid_price, 100.5);
+    EXPECT_DOUBLE_EQ(f.pub.last_bbo->ask_price, 100.7);
+}
+
+TEST(OkxL2BookTest, MultipleInstrumentsIsolated) {
+    OkxL2Fixture f;
+    f.subs.subscribe(1001, "BTC-USDT-SWAP", 10);
+    f.subs.subscribe(1002, "ETH-USDT-SWAP", 10);
+
+    // Snapshot BTC, best bid 100.
+    f.inject(
+        R"({"arg":{"channel":"books","instId":"BTC-USDT-SWAP"},"action":"snapshot","data":[{
+            "bids":[["100","1","0","1"]],
+            "asks":[["101","1","0","1"]]
+        }]})",
+        100ULL);
+    // Snapshot ETH, best bid 3000.
+    f.inject(
+        R"({"arg":{"channel":"books","instId":"ETH-USDT-SWAP"},"action":"snapshot","data":[{
+            "bids":[["3000","1","0","1"]],
+            "asks":[["3001","1","0","1"]]
+        }]})",
+        200ULL);
+    // Update ETH — BTC state must not leak in / out.
+    f.inject(
+        R"({"arg":{"channel":"books","instId":"ETH-USDT-SWAP"},"action":"update","data":[{
+            "bids":[["2999","2","0","1"]],
+            "asks":[]
+        }]})",
+        300ULL);
+    // ETH now holds levels 3000 and 2999.
+    ASSERT_TRUE(f.pub.last_order_book.has_value());
+    EXPECT_EQ(f.pub.last_order_book->instrument_id, 1002ULL);
+    EXPECT_EQ(f.pub.last_order_book->bids.size(), 2u);
+    EXPECT_DOUBLE_EQ(f.pub.last_order_book->bids[0].first, 3000.0);
+    EXPECT_DOUBLE_EQ(f.pub.last_order_book->bids[1].first, 2999.0);
+
+    // Now poke BTC with an update. Its state must still be intact from
+    // the earlier snapshot — the update should merge into it.
+    f.inject(
+        R"({"arg":{"channel":"books","instId":"BTC-USDT-SWAP"},"action":"update","data":[{
+            "bids":[["99","2","0","1"]],
+            "asks":[]
+        }]})",
+        400ULL);
+    ASSERT_TRUE(f.pub.last_order_book.has_value());
+    EXPECT_EQ(f.pub.last_order_book->instrument_id, 1001ULL);
+    EXPECT_EQ(f.pub.last_order_book->bids.size(), 2u);
+    EXPECT_DOUBLE_EQ(f.pub.last_order_book->bids[0].first, 100.0);
+    EXPECT_DOUBLE_EQ(f.pub.last_order_book->bids[1].first, 99.0);
+}
+
+TEST(OkxL2BookTest, SecondSnapshotClearsStaleLevels) {
+    OkxL2Fixture f;
+    f.subs.subscribe(1001, "BTC-USDT-SWAP", 10);
+
+    // Snapshot with 3 bid levels.
+    f.inject(
+        R"({"arg":{"channel":"books","instId":"BTC-USDT-SWAP"},"action":"snapshot","data":[{
+            "bids":[["100","1","0","1"],["99","2","0","1"],["98","3","0","1"]],
+            "asks":[["101","1","0","1"]]
+        }]})",
+        100ULL);
+
+    // Fresh snapshot with only 1 bid level — old 99/98 levels must be
+    // discarded (a snapshot is authoritative).
+    f.inject(
+        R"({"arg":{"channel":"books","instId":"BTC-USDT-SWAP"},"action":"snapshot","data":[{
+            "bids":[["100","1","0","1"]],
+            "asks":[["101","1","0","1"]]
+        }]})",
+        200ULL);
+    ASSERT_TRUE(f.pub.last_order_book.has_value());
+    EXPECT_EQ(f.pub.last_order_book->bids.size(), 1u);
+    EXPECT_DOUBLE_EQ(f.pub.last_order_book->bids[0].first, 100.0);
+}
+
 }  // namespace
 }  // namespace bpt::md_gateway::adapter
