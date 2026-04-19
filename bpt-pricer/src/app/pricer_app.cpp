@@ -71,6 +71,12 @@ PricerApp::PricerApp(config::Settings settings, std::shared_ptr<aeron::Aeron> ae
 
     refdata_sub_->set_on_remove([this](uint64_t instrument_id) { builder_.remove_instrument(instrument_id); });
 
+    bpt::common::log::info("[Pricer] publish_interval_ms={} risk_free_rate={:.4f}",
+                           settings_.publish_interval_ms, settings_.risk_free_rate);
+    for (const auto& u : settings_.underlyings)
+        bpt::common::log::info("[Pricer] underlying: {}", u);
+    for (const auto& e : settings_.exchanges)
+        bpt::common::log::info("[Pricer] exchange: {}", e);
     bpt::common::log::info("[Pricer] Ready — entering main loop");
 }
 
@@ -161,7 +167,6 @@ void PricerApp::run() {
             std::this_thread::sleep_for(idle_sleep);
     }
 
-    bpt::common::log::info("[Pricer] Shutdown complete.");
 }
 
 }  // namespace bpt::pricer

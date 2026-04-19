@@ -13,13 +13,14 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <bpt_app/app.h>
 
 namespace bpt::pricer {
 
-class PricerApp {
+class PricerApp : public bpt::app::IService {
 public:
     PricerApp(config::Settings settings, std::shared_ptr<aeron::Aeron> aeron);
-    void run();
+    void run() override;
 
 private:
     struct PerpInfo {

@@ -14,6 +14,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//messages",
+        "//bpt-app",
     ],
 )
 
@@ -44,6 +45,7 @@ cc_binary(
     ],
     deps = [
         ":pricer_core",
+        "//bpt-app",
         "//bpt-common",
         "@cli11",
         "@fmt",

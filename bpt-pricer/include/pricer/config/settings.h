@@ -3,17 +3,15 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <bpt_app/base_settings.h>
 #include <bpt_common/aeron/stream_config.h>
 
 namespace bpt::pricer::config {
 
-struct LoggingConfig {
-    std::string level{"info"};  // trace | debug | info | warn | error | critical | off
-    std::string dir{"logs"};
-};
-
 struct Settings {
-    std::string media_driver_dir;
+    // Shared lifecycle config (environment, media_driver_dir, logging,
+    // metrics_port, calibrate_tsc). Populated by bpt::app::load_base_settings().
+    bpt::app::BaseSettings base;
 
     // MD input (reads from MdGateway stream 2002)
     bpt::common::config::StreamConfig md_input;
@@ -44,9 +42,6 @@ struct Settings {
     // IV solver settings
     uint32_t newton_max_iterations{100};
     double newton_tolerance{1e-8};
-
-    LoggingConfig logging;
-    uint16_t metrics_port{9103};
 };
 
 Settings load(const std::string& path);

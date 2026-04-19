@@ -1,6 +1,7 @@
 #include "pricer/config/settings.h"
 
 #include <toml++/toml.hpp>
+#include <bpt_app/base_settings.h>
 
 namespace bpt::pricer::config {
 
@@ -22,10 +23,7 @@ bpt::common::config::StreamConfig load_stream(const toml::table* t, std::string 
 Settings load(const std::string& path) {
     Settings s;
     toml::table root = toml::parse_file(path);
-
-    s.media_driver_dir = root["media_driver_dir"].value<std::string>().value_or("");
-    if (auto* aeron = root["aeron"].as_table())
-        s.media_driver_dir = (*aeron)["media_driver_dir"].value<std::string>().value_or(s.media_driver_dir);
+    bpt::app::load_base_settings(root, s.base);
 
     s.md_input = load_stream(root["md_input"].as_table(), "aeron:ipc", 2002);
     s.vol_surface = load_stream(root["vol_surface"].as_table(), "aeron:ipc", 4001);
@@ -55,15 +53,6 @@ Settings load(const std::string& path) {
         s.newton_max_iterations = static_cast<uint32_t>(*v);
     if (auto v = root["newton_tolerance"].value<double>())
         s.newton_tolerance = *v;
-    if (auto* l = root["logging"].as_table()) {
-        if (auto v = (*l)["level"].value<std::string>())
-            s.logging.level = *v;
-        if (auto v = (*l)["dir"].value<std::string>())
-            s.logging.dir = *v;
-    }
-
-    if (auto v = root["metrics_port"].value<int64_t>())
-        s.metrics_port = static_cast<uint16_t>(*v);
 
     return s;
 }
