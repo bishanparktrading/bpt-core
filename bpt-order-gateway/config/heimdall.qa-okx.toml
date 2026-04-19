@@ -46,6 +46,28 @@ max_daily_loss_usd = 50.0
 # 0 disables the check. Set conservative for dev/qa; raise for prod based
 # on capital allocation decisions.
 max_position_usd = 5000.0
+# Exchange-reject-rate circuit breaker. Trips when the fraction of
+# post-send REJECTED exec reports over `reject_rate_window_sec` exceeds
+# `reject_rate_threshold_pct`, after at least `reject_rate_min_events`
+# have landed. On trip: halts trading via the same latch the daily-loss
+# kill switch uses — restart required. Intended signal: credentials
+# expired, account geo-blocked, margin mode flipped. Pre-trade risk
+# rejects don't count (they never reach the exec path). Disabled until
+# calibrated on a real venue; uncomment and tune per-env when ready.
+# reject_rate_breaker_enabled = true
+# reject_rate_threshold_pct   = 20.0
+# reject_rate_window_sec      = 60
+# reject_rate_min_events      = 10
+# Per-adapter disconnect-rate circuit breaker. Halts orders to a specific
+# venue when its adapter has reconnected `disconnect_threshold` times in
+# the last `disconnect_window_sec`. Only that venue stops accepting
+# orders — other adapters keep running. Restart required to clear.
+# Intended signal: exchange adapter in a reconnect loop (expired creds,
+# geo-block, margin-mode mismatch) where retries just burn rate-limit.
+# Disabled by default; enable per-env once reconnect cadence is known.
+# disconnect_breaker_enabled = true
+# disconnect_threshold       = 5
+# disconnect_window_sec      = 60
 
 [metrics]
 port = 9103

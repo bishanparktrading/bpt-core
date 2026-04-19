@@ -37,6 +37,32 @@ struct RiskConfig {
     // notional) and max_notional_per_order_usd (redundant alias at
     // this point, worth collapsing).
     double max_position_usd{0.0};
+
+    // Exchange-reject-rate circuit breaker. Trips when the share of
+    // post-send REJECTED exec reports over the rolling window exceeds
+    // the threshold (and at least min_events have landed). On trip:
+    // RiskChecker.set_trading_enabled(false) — same latch the daily-loss
+    // kill switch uses. Intentionally disabled by default until a real
+    // venue has been observed long enough to pick sane thresholds;
+    // enable per-env in the TOML once calibrated. min_events guards
+    // against tripping on 1-of-1 false positives during warmup.
+    bool     reject_rate_breaker_enabled{false};
+    double   reject_rate_threshold_pct{20.0};
+    uint32_t reject_rate_window_sec{60};
+    uint32_t reject_rate_min_events{10};
+
+    // Per-adapter disconnect-rate circuit breaker. Trips when an
+    // exchange adapter has reconnected at least `threshold` times in
+    // the last `window_sec` — signals a persistent loop (expired
+    // creds, geo-block, margin-mode mismatch) where reconnecting
+    // only burns rate-limit. On trip, only orders to that adapter
+    // reject (unlike the reject-rate breaker which halts all trading);
+    // other venues keep working. Restart required to clear.
+    // Same config is shared across all adapters — threshold tuning
+    // is not venue-specific yet.
+    bool     disconnect_breaker_enabled{false};
+    uint32_t disconnect_threshold{5};
+    uint32_t disconnect_window_sec{60};
 };
 
 struct AdapterConfig {

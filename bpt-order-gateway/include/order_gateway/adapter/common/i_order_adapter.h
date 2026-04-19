@@ -2,6 +2,7 @@
 
 #include "order_gateway/adapter/common/account_snapshot_data.h"
 #include "order_gateway/order/order_state_manager.h"
+#include "order_gateway/risk/disconnect_rate_breaker.h"
 
 #include <messages/CancelOrder.h>
 #include <messages/ExchangeId.h>
@@ -55,6 +56,17 @@ public:
     [[nodiscard]] virtual bpt::messages::ExchangeId::Value exchange_id() const = 0;
     [[nodiscard]] virtual const char* exchange_name() const = 0;
     [[nodiscard]] virtual bool is_connected() const = 0;
+
+    // Disconnect-rate circuit breaker. Latches true when the adapter
+    // has reconnected too many times in its rolling window — operator
+    // restart required to clear. Distinct from !is_connected() (which
+    // is a transient state during normal reconnect). Default false for
+    // adapters that don't implement it.
+    [[nodiscard]] virtual bool is_halted() const { return false; }
+
+    // Set disconnect-breaker config before start(). Default no-op for
+    // adapters that don't implement it; OrderAdapterBase overrides.
+    virtual void set_disconnect_breaker_config(risk::DisconnectRateBreaker::Config) {}
 
     // Drain all pending exec events from the adapter's IO thread into the
     // caller's thread.  Call this from the main poll loop on every iteration.

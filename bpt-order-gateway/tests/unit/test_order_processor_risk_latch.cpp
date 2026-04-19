@@ -104,6 +104,47 @@ adapter::ExecEvent make_fill(uint64_t order_id,
     return ev;
 }
 
+// Minimal REJECTED ExecEvent for breaker tests. Uses a unique
+// `local_ts_ns` so the rolling window sees distinct events even when
+// we feed a tight burst in one test.
+adapter::ExecEvent make_reject(uint64_t order_id, uint64_t local_ts_ns) {
+    adapter::ExecEvent ev{};
+    ev.order_id = order_id;
+    ev.exchange_id = ExchangeId::OKX;
+    ev.instrument_id = 100;
+    ev.status = ExecStatus::REJECTED;
+    ev.side = OrderSide::BUY;
+    ev.order_type = OrderType::LIMIT;
+    ev.price = 0;
+    ev.filled_qty = 0;
+    ev.remaining_qty = 0;
+    ev.reject_reason = RejectReason::EXCHANGE_ERROR;
+    ev.fee = 0;
+    ev.fee_currency = FeeCurrency::USDT;
+    ev.exchange_ts_ns = local_ts_ns;
+    ev.local_ts_ns = local_ts_ns;
+    return ev;
+}
+
+adapter::ExecEvent make_ack(uint64_t order_id, uint64_t local_ts_ns) {
+    adapter::ExecEvent ev{};
+    ev.order_id = order_id;
+    ev.exchange_id = ExchangeId::OKX;
+    ev.instrument_id = 100;
+    ev.status = ExecStatus::ACKED;
+    ev.side = OrderSide::BUY;
+    ev.order_type = OrderType::LIMIT;
+    ev.price = 100 * kScale;
+    ev.filled_qty = 0;
+    ev.remaining_qty = kScale;
+    ev.reject_reason = RejectReason::OK;
+    ev.fee = 0;
+    ev.fee_currency = FeeCurrency::USDT;
+    ev.exchange_ts_ns = local_ts_ns;
+    ev.local_ts_ns = local_ts_ns;
+    return ev;
+}
+
 // Build a NewOrder SBE message so we can feed on_new_order a real
 // decoded instance.
 struct NewOrderBuf {
@@ -153,9 +194,11 @@ struct Harness {
     std::vector<std::shared_ptr<adapter::IOrderAdapter>> adapters;
     order::OrderProcessor processor;
 
-    Harness(double max_daily_loss_usd = 10.0, double max_position_usd = 0.0)
+    Harness(double max_daily_loss_usd = 10.0, double max_position_usd = 0.0,
+            risk::RejectRateBreaker::Config breaker_cfg = {})
         : processor(pub, state_mgr, risk_checker, pnl_tracker,
-                    max_daily_loss_usd, max_position_usd, metrics, adapters) {}
+                    max_daily_loss_usd, max_position_usd, breaker_cfg,
+                    metrics, adapters) {}
 };
 
 TEST(OrderProcessorRiskLatchTest, TradingEnabledUntilLossCrossesThreshold) {
@@ -234,6 +277,74 @@ TEST(OrderProcessorRiskLatchTest, NewOrderRejectsAfterLatch) {
     EXPECT_EQ(last.status, ExecStatus::REJECTED);
     EXPECT_EQ(last.reject_reason, RejectReason::RISK_REJECTED)
         << "Reject reason should be RISK_REJECTED (the latch), not EXCHANGE_ERROR";
+}
+
+// ----- reject-rate breaker integration --------------------------------------
+
+risk::RejectRateBreaker::Config breaker_enabled(double threshold_pct = 20.0,
+                                                uint32_t min_events = 10) {
+    risk::RejectRateBreaker::Config c;
+    c.enabled = true;
+    c.threshold_pct = threshold_pct;
+    c.min_events = min_events;
+    c.window_ns = 60ULL * 1'000'000'000ULL;
+    return c;
+}
+
+TEST(OrderProcessorRejectBreakerTest, TripsAndLatchesRiskChecker) {
+    Harness h(/*max_daily_loss_usd=*/0.0, /*max_position_usd=*/0.0,
+              breaker_enabled(/*threshold_pct=*/20.0, /*min_events=*/10));
+    EXPECT_TRUE(h.risk_checker.trading_enabled());
+
+    // 8 ACKs interleaved with 2 REJECTs = 20% exactly → below the strict-
+    // greater threshold, so the breaker must NOT trip.
+    uint64_t ts = 1'700'000'000'000'000'000ULL;
+    for (int i = 0; i < 8; ++i)
+        h.processor.on_exec_event(make_ack(100 + i, ts + i));
+    for (int i = 0; i < 2; ++i)
+        h.processor.on_exec_event(make_reject(200 + i, ts + 10 + i));
+    EXPECT_TRUE(h.risk_checker.trading_enabled())
+        << "20% exactly should sit at threshold, not trip";
+
+    // One more reject pushes us to 3/11 = 27% → trips.
+    h.processor.on_exec_event(make_reject(300, ts + 20));
+    EXPECT_FALSE(h.risk_checker.trading_enabled())
+        << "Crossing threshold should flip RiskChecker latch";
+}
+
+TEST(OrderProcessorRejectBreakerTest, DisabledBreakerNeverTrips) {
+    // breaker.enabled=false (default Config) — feeding nothing but
+    // rejects must leave the latch untouched. Also confirms the
+    // daily-loss path stays independent.
+    Harness h;  // all defaults: daily loss=10, breaker disabled
+
+    uint64_t ts = 1'700'000'000'000'000'000ULL;
+    for (int i = 0; i < 50; ++i)
+        h.processor.on_exec_event(make_reject(100 + i, ts + i));
+    EXPECT_TRUE(h.risk_checker.trading_enabled())
+        << "Disabled breaker must not halt trading regardless of reject rate";
+}
+
+TEST(OrderProcessorRejectBreakerTest, NewOrderRejectsAfterBreakerTrip) {
+    Harness h(/*max_daily_loss_usd=*/0.0, /*max_position_usd=*/0.0,
+              breaker_enabled(/*threshold_pct=*/10.0, /*min_events=*/5));
+
+    uint64_t ts = 1'700'000'000'000'000'000ULL;
+    // 5 rejects / 5 total = 100% → well above 10%.
+    for (int i = 0; i < 5; ++i)
+        h.processor.on_exec_event(make_reject(100 + i, ts + i));
+    ASSERT_FALSE(h.risk_checker.trading_enabled());
+
+    NewOrderBuf order(42, ExchangeId::OKX, 100, OrderSide::BUY,
+                     100 * kScale, 1 * kScale);
+    const size_t before = h.pub.entries.size();
+    h.processor.on_new_order(order.decoded);
+    ASSERT_GT(h.pub.entries.size(), before);
+    const auto& last = h.pub.entries.back();
+    EXPECT_EQ(last.order_id, 42u);
+    EXPECT_EQ(last.status, ExecStatus::REJECTED);
+    EXPECT_EQ(last.reject_reason, RejectReason::RISK_REJECTED)
+        << "NewOrder after breaker trip must reject via pretrade risk gate";
 }
 
 TEST(OrderProcessorRiskLatchTest, DisabledWhenMaxDailyLossZero) {

@@ -5,6 +5,7 @@
 #include "order_gateway/metrics/metrics.h"
 #include "order_gateway/order/order_state_manager.h"
 #include "order_gateway/risk/pnl_tracker.h"
+#include "order_gateway/risk/reject_rate_breaker.h"
 #include "order_gateway/risk/risk_checker.h"
 
 #include <messages/CancelAll.h>
@@ -41,6 +42,7 @@ public:
                    risk::PnlTracker& pnl_tracker,
                    double max_daily_loss_usd,
                    double max_position_usd,
+                   risk::RejectRateBreaker::Config breaker_cfg,
                    metrics::OrderGatewayMetrics& metrics,
                    const std::vector<std::shared_ptr<adapter::IOrderAdapter>>& adapters);
 
@@ -124,6 +126,9 @@ private:
     bool daily_loss_latched_{false};
     // 0 disables the position check.
     const double max_position_usd_;
+    // Exchange-reject-rate circuit breaker. Owned here (not a reference)
+    // because it's state strictly private to the exec-event path.
+    risk::RejectRateBreaker reject_rate_breaker_;
     metrics::OrderGatewayMetrics& metrics_;
     // O(1) adapter lookup by ExchangeId value (0=ALL unused, 1=BINANCE, …, 4=DERIBIT).
     std::array<adapter::IOrderAdapter*, 5> adapter_by_id_{};

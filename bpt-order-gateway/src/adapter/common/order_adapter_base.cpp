@@ -1,6 +1,8 @@
 #include "order_gateway/adapter/common/order_adapter_base.h"
 
+#include <yggdrasil/logging.h>
 #include <yggdrasil/util/thread_pin.h>
+#include <yggdrasil/util/tsc_clock.h>
 
 namespace bpt::order_gateway::adapter {
 
@@ -49,6 +51,23 @@ void OrderAdapterBase::run() {
                                 exchange_name(),
                                 e.what(),
                                 reconnect_delay().count());
+                // Disconnect-rate breaker: treat every caught exception as
+                // one disconnect event. We only count on caught errors
+                // (not on clean shutdown), so the breaker won't trip at
+                // service stop. Latch check runs before the sleep so the
+                // loud ERROR log lands promptly after the trip.
+                const bool was_tripped = disconnect_breaker_.tripped();
+                disconnect_breaker_.record(ygg::util::TscClock::now_epoch_ns());
+                if (!was_tripped && disconnect_breaker_.tripped()) {
+                    ygg::log::error(
+                        "[OrderGateway] {} DISCONNECT BREAKER TRIPPED — {} reconnects "
+                        "in last {}s (threshold {}). Halting new orders to this venue. "
+                        "Restart service after human review to resume.",
+                        exchange_name(),
+                        disconnect_breaker_.count_in_window(),
+                        disconnect_breaker_.config().window_ns / 1'000'000'000ULL,
+                        disconnect_breaker_.config().threshold);
+                }
                 std::this_thread::sleep_for(reconnect_delay());
             }
         }

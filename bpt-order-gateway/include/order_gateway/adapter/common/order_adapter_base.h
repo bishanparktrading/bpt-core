@@ -2,6 +2,7 @@
 
 #include "order_gateway/adapter/common/i_order_adapter.h"
 #include "order_gateway/config/settings.h"
+#include "order_gateway/risk/disconnect_rate_breaker.h"
 #include "order_gateway/util/exec_event_queue.h"
 
 #include <atomic>
@@ -40,12 +41,22 @@ public:
     // Returns the number of events drained.
     int drain_exec_events(const std::function<void(const ExecEvent&)>& fn) override;
 
+    [[nodiscard]] bool is_halted() const override { return disconnect_breaker_.tripped(); }
+
+    // Configure the disconnect-rate breaker. Call before start(). Safe
+    // to leave at default (disabled) — tests and bootstrapped envs that
+    // don't want the guard rail keep behaving as before.
+    void set_disconnect_breaker_config(risk::DisconnectRateBreaker::Config cfg) override {
+        disconnect_breaker_.reset(cfg);
+    }
+
 protected:
     config::AdapterConfig cfg_;
     boost::asio::io_context ioc_;
     boost::asio::ssl::context ssl_ctx_;
     std::atomic<bool> stop_flag_{false};
     std::atomic<bool> connected_{false};
+    risk::DisconnectRateBreaker disconnect_breaker_{{}};  // disabled by default
 
     // Adapter IO thread pushes events here; main thread pops via drain_exec_events().
     // Capacity is config-driven (AdapterConfig.exec_queue_capacity) and must

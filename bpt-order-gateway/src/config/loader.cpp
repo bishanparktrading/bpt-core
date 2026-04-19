@@ -94,6 +94,20 @@ Settings load(const std::string& path) {
                 s.gateway.risk.max_daily_loss_usd = *v;
             if (auto v = (*r)["max_position_usd"].value<double>())
                 s.gateway.risk.max_position_usd = *v;
+            if (auto v = (*r)["reject_rate_breaker_enabled"].value<bool>())
+                s.gateway.risk.reject_rate_breaker_enabled = *v;
+            if (auto v = (*r)["reject_rate_threshold_pct"].value<double>())
+                s.gateway.risk.reject_rate_threshold_pct = *v;
+            if (auto v = (*r)["reject_rate_window_sec"].value<int64_t>())
+                s.gateway.risk.reject_rate_window_sec = static_cast<uint32_t>(*v);
+            if (auto v = (*r)["reject_rate_min_events"].value<int64_t>())
+                s.gateway.risk.reject_rate_min_events = static_cast<uint32_t>(*v);
+            if (auto v = (*r)["disconnect_breaker_enabled"].value<bool>())
+                s.gateway.risk.disconnect_breaker_enabled = *v;
+            if (auto v = (*r)["disconnect_threshold"].value<int64_t>())
+                s.gateway.risk.disconnect_threshold = static_cast<uint32_t>(*v);
+            if (auto v = (*r)["disconnect_window_sec"].value<int64_t>())
+                s.gateway.risk.disconnect_window_sec = static_cast<uint32_t>(*v);
         }
     }
 

@@ -24,6 +24,7 @@ OrderProcessor::OrderProcessor(messaging::IExecReportPublisher& exec_pub,
                                risk::PnlTracker& pnl_tracker,
                                double max_daily_loss_usd,
                                double max_position_usd,
+                               risk::RejectRateBreaker::Config breaker_cfg,
                                metrics::OrderGatewayMetrics& metrics,
                                const std::vector<std::shared_ptr<adapter::IOrderAdapter>>& adapters)
     : exec_pub_(exec_pub),
@@ -32,6 +33,7 @@ OrderProcessor::OrderProcessor(messaging::IExecReportPublisher& exec_pub,
       pnl_tracker_(pnl_tracker),
       max_daily_loss_usd_(max_daily_loss_usd),
       max_position_usd_(max_position_usd),
+      reject_rate_breaker_(breaker_cfg),
       metrics_(metrics) {
     adapter_by_id_.fill(nullptr);
     for (const auto& a : adapters) {
@@ -54,6 +56,27 @@ void OrderProcessor::on_exec_event(const adapter::ExecEvent& ev) {
     // by a few ms and cause uint64 underflow in the stale check. The adapter
     // timestamp still flows through the published ExecReport below.
     state_mgr_.update(ev.order_id, new_lc, ev.exchange_order_id, ev.filled_qty, ev.remaining_qty, now_ns());
+
+    // Exchange-reject-rate circuit breaker. Feeds every exec event into
+    // the rolling-window tracker; on trip we flip the same RiskChecker
+    // latch the daily-loss kill switch uses. Intended signal: the
+    // exchange is refusing our orders en masse (bad creds, wrong account
+    // mode, geo-block, margin-mode flip) — we want to stop hammering
+    // before the operator notices.
+    const bool was_reject = (ev.status == ES::REJECTED);
+    const bool breaker_was_tripped = reject_rate_breaker_.tripped();
+    reject_rate_breaker_.record(was_reject, ev.local_ts_ns);
+    if (!breaker_was_tripped && reject_rate_breaker_.tripped()) {
+        risk_checker_.set_trading_enabled(false);
+        ygg::log::error(
+            "[OrderGateway] EXEC REJECT-RATE BREAKER TRIPPED — {}/{} exec events "
+            "rejected in last {}s (threshold {:.1f}%). Trading halted. Restart "
+            "service after human review to resume.",
+            reject_rate_breaker_.rejects_in_window(),
+            reject_rate_breaker_.total_in_window(),
+            reject_rate_breaker_.config().window_ns / 1'000'000'000ULL,
+            reject_rate_breaker_.config().threshold_pct);
+    }
 
     // Daily-loss kill switch. Every FILLED/PARTIAL fill updates realized
     // P&L; if it crosses below -max_daily_loss_usd we flip the existing
@@ -192,7 +215,11 @@ void OrderProcessor::on_new_order(const bpt::messages::NewOrder& order) {
     }
 
     auto* adapter = find_adapter(order.exchangeId());
-    if (!adapter || !adapter->is_connected()) {
+    // Two adapter-level halt paths:
+    //   - !is_connected()   transient (reconnecting) or permanently gone
+    //   - is_halted()       disconnect-rate breaker latched, operator restart
+    //                       required. Distinct log so ops can tell them apart.
+    if (!adapter || !adapter->is_connected() || adapter->is_halted()) {
         const uint64_t ts = now_ns();
         exec_pub_.publish(order.orderId(),
                           0,
@@ -209,7 +236,12 @@ void OrderProcessor::on_new_order(const bpt::messages::NewOrder& order) {
                           FC::USDT,
                           ts,
                           ts);
-        ygg::log::warn("[OrderGateway] Order {} rejected: adapter not connected", order.orderId());
+        if (adapter && adapter->is_halted()) {
+            ygg::log::warn("[OrderGateway] Order {} rejected: {} halted by disconnect breaker",
+                           order.orderId(), adapter->exchange_name());
+        } else {
+            ygg::log::warn("[OrderGateway] Order {} rejected: adapter not connected", order.orderId());
+        }
         // Risk check already incremented the open-order counter — undo it so
         // the counter doesn't accumulate while the adapter is down.
         risk_checker_.on_order_closed(order.exchangeId());

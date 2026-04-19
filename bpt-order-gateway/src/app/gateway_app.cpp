@@ -45,6 +45,14 @@ OrderGatewayApp::OrderGatewayApp(config::Settings cfg,
     order_sub_ =
         std::make_shared<messaging::OrderSubscriber>(aeron, cfg_.aeron.order.channel, cfg_.aeron.order.stream_id);
 
+    // Shared per-adapter disconnect breaker config. Populated once,
+    // applied to each adapter before start().
+    risk::DisconnectRateBreaker::Config disc_cfg;
+    disc_cfg.enabled = cfg_.gateway.risk.disconnect_breaker_enabled;
+    disc_cfg.threshold = cfg_.gateway.risk.disconnect_threshold;
+    disc_cfg.window_ns =
+        static_cast<uint64_t>(cfg_.gateway.risk.disconnect_window_sec) * 1'000'000'000ULL;
+
     for (const auto& a_cfg : cfg_.gateway.adapters) {
         if (a_cfg.testnet)
             ygg::log::warn("[OrderGateway] *** TESTNET MODE *** adapter={} host={}",
@@ -71,15 +79,24 @@ OrderGatewayApp::OrderGatewayApp(config::Settings cfg,
             continue;
         }
 
+        adapter->set_disconnect_breaker_config(disc_cfg);
         adapter->start();
         adapters_.push_back(std::move(adapter));
         ygg::log::info("[OrderGateway] Started adapter: {}", a_cfg.exchange);
     }
 
+    risk::RejectRateBreaker::Config breaker_cfg;
+    breaker_cfg.enabled = cfg_.gateway.risk.reject_rate_breaker_enabled;
+    breaker_cfg.threshold_pct = cfg_.gateway.risk.reject_rate_threshold_pct;
+    breaker_cfg.window_ns =
+        static_cast<uint64_t>(cfg_.gateway.risk.reject_rate_window_sec) * 1'000'000'000ULL;
+    breaker_cfg.min_events = cfg_.gateway.risk.reject_rate_min_events;
+
     processor_ = std::make_unique<order::OrderProcessor>(*exec_pub_, state_mgr_, risk_checker_,
                                                          pnl_tracker_,
                                                          cfg_.gateway.risk.max_daily_loss_usd,
                                                          cfg_.gateway.risk.max_position_usd,
+                                                         breaker_cfg,
                                                          metrics_, adapters_);
 
     order_sub_->on_new_order = [this](const bpt::messages::NewOrder& o) {
