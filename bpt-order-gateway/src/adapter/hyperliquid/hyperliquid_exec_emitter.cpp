@@ -211,4 +211,41 @@ void HyperliquidExecEmitter::emit_rejected(const OrderContext& ctx) {
     push_or_log(queue_, ev, "REJECTED");
 }
 
+void HyperliquidExecEmitter::emit_recovered_ack(const OrderContext& ctx, uint64_t exch_oid) {
+    const uint64_t now_ns = ygg::util::TscClock::now_epoch_ns();
+    ExecEvent ev = make_skeleton(ctx, now_ns);
+    ev.status = ES::ACKED;
+    ev.reject_reason = RR::NULL_VALUE;
+    ev.exchange_order_id = exch_oid;
+    ev.filled_qty = 0;
+    ev.remaining_qty = ctx.quantity_e8;
+    push_or_log(queue_, ev, "RECOVERED_ACKED");
+}
+
+void HyperliquidExecEmitter::emit_recovered_fill(const OrderContext& ctx,
+                                                 uint64_t exch_oid,
+                                                 int64_t  fill_price_e8,
+                                                 int64_t  fill_fee_e8,
+                                                 uint64_t fill_qty_e8,
+                                                 uint64_t fill_time_ns) {
+    const uint64_t now_ns = ygg::util::TscClock::now_epoch_ns();
+    ExecEvent ev = make_skeleton(ctx, now_ns);
+    // Overwrite price with the actual fill price (may differ from the
+    // intended limit price by one tick due to HL's price rounding).
+    ev.price = fill_price_e8;
+    ev.exchange_order_id = exch_oid;
+    ev.filled_qty = fill_qty_e8;
+    // If the recovered fill covered the full intent, emit FILLED. If it
+    // was partial (e.g. an IOC that hit one slice), emit PARTIAL so the
+    // strategy doesn't close out its resting state prematurely — any
+    // trailing slices will arrive on the now-registered oid via userFills.
+    const bool full = fill_qty_e8 >= ctx.quantity_e8;
+    ev.status = full ? ES::FILLED : ES::PARTIAL;
+    ev.remaining_qty = full ? 0 : (ctx.quantity_e8 - fill_qty_e8);
+    ev.fee = fill_fee_e8;
+    ev.exchange_ts_ns = fill_time_ns != 0 ? fill_time_ns : now_ns;
+    ev.reject_reason = RR::OK;
+    push_or_log(queue_, ev, full ? "RECOVERED_FILLED" : "RECOVERED_PARTIAL");
+}
+
 }  // namespace bpt::order_gateway::adapter::hyperliquid

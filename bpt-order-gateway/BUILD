@@ -17,6 +17,7 @@ cc_library(
         "src/risk/risk_checker.cpp",
         "src/adapter/hyperliquid/hyperliquid_action_codec.cpp",
         "src/adapter/hyperliquid/hyperliquid_exec_parser.cpp",
+        "src/adapter/hyperliquid/hyperliquid_reconciler.cpp",
         "src/adapter/hyperliquid/hyperliquid_signer.cpp",
     ],
     hdrs = glob(["include/order_gateway/**/*.h"]),

@@ -63,6 +63,19 @@ public:
     // just needs fenrir to see something so its state machine advances.
     void emit_rejected(const OrderContext& ctx);
 
+    // Phantom-fill recovery emits (see hyperliquid_reconciler.h). Called
+    // when a post_action failure was followed by REST /info reconciliation
+    // that located the order as either resting (emit_recovered_ack) or
+    // already-filled (emit_recovered_fill). Shape is identical to what
+    // emit_order_response would have produced from the live response.
+    void emit_recovered_ack(const OrderContext& ctx, uint64_t exch_oid);
+    void emit_recovered_fill(const OrderContext& ctx,
+                             uint64_t exch_oid,
+                             int64_t  fill_price_e8,
+                             int64_t  fill_fee_e8,
+                             uint64_t fill_qty_e8,
+                             uint64_t fill_time_ns);
+
 private:
     util::ExecEventQueue& queue_;
 };

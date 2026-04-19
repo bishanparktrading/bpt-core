@@ -56,6 +56,42 @@ HyperliquidOrderAdapter::HyperliquidOrderAdapter(const config::AdapterConfig& cf
         enabled_ = false;
         ygg::log::warn("[OrderGateway] HyperliquidOrderAdapter: disabled — {}", e.what());
     }
+
+    // Phantom-fill reconciler. Poller wraps the existing HTTPS client —
+    // both /info calls are unsigned reads so no signer coupling needed.
+    // price_tick_e8 = 1 USD (BTC/ETH tick is $0.1–$1 on HL; 1 USD covers
+    // all current assets and leaves room for HL's post-submit rounding).
+    reconciler_ = std::make_unique<hyperliquid::HyperliquidReconciler>(
+        [this]() -> std::pair<json::array, json::array> {
+            std::pair<json::array, json::array> out;
+            try {
+                json::object req_open;
+                req_open["type"] = "openOrders";
+                req_open["user"] = wallet_address_;
+                auto open_resp = json::parse(
+                    https_client_->post("/info", json::serialize(json::value(req_open))));
+                if (open_resp.is_array()) out.first = open_resp.as_array();
+            } catch (const std::exception& e) {
+                ygg::log::warn("[OrderGateway] reconciler: openOrders poll failed: {}", e.what());
+            }
+            try {
+                json::object req_fills;
+                req_fills["type"] = "userFills";
+                req_fills["user"] = wallet_address_;
+                auto fills_resp = json::parse(
+                    https_client_->post("/info", json::serialize(json::value(req_fills))));
+                if (fills_resp.is_array()) out.second = fills_resp.as_array();
+            } catch (const std::exception& e) {
+                ygg::log::warn("[OrderGateway] reconciler: userFills poll failed: {}", e.what());
+            }
+            return out;
+        },
+        [this](const hyperliquid::HyperliquidReconciler::Candidate& c,
+               const hyperliquid::HyperliquidReconciler::MatchResult& r) {
+            on_reconcile_terminal(c, r);
+        },
+        std::chrono::milliseconds(3000),
+        static_cast<int64_t>(1.0 * 1e8));  // 1 USD tick
 }
 
 // HTTPS/REST path extracted to HyperliquidHttpsClient.
@@ -143,17 +179,95 @@ void HyperliquidOrderAdapter::send_new_order(const bpt::messages::NewOrder& orde
                 parser_.register_order(exch_oid, client_id, qty_e8);
             });
     } catch (const std::exception& e) {
-        ygg::log::error("[OrderGateway] HyperliquidOrderAdapter: send_new_order failed: {}", e.what());
-        // Defensive: synthesize a REJECTED so fenrir doesn't wedge waiting.
-        const hyperliquid::OrderContext ctx{
+        // post_action threw: either the WS was already disconnected,
+        // the connection dropped mid-flight (PendingGuard in ws_client
+        // fails every in-flight future), or the 5 s timeout elapsed.
+        // All three cases share the same blind spot: HL may have
+        // accepted the signed action even though no response reached us.
+        // Instead of emitting REJECTED and letting the strategy's view
+        // diverge, defer to the reconciler — it waits 3 s then REST-
+        // polls /info openOrders + /info userFills to find the truth.
+        ygg::log::warn(
+            "[OrderGateway] HyperliquidOrderAdapter: send_new_order id={} threw "
+            "({}) — deferring to reconciler",
+            order.orderId(), e.what());
+        reconciler_->reconcile_async(hyperliquid::HyperliquidReconciler::Candidate{
             order.orderId(),
             order.instrumentId(),
             order.side(),
             order.orderType(),
             order.price(),
             order.quantity(),
-        };
-        exec_emitter_.emit_rejected(ctx);
+            exchange_symbol,
+            static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::system_clock::now().time_since_epoch())
+                                      .count()),
+        });
+    }
+}
+
+void HyperliquidOrderAdapter::on_reconcile_terminal(
+    const hyperliquid::HyperliquidReconciler::Candidate& c,
+    const hyperliquid::HyperliquidReconciler::MatchResult& r) {
+    // Runs on the reconciler's worker thread. By this point at least
+    // the grace period (default 3 s) has elapsed since the original
+    // send_new_order failed, so the OrderProcessor thread is long
+    // since out of the catch block. The oid maps and parser's pending_
+    // are written here — strictly separated in time from the normal
+    // ACK path, so the race is theoretical under current timings.
+
+    // Race guard: if the original response arrived late (after the
+    // 5 s post_action timeout but before reconciliation fired) and
+    // already populated the mapping, skip the duplicate emit.
+    if (client_to_exch_oid_.find(c.client_order_id) != client_to_exch_oid_.end()) {
+        ygg::log::info(
+            "[OrderGateway] HL reconciler: client_id={} already has exch_oid={} — "
+            "late response beat us; skipping recovery emit",
+            c.client_order_id, client_to_exch_oid_[c.client_order_id]);
+        return;
+    }
+
+    const hyperliquid::OrderContext ctx{
+        c.client_order_id, c.instrument_id, c.side, c.order_type,
+        c.price_e8, c.quantity_e8,
+    };
+
+    using MK = hyperliquid::HyperliquidReconciler::MatchKind;
+    switch (r.kind) {
+        case MK::OpenOrder:
+            ygg::log::warn(
+                "[OrderGateway] HL reconciler: RECOVERED ACK client_id={} exch_oid={} "
+                "(order rested on HL despite lost response)",
+                c.client_order_id, r.exch_oid);
+            client_to_exch_oid_[c.client_order_id] = r.exch_oid;
+            exch_oid_to_client_[r.exch_oid] = c.client_order_id;
+            parser_.register_order(r.exch_oid, c.client_order_id, c.quantity_e8);
+            exec_emitter_.emit_recovered_ack(ctx, r.exch_oid);
+            return;
+        case MK::UserFill:
+            ygg::log::warn(
+                "[OrderGateway] HL reconciler: RECOVERED FILL client_id={} exch_oid={} "
+                "qty_e8={} px_e8={} (phantom fill — order matched on HL despite lost response)",
+                c.client_order_id, r.exch_oid, r.fill_qty_e8, r.fill_price_e8);
+            client_to_exch_oid_[c.client_order_id] = r.exch_oid;
+            exch_oid_to_client_[r.exch_oid] = c.client_order_id;
+            // Register with the original quantity — the parser needs to
+            // know the original intent so any trailing partial slices
+            // that arrive later via WS userFills resolve to FILLED at
+            // the right cumulative total.
+            parser_.register_order(r.exch_oid, c.client_order_id, c.quantity_e8);
+            exec_emitter_.emit_recovered_fill(ctx, r.exch_oid, r.fill_price_e8,
+                                              r.fill_fee_e8, r.fill_qty_e8, r.fill_time_ns);
+            return;
+        case MK::None:
+        case MK::Ambiguous:
+            // Either no match (genuine reject) or multiple candidates
+            // matched the same fill (can't disambiguate — safer to
+            // REJECT both intents and let the strategy-side position
+            // reconciler flag any divergence). Log line for Ambiguous
+            // already emitted in the reconciler worker.
+            exec_emitter_.emit_rejected(ctx);
+            return;
     }
 }
 

@@ -5,6 +5,7 @@
 #include "order_gateway/adapter/hyperliquid/hyperliquid_exec_emitter.h"
 #include "order_gateway/adapter/hyperliquid/hyperliquid_exec_parser.h"
 #include "order_gateway/adapter/hyperliquid/hyperliquid_https_client.h"
+#include "order_gateway/adapter/hyperliquid/hyperliquid_reconciler.h"
 #include "order_gateway/adapter/hyperliquid/hyperliquid_signer.h"
 #include "order_gateway/adapter/hyperliquid/hyperliquid_ws_client.h"
 
@@ -42,6 +43,11 @@ protected:
     void connect_and_run() override;
 
 private:
+    // Reconciler terminal callback — resolves a post_action-failure
+    // candidate into ACKED/FILLED/REJECTED. See hyperliquid_reconciler.h.
+    void on_reconcile_terminal(const hyperliquid::HyperliquidReconciler::Candidate& c,
+                               const hyperliquid::HyperliquidReconciler::MatchResult& r);
+
     bool enabled_{false};  // false if private_key credential is empty
     std::string wallet_address_;
     std::unique_ptr<HyperliquidSigner> signer_;
@@ -66,6 +72,13 @@ private:
     // REST client for /info queries (clearinghouseState, meta) and as
     // a fallback for signed actions the WS post path can't handle (modify).
     std::unique_ptr<hyperliquid::HyperliquidHttpsClient> https_client_;
+
+    // Phantom-fill recovery. When post_action times out or the WS drops
+    // mid-flight, the adapter pushes the candidate here instead of
+    // emitting REJECTED. The reconciler's worker thread waits a grace
+    // period, then polls /info openOrders + /info userFills to find out
+    // whether HL actually accepted the action. See hyperliquid_reconciler.h.
+    std::unique_ptr<hyperliquid::HyperliquidReconciler> reconciler_;
 
     // ── Crash safety: TODO ────────────────────────────────────────────
     // An earlier version of this adapter ran a dead-man-switch thread
