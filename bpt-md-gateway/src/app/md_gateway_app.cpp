@@ -144,6 +144,8 @@ void MdGatewayApp::run() {
             for (auto& [exchange, a] : md_stat_reporters_) {
                 metrics_.md_messages_published(exchange).Set(static_cast<double>(a->md_published_count()));
                 metrics_.md_validation_drops(exchange).Set(static_cast<double>(a->validation_drop_count()));
+                metrics_.validation_drop_breaker_tripped(exchange)
+                    .Set(a->validation_drop_breaker_tripped() ? 1.0 : 0.0);
             }
             last_lat_report = now;
         }

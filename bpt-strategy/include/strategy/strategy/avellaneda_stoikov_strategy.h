@@ -74,7 +74,7 @@ public:
     void on_trade(const bpt::messages::MdTrade& tick) override;
     void on_order_book(const bpt::messages::MdOrderBook& book) override;
     void on_exec_report(const bpt::messages::ExecutionReport& rpt) override;
-    void on_account_snapshot(bpt::messages::AccountSnapshot& snap) override;
+    std::size_t on_account_snapshot(bpt::messages::AccountSnapshot& snap) override;
     void on_toxicity_update(const bpt::analytics::messaging::ToxicityUpdate& update) override;
     std::string get_strategy_state_json() override;
     void on_shutdown_flatten() override;

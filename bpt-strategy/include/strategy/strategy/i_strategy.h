@@ -101,7 +101,13 @@ public:
     // Fired once per exchange at startup when the account snapshot is received.
     // Non-const ref: SBE group iterators are stateful.
     // Default no-op — strategies that need startup position seeding should override this.
-    virtual void on_account_snapshot(bpt::messages::AccountSnapshot& /*snap*/) {}
+    //
+    // Returns the count of reconciliation divergences observed against
+    // this snapshot (0 if the strategy doesn't reconcile or found none).
+    // StrategyApp mirrors this into the strategy_reconciliation_divergences_total
+    // Prometheus counter for alerting. A non-zero return = silent fill lost, scale
+    // bug, or exchange state drift — worth waking someone up.
+    virtual std::size_t on_account_snapshot(bpt::messages::AccountSnapshot& /*snap*/) { return 0; }
 
     // Returns the current portfolio state for dashboard publishing.
     // Default returns empty — only options strategies with position

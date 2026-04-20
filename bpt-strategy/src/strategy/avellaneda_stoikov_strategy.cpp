@@ -1182,7 +1182,7 @@ void AvellanedaStoikovStrategy::on_shutdown_flatten() {
                        cancels, unwinds);
 }
 
-void AvellanedaStoikovStrategy::on_account_snapshot(bpt::messages::AccountSnapshot& snap) {
+std::size_t AvellanedaStoikovStrategy::on_account_snapshot(bpt::messages::AccountSnapshot& snap) {
     // Step 1: drain the SBE positions group exactly once into a map.
     // Cached for shutdown flatten (exchange-authoritative position
     // source) AND re-used for the reconcile pass below — SBE group
@@ -1207,7 +1207,7 @@ void AvellanedaStoikovStrategy::on_account_snapshot(bpt::messages::AccountSnapsh
     for (const auto& [id, st] : state_) {
         if (st.exchange_id == exchange_id) symbol_map[id] = st.symbol;
     }
-    if (symbol_map.empty()) return;  // nothing we care about on this exchange
+    if (symbol_map.empty()) return 0;  // nothing we care about on this exchange
 
     constexpr int64_t kDivergenceThresholdE8 = 10000;  // 0.0001 base units
 
@@ -1222,6 +1222,7 @@ void AvellanedaStoikovStrategy::on_account_snapshot(bpt::messages::AccountSnapsh
             static_cast<double>(d.exchange_net_qty_e8) / 1e8,
             static_cast<double>(d.diff_e8) / 1e8);
     }
+    return divergences.size();
 }
 
 bool AvellanedaStoikovStrategy::has_pending_flatten() const {

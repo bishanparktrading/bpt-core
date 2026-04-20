@@ -201,6 +201,17 @@ void OrderGatewayApp::run() {
             metrics_.exchange_connected("DERIBIT").Set((exchange_status & 0x08) ? 1.0 : 0.0);
             metrics_.open_orders->Set(static_cast<double>(open));
 
+            // Risk / breaker gauge sampling — piggyback on the heartbeat
+            // cadence so Prometheus has a fresh 0/1 edge every heartbeat
+            // window. trading_enabled flipping to false is the daily-loss
+            // latch; reject_rate_breaker_.tripped() latches on its own.
+            metrics_.daily_loss_latched->Set(risk_checker_.trading_enabled() ? 0.0 : 1.0);
+            metrics_.reject_rate_breaker_tripped->Set(
+                processor_ && processor_->reject_rate_breaker_tripped() ? 1.0 : 0.0);
+            for (const auto& a : adapters_) {
+                metrics_.disconnect_breaker_tripped(a->exchange_name()).Set(a->is_halted() ? 1.0 : 0.0);
+            }
+
             processor_->check_stale_orders(stale_timeout_ns);
 
             last_hb_ns = now_ns;

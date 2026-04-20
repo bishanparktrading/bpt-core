@@ -337,8 +337,25 @@ void StrategyApp::wire_order_callbacks() {
             static_cast<double>(snap.availableBalanceE8()) / 1e8,
             snap.positions().count());
 
+        // Stamp arrival time in wall ns so Alertmanager can fire on
+        // staleness (time() - gauge/1e9 > threshold). Uses system_clock
+        // rather than steady_clock so the absolute timestamp Prometheus
+        // ingests lines up with scrape-time clocks.
+        const uint64_t recv_ns = static_cast<uint64_t>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count());
+        metrics_.account_snapshot_last_recv_ns(ExchangeId::c_str(exchange_id))
+            .Set(static_cast<double>(recv_ns));
+
         startup_gate_->on_account_snapshot(exchange_id);
-        strategy_->on_account_snapshot(snap);
+        const std::size_t divergences = strategy_->on_account_snapshot(snap);
+        if (divergences > 0) {
+            // One counter tick per reconcile that produced any drift.
+            // The individual (instrument_id, symbol, diff) details are
+            // already in the WARN logs; the counter is the coarse
+            // "something's been drifting today" surface for alerting.
+            metrics_.reconciliation_divergences_total->Increment();
+        }
     };
 }
 
@@ -384,9 +401,11 @@ void StrategyApp::run() {
                     const uint8_t cmd = *reinterpret_cast<const uint8_t*>(buffer.buffer() + offset);
                     if (cmd == 0x00 && !trading_halted_) {
                         trading_halted_ = true;
+                        metrics_.trading_halted->Set(1.0);
                         bpt::common::log::warn("TRADING HALTED via dashboard kill-switch");
                     } else if (cmd == 0x01 && trading_halted_) {
                         trading_halted_ = false;
+                        metrics_.trading_halted->Set(0.0);
                         bpt::common::log::info("Trading RESUMED via dashboard");
                     }
                 },

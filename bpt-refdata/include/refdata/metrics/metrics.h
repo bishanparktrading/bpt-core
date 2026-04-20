@@ -18,6 +18,11 @@ struct RefdataMetrics {
     prometheus::Gauge* healthy{};
     prometheus::Gauge* instruments_total{};
     prometheus::Counter* requests_served_total{};
+    // Unix wall-clock nanoseconds of the most recent instrument publish
+    // (snapshot or delta). Alertmanager fires a "RefdataStale" rule on
+    // (time() - gauge/1e9) > threshold, catching the case where the
+    // service is alive (healthy == 1) but has stopped actually producing.
+    prometheus::Gauge* last_update_ns{};
 
     // Per-exchange metric families (use Add({{"exchange","X"}}) to get child)
     prometheus::Family<prometheus::Gauge>* exchange_ready_fam{};

@@ -112,6 +112,9 @@ RefdataApp::RefdataApp(config::Settings settings,
                                               bpt::messages::DeltaUpdateType::Value update_type,
                                               uint64_t /*collected_ts_ns*/) {
             delta_pub_->publish_delta(update_type, inst);
+            metrics_.last_update_ns->Set(static_cast<double>(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count()));
         };
 
         adapters_.push_back(std::move(adapter));
@@ -187,6 +190,9 @@ void RefdataApp::run() {
             sub_manager_.upsert(request);
             snapshot_pub_->publish(*registry_, request, delta_pub_->current_sequence());
             metrics_.requests_served_total->Increment();
+            metrics_.last_update_ns->Set(static_cast<double>(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count()));
         });
 
         auto now = std::chrono::steady_clock::now();
@@ -210,6 +216,9 @@ void RefdataApp::run() {
         if (now - last_snapshot_republish >= snapshot_republish_interval) {
             messaging::RefdataRequest empty_req{};
             snapshot_pub_->publish(*registry_, empty_req, delta_pub_->current_sequence());
+            metrics_.last_update_ns->Set(static_cast<double>(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count()));
             bpt::common::log::info("Periodic snapshot republish: {} instruments", registry_->count());
             last_snapshot_republish = now;
         }

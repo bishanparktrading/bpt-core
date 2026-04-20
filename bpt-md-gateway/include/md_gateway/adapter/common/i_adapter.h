@@ -57,6 +57,10 @@ public:
     // Monotonically increasing count of MD messages dropped by the validator.
     [[nodiscard]] virtual uint64_t validation_drop_count() const noexcept = 0;
 
+    // 1 if the ValidationDropBreaker has latched on this adapter.
+    // Exposed for the periodic Prometheus gauge sampler in MdGatewayApp.
+    [[nodiscard]] virtual bool validation_drop_breaker_tripped() const noexcept { return false; }
+
     // Set before start(). Called from the adapter's IO thread when a funding rate update arrives.
     messaging::FundingRateCallback on_funding_rate;
 

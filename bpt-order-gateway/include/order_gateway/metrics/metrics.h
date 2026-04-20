@@ -19,6 +19,16 @@ struct OrderGatewayMetrics {
     prometheus::Gauge* open_orders{};
     prometheus::Counter* stale_orders_total{};
 
+    // Risk / circuit-breaker state exposed for Prometheus alerting.
+    // All gauges are binary 0/1 — 1 means "latched / tripped, trading
+    // halted on this dimension". These mirror RiskChecker /
+    // RejectRateBreaker / DisconnectRateBreaker state; the first three
+    // latch and require a process restart to clear, so edge → alert is
+    // a one-shot page (Alertmanager dedupes via group interval).
+    prometheus::Gauge* daily_loss_latched{};
+    prometheus::Gauge* reject_rate_breaker_tripped{};
+    prometheus::Family<prometheus::Gauge>* disconnect_breaker_tripped_fam{};
+
     // Per-exchange families
     prometheus::Family<prometheus::Gauge>* exchange_connected_fam{};
     prometheus::Family<prometheus::Counter>* orders_received_fam{};
@@ -36,6 +46,9 @@ struct OrderGatewayMetrics {
 
     prometheus::Gauge& exchange_connected(const std::string& exchange) {
         return exchange_connected_fam->Add({{"exchange", exchange}});
+    }
+    prometheus::Gauge& disconnect_breaker_tripped(const std::string& exchange) {
+        return disconnect_breaker_tripped_fam->Add({{"exchange", exchange}});
     }
     prometheus::Counter& orders_received(const std::string& exchange) {
         return orders_received_fam->Add({{"exchange", exchange}});

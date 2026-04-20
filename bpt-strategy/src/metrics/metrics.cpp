@@ -42,6 +42,25 @@ StrategyMetrics::StrategyMetrics(int port) {
     trading_paused = &tp.Add({});
     trading_paused->Set(0.0);
 
+    auto& th = prometheus::BuildGauge()
+                   .Name("strategy_trading_halted")
+                   .Help("1 if dashboard kill-switch latched — no automatic recovery")
+                   .Register(*registry);
+    trading_halted = &th.Add({});
+    trading_halted->Set(0.0);
+
+    auto& rd = prometheus::BuildCounter()
+                   .Name("strategy_reconciliation_divergences_total")
+                   .Help("Count of reconciliation passes that produced at least one divergence")
+                   .Register(*registry);
+    reconciliation_divergences_total = &rd.Add({});
+
+    account_snapshot_last_recv_ns_fam =
+        &prometheus::BuildGauge()
+             .Name("strategy_account_snapshot_last_recv_ns")
+             .Help("Unix ns timestamp of the last AccountSnapshot received per exchange")
+             .Register(*registry);
+
     auto& mdt = prometheus::BuildCounter()
                     .Name("strategy_md_ticks_total")
                     .Help("Total MD ticks received from MdGateway")

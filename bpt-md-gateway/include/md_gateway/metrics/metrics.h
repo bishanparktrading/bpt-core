@@ -29,6 +29,10 @@ struct MdGatewayMetrics {
     prometheus::Family<prometheus::Gauge>* md_messages_published_fam{};
     // Total MD messages dropped by MdValidator (bad prices, crossed book, etc.).
     prometheus::Family<prometheus::Gauge>* md_validation_drops_fam{};
+    // Per-adapter ValidationDropBreaker latch — 1 if the drop ratio has
+    // exceeded the configured threshold and the ValidatingPublisher has
+    // stopped forwarding to Aeron. Latches; operator restart to clear.
+    prometheus::Family<prometheus::Gauge>* validation_drop_breaker_tripped_fam{};
 
     // Per-exchange decode latency percentile gauges (nanoseconds).
     // Updated periodically by snapshotting each parser's LatencyHistogram.
@@ -57,6 +61,9 @@ struct MdGatewayMetrics {
     }
     prometheus::Gauge& md_validation_drops(const std::string& exchange) {
         return md_validation_drops_fam->Add({{"exchange", exchange}});
+    }
+    prometheus::Gauge& validation_drop_breaker_tripped(const std::string& exchange) {
+        return validation_drop_breaker_tripped_fam->Add({{"exchange", exchange}});
     }
 
     // Record a histogram snapshot into the latency gauge family for one exchange.

@@ -28,6 +28,12 @@ RefdataMetrics::RefdataMetrics(uint16_t port) {
                         .Register(*registry);
     requests_served_total = &req_fam.Add({});
 
+    auto& lu = prometheus::BuildGauge()
+                   .Name("refdata_last_update_ns")
+                   .Help("Unix ns timestamp of the most recent instrument publish (snapshot or delta)")
+                   .Register(*registry);
+    last_update_ns = &lu.Add({});
+
     exchange_ready_fam = &prometheus::BuildGauge()
                               .Name("refdata_exchange_ready")
                               .Help("1 if initial snapshot completed for this exchange")

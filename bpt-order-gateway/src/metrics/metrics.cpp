@@ -31,6 +31,24 @@ OrderGatewayMetrics::OrderGatewayMetrics(uint16_t port) {
                    .Register(*registry);
     stale_orders_total = &st.Add({});
 
+    // Risk / breaker latch gauges. Initialise to 0; flipped to 1 at trip time.
+    auto& dll = prometheus::BuildGauge()
+                    .Name("order_gateway_daily_loss_latched")
+                    .Help("1 if daily-loss kill switch has latched — trading disabled until restart")
+                    .Register(*registry);
+    daily_loss_latched = &dll.Add({});
+
+    auto& rrb = prometheus::BuildGauge()
+                    .Name("order_gateway_reject_rate_breaker_tripped")
+                    .Help("1 if global reject-rate breaker has tripped")
+                    .Register(*registry);
+    reject_rate_breaker_tripped = &rrb.Add({});
+
+    disconnect_breaker_tripped_fam = &prometheus::BuildGauge()
+                                          .Name("order_gateway_disconnect_breaker_tripped")
+                                          .Help("1 if the per-adapter disconnect-rate breaker has tripped")
+                                          .Register(*registry);
+
     exchange_connected_fam = &prometheus::BuildGauge()
                                   .Name("order_gateway_exchange_connected")
                                   .Help("1 if adapter is connected to this exchange")

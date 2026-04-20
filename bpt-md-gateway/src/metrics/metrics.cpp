@@ -50,6 +50,12 @@ MdGatewayMetrics::MdGatewayMetrics(const std::string& host, uint16_t port) {
                                    .Help("Total MD messages dropped by MdValidator per exchange")
                                    .Register(*registry);
 
+    validation_drop_breaker_tripped_fam =
+        &prometheus::BuildGauge()
+             .Name("bpt_md_gateway_validation_drop_breaker_tripped")
+             .Help("1 if the per-adapter validation-drop breaker has tripped (forwarding halted)")
+             .Register(*registry);
+
     decode_latency_p50_fam = &prometheus::BuildGauge()
                                   .Name("bpt_md_gateway_bbo_decode_p50_ns")
                                   .Help("BBO decode latency p50 (ns) per exchange")

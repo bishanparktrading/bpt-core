@@ -53,6 +53,9 @@ public:
 
     [[nodiscard]] uint64_t md_published_count() const noexcept override { return validating_pub_.published(); }
     [[nodiscard]] uint64_t validation_drop_count() const noexcept override { return validating_pub_.drops(); }
+    [[nodiscard]] bool validation_drop_breaker_tripped() const noexcept override {
+        return validating_pub_.breaker_tripped();
+    }
 
 protected:
     // How long to wait after a connection error before reconnecting.
