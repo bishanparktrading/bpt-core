@@ -45,21 +45,20 @@ Settings load(const std::string& path) {
     Settings settings;
     bpt::app::load_base_settings(root, settings.base);
 
-    if (!settings.base.environment.empty() && !exchange_config_path.empty()) {
+    if (!exchange_config_path.empty()) {
         const bool path_has_live = exchange_config_path.find("live") != std::string::npos;
         const bool path_has_testnet = exchange_config_path.find("testnet") != std::string::npos;
-        if (settings.base.environment == "prod" && path_has_testnet)
+        if (settings.base.is_prod() && path_has_testnet)
             throw std::runtime_error(fmt::format(
                 "environment = \"prod\" but exchange_config = \"{}\" resolves to a testnet path — "
                 "refusing to start", exchange_config_path));
-        if ((settings.base.environment == "qa" || settings.base.environment == "dev") && path_has_live)
+        if (!settings.base.is_prod() && path_has_live)
             bpt::common::log::warn("environment = \"{}\" but exchange_config = \"{}\" — possible misconfiguration",
-                           settings.base.environment,
+                           bpt::app::to_string(settings.base.environment),
                            exchange_config_path);
     }
 
-    bpt::common::log::info("Environment: {}",
-                           settings.base.environment.empty() ? "(not set)" : settings.base.environment);
+    bpt::common::log::info("Environment: {}", bpt::app::to_string(settings.base.environment));
 
     // Read the exchanges filter from the instance config.
     std::unordered_set<std::string> exchange_filter;

@@ -43,25 +43,24 @@ Settings load(const std::string& path) {
     Settings s;
     bpt::app::load_base_settings(root, s.base);
 
-    if (!s.base.environment.empty() && !exchange_config_path.empty()) {
+    if (!exchange_config_path.empty()) {
         const bool path_has_live = exchange_config_path.find("live") != std::string::npos;
         const bool path_has_testnet = exchange_config_path.find("testnet") != std::string::npos;
         // Fatal: prod environment with a testnet exchange_config. Any
         // live trades would hit the testnet venue (or vice versa — the
         // order-gateway is the worst place to be uncertain about where
         // orders go).
-        if (s.base.environment == "prod" && path_has_testnet)
+        if (s.base.is_prod() && path_has_testnet)
             throw std::runtime_error(fmt::format(
                 "environment = \"prod\" but exchange_config = \"{}\" resolves to a testnet path — "
                 "refusing to start", exchange_config_path));
-        if ((s.base.environment == "qa" || s.base.environment == "dev") && path_has_live)
+        if (!s.base.is_prod() && path_has_live)
             bpt::common::log::warn("environment = \"{}\" but exchange_config = \"{}\" — possible misconfiguration",
-                           s.base.environment,
+                           bpt::app::to_string(s.base.environment),
                            exchange_config_path);
     }
 
-    bpt::common::log::info("Environment: {}",
-                           s.base.environment.empty() ? "(not set)" : s.base.environment);
+    bpt::common::log::info("Environment: {}", bpt::app::to_string(s.base.environment));
 
     // Read the exchanges filter from the instance config.
     std::unordered_set<std::string> exchange_filter;
@@ -166,7 +165,7 @@ Settings load(const std::string& path) {
         // Fatal: prod environment with testnet adapters. Order-gateway
         // is the worst place for a flag mismatch — testnet=true in prod
         // means live trades go to the testnet venue.
-        if (s.base.environment == "prod" && ac.testnet)
+        if (s.base.is_prod() && ac.testnet)
             throw std::runtime_error(fmt::format(
                 "environment = \"prod\" but adapter {} has testnet = true — refusing to start",
                 exchange_name));

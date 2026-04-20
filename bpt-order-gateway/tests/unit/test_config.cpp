@@ -66,7 +66,7 @@ port = 9103
 
     auto s = bpt::order_gateway::config::load(path.string());
 
-    EXPECT_EQ(s.base.environment, "qa");
+    EXPECT_EQ(s.base.environment, bpt::app::Env::QA);
     ASSERT_EQ(s.exchanges.size(), 1u);
     EXPECT_EQ(s.exchanges[0], "OKX");
 
@@ -103,9 +103,11 @@ TEST(GatewayConfigTest, DefaultsAppliedWhenFieldsOmitted) {
     // Minimal config — just enough for the loader not to throw. The
     // adapter connectivity fields (rest_host/ws_host/ws_port/ws_path)
     // are now required by the loader's validation; include the bare
-    // minimum so defaults kick in for everything else.
+    // minimum so defaults kick in for everything else. environment is
+    // also required at top level — set to "dev" to satisfy the loader.
     auto path = write_toml(R"(
-exchanges = ["OKX"]
+environment = "dev"
+exchanges   = ["OKX"]
 
 [[adapters]]
 exchange  = "OKX"
@@ -117,7 +119,7 @@ ws_path   = "/ws"
 
     auto s = bpt::order_gateway::config::load(path.string());
 
-    EXPECT_TRUE(s.base.environment.empty());
+    EXPECT_EQ(s.base.environment, bpt::app::Env::DEV);
     EXPECT_EQ(s.aeron.order.stream_id, 3001);
     EXPECT_EQ(s.aeron.exec_report.stream_id, 3002);
     EXPECT_EQ(s.aeron.heartbeat.stream_id, 3003);
@@ -143,6 +145,7 @@ ws_path   = "/ws"
 
 TEST(GatewayConfigTest, ExchangeFilterExcludesUnlistedAdapters) {
     auto path = write_toml(R"(
+environment = "dev"
 exchanges = ["OKX"]
 
 [[adapters]]
@@ -167,6 +170,7 @@ ws_host  = "stream.binance.com"
 
 TEST(GatewayConfigTest, MultipleExchangesLoaded) {
     auto path = write_toml(R"(
+environment = "dev"
 exchanges = ["OKX", "BINANCE"]
 
 [[adapters]]
@@ -201,6 +205,7 @@ exchange = "HYPERLIQUID"
 TEST(GatewayConfigTest, EmptyExchangeFilterLoadsNoAdapters) {
     // No `exchanges` key → exchange_filter is empty → count("OKX") == 0 → no adapters loaded.
     auto path = write_toml(R"(
+environment = "dev"
 [[adapters]]
 exchange = "OKX"
 )");
@@ -214,6 +219,7 @@ exchange = "OKX"
 
 TEST(GatewayConfigTest, AdapterRestHostAndPortParsed) {
     auto path = write_toml(R"(
+environment = "dev"
 exchanges = ["BINANCE"]
 
 [[adapters]]
@@ -241,6 +247,7 @@ use_tls   = true
 
 TEST(GatewayConfigTest, CustomAeronStreamIds) {
     auto path = write_toml(R"(
+environment = "dev"
 exchanges = []
 
 [aeron.order]

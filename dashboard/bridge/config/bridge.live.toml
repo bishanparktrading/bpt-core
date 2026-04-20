@@ -1,6 +1,8 @@
 # Dashboard bridge — subscribes to Aeron MD + exec report streams and
 # broadcasts JSON messages over WebSocket to the dashboard frontend.
 
+environment = "qa"
+
 [aeron]
 media_driver_dir = "/dev/shm/aeron-bifrost"
 

@@ -2,6 +2,8 @@
 # Passive observer: subscribes to exec reports + MD, publishes toxicity scores.
 # Does NOT interfere with trading — fenrir optionally subscribes to stream 5001.
 
+environment = "qa"
+
 [aeron]
 media_driver_dir = "/dev/shm/aeron-bifrost"
 

@@ -9,6 +9,7 @@ protected:
     void SetUp() override {
         std::ofstream out("test_config_bpt-refdata.toml");
         out << R"(
+environment = "dev"
 instrument_poll_interval_s = 7200
 
 [aeron]

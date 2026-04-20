@@ -1,12 +1,37 @@
 #include "bpt_app/base_settings.h"
 
+#include <fmt/format.h>
+#include <stdexcept>
 #include <bpt_common/logging_toml.h>
 
 namespace bpt::app {
 
+std::string_view to_string(Env e) noexcept {
+    switch (e) {
+        case Env::DEV:  return "dev";
+        case Env::QA:   return "qa";
+        case Env::PROD: return "prod";
+    }
+    return "dev";  // unreachable — silence compiler warnings
+}
+
+Env env_from_string(std::string_view s) {
+    if (s == "dev")  return Env::DEV;
+    if (s == "qa")   return Env::QA;
+    if (s == "prod") return Env::PROD;
+    throw std::runtime_error(fmt::format(
+        "Invalid environment \"{}\" — must be one of: dev, qa, prod", s));
+}
+
 void load_base_settings(const toml::table& root, BaseSettings& base) {
-    if (auto v = root["environment"].value<std::string>())
-        base.environment = *v;
+    // environment is required in TOML. Missing or unknown values throw
+    // at boot rather than silently defaulting to DEV — a "prd" typo
+    // would otherwise skip every prod-specific guard rail we rely on.
+    auto env_str = root["environment"].value<std::string>();
+    if (!env_str)
+        throw std::runtime_error(
+            "Missing required top-level key: environment = \"dev\" | \"qa\" | \"prod\"");
+    base.environment = env_from_string(*env_str);
 
     if (const auto* a = root["aeron"].as_table()) {
         if (auto v = (*a)["media_driver_dir"].value<std::string>())

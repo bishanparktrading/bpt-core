@@ -81,9 +81,15 @@ int run(const std::string& service_name, Settings settings, BuildFn build_fn) {
     bpt::common::signal::install();
     bpt::common::logging::init(service_name, base.logging);
 
-    bpt::common::log::info("[{}] Starting (env={})",
-                           service_name,
-                           base.environment.empty() ? "(not set)" : base.environment);
+    bpt::common::log::info("Starting (env={})", to_string(base.environment));
+    // Loud banner for prod so operators can't miss it when skimming logs
+    // or confusing a prod session with qa. Uppercase + warning level for
+    // attention. Only fires when env == PROD; qa/dev don't need it.
+    if (base.is_prod()) {
+        bpt::common::log::warn("================================================");
+        bpt::common::log::warn(" RUNNING IN PROD  —  live capital is at risk ");
+        bpt::common::log::warn("================================================");
+    }
 
     if (base.calibrate_tsc)
         bpt::common::util::TscClock::calibrate();
@@ -93,7 +99,7 @@ int run(const std::string& service_name, Settings settings, BuildFn build_fn) {
     // Services that want custom behaviour can bypass bpt::app::run() and
     // build their own Aeron client, but no current service does.
     auto aeron_error_handler = [svc = service_name](const std::exception& e) {
-        bpt::common::log::error("[{}][Aeron] {}", svc, e.what());
+        bpt::common::log::error("[Aeron] {}", e.what());
         void* frames[32];
         int n = ::backtrace(frames, 32);
         char** syms = ::backtrace_symbols(frames, n);
@@ -102,20 +108,20 @@ int run(const std::string& service_name, Settings settings, BuildFn build_fn) {
         std::free(syms);
     };
     auto aeron = bpt::common::aeron::connect(base.media_driver_dir, aeron_error_handler);
-    bpt::common::log::info("[{}] Connected to Aeron MediaDriver", service_name);
+    bpt::common::log::info("Connected to Aeron MediaDriver");
 
     AppContext ctx{std::move(aeron)};
 
     std::unique_ptr<IService> service = build_fn(settings, ctx);
     if (!service) {
-        bpt::common::log::error("[{}] build callable returned null — aborting", service_name);
+        bpt::common::log::error("build callable returned null — aborting");
         return 1;
     }
 
-    bpt::common::log::info("[{}] Ready — entering main loop", service_name);
+    bpt::common::log::info("Ready — entering main loop");
     service->run();
 
-    bpt::common::log::info("[{}] Signal received, shutting down", service_name);
+    bpt::common::log::info("Signal received, shutting down");
     service->stop();
 
     return 0;

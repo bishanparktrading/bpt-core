@@ -2,43 +2,70 @@
 //
 // The run() template itself isn't unit-tested here — it requires a live
 // Aeron MediaDriver and TSC calibration, which is awkward in a pure unit
-// test. That path gets exercised implicitly when services start using it
-// (Phase 3 service migrations).
+// test. That path gets exercised implicitly when services start using it.
 
 #include "bpt_app/base_settings.h"
 
 #include <gtest/gtest.h>
+#include <stdexcept>
 #include <toml++/toml.hpp>
 
 namespace {
 
 using bpt::app::BaseSettings;
+using bpt::app::Env;
+using bpt::app::env_from_string;
 using bpt::app::load_base_settings;
+using bpt::app::to_string;
 
 toml::table parse(const char* src) {
     return toml::parse(src);
 }
 
-TEST(BaseSettingsLoader, DefaultsWhenAllBlocksMissing) {
-    BaseSettings base;
-    auto root = parse("");
-    load_base_settings(root, base);
-    EXPECT_EQ(base.environment, "");
-    EXPECT_EQ(base.media_driver_dir, "");
-    EXPECT_EQ(base.metrics_port, 0);
-    EXPECT_TRUE(base.calibrate_tsc) << "calibrate_tsc default must survive when TOML has no hook";
+// ── Env enum + string helpers ────────────────────────────────────────────────
+
+TEST(EnvTest, ToStringRoundTrip) {
+    EXPECT_EQ(to_string(Env::DEV),  "dev");
+    EXPECT_EQ(to_string(Env::QA),   "qa");
+    EXPECT_EQ(to_string(Env::PROD), "prod");
 }
 
-TEST(BaseSettingsLoader, ReadsTopLevelEnvironment) {
+TEST(EnvTest, FromStringKnownValues) {
+    EXPECT_EQ(env_from_string("dev"),  Env::DEV);
+    EXPECT_EQ(env_from_string("qa"),   Env::QA);
+    EXPECT_EQ(env_from_string("prod"), Env::PROD);
+}
+
+TEST(EnvTest, FromStringRejectsTypo) {
+    // Catches the "prd"/"prood"/"" class of silent-skip-prod-checks bugs.
+    EXPECT_THROW(env_from_string("prd"),  std::runtime_error);
+    EXPECT_THROW(env_from_string(""),     std::runtime_error);
+    EXPECT_THROW(env_from_string("PROD"), std::runtime_error) << "case-sensitive on purpose";
+}
+
+// ── load_base_settings ───────────────────────────────────────────────────────
+
+TEST(BaseSettingsLoader, MissingEnvironmentThrows) {
+    BaseSettings base;
+    auto root = parse("");
+    EXPECT_THROW(load_base_settings(root, base), std::runtime_error)
+        << "environment is required — empty TOML must throw so typos can't silently skip it";
+}
+
+TEST(BaseSettingsLoader, ReadsEnvironment) {
     BaseSettings base;
     auto root = parse(R"(environment = "prod")");
     load_base_settings(root, base);
-    EXPECT_EQ(base.environment, "prod");
+    EXPECT_EQ(base.environment, Env::PROD);
+    EXPECT_TRUE(base.is_prod());
+    EXPECT_FALSE(base.is_qa());
+    EXPECT_FALSE(base.is_dev());
 }
 
 TEST(BaseSettingsLoader, ReadsAeronMediaDriverDir) {
     BaseSettings base;
     auto root = parse(R"(
+        environment = "dev"
         [aeron]
         media_driver_dir = "/dev/shm/aeron-bifrost"
     )");
@@ -49,6 +76,7 @@ TEST(BaseSettingsLoader, ReadsAeronMediaDriverDir) {
 TEST(BaseSettingsLoader, ReadsMetricsPort) {
     BaseSettings base;
     auto root = parse(R"(
+        environment = "dev"
         [metrics]
         port = 9103
     )");
@@ -63,6 +91,7 @@ TEST(BaseSettingsLoader, ReadsLoggingBlock) {
     // own tests.
     BaseSettings base;
     auto root = parse(R"(
+        environment = "dev"
         [logging]
         level = "debug"
         dir   = "/var/log/myservice"
@@ -84,24 +113,20 @@ TEST(BaseSettingsLoader, AllTogether) {
         port = 9999
     )");
     load_base_settings(root, base);
-    EXPECT_EQ(base.environment, "qa");
+    EXPECT_EQ(base.environment, Env::QA);
     EXPECT_EQ(base.media_driver_dir, "/tmp/aeron");
     EXPECT_EQ(base.logging.level, "info");
     EXPECT_EQ(base.metrics_port, 9999);
 }
 
-TEST(BaseSettingsLoader, DoesNotClobberUnspecifiedFields) {
-    // Loader is additive: any field not present in the TOML must leave the
-    // BaseSettings field at whatever value was passed in. Matters because
-    // services set calibrate_tsc = false for backtester, and we must not
-    // overwrite that with a default-true when the TOML is silent on it.
+TEST(BaseSettingsLoader, PreservesCalibrateTscWhenAbsent) {
+    // calibrate_tsc is preset by the caller (backtester sets false); the
+    // loader must not clobber it since there's no TOML hook.
     BaseSettings base;
     base.calibrate_tsc = false;
-    base.environment = "preset";
-    auto root = parse("");  // empty
+    auto root = parse(R"(environment = "dev")");
     load_base_settings(root, base);
     EXPECT_FALSE(base.calibrate_tsc);
-    EXPECT_EQ(base.environment, "preset");
 }
 
 }  // namespace

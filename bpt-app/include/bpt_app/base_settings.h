@@ -11,15 +11,37 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <bpt_common/logging.h>
 #include <toml++/toml.hpp>
 
 namespace bpt::app {
 
+// Deployment environment. Strictly validated at config load — the TOML
+// string must be one of "prod" | "qa" | "dev"; anything else (including
+// empty) causes load_base_settings() to throw. This prevents a typo like
+// "prd" from silently skipping prod-specific guard rails.
+enum class Env {
+    DEV,   // local / laptop / backtest
+    QA,    // staging / testnet / paper
+    PROD,  // live capital
+};
+
+// Lowercase form for Prometheus labels + structured logging.
+[[nodiscard]] std::string_view to_string(Env e) noexcept;
+
+// Inverse of to_string — throws std::runtime_error on unknown values.
+[[nodiscard]] Env env_from_string(std::string_view s);
+
 struct BaseSettings {
-    // Environment label — "prod" | "qa" | "dev". Logged at startup; can be
-    // cross-checked against secret/endpoint config to catch misconfigurations.
-    std::string environment;
+    // Deployment environment. Default DEV is the safest fallback (no
+    // prod-specific behaviour triggers). Loader will override from TOML
+    // and throw if the TOML value isn't a recognised name.
+    Env environment{Env::DEV};
+
+    [[nodiscard]] bool is_prod() const noexcept { return environment == Env::PROD; }
+    [[nodiscard]] bool is_qa()   const noexcept { return environment == Env::QA; }
+    [[nodiscard]] bool is_dev()  const noexcept { return environment == Env::DEV; }
 
     // Aeron MediaDriver IPC directory. Empty = use Aeron's default.
     std::string media_driver_dir;

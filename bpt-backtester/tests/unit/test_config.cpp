@@ -17,6 +17,7 @@ static fs::path write_toml(const std::string& content) {
 
 TEST(BacktesterConfigTest, ParsesFullConfig) {
     auto path = write_toml(R"(
+environment = "dev"
 [simulation]
 start = "2026-01-01T00:00:00Z"
 end   = "2026-01-31T23:59:59Z"
@@ -81,6 +82,7 @@ port = 9105
 
 TEST(BacktesterConfigTest, DefaultsAppliedWhenFieldsOmitted) {
     auto path = write_toml(R"(
+environment = "dev"
 [simulation]
 start = "2026-01-01T00:00:00Z"
 end   = "2026-01-31T23:59:59Z"
