@@ -28,10 +28,12 @@ std::string io_role(const char* exchange) {
     return "ogw." + lowercase_venue(exchange) + ".io";
 }
 
-// OS thread name for the adapter IO thread. Truncated to 15 chars by
-// the set_thread_name helper if venue name is long.
+// OS thread name for the adapter IO thread. Venue in the middle so
+// sort order groups all OKX threads adjacent (ogw-okx-io + ogw-okx-log)
+// — matches the existing quill-backend and topology-role ordering.
+// Truncated to 15 chars by set_thread_name if the venue name is long.
 std::string io_thread_name(const char* exchange) {
-    return "ogw-io-" + lowercase_venue(exchange);
+    return "ogw-" + lowercase_venue(exchange) + "-io";
 }
 
 }  // namespace

@@ -25,15 +25,16 @@ std::string io_role(const char* exchange) {
     return "mdgw." + lowercase_venue(exchange) + ".io";
 }
 
-// OS thread names for the two AdapterBase threads. 15-char cap per
-// Linux TASK_COMM_LEN; worst case is "mdgw-pub-hyperliqu" (18) which
-// truncates to "mdgw-pub-hyperl" (15) — still uniquely identifies
-// the role even for the longest venue names we run.
+// OS thread names for the two AdapterBase threads. Venue in the middle
+// so sort order groups all threads of the same venue together in ps -L
+// (mdgw-okx-io, mdgw-okx-log, mdgw-okx-pub sit adjacent alphabetically).
+// Matches the existing quill-backend (mdgw-<venue>-log) and topology-role
+// (mdgw.<venue>.<subsystem>) ordering. 15-char cap per Linux TASK_COMM_LEN.
 std::string io_thread_name(const char* exchange) {
-    return "mdgw-io-" + lowercase_venue(exchange);
+    return "mdgw-" + lowercase_venue(exchange) + "-io";
 }
 std::string pub_thread_name(const char* exchange) {
-    return "mdgw-pub-" + lowercase_venue(exchange);
+    return "mdgw-" + lowercase_venue(exchange) + "-pub";
 }
 
 }  // namespace
