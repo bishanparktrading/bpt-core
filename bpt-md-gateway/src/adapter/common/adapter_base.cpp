@@ -4,20 +4,36 @@
 #include <cctype>
 #include <string>
 #include <thread>
+#include <bpt_common/util/thread_name.h>
 #include <bpt_common/util/thread_pin.h>
 
 namespace bpt::md_gateway::adapter {
 
 namespace {
 
+std::string lowercase_venue(const char* exchange) {
+    std::string venue = exchange;
+    std::transform(venue.begin(), venue.end(), venue.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+    return venue;
+}
+
 // Compose the topology role name used by md-gateway IO threads:
 // "mdgw.<venue-lower>.io". Keeps the role vocabulary in sync with
 // the service_name abbreviation used elsewhere (bpt-mdgw-<venue>).
 std::string io_role(const char* exchange) {
-    std::string venue = exchange;
-    std::transform(venue.begin(), venue.end(), venue.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
-    return "mdgw." + venue + ".io";
+    return "mdgw." + lowercase_venue(exchange) + ".io";
+}
+
+// OS thread names for the two AdapterBase threads. 15-char cap per
+// Linux TASK_COMM_LEN; worst case is "mdgw-pub-hyperliqu" (18) which
+// truncates to "mdgw-pub-hyperl" (15) — still uniquely identifies
+// the role even for the longest venue names we run.
+std::string io_thread_name(const char* exchange) {
+    return "mdgw-io-" + lowercase_venue(exchange);
+}
+std::string pub_thread_name(const char* exchange) {
+    return "mdgw-pub-" + lowercase_venue(exchange);
 }
 
 }  // namespace
@@ -83,6 +99,7 @@ void AdapterBase::push_frame(std::string_view payload, uint64_t recv_ns) noexcep
 }
 
 void AdapterBase::publish_loop() {
+    bpt::common::util::set_thread_name(pub_thread_name(exchange_name()));
     while (!stop_flag_.load(std::memory_order_relaxed)) {
         bool processed =
             frame_queue_.try_pop([this](uint64_t recv_ns, std::string_view payload) { parse_frame(payload, recv_ns); });
@@ -96,6 +113,7 @@ void AdapterBase::publish_loop() {
 }
 
 void AdapterBase::run() {
+    bpt::common::util::set_thread_name(io_thread_name(exchange_name()));
     // Pin policy: prefer central Topology role assignment when set;
     // fall back to the legacy per-adapter cfg_.io_thread_cpu knob for
     // configs that haven't migrated. Both unset = unpinned.

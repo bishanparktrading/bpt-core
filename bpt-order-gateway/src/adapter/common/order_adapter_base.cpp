@@ -4,6 +4,7 @@
 #include <cctype>
 #include <string>
 #include <bpt_common/logging.h>
+#include <bpt_common/util/thread_name.h>
 #include <bpt_common/util/thread_pin.h>
 #include <bpt_common/util/tsc_clock.h>
 
@@ -13,14 +14,24 @@ namespace ssl = boost::asio::ssl;
 
 namespace {
 
+std::string lowercase_venue(const char* exchange) {
+    std::string venue = exchange;
+    std::transform(venue.begin(), venue.end(), venue.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+    return venue;
+}
+
 // Topology role name for the order-gw IO thread per adapter.
 // Convention: "ogw.<venue-lower>.io". Matches the service_name shape
 // (bpt-ogw-<venue>) so operators see a consistent vocabulary.
 std::string io_role(const char* exchange) {
-    std::string venue = exchange;
-    std::transform(venue.begin(), venue.end(), venue.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
-    return "ogw." + venue + ".io";
+    return "ogw." + lowercase_venue(exchange) + ".io";
+}
+
+// OS thread name for the adapter IO thread. Truncated to 15 chars by
+// the set_thread_name helper if venue name is long.
+std::string io_thread_name(const char* exchange) {
+    return "ogw-io-" + lowercase_venue(exchange);
 }
 
 }  // namespace
@@ -56,6 +67,7 @@ std::chrono::milliseconds OrderAdapterBase::reconnect_delay() const {
 }
 
 void OrderAdapterBase::run() {
+    bpt::common::util::set_thread_name(io_thread_name(exchange_name()));
     // Pin policy: prefer topology role when set, fall back to legacy
     // cfg_.io_cpu knob. Mirrors md-gw adapter pinning.
     bool pinned_via_topology = false;
