@@ -198,72 +198,12 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
-# ── bpt-prometheus / bpt-alertmanager / bpt-heartbeat ───────────────────────
-# Monitoring stack — see deploy/monitoring/README.md for the full story.
-#
-# Prometheus scrapes every service's /metrics endpoint and evaluates the alert
-# rules under deploy/monitoring/prometheus/rules/.  Alertmanager receives
-# firing alerts and posts to Discord.  bpt-heartbeat.timer pings Healthchecks.io
-# every 5 min as a dead-man's-switch for the host-down case.
-
-cat > "$UNIT_DIR/bpt-prometheus.service" <<EOF
-[Unit]
-Description=BPT Prometheus (scraper + alert rule evaluator)
-PartOf=bpt-stack.target
-After=multi-user.target
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/prometheus \\
-  --config.file=$BPT_ROOT/deploy/monitoring/prometheus/prometheus.yml \\
-  --storage.tsdb.path=%h/.local/share/prometheus/data \\
-  --storage.tsdb.retention.time=14d \\
-  --web.listen-address=127.0.0.1:9090
-Restart=on-failure
-RestartSec=3
-
-[Install]
-WantedBy=bpt-stack.target
-EOF
-
-# Alertmanager: loads two ntfy.sh topic URLs (critical + warning) via
-# systemd-creds.  Each creds file contains the FULL URL including ntfy
-# query params that set priority + tag per severity.
-#
-# Binary path: Debian/Ubuntu ships the Alertmanager binary as
-# /usr/bin/prometheus-alertmanager (namespaced to avoid conflicts with
-# other "alertmanager"-named tools).  If you installed via the upstream
-# tarball, it's likely /usr/local/bin/alertmanager instead — edit
-# ExecStart to match.
-cat > "$UNIT_DIR/bpt-alertmanager.service" <<EOF
-[Unit]
-Description=BPT Alertmanager (ntfy.sh phone notifications)
-PartOf=bpt-stack.target
-After=bpt-prometheus.service
-
-[Service]
-Type=simple
-# ntfy URLs for the two severity tiers — each is the full URL
-# including ?priority= and ?tags= query params.  Source files live
-# in ~/.config/bpt/ with mode 0600; systemd copies them into
-# \$CREDENTIALS_DIRECTORY (/run/credentials/bpt-alertmanager.service/)
-# at service start so alertmanager can read them via url_file.
-# Unencrypted-at-rest — acceptable on a single-user laptop where the
-# same key material that would decrypt systemd-creds is in your
-# login keyring anyway. Tighten to LoadCredentialEncrypted (requires
-# systemd >= 252 with --user support) when moving to a prod host.
-LoadCredential=bpt-ntfy-url-critical:%h/.config/bpt/ntfy-url-critical
-LoadCredential=bpt-ntfy-url-warning:%h/.config/bpt/ntfy-url-warning
-ExecStart=/usr/bin/prometheus-alertmanager \\
-  --config.file=$BPT_ROOT/deploy/monitoring/alertmanager/alertmanager.yml \\
-  --storage.path=%h/.local/share/alertmanager \\
-  --web.listen-address=127.0.0.1:9093
-Restart=on-failure
-RestartSec=3
-
-[Install]
-WantedBy=bpt-stack.target
-EOF
+# ── bpt-heartbeat ──────────────────────────────────────────────────────────
+# Prometheus + Alertmanager + Grafana all live in monitoring/docker-compose.yml
+# — see monitoring/README.md.  The only piece still in systemd is the
+# heartbeat timer that curls Healthchecks.io as a dead-man's-switch for the
+# host-down case (which neither local Docker nor local Alertmanager can
+# alert on by definition).
 
 # Heartbeat — dead-man's-switch so Healthchecks.io emails you when the
 # host itself is dead (Alertmanager can't alert on its own process death).
@@ -296,7 +236,7 @@ EOF
 cat > "$UNIT_DIR/bpt-stack.target" <<EOF
 [Unit]
 Description=BPT Trading Stack
-Wants=bpt-transport.service bpt-refdata.service bpt-md-gateway.service bpt-order-gateway.service bpt-strategy.service bpt-analytics.service bpt-bridge.service bpt-frontend.service bpt-prometheus.service bpt-alertmanager.service bpt-heartbeat.timer
+Wants=bpt-transport.service bpt-refdata.service bpt-md-gateway.service bpt-order-gateway.service bpt-strategy.service bpt-analytics.service bpt-bridge.service bpt-frontend.service bpt-heartbeat.timer
 
 [Install]
 WantedBy=default.target
@@ -312,16 +252,15 @@ echo "  systemctl --user enable --now bpt-config-sync.timer   # daily config pul
 echo "  systemctl --user enable --now bpt-heartbeat.timer     # dead-man's-switch to Healthchecks.io"
 echo "  systemctl --user start bpt-stack.target               # bring the stack up"
 echo
-echo "Monitoring setup (see deploy/monitoring/README.md):"
-echo "  sudo apt install prometheus prometheus-alertmanager"
-echo "  sudo systemctl disable --now prometheus prometheus-alertmanager  # we run as user units"
-echo "  # ntfy.sh topic URLs (one per severity — different priority query params)"
+echo "Monitoring setup (see monitoring/README.md):"
+echo "  # ntfy.sh URL files (kept on host at ~/.config/bpt/, bind-mounted into Alertmanager container)"
 echo "  mkdir -p ~/.config/bpt && chmod 0700 ~/.config/bpt"
 echo "  TOPIC=\"bpt-alerts-\$(uuidgen | tr -d - | head -c 12)\""
 echo "  echo -n \"https://ntfy.sh/\$TOPIC?priority=urgent&tags=rotating_light&title=BPT+CRITICAL\" > ~/.config/bpt/ntfy-url-critical"
 echo "  echo -n \"https://ntfy.sh/\$TOPIC?priority=default&tags=warning&title=BPT+WARNING\"        > ~/.config/bpt/ntfy-url-warning"
 echo "  chmod 0600 ~/.config/bpt/ntfy-url-critical ~/.config/bpt/ntfy-url-warning"
-echo "  # Subscribe the phone app (Android/iOS) to \$TOPIC, then:"
+echo "  # Subscribe the phone app (Android/iOS) to \$TOPIC, then bring up the monitoring stack:"
+echo "  cd monitoring && docker compose up -d"
 echo "  echo 'HC_URL=https://hc-ping.com/YOUR-UUID' | sudo tee /etc/bpt/healthchecks.env"
 echo
 echo "Inspect:"

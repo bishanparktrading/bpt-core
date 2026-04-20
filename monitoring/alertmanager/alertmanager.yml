@@ -68,7 +68,10 @@ route:
 receivers:
   - name: ntfy-critical
     webhook_configs:
-      - url_file: /run/credentials/bpt-alertmanager.service/bpt-ntfy-url-critical
+      # docker-compose bind-mounts ~/.config/bpt to /etc/bpt/creds (ro)
+      # so the ntfy URL files are readable inside the container without
+      # hitting git or docker-inspect.
+      - url_file: /etc/bpt/creds/ntfy-url-critical
         send_resolved: true
         # ntfy auto-formats the Alertmanager JSON payload — no template
         # configured here (webhook_configs doesn't support templates; the
@@ -76,7 +79,7 @@ receivers:
 
   - name: ntfy-warning
     webhook_configs:
-      - url_file: /run/credentials/bpt-alertmanager.service/bpt-ntfy-url-warning
+      - url_file: /etc/bpt/creds/ntfy-url-warning
         send_resolved: true
 
 # ─── Inhibit rules ────────────────────────────────────────────────────

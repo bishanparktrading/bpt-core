@@ -21,11 +21,36 @@ services:
       - '--web.enable-lifecycle'
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./rules:/etc/prometheus/rules:ro
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"
     extra_hosts:
       # bpt services run on the docker host (WSL), scraped via host-gateway.
+      - "host.docker.internal:host-gateway"
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: bpt-alertmanager
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      # ~/.config/bpt holds the ntfy URL files (mode 0600, user-owned).
+      # Bind-mount ro so alertmanager can read via url_file in the YAML.
+      # Container runs as alertmanager uid, host files owned by your uid
+      # — bind mount preserves uid/perms, so make sure the host files
+      # are world-readable OR run the container as your uid (user: "1000:1000").
+      - ${HOME}/.config/bpt:/etc/bpt/creds:ro
+      - alertmanager-data:/alertmanager
+    # Run as the host user so the 0600 creds files are readable
+    # (default alertmanager user has uid 65534 / nobody).
+    user: "${UID:-1000}:${UID:-1000}"
+    ports:
+      - "9093:9093"
+    extra_hosts:
       - "host.docker.internal:host-gateway"
 
   grafana:
@@ -52,3 +77,4 @@ services:
 volumes:
   prometheus-data:
   grafana-data:
+  alertmanager-data:

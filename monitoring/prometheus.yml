@@ -1,7 +1,14 @@
-# Prometheus scrape config for bpt-core local ops monitoring.
+# Prometheus scrape + rule config for bpt-core local ops monitoring.
 #
-# The bpt services run on the docker host (WSL), so we scrape them via
-# host.docker.internal which docker-compose maps to the host gateway.
+# Services run on the docker host (WSL in dev, bare metal in prod); we
+# reach them via host.docker.internal which the compose file maps to
+# the host-gateway address. Ports correspond to metrics_port in each
+# service's TOML.
+#
+# Job names track the current service identity (post-rename 2026-04-17:
+# heimdall→bpt-ogw, huginn→bpt-mdgw, muninn→bpt-rfd, fenrir→bpt-strategy,
+# tyr→bpt-analytics). The service label uses the abbreviated form to
+# match the process `comm` field set via prctl in bpt-app.
 
 global:
   scrape_interval: 5s          # ops dashboards want sub-10s freshness
@@ -10,31 +17,64 @@ global:
     cluster: bpt-local
     env: qa
 
+# Tell Prometheus where to send firing alerts. The `alertmanager`
+# hostname resolves via docker-compose's default network.
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+# Load alert rules. Prometheus container bind-mounts ./rules/ at
+# /etc/prometheus/rules/ (see docker-compose.yml).
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
 scrape_configs:
-  - job_name: heimdall
-    static_configs:
-      - targets: ['host.docker.internal:9103']
-        labels:
-          service: heimdall
-
-  - job_name: huginn
-    static_configs:
-      - targets: ['host.docker.internal:9102']
-        labels:
-          service: huginn
-
-  - job_name: muninn
-    static_configs:
-      - targets: ['host.docker.internal:9101']
-        labels:
-          service: muninn
-
-  - job_name: fenrir
-    static_configs:
-      - targets: ['host.docker.internal:9104']
-        labels:
-          service: fenrir
-
   - job_name: prometheus
     static_configs:
       - targets: ['localhost:9090']
+
+  - job_name: alertmanager
+    static_configs:
+      - targets: ['alertmanager:9093']
+
+  - job_name: bpt-transport
+    # bifrost-fabric Aeron MediaDriver; metrics exposer on 9100.
+    static_configs:
+      - targets: ['host.docker.internal:9100']
+        labels:
+          service: transport
+
+  - job_name: bpt-md-gateway
+    static_configs:
+      - targets: ['host.docker.internal:9102']
+        labels:
+          service: md-gateway
+
+  - job_name: bpt-order-gateway
+    static_configs:
+      - targets: ['host.docker.internal:9103']
+        labels:
+          service: order-gateway
+
+  - job_name: bpt-strategy
+    static_configs:
+      - targets: ['host.docker.internal:9104']
+        labels:
+          service: strategy
+
+  - job_name: bpt-refdata
+    static_configs:
+      - targets: ['host.docker.internal:9101']
+        labels:
+          service: refdata
+
+  - job_name: bpt-analytics
+    # bpt-analytics doesn't expose metrics today (per metrics audit
+    # 2026-04-20); entry reserved for when it does. ServiceDown alert
+    # will fire until metrics land — either add metrics or comment
+    # this job out to silence the noise.
+    static_configs:
+      - targets: ['host.docker.internal:9106']
+        labels:
+          service: analytics
