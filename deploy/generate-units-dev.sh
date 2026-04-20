@@ -66,7 +66,7 @@ PartOf=bpt-dev-stack.target
 Type=simple
 EnvironmentFile=$ENV_FILE
 WorkingDirectory=$BPT_ROOT/$svc
-ExecStart=${BIN[$svc]} $([ "$svc" = "bpt-refdata" ] && echo "--config") \${$cfg_var}
+ExecStart=${BIN[$svc]} --config \${$cfg_var}
 Restart=no
 TimeoutStopSec=15
 
@@ -87,7 +87,7 @@ PartOf=bpt-dev-stack.target
 Type=simple
 EnvironmentFile=$ENV_FILE
 WorkingDirectory=$BPT_ROOT/bpt-strategy
-ExecStart=${BIN[bpt-strategy]} \${BPT_STRATEGY_CONFIG}
+ExecStart=${BIN[bpt-strategy]} --config \${BPT_STRATEGY_CONFIG}
 Restart=no
 TimeoutStopSec=30
 
@@ -107,7 +107,7 @@ PartOf=bpt-dev-stack.target
 Type=simple
 EnvironmentFile=$ENV_FILE
 WorkingDirectory=$BPT_ROOT/bpt-analytics
-ExecStart=${BIN[bpt-analytics]} \${BPT_ANALYTICS_CONFIG}
+ExecStart=${BIN[bpt-analytics]} --config \${BPT_ANALYTICS_CONFIG}
 Restart=no
 TimeoutStopSec=10
 

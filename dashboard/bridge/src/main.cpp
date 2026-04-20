@@ -11,7 +11,7 @@
 
 int main(int argc, char** argv) {
     CLI::App cli{"bpt-bridge — Aeron → WebSocket forwarder for dashboard"};
-    std::string config_path = "config/bridge.toml";
+    std::string config_path;
     std::string strategy_override;
     std::string symbol_override;
     std::string exchange_override;
@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
     std::string instrument_type_override;
     uint64_t    instrument_id_override = 0;
     cli.add_option("-c,--config", config_path, "Path to TOML config file")
-        ->capture_default_str()
+        ->required()
         ->check(CLI::ExistingFile);
     cli.add_option("--strategy-name", strategy_override, "Override session.strategy");
     cli.add_option("--symbol", symbol_override, "Override session.symbol");

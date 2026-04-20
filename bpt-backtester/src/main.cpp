@@ -12,10 +12,10 @@
 
 int main(int argc, char* argv[]) {
     CLI::App cli{"bpt-backtester — replay-driven backtest runner"};
-    std::string config_path = "config/backtester.toml";
+    std::string config_path;
     std::optional<double> starting_capital_override;
     cli.add_option("-c,--config", config_path, "Path to TOML config file")
-        ->capture_default_str()
+        ->required()
         ->check(CLI::ExistingFile);
     cli.add_option("--starting-capital", starting_capital_override,
                    "Override [results].starting_capital");

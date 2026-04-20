@@ -38,9 +38,9 @@ load_credentials(const std::vector<bpt::refdata::config::AdapterConfig>& adapter
 
 int main(int argc, char** argv) {
     CLI::App cli{"bpt-refdata — instrument reference data service"};
-    std::string config_path = "config/bpt-refdata.toml";
+    std::string config_path;
     cli.add_option("-c,--config", config_path, "Path to TOML config file")
-        ->capture_default_str()
+        ->required()
         ->check(CLI::ExistingFile);
     CLI11_PARSE(cli, argc, argv);
 

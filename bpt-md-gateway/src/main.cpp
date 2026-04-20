@@ -9,9 +9,9 @@
 
 int main(int argc, char* argv[]) {
     CLI::App cli{"bpt-md-gateway — market data aggregator"};
-    std::string config_path = "config/bpt-md-gateway.toml";
+    std::string config_path;
     cli.add_option("-c,--config", config_path, "Path to TOML config file")
-        ->capture_default_str()
+        ->required()
         ->check(CLI::ExistingFile);
     CLI11_PARSE(cli, argc, argv);
 

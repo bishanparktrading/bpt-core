@@ -44,9 +44,9 @@ int main(int argc, char* argv[]) {
     ::prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
 
     CLI::App cli{"bpt-order-gateway — order routing + risk enforcement"};
-    std::string config_path = "config/order-gateway.toml";
+    std::string config_path;
     cli.add_option("-c,--config", config_path, "Path to TOML config file")
-        ->capture_default_str()
+        ->required()
         ->check(CLI::ExistingFile);
     CLI11_PARSE(cli, argc, argv);
 
