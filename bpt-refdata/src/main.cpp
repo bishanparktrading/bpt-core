@@ -17,7 +17,8 @@ namespace {
 // Runs inside the build callable so logging is already initialised by
 // bpt::app::run() before we start talking about credential loads.
 std::map<std::string, bpt::refdata::adapter::ExchangeCredentials>
-load_credentials(const std::vector<bpt::refdata::config::AdapterConfig>& adapters) {
+load_credentials(const std::vector<bpt::refdata::config::AdapterConfig>& adapters,
+                 bpt::common::Env env) {
     std::map<std::string, bpt::refdata::adapter::ExchangeCredentials> creds;
     for (const auto& a_cfg : adapters) {
         if (a_cfg.secret_name.empty()) {
@@ -27,7 +28,7 @@ load_credentials(const std::vector<bpt::refdata::config::AdapterConfig>& adapter
             creds[a_cfg.exchange] = {};
             continue;
         }
-        const auto kv = bpt::common::secrets::fetch(a_cfg.secret_name);
+        const auto kv = bpt::common::secrets::fetch(a_cfg.secret_name, env);
         creds[a_cfg.exchange] = bpt::refdata::adapter::credentials_from_secret(a_cfg.exchange, kv);
         bpt::common::log::info("Loaded credentials for {}", a_cfg.exchange);
     }
@@ -56,7 +57,7 @@ int main(int argc, char** argv) {
     try {
         return bpt::app::run("bpt-refdata", std::move(settings),
             [](auto& cfg, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
-                auto creds = load_credentials(cfg.adapters);
+                auto creds = load_credentials(cfg.adapters, cfg.base.environment);
                 return std::make_unique<bpt::refdata::RefdataApp>(
                     std::move(cfg), ctx.aeron, std::move(creds));
             });

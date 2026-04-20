@@ -1,27 +1,9 @@
 #include "bpt_app/base_settings.h"
 
-#include <fmt/format.h>
 #include <stdexcept>
 #include <bpt_common/logging_toml.h>
 
 namespace bpt::app {
-
-std::string_view to_string(Env e) noexcept {
-    switch (e) {
-        case Env::DEV:  return "dev";
-        case Env::QA:   return "qa";
-        case Env::PROD: return "prod";
-    }
-    return "dev";  // unreachable — silence compiler warnings
-}
-
-Env env_from_string(std::string_view s) {
-    if (s == "dev")  return Env::DEV;
-    if (s == "qa")   return Env::QA;
-    if (s == "prod") return Env::PROD;
-    throw std::runtime_error(fmt::format(
-        "Invalid environment \"{}\" — must be one of: dev, qa, prod", s));
-}
 
 void load_base_settings(const toml::table& root, BaseSettings& base) {
     // environment is required in TOML. Missing or unknown values throw

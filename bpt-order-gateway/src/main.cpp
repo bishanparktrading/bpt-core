@@ -19,7 +19,8 @@ namespace {
 // Invoked from inside the bpt::app::run() build callable so logging is
 // already initialised by the time we report per-adapter load status.
 std::map<std::string, bpt::order_gateway::adapter::ExchangeCredentials>
-load_credentials(const std::vector<bpt::order_gateway::config::AdapterConfig>& adapters) {
+load_credentials(const std::vector<bpt::order_gateway::config::AdapterConfig>& adapters,
+                 bpt::common::Env env) {
     std::map<std::string, bpt::order_gateway::adapter::ExchangeCredentials> creds;
     for (const auto& a_cfg : adapters) {
         if (a_cfg.secret_name.empty()) {
@@ -29,7 +30,7 @@ load_credentials(const std::vector<bpt::order_gateway::config::AdapterConfig>& a
             creds[a_cfg.exchange] = {};
             continue;
         }
-        const auto kv = bpt::common::secrets::fetch(a_cfg.secret_name);
+        const auto kv = bpt::common::secrets::fetch(a_cfg.secret_name, env);
         creds[a_cfg.exchange] = bpt::order_gateway::adapter::credentials_from_secret(a_cfg.exchange, kv);
         bpt::common::log::info("Loaded credentials for {}", a_cfg.exchange);
     }
@@ -62,7 +63,7 @@ int main(int argc, char* argv[]) {
     try {
         return bpt::app::run("order-gateway", std::move(cfg),
             [](auto& settings, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
-                auto creds = load_credentials(settings.gateway.adapters);
+                auto creds = load_credentials(settings.gateway.adapters, settings.base.environment);
                 return std::make_unique<bpt::order_gateway::OrderGatewayApp>(
                     std::move(settings), ctx.aeron, std::move(creds));
             });

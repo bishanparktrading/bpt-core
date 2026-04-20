@@ -11,27 +11,19 @@
 
 #include <cstdint>
 #include <string>
-#include <string_view>
+#include <bpt_common/env.h>
 #include <bpt_common/logging.h>
 #include <toml++/toml.hpp>
 
 namespace bpt::app {
 
-// Deployment environment. Strictly validated at config load — the TOML
-// string must be one of "prod" | "qa" | "dev"; anything else (including
-// empty) causes load_base_settings() to throw. This prevents a typo like
-// "prd" from silently skipping prod-specific guard rails.
-enum class Env {
-    DEV,   // local / laptop / backtest
-    QA,    // staging / testnet / paper
-    PROD,  // live capital
-};
-
-// Lowercase form for Prometheus labels + structured logging.
-[[nodiscard]] std::string_view to_string(Env e) noexcept;
-
-// Inverse of to_string — throws std::runtime_error on unknown values.
-[[nodiscard]] Env env_from_string(std::string_view s);
+// Env lives in bpt-common so primitives (secrets_client, future env-aware
+// helpers) can consume it without a circular dep on bpt-app. Aliased
+// into bpt::app:: so existing call sites like `bpt::app::Env::PROD`
+// keep compiling.
+using Env = bpt::common::Env;
+using bpt::common::to_string;
+using bpt::common::env_from_string;
 
 struct BaseSettings {
     // Deployment environment. Default DEV is the safest fallback (no
