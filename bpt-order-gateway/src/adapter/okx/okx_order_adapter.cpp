@@ -1,7 +1,7 @@
 #include "order_gateway/adapter/okx/okx_order_adapter.h"
 
 #include "order_gateway/adapter/common/credentials.h"
-#include "order_gateway/adapter/okx/okx_action_codec.h"
+#include "order_gateway/adapter/okx/okx_action_encoder.h"
 #include "order_gateway/adapter/okx/okx_auth.h"
 
 #include <messages/ExchangeId.h>

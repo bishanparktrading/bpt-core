@@ -1,7 +1,7 @@
 // Unit tests for Hyperliquid action codec — pure JSON builders and the
 // float_to_wire function that must match the HL Python SDK byte-for-byte.
 
-#include "order_gateway/adapter/hyperliquid/hyperliquid_action_codec.h"
+#include "order_gateway/adapter/hyperliquid/hyperliquid_action_encoder.h"
 
 #include <boost/json.hpp>
 #include <gtest/gtest.h>

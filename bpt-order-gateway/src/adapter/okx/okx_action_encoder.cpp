@@ -1,4 +1,4 @@
-#include "order_gateway/adapter/okx/okx_action_codec.h"
+#include "order_gateway/adapter/okx/okx_action_encoder.h"
 
 #include <boost/json.hpp>
 #include <string>

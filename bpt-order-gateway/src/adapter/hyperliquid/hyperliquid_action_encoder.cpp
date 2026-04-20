@@ -1,4 +1,4 @@
-#include "order_gateway/adapter/hyperliquid/hyperliquid_action_codec.h"
+#include "order_gateway/adapter/hyperliquid/hyperliquid_action_encoder.h"
 
 #include <boost/json.hpp>
 #include <cmath>

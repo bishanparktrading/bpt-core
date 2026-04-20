@@ -1,4 +1,4 @@
-#include "order_gateway/adapter/binance/binance_action_codec.h"
+#include "order_gateway/adapter/binance/binance_action_encoder.h"
 
 #include <string>
 

@@ -19,7 +19,7 @@ namespace json = boost::json;
 static constexpr double kPriceScale = 1e8;
 // Wire qty scale is 1e8 across all order-gateway adapters — matches Binance,
 // Hyperliquid, Deribit, and the SBE protocol. Was 1e5 before the qty-
-// scale fix; see okx_action_codec.cpp for the bug write-up.
+// scale fix; see okx_action_encoder.cpp for the bug write-up.
 static constexpr double kQtyScale = 1e8;
 
 static bpt::messages::FeeCurrency::Value parse_fee_ccy(const std::string& ccy) {

@@ -16,7 +16,7 @@ namespace bpt::order_gateway::adapter {
 //
 //   - binance_https_client  — TLS REST client
 //   - binance_auth          — query-string HMAC-SHA256 signer
-//   - binance_action_codec  — pure query-param builders
+//   - binance_action_encoder — pure query-param builders
 //   - binance_user_data_ws  — listenKey lifecycle + read loop
 //
 // The adapter itself is pure orchestration: ctor wiring, send_*

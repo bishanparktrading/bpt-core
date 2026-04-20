@@ -1,7 +1,7 @@
 #include "order_gateway/adapter/hyperliquid/hyperliquid_order_adapter.h"
 
 #include "order_gateway/adapter/common/credentials.h"
-#include "order_gateway/adapter/hyperliquid/hyperliquid_action_codec.h"
+#include "order_gateway/adapter/hyperliquid/hyperliquid_action_encoder.h"
 
 #include <messages/ExchangeId.h>
 #include <messages/OrderSide.h>

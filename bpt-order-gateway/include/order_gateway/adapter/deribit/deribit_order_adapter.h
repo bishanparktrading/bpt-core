@@ -22,7 +22,7 @@ namespace bpt::order_gateway::adapter {
 // Heartbeat: public/set_heartbeat + respond to test_request with public/test.
 //
 // Transport is split across:
-//   - deribit_action_codec — pure JSON-RPC envelope builders
+//   - deribit_action_encoder — pure JSON-RPC envelope builders
 //   - deribit_ws_client    — WS lifecycle + thread-safe send
 //
 // Credentials are passed directly via ExchangeCredentials (client_id, client_secret).

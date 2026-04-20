@@ -15,7 +15,7 @@
 // single bad inst_type (e.g. OPTION unavailable in demo) doesn't
 // take down the rest of the adapter bring-up.
 
-#include "order_gateway/adapter/okx/okx_action_codec.h"
+#include "order_gateway/adapter/okx/okx_action_encoder.h"
 #include "order_gateway/adapter/okx/okx_https_client.h"
 
 namespace bpt::order_gateway::adapter::okx {

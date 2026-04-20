@@ -1,6 +1,6 @@
 #include "order_gateway/adapter/binance/binance_order_adapter.h"
 
-#include "order_gateway/adapter/binance/binance_action_codec.h"
+#include "order_gateway/adapter/binance/binance_action_encoder.h"
 #include "order_gateway/adapter/binance/binance_auth.h"
 #include "order_gateway/adapter/common/credentials.h"
 
