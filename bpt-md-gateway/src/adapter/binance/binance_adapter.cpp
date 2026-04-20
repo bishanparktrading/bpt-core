@@ -85,36 +85,15 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> BinanceAdapter::connect_and_subscr
 }
 
 void BinanceAdapter::read_loop(bpt::common::ws::AnyWsStream& ws) {
-    beast::flat_buffer buf;
-    const auto liveness = std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms);
-    auto last_recv = std::chrono::steady_clock::now();
+    RunLoop::run(std::move(ws),
+                 stop_flag_,
+                 rl_connected_,
+                 std::chrono::milliseconds(cfg_.ws_read_timeout_ms),
+                 std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms));
+}
 
-    while (!stop_flag_.load(std::memory_order_relaxed)) {
-        // Reset timer at the top of every iteration (consistent with other adapters).
-        ws.expires_after(std::chrono::milliseconds(cfg_.ws_read_timeout_ms));
-        beast::error_code ec;
-        ws.read(buf, ec);
-
-        if (ec == beast::error::timeout) {
-            buf.consume(buf.size());
-            if (std::chrono::steady_clock::now() - last_recv >= liveness) {
-                bpt::common::log::warn("BinanceAdapter: no data for {}ms, reconnecting", cfg_.ws_liveness_timeout_ms);
-                throw std::runtime_error("liveness timeout");
-            }
-            continue;
-        }
-        if (ec)
-            throw beast::system_error(ec);
-
-        last_recv = std::chrono::steady_clock::now();
-        // WallClock, not TscClock — this timestamp crosses a process boundary
-        // (bpt-md-gateway → fenrir via Aeron SBE) and would suffer from per-process
-        // TscClock calibration drift. See HyperliquidAdapter for details.
-        uint64_t recv_ns = bpt::common::util::WallClock::now_ns();
-        push_frame(std::string_view(static_cast<const char*>(buf.data().data()), buf.data().size()), recv_ns);
-        buf.consume(buf.size());
-    }
-    ws.close(websocket::close_code::normal);
+void BinanceAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
+    push_frame(payload, recv_ns);
 }
 
 void BinanceAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {

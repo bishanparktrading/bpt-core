@@ -3,6 +3,9 @@
 #include "md_gateway/adapter/common/adapter_base.h"
 #include "md_gateway/adapter/hyperliquid/hyperliquid_parser.h"
 
+#include <atomic>
+#include <bpt_common/ws/run_loop.h>
+
 namespace bpt::md_gateway::adapter {
 
 // Hyperliquid market-data adapter.
@@ -10,7 +13,10 @@ namespace bpt::md_gateway::adapter {
 // Connects to wss://api.hyperliquid.xyz/ws.
 // Subscribes to l2Book, trades, and activeAssetCtx per instrument.
 // Runtime subscribe/unsubscribe take effect immediately via the pending queue.
-class HyperliquidAdapter : public AdapterBase {
+//
+// Hyperliquid closes idle WebSockets ~60s after the last client-sent
+// message, so ping_config emits a JSON ping on a 20s cadence.
+class HyperliquidAdapter : public AdapterBase, private bpt::common::ws::RunLoop {
 public:
     explicit HyperliquidAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub);
 
@@ -22,10 +28,17 @@ protected:
     void read_loop(bpt::common::ws::AnyWsStream& ws) override;
     void parse_frame(std::string_view payload, uint64_t recv_ns) override;
 
+    void on_frame(std::string_view payload, uint64_t recv_ns) override;
+    void on_tick() override;
+    std::optional<bpt::common::ws::PingConfig> ping_config() const override;
+
 private:
-    void send_instrument_subs(bpt::common::ws::AnyWsStream& ws, const std::string& coin);
+    // Build one of the three subscribe payloads HL requires per coin
+    // (l2Book, trades, activeAssetCtx). Caller iterates the three types.
+    std::string build_subscribe_payload(const char* sub_type, const std::string& coin) const;
 
     HyperliquidParser parser_;
+    std::atomic<bool> rl_connected_{false};
 };
 
 }  // namespace bpt::md_gateway::adapter

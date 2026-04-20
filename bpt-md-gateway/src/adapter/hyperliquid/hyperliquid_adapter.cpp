@@ -5,7 +5,6 @@
 #include <boost/beast/websocket.hpp>
 #include <chrono>
 #include <fmt/format.h>
-#include <bpt_common/util/tsc_clock.h>
 #include <bpt_common/ws/ws_connect.h>
 
 namespace bpt::md_gateway::adapter {
@@ -19,11 +18,9 @@ HyperliquidAdapter::HyperliquidAdapter(const config::AdapterConfig& cfg,
     : AdapterBase(cfg, std::move(md_pub)),
       parser_(subs_) {}
 
-void HyperliquidAdapter::send_instrument_subs(bpt::common::ws::AnyWsStream& ws, const std::string& coin) {
-    for (const char* type : {"l2Book", "trades", "activeAssetCtx"}) {
-        auto sub = fmt::format(R"({{"method":"subscribe","subscription":{{"type":"{}","coin":"{}"}}}})", type, coin);
-        ws.write(net::buffer(sub));
-    }
+std::string HyperliquidAdapter::build_subscribe_payload(const char* sub_type, const std::string& coin) const {
+    return fmt::format(R"({{"method":"subscribe","subscription":{{"type":"{}","coin":"{}"}}}})",
+                       sub_type, coin);
 }
 
 std::unique_ptr<bpt::common::ws::AnyWsStream> HyperliquidAdapter::connect_and_subscribe() {
@@ -41,7 +38,8 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> HyperliquidAdapter::connect_and_su
 
     // Enable WebSocket-level keep-alive pings. If HL stops responding Beast
     // closes the stream with an error, triggering the reconnect loop.
-    // Complements the application-level last_recv liveness check in read_loop.
+    // Complements the application-level ping via ping_config + the
+    // liveness_timeout watchdog inside RunLoop.
     ws->set_option(websocket::stream_base::timeout{
         websocket::stream_base::none(),  // connect timeout handled in ws_connect
         std::chrono::seconds(30),        // idle timeout before Beast sends a ping
@@ -50,90 +48,44 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> HyperliquidAdapter::connect_and_su
 
     bpt::common::log::info("HyperliquidAdapter connected, subscribing instruments");
 
-    // Drain pending so the read loop does not re-send what we're about to subscribe.
+    // Drain pending so the read loop does not re-send what we subscribe here.
     subs_.take_pending();
-
-    for (const auto& [id, entry] : subs_.snapshot())
-        send_instrument_subs(*ws, entry.symbol);
+    for (const auto& [id, entry] : subs_.snapshot()) {
+        for (const char* type : {"l2Book", "trades", "activeAssetCtx"})
+            ws->write(net::buffer(build_subscribe_payload(type, entry.symbol)));
+    }
 
     return ws;
 }
 
 void HyperliquidAdapter::read_loop(bpt::common::ws::AnyWsStream& ws) {
-    beast::flat_buffer buf;
-    const auto liveness = std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms);
-    auto last_recv = std::chrono::steady_clock::now();
+    RunLoop::run(std::move(ws),
+                 stop_flag_,
+                 rl_connected_,
+                 std::chrono::milliseconds(cfg_.ws_read_timeout_ms),
+                 std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms));
+}
 
-    // Hyperliquid closes idle WebSockets ~60s after the last client-sent
-    // message. Beast's get_lowest_layer().expires_after() doesn't reliably
-    // bound a multi-frame ws.read() — its timer is consumed by the first
-    // TCP op and the read can keep going. So an in-loop ping check after
-    // ws.read() can sit blocked for a full 60s, missing every ping window.
-    //
-    // Solution: dedicated ping thread that writes JSON pings every 20s.
-    // Beast websocket::stream supports concurrent read+write across threads
-    // as long as each direction is single-threaded.
-    std::atomic<bool> ping_stop{false};
-    std::thread ping_thread([&] {
-        while (!ping_stop.load(std::memory_order_relaxed)) {
-            for (int i = 0; i < 20 && !ping_stop.load(std::memory_order_relaxed); ++i)
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-            if (ping_stop.load(std::memory_order_relaxed))
-                break;
-            try {
-                static const std::string msg = R"({"method":"ping"})";
-                ws.write(net::buffer(msg));
-                bpt::common::log::info("HyperliquidAdapter: ping sent");
-            } catch (const std::exception& e) {
-                bpt::common::log::warn("HyperliquidAdapter: ping write failed: {}", e.what());
-                break;
-            }
-        }
-    });
-    struct JoinGuard {
-        std::atomic<bool>& stop;
-        std::thread& th;
-        ~JoinGuard() {
-            stop.store(true, std::memory_order_relaxed);
-            if (th.joinable()) th.join();
-        }
-    } join_guard{ping_stop, ping_thread};
+void HyperliquidAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
+    push_frame(payload, recv_ns);
+}
 
-    while (!stop_flag_.load(std::memory_order_relaxed)) {
-        // Send subscribe frames for any instruments added since connect.
-        // Note: this does a write on the same WS the ping thread writes to,
-        // but runtime subscriptions are rare and bursty — accept the small
-        // race for now. A future refactor can guard with a write mutex.
-        for (const auto& entry : subs_.take_pending()) {
-            send_instrument_subs(ws, entry.symbol);
-            bpt::common::log::info("HyperliquidAdapter: runtime subscribe {}", entry.symbol);
-        }
-
-        beast::error_code ec;
-        ws.read(buf, ec);
-
-        if (ec == beast::error::timeout) {
-            buf.consume(buf.size());
-            if (std::chrono::steady_clock::now() - last_recv >= liveness) {
-                bpt::common::log::warn("HyperliquidAdapter: no data for {}ms, reconnecting", cfg_.ws_liveness_timeout_ms);
-                throw std::runtime_error("liveness timeout");
-            }
-            continue;
-        }
-        if (ec)
-            throw beast::system_error(ec);
-
-        last_recv = std::chrono::steady_clock::now();
-        // WallClock (not TscClock): this timestamp is serialized into the
-        // SBE MD message and compared by downstream services (fenrir) on
-        // receipt. TscClock calibration is per-process and drifts across
-        // services, which manifests as uint64 underflow in fenrir's
-        // tick→strategy latency histogram.
-        uint64_t recv_ns = bpt::common::util::WallClock::now_ns();
-        push_frame(std::string_view(static_cast<const char*>(buf.data().data()), buf.data().size()), recv_ns);
-        buf.consume(buf.size());
+void HyperliquidAdapter::on_tick() {
+    for (const auto& entry : subs_.take_pending()) {
+        for (const char* type : {"l2Book", "trades", "activeAssetCtx"})
+            RunLoop::send(build_subscribe_payload(type, entry.symbol));
+        bpt::common::log::info("HyperliquidAdapter: runtime subscribe {}", entry.symbol);
     }
-    ws.close(websocket::close_code::normal);
+}
+
+std::optional<bpt::common::ws::PingConfig> HyperliquidAdapter::ping_config() const {
+    // Hyperliquid closes idle WebSockets ~60s after the last client-sent
+    // message, so a 20s application ping keeps the session alive even
+    // when market data goes quiet.
+    return bpt::common::ws::PingConfig{
+        std::chrono::seconds(20),
+        [] { return std::string(R"({"method":"ping"})"); },
+    };
 }
 
 void HyperliquidAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {

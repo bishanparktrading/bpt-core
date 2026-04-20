@@ -5,7 +5,6 @@
 #include <boost/beast/websocket.hpp>
 #include <chrono>
 #include <fmt/format.h>
-#include <bpt_common/util/tsc_clock.h>
 #include <bpt_common/ws/ws_connect.h>
 
 namespace bpt::md_gateway::adapter {
@@ -18,26 +17,29 @@ OkxAdapter::OkxAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messagi
     : AdapterBase(cfg, std::move(md_pub)),
       parser_(subs_) {}
 
-void OkxAdapter::send_instrument_subs(bpt::common::ws::AnyWsStream& ws, const std::string& symbol, uint8_t depth) {
+std::string OkxAdapter::build_subscribe_payload(const std::string& symbol, uint8_t depth) const {
     // Channel selection:
     //   depth 0  → bbo-tbt (tick-by-tick BBO)
     //   depth ≤5 → books5  (top-5 levels)
     //   depth >5 → books   (full depth, 400ms push)
     const char* book_channel = (depth == 0) ? "bbo-tbt" : (depth <= 5) ? "books5" : "books";
 
-    auto sub = fmt::format(
-        R"({{"op":"subscribe","args":[{{"channel":"{}","instId":"{}"}},{{"channel":"trades","instId":"{}"}}]}})",
-        book_channel,
-        symbol,
-        symbol);
-    ws.write(net::buffer(sub));
-
-    // Subscribe to funding-rate channel for perpetual swaps
-    if (symbol.size() > 5 && symbol.substr(symbol.size() - 5) == "-SWAP") {
-        auto fr_sub =
-            fmt::format(R"({{"op":"subscribe","args":[{{"channel":"funding-rate","instId":"{}"}}]}})", symbol);
-        ws.write(net::buffer(fr_sub));
+    // For perpetual swaps, bundle the funding-rate subscribe in the same
+    // frame so the IO round-trip cost matches depth/trade subscribes.
+    const bool is_swap = symbol.size() > 5 && symbol.substr(symbol.size() - 5) == "-SWAP";
+    if (is_swap) {
+        return fmt::format(
+            R"({{"op":"subscribe","args":[)"
+            R"({{"channel":"{}","instId":"{}"}},)"
+            R"({{"channel":"trades","instId":"{}"}},)"
+            R"({{"channel":"funding-rate","instId":"{}"}}]}})",
+            book_channel, symbol, symbol, symbol);
     }
+    return fmt::format(
+        R"({{"op":"subscribe","args":[)"
+        R"({{"channel":"{}","instId":"{}"}},)"
+        R"({{"channel":"trades","instId":"{}"}}]}})",
+        book_channel, symbol, symbol);
 }
 
 std::unique_ptr<bpt::common::ws::AnyWsStream> OkxAdapter::connect_and_subscribe() {
@@ -65,92 +67,67 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> OkxAdapter::connect_and_subscribe(
         any = std::make_unique<bpt::common::ws::AnyWsStream>(std::move(ws));
     }
 
-    // OKX requires text frames; Beast defaults to binary.
+    // OKX requires text frames; Beast defaults to binary. Set here (not
+    // in RunLoop::run) so initial subscribe writes below use text mode.
     any->text(true);
 
     // OKX keepalive must use text-frame "ping" messages, not WebSocket control
     // pings — disable Beast's built-in pings to prevent silent disconnects.
+    // The RunLoop ping thread (see ping_config) sends the text pings.
     any->set_option(websocket::stream_base::timeout{
         websocket::stream_base::none(),  // connect timeout handled in ws_connect
-        websocket::stream_base::none(),  // no idle timeout — managed manually via ping/liveness
+        websocket::stream_base::none(),  // no idle timeout — managed via ping_config
         false                            // no Beast keep-alive pings
     });
 
     bpt::common::log::info("OkxAdapter connected, subscribing instruments");
 
-    // Drain pending so the read loop does not re-send what we're about to subscribe.
+    // Drain pending so the read loop does not re-send what we subscribe here.
     subs_.take_pending();
-
     for (const auto& [id, entry] : subs_.snapshot())
-        send_instrument_subs(*any, entry.symbol, entry.depth);
+        any->write(net::buffer(build_subscribe_payload(entry.symbol, entry.depth)));
 
     return any;
 }
 
 void OkxAdapter::read_loop(bpt::common::ws::AnyWsStream& ws) {
-    const auto ping_interval = std::chrono::milliseconds(cfg_.ws_ping_interval_ms);
-    const auto liveness = std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms);
+    // Ownership of ws transfers to RunLoop for the duration of the session.
+    // read_timeout controls on_tick cadence + shutdown responsiveness;
+    // liveness_timeout escalates a silent connection to a reconnect.
+    RunLoop::run(std::move(ws),
+                 stop_flag_,
+                 rl_connected_,
+                 std::chrono::milliseconds(cfg_.ws_read_timeout_ms),
+                 std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms));
+}
 
-    auto last_ping = std::chrono::steady_clock::now();
-    auto last_recv = std::chrono::steady_clock::now();
-    beast::flat_buffer buf;
-
-    while (!stop_flag_.load(std::memory_order_relaxed)) {
-        // Reset the timer at the top of every iteration so all I/O in this
-        // iteration (ping write, subscribe frames, the read itself) is covered.
-        // If expires_after were set after the writes, a stale expired timer from
-        // the previous iteration's read timeout would cause the first write to
-        // fail immediately with beast::error::timeout.
-        ws.expires_after(std::chrono::milliseconds(cfg_.ws_read_timeout_ms));
-
-        auto now = std::chrono::steady_clock::now();
-
-        // Send text-frame "ping" on schedule to keep OKX connection alive.
-        if (now - last_ping >= ping_interval) {
-            ws.write(net::buffer(std::string("ping")));
-            last_ping = now;
-        }
-
-        // If no message (including pong) has arrived within the liveness window,
-        // the exchange is no longer responding — reconnect.
-        if (now - last_recv >= liveness) {
-            bpt::common::log::warn("OkxAdapter: no data for {}ms, reconnecting", cfg_.ws_liveness_timeout_ms);
-            throw std::runtime_error("liveness timeout");
-        }
-
-        // Send subscribe frames for any instruments added since connect.
-        for (const auto& entry : subs_.take_pending()) {
-            send_instrument_subs(ws, entry.symbol, entry.depth);
-            bpt::common::log::info("OkxAdapter: runtime subscribe {} depth={}", entry.symbol, entry.depth);
-        }
-
-        beast::error_code ec;
-        ws.read(buf, ec);
-        if (ec == beast::error::timeout) {
-            buf.consume(buf.size());
-            continue;
-        }
-        if (ec)
-            throw beast::system_error(ec);
-
-        last_recv = std::chrono::steady_clock::now();
-
-        // See HyperliquidAdapter for the WallClock vs TscClock rationale:
-        // this timestamp is serialized into SBE MD messages and compared
-        // across process boundaries, so it has to be from CLOCK_REALTIME.
-        uint64_t recv_ns = bpt::common::util::WallClock::now_ns();
-        std::string_view msg(static_cast<const char*>(buf.data().data()), buf.data().size());
-
-        if (msg == "ping") {
-            ws.write(net::buffer(std::string("pong")));
-        } else if (msg != "pong") {
-            push_frame(msg, recv_ns);
-        }
-
-        buf.consume(buf.size());
+void OkxAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
+    // OKX's app-level heartbeat is bidirectional: the exchange may send
+    // "ping" expecting a "pong" reply, and we send "ping" via ping_config.
+    // Don't push keepalive text frames onto the parser queue.
+    if (payload == "ping") {
+        RunLoop::send("pong");
+        return;
     }
+    if (payload == "pong")
+        return;
 
-    ws.close(websocket::close_code::normal);
+    push_frame(payload, recv_ns);
+}
+
+void OkxAdapter::on_tick() {
+    // Send subscribe frames for any instruments added since connect.
+    for (const auto& entry : subs_.take_pending()) {
+        if (RunLoop::send(build_subscribe_payload(entry.symbol, entry.depth)))
+            bpt::common::log::info("OkxAdapter: runtime subscribe {} depth={}", entry.symbol, entry.depth);
+    }
+}
+
+std::optional<bpt::common::ws::PingConfig> OkxAdapter::ping_config() const {
+    return bpt::common::ws::PingConfig{
+        std::chrono::milliseconds(cfg_.ws_ping_interval_ms),
+        [] { return std::string("ping"); },
+    };
 }
 
 void OkxAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {

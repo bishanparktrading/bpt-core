@@ -5,6 +5,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <bpt_common/ws/run_loop.h>
 
 namespace bpt::md_gateway::adapter {
 
@@ -15,7 +16,10 @@ namespace bpt::md_gateway::adapter {
 // public/test — Deribit disconnects within 30s if this is missed.
 // Detects order book gaps via prev_change_id; affected instruments are
 // automatically resubscribed.
-class DeribitAdapter : public AdapterBase {
+//
+// Heartbeat: Deribit's set_heartbeat keeps the session alive, so
+// ping_config is left at nullopt (no application ping thread).
+class DeribitAdapter : public AdapterBase, private bpt::common::ws::RunLoop {
 public:
     explicit DeribitAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub);
 
@@ -33,16 +37,20 @@ protected:
     void read_loop(bpt::common::ws::AnyWsStream& ws) override;
     void parse_frame(std::string_view payload, uint64_t recv_ns) override;
 
+    void on_frame(std::string_view payload, uint64_t recv_ns) override;
+    void on_tick() override;
+
 private:
-    void send_subscribe_rpc(bpt::common::ws::AnyWsStream& ws, const std::string& symbol, uint8_t depth);
-    void send_test_response(bpt::common::ws::AnyWsStream& ws);
+    std::string build_subscribe_rpc(const std::string& symbol, uint8_t depth);
+    std::string build_test_response();
 
     DeribitParser parser_;
     std::atomic<uint64_t> rpc_id_{1};
+    std::atomic<bool> rl_connected_{false};
 
     // Set by the publisher thread when the parser detects a Deribit test_request
-    // heartbeat.  The IO thread reads this flag each iteration and sends the WS
-    // response (which must happen on the thread that owns the bpt::common::ws::WsStream).
+    // heartbeat.  The IO thread (via RunLoop's on_tick) reads this flag and
+    // sends the WS response — writes must happen on the stream's owner thread.
     std::atomic<bool> needs_test_response_{false};
 };
 

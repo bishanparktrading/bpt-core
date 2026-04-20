@@ -3,6 +3,9 @@
 #include "md_gateway/adapter/common/adapter_base.h"
 #include "md_gateway/adapter/okx/okx_parser.h"
 
+#include <atomic>
+#include <bpt_common/ws/run_loop.h>
+
 namespace bpt::md_gateway::adapter {
 
 // OKX market-data adapter.
@@ -11,7 +14,11 @@ namespace bpt::md_gateway::adapter {
 // OKX requires text-frame "ping" keepalives every 25s — Beast's built-in
 // control-frame pings are disabled to prevent silent disconnects.
 // Runtime subscribe/unsubscribe take effect immediately via the pending queue.
-class OkxAdapter : public AdapterBase {
+//
+// Delegates read-loop mechanics (read timeout, ping thread, liveness
+// watchdog) to bpt::common::ws::RunLoop — on_frame/on_tick/ping_config
+// hooks express the OKX-specific bits only.
+class OkxAdapter : public AdapterBase, private bpt::common::ws::RunLoop {
 public:
     explicit OkxAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub);
 
@@ -23,10 +30,23 @@ protected:
     void read_loop(bpt::common::ws::AnyWsStream& ws) override;
     void parse_frame(std::string_view payload, uint64_t recv_ns) override;
 
+    // RunLoop hooks.
+    void on_frame(std::string_view payload, uint64_t recv_ns) override;
+    void on_tick() override;
+    std::optional<bpt::common::ws::PingConfig> ping_config() const override;
+
 private:
-    void send_instrument_subs(bpt::common::ws::AnyWsStream& ws, const std::string& symbol, uint8_t depth);
+    // Build the subscribe payload for one instrument. Used both at connect
+    // (written directly to the stream before RunLoop takes ownership) and
+    // at runtime (sent via RunLoop::send on the tick thread).
+    std::string build_subscribe_payload(const std::string& symbol, uint8_t depth) const;
 
     OkxParser parser_;
+
+    // RunLoop::run signature needs a 'connected' atomic; AdapterBase
+    // already tracks connection state via on_connect/on_disconnect
+    // callbacks, so the RunLoop flag is otherwise unused here.
+    std::atomic<bool> rl_connected_{false};
 };
 
 }  // namespace bpt::md_gateway::adapter
