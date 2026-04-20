@@ -244,10 +244,16 @@ After=bpt-prometheus.service
 [Service]
 Type=simple
 # ntfy URLs for the two severity tiers — each is the full URL
-# including ?priority= and ?tags= query params.  Stored encrypted via
-# systemd-creds; never touch git, never appear in journalctl.
-LoadCredentialEncrypted=bpt-ntfy-url-critical:$CRED_DIR/bpt-ntfy-url-critical.cred
-LoadCredentialEncrypted=bpt-ntfy-url-warning:$CRED_DIR/bpt-ntfy-url-warning.cred
+# including ?priority= and ?tags= query params.  Source files live
+# in ~/.config/bpt/ with mode 0600; systemd copies them into
+# \$CREDENTIALS_DIRECTORY (/run/credentials/bpt-alertmanager.service/)
+# at service start so alertmanager can read them via url_file.
+# Unencrypted-at-rest — acceptable on a single-user laptop where the
+# same key material that would decrypt systemd-creds is in your
+# login keyring anyway. Tighten to LoadCredentialEncrypted (requires
+# systemd >= 252 with --user support) when moving to a prod host.
+LoadCredential=bpt-ntfy-url-critical:%h/.config/bpt/ntfy-url-critical
+LoadCredential=bpt-ntfy-url-warning:%h/.config/bpt/ntfy-url-warning
 ExecStart=/usr/bin/prometheus-alertmanager \\
   --config.file=$BPT_ROOT/deploy/monitoring/alertmanager/alertmanager.yml \\
   --storage.path=%h/.local/share/alertmanager \\
@@ -310,11 +316,11 @@ echo "Monitoring setup (see deploy/monitoring/README.md):"
 echo "  sudo apt install prometheus prometheus-alertmanager"
 echo "  sudo systemctl disable --now prometheus prometheus-alertmanager  # we run as user units"
 echo "  # ntfy.sh topic URLs (one per severity — different priority query params)"
-echo "  TOPIC=\"bpt-alerts-\$(uuidgen | tr -d -)\"    # non-guessable topic name"
-echo "  echo -n \"https://ntfy.sh/\$TOPIC?priority=urgent&tags=rotating_light&title=BPT+CRITICAL\" | \\"
-echo "    systemd-creds encrypt - $CRED_DIR/bpt-ntfy-url-critical.cred"
-echo "  echo -n \"https://ntfy.sh/\$TOPIC?priority=default&tags=warning&title=BPT+WARNING\" | \\"
-echo "    systemd-creds encrypt - $CRED_DIR/bpt-ntfy-url-warning.cred"
+echo "  mkdir -p ~/.config/bpt && chmod 0700 ~/.config/bpt"
+echo "  TOPIC=\"bpt-alerts-\$(uuidgen | tr -d - | head -c 12)\""
+echo "  echo -n \"https://ntfy.sh/\$TOPIC?priority=urgent&tags=rotating_light&title=BPT+CRITICAL\" > ~/.config/bpt/ntfy-url-critical"
+echo "  echo -n \"https://ntfy.sh/\$TOPIC?priority=default&tags=warning&title=BPT+WARNING\"        > ~/.config/bpt/ntfy-url-warning"
+echo "  chmod 0600 ~/.config/bpt/ntfy-url-critical ~/.config/bpt/ntfy-url-warning"
 echo "  # Subscribe the phone app (Android/iOS) to \$TOPIC, then:"
 echo "  echo 'HC_URL=https://hc-ping.com/YOUR-UUID' | sudo tee /etc/bpt/healthchecks.env"
 echo

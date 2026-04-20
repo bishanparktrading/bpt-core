@@ -71,24 +71,31 @@ curl -d "test from laptop" "https://ntfy.sh/$TOPIC"
 Your phone should ping within 1-2 seconds. If it doesn't, double-check
 the topic string and that the app shows a green "connected" indicator.
 
-Then store the two severity-tiered URLs via systemd-creds. Each URL
-embeds priority + tag query params so the phone's notification behaviour
-differs per severity (urgent bypasses Do Not Disturb if you grant ntfy
-that permission):
+Then store the two severity-tiered URLs as plain files with mode 0600.
+Each URL embeds priority + tag query params so the phone's notification
+behaviour differs per severity (urgent bypasses Do Not Disturb if you
+grant ntfy that permission):
 
 ```
-mkdir -p ~/.config/systemd/creds
+mkdir -p ~/.config/bpt && chmod 0700 ~/.config/bpt
 
-echo -n "https://ntfy.sh/$TOPIC?priority=urgent&tags=rotating_light&title=BPT+CRITICAL" | \
-    systemd-creds encrypt - ~/.config/systemd/creds/bpt-ntfy-url-critical.cred
-
-echo -n "https://ntfy.sh/$TOPIC?priority=default&tags=warning&title=BPT+WARNING" | \
-    systemd-creds encrypt - ~/.config/systemd/creds/bpt-ntfy-url-warning.cred
+echo -n "https://ntfy.sh/$TOPIC?priority=urgent&tags=rotating_light&title=BPT+CRITICAL" > ~/.config/bpt/ntfy-url-critical
+echo -n "https://ntfy.sh/$TOPIC?priority=default&tags=warning&title=BPT+WARNING"        > ~/.config/bpt/ntfy-url-warning
+chmod 0600 ~/.config/bpt/ntfy-url-critical ~/.config/bpt/ntfy-url-warning
 ```
 
-The generated `bpt-alertmanager.service` unit decrypts both at runtime
-into `$CREDENTIALS_DIRECTORY` and `alertmanager.yml` reads them via
+The generated `bpt-alertmanager.service` unit uses
+`LoadCredential=bpt-ntfy-url-critical:%h/.config/bpt/ntfy-url-critical`
+to copy each into `$CREDENTIALS_DIRECTORY` (/run/credentials/...) at
+service start. `alertmanager.yml` references those runtime paths via
 `webhook_configs.url_file`.
+
+The source files are unencrypted at rest. This is acceptable for a
+single-user laptop — systemd-creds encrypt with host key only adds
+meaningful protection when the attacker can read your home dir but
+not the system key, which isn't the threat model on your own laptop.
+Tighten to `LoadCredentialEncrypted=` (systemd 252+ with `--user`)
+when moving to a prod host.
 
 ## Dead-man's-switch
 
