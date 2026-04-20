@@ -1,9 +1,16 @@
-# Monitoring — Prometheus + Alertmanager + Discord
+# Monitoring — Prometheus + Alertmanager + ntfy.sh
 
 Local observability stack that runs alongside the bpt-* services on the same
 host. Prometheus scrapes each service's `/metrics` endpoint, evaluates alert
 rules against the time series, and fires to Alertmanager. Alertmanager
-groups/dedups/routes alerts to a Discord webhook.
+groups/dedups/routes alerts and POSTs them to an ntfy.sh topic, which
+pushes notifications to the operator's phone via FCM/APNs.
+
+This is the MVP alerting stack — appropriate for dev and testnet. **Before
+switching any meaningful capital to mainnet, upgrade the receiver from
+ntfy.sh to PagerDuty (free tier is up to 5 users, unlimited incidents,
+phone-ringing)** — the swap is a 5-line change in `alertmanager.yml`.
+Tracked in the prod-hardening backlog.
 
 ## Layout
 
@@ -44,21 +51,44 @@ sudo systemctl disable --now prometheus prometheus-alertmanager
 Note: on Debian/Ubuntu the system unit is called `prometheus-alertmanager.service`,
 not `alertmanager.service`.
 
-## Discord webhook
+## ntfy.sh topic
 
-Create a webhook in your Discord channel: **server → Edit Channel →
-Integrations → Webhooks → New Webhook → copy the URL**.
-
-Store the URL via systemd-creds so it never hits git:
+ntfy is HTTP pub/sub. The topic name is the secret — anyone who knows
+it can publish to OR subscribe to the topic. Pick a non-guessable one:
 
 ```
-echo -n 'https://discord.com/api/webhooks/YOUR/URL' | \
-    systemd-creds encrypt - ~/.config/systemd/creds/bpt-discord-webhook.cred
+TOPIC="bpt-alerts-$(uuidgen | tr -d -)"
+echo "$TOPIC"   # save this — you'll paste it into the phone app + systemd-creds
 ```
 
-The generated `bpt-alertmanager.service` unit pulls the secret via
-`LoadCredentialEncrypted=` at runtime and substitutes into
-`alertmanager.yml` via envsubst before starting.
+Install the **ntfy** app on your phone (Android / iOS — both free and
+open-source), then subscribe to `$TOPIC`. Verify:
+
+```
+curl -d "test from laptop" "https://ntfy.sh/$TOPIC"
+```
+
+Your phone should ping within 1-2 seconds. If it doesn't, double-check
+the topic string and that the app shows a green "connected" indicator.
+
+Then store the two severity-tiered URLs via systemd-creds. Each URL
+embeds priority + tag query params so the phone's notification behaviour
+differs per severity (urgent bypasses Do Not Disturb if you grant ntfy
+that permission):
+
+```
+mkdir -p ~/.config/systemd/creds
+
+echo -n "https://ntfy.sh/$TOPIC?priority=urgent&tags=rotating_light&title=BPT+CRITICAL" | \
+    systemd-creds encrypt - ~/.config/systemd/creds/bpt-ntfy-url-critical.cred
+
+echo -n "https://ntfy.sh/$TOPIC?priority=default&tags=warning&title=BPT+WARNING" | \
+    systemd-creds encrypt - ~/.config/systemd/creds/bpt-ntfy-url-warning.cred
+```
+
+The generated `bpt-alertmanager.service` unit decrypts both at runtime
+into `$CREDENTIALS_DIRECTORY` and `alertmanager.yml` reads them via
+`webhook_configs.url_file`.
 
 ## Dead-man's-switch
 

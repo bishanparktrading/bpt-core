@@ -1,37 +1,39 @@
-# Alertmanager config — routes incoming alerts from Prometheus to Discord.
+# Alertmanager config — routes incoming alerts from Prometheus to ntfy.sh.
+#
+# ntfy.sh is an HTTP pub/sub notification service.  Alertmanager POSTs
+# each alert's default JSON payload to the topic URL; ntfy's server
+# auto-detects the Alertmanager payload shape and formats it into a
+# clean phone notification.  See https://docs.ntfy.sh for details.
 #
 # Receiver secret:
-#   Discord webhook URL is NOT in this file.  It's loaded at service
-#   start from systemd-creds and substituted via envsubst into a
-#   runtime copy of this file.  See deploy/generate-units.sh.
+#   The full ntfy topic URL (e.g. "https://ntfy.sh/bpt-alerts-XXXXX?...")
+#   is NOT in this file.  It's loaded at service start from systemd-creds
+#   into $CREDENTIALS_DIRECTORY; alertmanager reads via webhook_configs.url_file.
+#   The topic name IS the secret — treat it like a password.
 #
 # Re-route precedence:
-#   routes are evaluated top-down; the first match wins.  Critical
-#   alerts route to #discord-critical via the default receiver below;
-#   warnings go to #discord-warning with a longer group window.
+#   Routes are evaluated top-down; the first match wins.  Critical
+#   alerts use the `ntfy-critical` receiver (urgent priority, rotating-light tag);
+#   warnings use `ntfy-warning` (default priority, warning tag).
 #
 # Inhibit rules:
-#   When DailyLossLatchTripped fires, we don't also want to page on
-#   every subsequent downstream effect (e.g. the zero-order-rate might
-#   otherwise look like a latency anomaly).  Inhibits documented inline.
+#   When an upstream cause is already firing, downstream effects are
+#   suppressed.  Documented inline below.
 
 global:
   resolve_timeout: 5m
 
 route:
   # Top-level catch-all — routes below override per severity
-  receiver: discord-critical
+  receiver: ntfy-critical
   # Group alerts by (alertname, severity, exchange) so OKX + HL
   # disconnects arrive as one message not two, but different alert
   # types stay distinct.
   group_by: ['alertname', 'severity', 'exchange']
-  # How long to wait before sending the first alert for a new group.
-  # 10s gives time for related alerts to batch in the same message;
-  # overridden to 0s for critical below.
+  # 10s gives time for related alerts to batch; overridden to 0s for critical.
   group_wait: 10s
-  # Resend after this window if the alert is still firing — long
-  # enough that you don't spam yourself for a breaker that stays
-  # tripped for an hour.
+  # Resend while still firing so a breaker stuck on for hours doesn't
+  # get forgotten, but not spammily.
   repeat_interval: 4h
   # How long to wait before adding new alerts to an existing group.
   group_interval: 5m
@@ -39,53 +41,43 @@ route:
   routes:
     - matchers:
         - severity="critical"
-      receiver: discord-critical
+      receiver: ntfy-critical
       group_wait: 0s           # critical fires immediately
       repeat_interval: 1h      # remind every hour until resolved
 
     - matchers:
         - severity="warning"
-      receiver: discord-warning
+      receiver: ntfy-warning
       group_wait: 2m           # batch warnings in 2-minute windows
       repeat_interval: 6h
 
 # ─── Receivers ────────────────────────────────────────────────────────
 #
-# Both receivers target the same Discord webhook for now.  Split them
-# onto separate channels later by pasting a second webhook URL and
-# swapping one of the url: fields.
+# Both receivers target the same ntfy topic, but with different URL
+# query parameters so the phone-side priority / tag / notification-sound
+# differ per severity.  On Android / iOS, priority=urgent bypasses Do
+# Not Disturb if the operator has granted that permission to the ntfy
+# app — so critical alerts ring at 3am even if the phone is silenced.
+#
+# The url_file contents should be the FULL URL including query string.
+# Example for critical:
+#   https://ntfy.sh/bpt-alerts-XXXX?priority=urgent&tags=rotating_light&title=BPT+CRITICAL
+# Example for warning:
+#   https://ntfy.sh/bpt-alerts-XXXX?priority=default&tags=warning&title=BPT+WARNING
 
 receivers:
-  - name: discord-critical
-    discord_configs:
-      - webhook_url_file: /run/credentials/bpt-alertmanager.service/bpt-discord-webhook
-        # Discord embed template — title colored red for critical.
-        # Alertmanager's default Discord template works fine; the
-        # message body below overrides with a more readable layout.
-        title: "🚨 {{ .CommonLabels.alertname }} — {{ .CommonLabels.severity | toUpper }}"
-        message: |
-          {{ range .Alerts }}
-          **{{ .Annotations.summary }}**
-          {{ .Annotations.description }}
+  - name: ntfy-critical
+    webhook_configs:
+      - url_file: /run/credentials/bpt-alertmanager.service/bpt-ntfy-url-critical
+        send_resolved: true
+        # ntfy auto-formats the Alertmanager JSON payload — no template
+        # configured here (webhook_configs doesn't support templates; the
+        # formatting happens server-side in ntfy).
 
-          `Labels:` {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
-          `StartsAt:` {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}
-          ────
-          {{ end }}
-
-  - name: discord-warning
-    discord_configs:
-      - webhook_url_file: /run/credentials/bpt-alertmanager.service/bpt-discord-webhook
-        title: "⚠️  {{ .CommonLabels.alertname }} — WARNING"
-        message: |
-          {{ range .Alerts }}
-          **{{ .Annotations.summary }}**
-          {{ .Annotations.description }}
-
-          `Labels:` {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
-          `StartsAt:` {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}
-          ────
-          {{ end }}
+  - name: ntfy-warning
+    webhook_configs:
+      - url_file: /run/credentials/bpt-alertmanager.service/bpt-ntfy-url-warning
+        send_resolved: true
 
 # ─── Inhibit rules ────────────────────────────────────────────────────
 # When an upstream cause is already firing, don't also page on

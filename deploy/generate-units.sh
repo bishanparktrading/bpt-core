@@ -226,9 +226,9 @@ RestartSec=3
 WantedBy=bpt-stack.target
 EOF
 
-# Alertmanager: loads the Discord webhook URL via LoadCredentialEncrypted
-# (systemd-creds).  The creds file should already exist at
-# ~/.config/systemd/creds/bpt-discord-webhook.cred — see monitoring README.
+# Alertmanager: loads two ntfy.sh topic URLs (critical + warning) via
+# systemd-creds.  Each creds file contains the FULL URL including ntfy
+# query params that set priority + tag per severity.
 #
 # Binary path: Debian/Ubuntu ships the Alertmanager binary as
 # /usr/bin/prometheus-alertmanager (namespaced to avoid conflicts with
@@ -237,15 +237,17 @@ EOF
 # ExecStart to match.
 cat > "$UNIT_DIR/bpt-alertmanager.service" <<EOF
 [Unit]
-Description=BPT Alertmanager (Discord webhook dispatch)
+Description=BPT Alertmanager (ntfy.sh phone notifications)
 PartOf=bpt-stack.target
 After=bpt-prometheus.service
 
 [Service]
 Type=simple
-# Discord webhook URL — decrypted into \$CREDENTIALS_DIRECTORY at start.
-# The alertmanager.yml references webhook_url_file pointing to this path.
-LoadCredentialEncrypted=bpt-discord-webhook:$CRED_DIR/bpt-discord-webhook.cred
+# ntfy URLs for the two severity tiers — each is the full URL
+# including ?priority= and ?tags= query params.  Stored encrypted via
+# systemd-creds; never touch git, never appear in journalctl.
+LoadCredentialEncrypted=bpt-ntfy-url-critical:$CRED_DIR/bpt-ntfy-url-critical.cred
+LoadCredentialEncrypted=bpt-ntfy-url-warning:$CRED_DIR/bpt-ntfy-url-warning.cred
 ExecStart=/usr/bin/prometheus-alertmanager \\
   --config.file=$BPT_ROOT/deploy/monitoring/alertmanager/alertmanager.yml \\
   --storage.path=%h/.local/share/alertmanager \\
@@ -307,8 +309,13 @@ echo
 echo "Monitoring setup (see deploy/monitoring/README.md):"
 echo "  sudo apt install prometheus prometheus-alertmanager"
 echo "  sudo systemctl disable --now prometheus prometheus-alertmanager  # we run as user units"
-echo "  echo -n 'https://discord.com/api/webhooks/...' | \\"
-echo "    systemd-creds encrypt - $CRED_DIR/bpt-discord-webhook.cred"
+echo "  # ntfy.sh topic URLs (one per severity — different priority query params)"
+echo "  TOPIC=\"bpt-alerts-\$(uuidgen | tr -d -)\"    # non-guessable topic name"
+echo "  echo -n \"https://ntfy.sh/\$TOPIC?priority=urgent&tags=rotating_light&title=BPT+CRITICAL\" | \\"
+echo "    systemd-creds encrypt - $CRED_DIR/bpt-ntfy-url-critical.cred"
+echo "  echo -n \"https://ntfy.sh/\$TOPIC?priority=default&tags=warning&title=BPT+WARNING\" | \\"
+echo "    systemd-creds encrypt - $CRED_DIR/bpt-ntfy-url-warning.cred"
+echo "  # Subscribe the phone app (Android/iOS) to \$TOPIC, then:"
 echo "  echo 'HC_URL=https://hc-ping.com/YOUR-UUID' | sudo tee /etc/bpt/healthchecks.env"
 echo
 echo "Inspect:"
