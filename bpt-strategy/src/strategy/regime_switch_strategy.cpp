@@ -10,6 +10,8 @@
 #include <messages/RejectSource.h>
 #include <messages/TimeInForce.h>
 
+#include <bpt_common/logging.h>
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -23,6 +25,16 @@ using bpt::messages::RejectSource;
 using bpt::messages::TimeInForce;
 
 namespace bpt::strategy::strategy {
+
+namespace {
+// Sub-module logger — auto-prefixed with "RS" via %(logger) in the default
+// log pattern. Lazy-initialised because bpt::common::logging::init() runs
+// after static initialisation.
+quill::Logger* kLog() {
+    static quill::Logger* l = bpt::common::logging::get_logger("RS");
+    return l;
+}
+}  // namespace
 
 static constexpr double kPriceScale = 1e8;
 static constexpr double kQtyScale = 1e8;                           // must match OrderGateway's kScale
@@ -88,24 +100,24 @@ RegimeSwitchStrategy::RegimeSwitchStrategy(uint64_t correlation_id,
 
     // Order ID generation is handled by OrderManager (globally unique across all strategies).
 
-    bpt::common::log::info(
-        "[RS] hurst_window={} eval_bars={} mr_thresh={:.2f} "
+    bpt::common::log::info(kLog(),
+        "hurst_window={} eval_bars={} mr_thresh={:.2f} "
         "trend_thresh={:.2f} hysteresis={:.2f}",
         hurst_window_,
         hurst_eval_ticks_,
         mean_revert_threshold_,
         trend_threshold_,
         hysteresis_);
-    bpt::common::log::info(
-        "[RS] grid: levels={} spacing={:.0f}bps qty_usd={:.0f} "
+    bpt::common::log::info(kLog(),
+        "grid: levels={} spacing={:.0f}bps qty_usd={:.0f} "
         "max_pos_usd={:.0f} recenter={:.0f}bps",
         grid_levels_count_,
         grid_spacing_bps_,
         grid_qty_usd_,
         grid_max_position_usd_,
         grid_recenter_bps_);
-    bpt::common::log::info(
-        "[RS] momentum: ema_fast={} ema_slow={} atr={} "
+    bpt::common::log::info(kLog(),
+        "momentum: ema_fast={} ema_slow={} atr={} "
         "stop_mult={:.1f} target_mult={:.1f} qty_usd={:.0f}",
         ema_fast_period_,
         ema_slow_period_,
@@ -113,22 +125,22 @@ RegimeSwitchStrategy::RegimeSwitchStrategy(uint64_t correlation_id,
         atr_stop_mult_,
         atr_target_mult_,
         momentum_qty_usd_);
-    bpt::common::log::info("[RS] execution: aggress={:.1f}bps max_spread={:.1f}bps bar_interval={:.1f}s depth={}",
+    bpt::common::log::info(kLog(), "execution: aggress={:.1f}bps max_spread={:.1f}bps bar_interval={:.1f}s depth={}",
                    aggress_bps_,
                    max_spread_bps_,
                    bar_interval_ns_ / 1e9,
                    order_book_depth_);
-    bpt::common::log::info("[RS] risk: max_pos_usd={} max_order_usd={}",
+    bpt::common::log::info(kLog(), "risk: max_pos_usd={} max_order_usd={}",
                    cfg.risk.max_position_usd,
                    cfg.risk.max_order_size_usd);
-    bpt::common::log::info("[RS] order IDs managed by OrderManager (globally unique)");
+    bpt::common::log::info(kLog(), "order IDs managed by OrderManager (globally unique)");
 }
 
 // ── IStrategy ───────────────────────────────────────────────────────────────
 
 void RegimeSwitchStrategy::start() {
     for (const auto& ex : md_exchanges_)
-        bpt::common::log::info("[RS] MD exchange: {}", ex);
+        bpt::common::log::info(kLog(), "MD exchange: {}", ex);
 
     std::vector<refdata::RefdataClient::CanonicalFilter> filters;
     for (const auto& sym : instruments_) {
@@ -163,11 +175,11 @@ void RegimeSwitchStrategy::start() {
 void RegimeSwitchStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
     // Guard against duplicate snapshots from Sindri re-broadcasts.
     if (!state_.empty()) {
-        bpt::common::log::debug("[RS] Ignoring duplicate snapshot ({} instruments)", cache.size());
+        bpt::common::log::debug(kLog(), "Ignoring duplicate snapshot ({} instruments)", cache.size());
         return;
     }
 
-    bpt::common::log::info("[RS] Snapshot ({} instruments), resolving...", cache.size());
+    bpt::common::log::info(kLog(), "Snapshot ({} instruments), resolving...", cache.size());
     order_to_instrument_.clear();
     positions_.clear_all();
 
@@ -194,7 +206,7 @@ void RegimeSwitchStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
         st.tick_size = inst->tick_size;
         st.lot_size = inst->lot_size;
 
-        bpt::common::log::info("[RS] Instrument [{}] {} @ {} tick={} lot={}",
+        bpt::common::log::info(kLog(), "Instrument [{}] {} @ {} tick={} lot={}",
                        id,
                        inst->symbol,
                        inst->exchange,
@@ -203,7 +215,7 @@ void RegimeSwitchStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
         state_.emplace(id, std::move(st));
     }
 
-    bpt::common::log::info("[RS] Resolved {} instrument(s)", state_.size());
+    bpt::common::log::info(kLog(), "Resolved {} instrument(s)", state_.size());
 
     if (!md_client_)
         return;
@@ -212,7 +224,7 @@ void RegimeSwitchStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
     for (const auto& [id, st] : state_)
         subs.push_back({id, st.exchange, st.symbol, order_book_depth_});
 
-    bpt::common::log::info("[RS] Subscribing MD to {} instrument(s)", subs.size());
+    bpt::common::log::info(kLog(), "Subscribing MD to {} instrument(s)", subs.size());
     md_client_->subscribe(correlation_id_, subs);
 }
 
@@ -288,7 +300,7 @@ void RegimeSwitchStrategy::on_bbo(const bpt::messages::MdMarketData& tick) {
     if (st.regime == Regime::TRANSITIONING) {
         constexpr uint64_t kTransitionTimeoutNs = 10'000'000'000ULL;  // 10s
         if (st.last_bbo_ns - st.transition_start_ns > kTransitionTimeoutNs) {
-            bpt::common::log::warn("[RS] {} transition timeout — force-completing ({} pending cancels)",
+            bpt::common::log::warn(kLog(), "{} transition timeout — force-completing ({} pending cancels)",
                            st.symbol,
                            st.pending_cancels.size());
             for (uint64_t oid : st.pending_cancels)
@@ -345,7 +357,7 @@ void RegimeSwitchStrategy::on_bar_close(InstrumentState& st) {
     // Need enough data for Hurst.
     if (st.return_count < 20) {
         if (st.regime == Regime::WARMING_UP)
-            bpt::common::log::debug("[RS] {} warming up: {}/{} returns", st.symbol, st.return_count, hurst_window_);
+            bpt::common::log::debug(kLog(), "{} warming up: {}/{} returns", st.symbol, st.return_count, hurst_window_);
         return;
     }
 
@@ -357,7 +369,7 @@ void RegimeSwitchStrategy::on_bar_close(InstrumentState& st) {
 
     // ── Regime change ──
     if (new_regime != st.regime && st.regime != Regime::TRANSITIONING && st.regime_dwell >= min_regime_dwell_) {
-        bpt::common::log::info("[RS] {} regime change: {} → {} (H={:.3f})",
+        bpt::common::log::info(kLog(), "{} regime change: {} → {} (H={:.3f})",
                        st.symbol,
                        regime_name(st.regime),
                        regime_name(new_regime),
@@ -375,7 +387,7 @@ void RegimeSwitchStrategy::on_bar_close(InstrumentState& st) {
     // ── Act within current regime ──
     if (st.regime == Regime::GRID) {
         if (!spread_ok) {
-            bpt::common::log::debug("[RS] {} grid skipped — spread {:.1f}bps > max {:.1f}bps",
+            bpt::common::log::debug(kLog(), "{} grid skipped — spread {:.1f}bps > max {:.1f}bps",
                             st.symbol,
                             spread_bps,
                             max_spread_bps_);
@@ -384,7 +396,7 @@ void RegimeSwitchStrategy::on_bar_close(InstrumentState& st) {
         } else if (st.grid.grid_center > 0.0) {
             const double drift_bps = std::abs(mid - st.grid.grid_center) / st.grid.grid_center * 10000.0;
             if (drift_bps > grid_recenter_bps_) {
-                bpt::common::log::info("[RS] {} grid recenter: mid={:.2f} center={:.2f} drift={:.1f}bps",
+                bpt::common::log::info(kLog(), "{} grid recenter: mid={:.2f} center={:.2f} drift={:.1f}bps",
                                st.symbol,
                                mid,
                                st.grid.grid_center,
@@ -395,7 +407,7 @@ void RegimeSwitchStrategy::on_bar_close(InstrumentState& st) {
         }
     } else if (st.regime == Regime::MOMENTUM) {
         if (!spread_ok) {
-            bpt::common::log::debug("[RS] {} momentum skipped — spread {:.1f}bps > max {:.1f}bps",
+            bpt::common::log::debug(kLog(), "{} momentum skipped — spread {:.1f}bps > max {:.1f}bps",
                             st.symbol,
                             spread_bps,
                             max_spread_bps_);
@@ -406,7 +418,7 @@ void RegimeSwitchStrategy::on_bar_close(InstrumentState& st) {
         }
     }
 
-    bpt::common::log::info("[RS] {} H={:.3f} regime={} dwell={}/{} mid={:.2f} atr={:.2f} spread={:.1f}bps",
+    bpt::common::log::info(kLog(), "{} H={:.3f} regime={} dwell={}/{} mid={:.2f} atr={:.2f} spread={:.1f}bps",
                    st.symbol,
                    hurst,
                    regime_name(st.regime),
@@ -439,19 +451,19 @@ void RegimeSwitchStrategy::on_exec_report(const bpt::messages::ExecutionReport& 
         const auto src = rpt.rejectSource();
         const bool gateway_reject = (src == RejectSource::GATEWAY || src == RejectSource::RISK);
         if (gateway_reject)
-            bpt::common::log::error("[RS] {} exec order_id={} REJECTED reason={} source={}",
+            bpt::common::log::error(kLog(), "{} exec order_id={} REJECTED reason={} source={}",
                             st.symbol,
                             order_id,
                             bpt::messages::RejectReason::c_str(rpt.rejectReason()),
                             bpt::messages::RejectSource::c_str(src));
         else
-            bpt::common::log::warn("[RS] {} exec order_id={} REJECTED reason={} source={}",
+            bpt::common::log::warn(kLog(), "{} exec order_id={} REJECTED reason={} source={}",
                            st.symbol,
                            order_id,
                            bpt::messages::RejectReason::c_str(rpt.rejectReason()),
                            bpt::messages::RejectSource::c_str(src));
     } else {
-        bpt::common::log::info("[RS] {} exec order_id={} status={} filled={:.6f} price={:.2f}",
+        bpt::common::log::info(kLog(), "{} exec order_id={} status={} filled={:.6f} price={:.2f}",
                        st.symbol,
                        order_id,
                        bpt::messages::ExecStatus::c_str(status),
@@ -464,7 +476,7 @@ void RegimeSwitchStrategy::on_exec_report(const bpt::messages::ExecutionReport& 
         positions_.on_fill(st.instrument_id, st.exchange_id, rpt.side(), rpt.filledQty(), rpt.price());
 
         if (const auto pos = positions_.get(st.instrument_id, st.exchange_id)) {
-            bpt::common::log::info("[RS] {} pos net_qty={:.6f} rpnl={:.4f}",
+            bpt::common::log::info(kLog(), "{} pos net_qty={:.6f} rpnl={:.4f}",
                            st.symbol,
                            static_cast<double>(pos->net_qty) / kQtyScale,
                            pos->realized_pnl);
@@ -486,7 +498,7 @@ void RegimeSwitchStrategy::on_exec_report(const bpt::messages::ExecutionReport& 
             if (st.consecutive_rejects >= 3) {
                 constexpr uint64_t kCooldownNs = 30'000'000'000ULL;
                 st.reject_cooldown_until_ns = st.last_bbo_ns + kCooldownNs;
-                bpt::common::log::warn("[RS] {} pausing orders for 30s after {} consecutive rejects",
+                bpt::common::log::warn(kLog(), "{} pausing orders for 30s after {} consecutive rejects",
                                st.symbol,
                                st.consecutive_rejects);
             }
@@ -521,7 +533,7 @@ void RegimeSwitchStrategy::on_exec_report(const bpt::messages::ExecutionReport& 
                     // This was a close order.
                     st.has_momentum_position = false;
                     st.momentum_order_id = 0;
-                    bpt::common::log::info("[RS] {} momentum position closed", st.symbol);
+                    bpt::common::log::info(kLog(), "{} momentum position closed", st.symbol);
                 } else {
                     // This was an entry.
                     st.has_momentum_position = true;
@@ -534,7 +546,7 @@ void RegimeSwitchStrategy::on_exec_report(const bpt::messages::ExecutionReport& 
                         st.momentum_stop = st.momentum_entry_price + st.bar_atr * atr_stop_mult_;
                         st.momentum_target = st.momentum_entry_price - st.bar_atr * atr_target_mult_;
                     }
-                    bpt::common::log::info("[RS] {} momentum entered: side={} price={:.2f} stop={:.2f} target={:.2f}",
+                    bpt::common::log::info(kLog(), "{} momentum entered: side={} price={:.2f} stop={:.2f} target={:.2f}",
                                    st.symbol,
                                    st.momentum_side == bpt::messages::OrderSide::BUY ? "BUY" : "SELL",
                                    st.momentum_entry_price,
@@ -611,7 +623,7 @@ void RegimeSwitchStrategy::grid_build(InstrumentState& st) {
 
     // Reject cooldown — don't spam orders if gateway is rejecting.
     if (st.reject_cooldown_until_ns > 0 && st.last_bbo_ns < st.reject_cooldown_until_ns) {
-        bpt::common::log::debug("[RS] {} grid_build skipped — in reject cooldown", st.symbol);
+        bpt::common::log::debug(kLog(), "{} grid_build skipped — in reject cooldown", st.symbol);
         return;
     }
     st.reject_cooldown_until_ns = 0;
@@ -625,7 +637,7 @@ void RegimeSwitchStrategy::grid_build(InstrumentState& st) {
     if (st.bar_atr > 0.0 && st.bar_atr_warmup >= atr_period_) {
         // Space grid levels at 1x ATR apart — adapts to current volatility.
         spacing = st.bar_atr;
-        bpt::common::log::info("[RS] {} grid spacing from ATR: {:.2f} ({:.1f}bps)",
+        bpt::common::log::info(kLog(), "{} grid spacing from ATR: {:.2f} ({:.1f}bps)",
                        st.symbol,
                        spacing,
                        spacing / mid * 10000.0);
@@ -638,7 +650,7 @@ void RegimeSwitchStrategy::grid_build(InstrumentState& st) {
     const double fee_bps = get_round_trip_fee_bps(st);
     const double min_spacing = mid * fee_bps / 10000.0 * 1.5;  // 1.5x fees for margin
     if (spacing < min_spacing) {
-        bpt::common::log::info("[RS] {} grid spacing {:.2f} < fee floor {:.2f} (fees={:.1f}bps), widening",
+        bpt::common::log::info(kLog(), "{} grid spacing {:.2f} < fee floor {:.2f} (fees={:.1f}bps), widening",
                        st.symbol,
                        spacing,
                        min_spacing,
@@ -650,7 +662,7 @@ void RegimeSwitchStrategy::grid_build(InstrumentState& st) {
     double lot = st.lot_size > 0.0 ? st.lot_size : 1.0 / kQtyScale;
     const double rounded_base = std::floor(target_base / lot) * lot;
     if (rounded_base <= 0.0) {
-        bpt::common::log::warn("[RS] {} grid qty too small for lot_size", st.symbol);
+        bpt::common::log::warn(kLog(), "{} grid qty too small for lot_size", st.symbol);
         return;
     }
 
@@ -681,7 +693,7 @@ void RegimeSwitchStrategy::grid_build(InstrumentState& st) {
     }
     st.grid.active_count = grid_levels_count_ * 2;
 
-    bpt::common::log::info("[RS] {} grid built: center={:.2f} spacing={:.2f} ({:.1f}bps) levels={} qty={:.6f} fees={:.1f}bps",
+    bpt::common::log::info(kLog(), "{} grid built: center={:.2f} spacing={:.2f} ({:.1f}bps) levels={} qty={:.6f} fees={:.1f}bps",
                    st.symbol,
                    mid,
                    spacing,
@@ -714,7 +726,7 @@ void RegimeSwitchStrategy::grid_on_fill(InstrumentState& st,
     const int64_t net = positions_.net_qty(st.instrument_id, st.exchange_id);
     const double pos_usd = std::abs(static_cast<double>(net) / kQtyScale * mid);
     if (pos_usd > grid_max_position_usd_) {
-        bpt::common::log::warn("[RS] {} grid position limit reached: ${:.0f} > ${:.0f}",
+        bpt::common::log::warn(kLog(), "{} grid position limit reached: ${:.0f} > ${:.0f}",
                        st.symbol,
                        pos_usd,
                        grid_max_position_usd_);
@@ -766,7 +778,7 @@ void RegimeSwitchStrategy::grid_on_fill(InstrumentState& st,
         lvl.side = tp_side;
         lvl.is_take_profit = true;
 
-        bpt::common::log::info("[RS] {} grid TP: {} @ {:.2f} → {} @ {:.2f} (spacing={:.2f} fees={:.1f}bps)",
+        bpt::common::log::info(kLog(), "{} grid TP: {} @ {:.2f} → {} @ {:.2f} (spacing={:.2f} fees={:.1f}bps)",
                        st.symbol,
                        rpt.side() == OrderSide::BUY ? "BUY" : "SELL",
                        fill_price,
@@ -817,7 +829,7 @@ void RegimeSwitchStrategy::momentum_check_signal(InstrumentState& st) {
             return;
         st.momentum_side = OrderSide::BUY;
         st.momentum_order_id = send_order(st, OrderSide::BUY, OrderType::LIMIT, TimeInForce::IOC, price, rounded);
-        bpt::common::log::info("[RS] {} momentum BUY signal: ema_fast={:.2f} > ema_slow={:.2f} atr={:.2f}",
+        bpt::common::log::info(kLog(), "{} momentum BUY signal: ema_fast={:.2f} > ema_slow={:.2f} atr={:.2f}",
                        st.symbol,
                        st.ema_fast,
                        st.ema_slow,
@@ -833,7 +845,7 @@ void RegimeSwitchStrategy::momentum_check_signal(InstrumentState& st) {
             return;
         st.momentum_side = OrderSide::SELL;
         st.momentum_order_id = send_order(st, OrderSide::SELL, OrderType::LIMIT, TimeInForce::IOC, price, rounded);
-        bpt::common::log::info("[RS] {} momentum SELL signal: ema_fast={:.2f} < ema_slow={:.2f} atr={:.2f}",
+        bpt::common::log::info(kLog(), "{} momentum SELL signal: ema_fast={:.2f} < ema_slow={:.2f} atr={:.2f}",
                        st.symbol,
                        st.ema_fast,
                        st.ema_slow,
@@ -876,7 +888,7 @@ void RegimeSwitchStrategy::momentum_check_exit(InstrumentState& st, double mid) 
     }
 
     if (should_exit) {
-        bpt::common::log::info("[RS] {} momentum exit: reason={} mid={:.2f} stop={:.2f} target={:.2f}",
+        bpt::common::log::info(kLog(), "{} momentum exit: reason={} mid={:.2f} stop={:.2f} target={:.2f}",
                        st.symbol,
                        reason,
                        mid,
@@ -962,7 +974,7 @@ void RegimeSwitchStrategy::check_transition_complete(InstrumentState& st) {
                                            price,
                                            static_cast<double>(std::abs(net)) / kQtyScale);
             st.transition = TransitionPhase::CLOSING_POSITION;
-            bpt::common::log::info("[RS] {} closing position before entering {}", st.symbol, regime_name(st.target_regime));
+            bpt::common::log::info(kLog(), "{} closing position before entering {}", st.symbol, regime_name(st.target_regime));
             return;
         }
 
@@ -972,7 +984,7 @@ void RegimeSwitchStrategy::check_transition_complete(InstrumentState& st) {
         st.regime_dwell = 0;
         st.has_momentum_position = (net != 0);
 
-        bpt::common::log::info("[RS] {} entered regime: {}", st.symbol, regime_name(st.regime));
+        bpt::common::log::info(kLog(), "{} entered regime: {}", st.symbol, regime_name(st.regime));
 
         if (st.regime == Regime::GRID) {
             grid_build(st);
@@ -992,7 +1004,7 @@ uint64_t RegimeSwitchStrategy::send_order(InstrumentState& st,
     if (!order_mgr_)
         return 0;
 
-    bpt::common::log::info("[RS] {} {} @ {:.2f} qty={:.6f} tif={}",
+    bpt::common::log::info(kLog(), "{} {} @ {:.2f} qty={:.6f} tif={}",
                    st.symbol,
                    side == bpt::messages::OrderSide::BUY ? "BUY" : "SELL",
                    price,
@@ -1004,7 +1016,7 @@ uint64_t RegimeSwitchStrategy::send_order(InstrumentState& st,
         return 0;
 
     order_to_instrument_[order_id] = st.instrument_id;
-    bpt::common::log::info("[RS] order placed → order_id={}", order_id);
+    bpt::common::log::info(kLog(), "order placed → order_id={}", order_id);
     return order_id;
 }
 

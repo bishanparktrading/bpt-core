@@ -14,6 +14,17 @@ namespace websocket = beast::websocket;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
 
+namespace {
+quill::Logger* kLog() {
+    static quill::Logger* l = bpt::common::logging::get_logger("WsServer");
+    return l;
+}
+quill::Logger* kWsSessionLog() {
+    static quill::Logger* l = bpt::common::logging::get_logger("WsSession");
+    return l;
+}
+}  // namespace
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  WsSession — one per connected client
 // ─────────────────────────────────────────────────────────────────────────────
@@ -29,7 +40,7 @@ public:
 
         ws_.async_accept([self = shared_from_this()](beast::error_code ec) {
             if (ec) {
-                bpt::common::log::warn("[WsSession] accept failed: {}", ec.message());
+                bpt::common::log::warn(kWsSessionLog(), "accept failed: {}", ec.message());
                 return;
             }
             self->server_.add_session(self);
@@ -70,12 +81,12 @@ private:
             if (j.value("type", "") == "command") {
                 std::string cmd = j.value("cmd", "");
                 if (!cmd.empty() && server_.on_command) {
-                    bpt::common::log::info("[WsSession] received command: {}", cmd);
+                    bpt::common::log::info(kWsSessionLog(), "received command: {}", cmd);
                     server_.on_command(cmd);
                 }
             }
         } catch (const std::exception& e) {
-            bpt::common::log::warn("[WsSession] bad inbound message: {}", e.what());
+            bpt::common::log::warn(kWsSessionLog(), "bad inbound message: {}", e.what());
         }
     }
 
@@ -113,23 +124,23 @@ void WsServer::start() {
     tcp::endpoint endpoint{tcp::v4(), port_};
 
     acceptor_.open(endpoint.protocol(), ec);
-    if (ec) { bpt::common::log::error("[WsServer] open: {}", ec.message()); return; }
+    if (ec) { bpt::common::log::error(kLog(), "open: {}", ec.message()); return; }
 
     acceptor_.set_option(net::socket_base::reuse_address(true), ec);
     acceptor_.bind(endpoint, ec);
-    if (ec) { bpt::common::log::error("[WsServer] bind {}: {}", port_, ec.message()); return; }
+    if (ec) { bpt::common::log::error(kLog(), "bind {}: {}", port_, ec.message()); return; }
 
     acceptor_.listen(net::socket_base::max_listen_connections, ec);
-    if (ec) { bpt::common::log::error("[WsServer] listen: {}", ec.message()); return; }
+    if (ec) { bpt::common::log::error(kLog(), "listen: {}", ec.message()); return; }
 
-    bpt::common::log::info("[WsServer] listening on :{}", port_);
+    bpt::common::log::info(kLog(), "listening on :{}", port_);
     do_accept();
 
     io_thread_ = std::thread([this] {
         try {
             io_ctx_.run();
         } catch (const std::exception& e) {
-            bpt::common::log::error("[WsServer] io_context crashed: {}", e.what());
+            bpt::common::log::error(kLog(), "io_context crashed: {}", e.what());
         }
     });
 }
@@ -158,7 +169,7 @@ void WsServer::do_accept() {
         if (ec == net::error::operation_aborted) return;
 
         if (ec) {
-            bpt::common::log::warn("[WsServer] accept: {}", ec.message());
+            bpt::common::log::warn(kLog(), "accept: {}", ec.message());
         } else {
             std::make_shared<WsSession>(std::move(socket), *this)->run();
         }

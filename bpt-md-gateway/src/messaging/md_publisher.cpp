@@ -5,6 +5,13 @@
 
 namespace bpt::md_gateway::messaging {
 
+namespace {
+quill::Logger* kLog() {
+    static quill::Logger* l = bpt::common::logging::get_logger("MdPublisher");
+    return l;
+}
+}  // namespace
+
 MdPublisher::MdPublisher(std::shared_ptr<aeron::Aeron> aeron, const std::string& channel, int stream_id) {
     publication_ = bpt::common::aeron::wait_for_publication(aeron, channel, stream_id);
 }
@@ -40,7 +47,7 @@ void MdPublisher::offer(const char* buf, std::size_t len, uint64_t instrument_id
     if (publication_->offer(ab, 0, static_cast<aeron::util::index_t>(len)) < 0) {
         uint64_t d = drops_.fetch_add(1, std::memory_order_relaxed) + 1;
         if (d <= 5 || d % 1000 == 0)
-            bpt::common::log::warn("[MdPublisher] {} dropped (backpressure): id={} drops={}", label, instrument_id, d);
+            bpt::common::log::warn(kLog(), "{} dropped (backpressure): id={} drops={}", label, instrument_id, d);
     }
 }
 

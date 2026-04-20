@@ -6,6 +6,8 @@
 #include <messages/OrderType.h>
 #include <messages/TimeInForce.h>
 
+#include <bpt_common/logging.h>
+
 #include <cmath>
 #include <string>
 #include <vector>
@@ -16,6 +18,15 @@ using bpt::messages::OrderType;
 using bpt::messages::TimeInForce;
 
 namespace bpt::strategy::strategy {
+
+namespace {
+// Sub-module logger — auto-prefixed with "MomentumStrategy" via %(logger).
+// Lazy-init because bpt::common::logging::init() runs after static init.
+quill::Logger* kLog() {
+    static quill::Logger* l = bpt::common::logging::get_logger("MomentumStrategy");
+    return l;
+}
+}  // namespace
 
 MomentumStrategy::MomentumStrategy(uint64_t correlation_id,
                                    const config::StrategyConfig& cfg,
@@ -32,33 +43,33 @@ MomentumStrategy::MomentumStrategy(uint64_t correlation_id,
       refdata_(refdata),
       md_client_(md),
       order_mgr_(order_mgr) {
-    bpt::common::log::info("[MomentumStrategy] lookback={} entry_threshold={:.4f} cooldown_ms={}",
+    bpt::common::log::info(kLog(), "lookback={} entry_threshold={:.4f} cooldown_ms={}",
                    lookback_,
                    entry_threshold_,
                    cooldown_ns_ / 1'000'000ULL);
-    bpt::common::log::info(
-        "[MomentumStrategy] risk: max_position_usd={} max_order_size_usd={} max_open_orders={}",
+    bpt::common::log::info(kLog(),
+        "risk: max_position_usd={} max_order_size_usd={} max_open_orders={}",
         cfg.risk.max_position_usd,
         cfg.risk.max_order_size_usd,
         cfg.risk.max_open_orders);
-    bpt::common::log::info("[MomentumStrategy] schedule: require_refdata_ready={} md_staleness_threshold_ms={}",
+    bpt::common::log::info(kLog(), "schedule: require_refdata_ready={} md_staleness_threshold_ms={}",
                    cfg.schedule.require_refdata_ready,
                    cfg.schedule.md_staleness_threshold_ms);
 
     if (instruments_.empty()) {
-        bpt::common::log::info("[MomentumStrategy] instruments: ALL (no canonical filter)");
+        bpt::common::log::info(kLog(), "instruments: ALL (no canonical filter)");
     } else {
         for (const auto& s : instruments_)
-            bpt::common::log::info("[MomentumStrategy] instrument: {}", s);
+            bpt::common::log::info(kLog(), "instrument: {}", s);
     }
 }
 
 void MomentumStrategy::start() {
     if (md_exchanges_.empty()) {
-        bpt::common::log::info("[MomentumStrategy] MD exchanges: ALL");
+        bpt::common::log::info(kLog(), "MD exchanges: ALL");
     } else {
         for (const auto& ex : md_exchanges_)
-            bpt::common::log::info("[MomentumStrategy] MD exchange: {}", ex);
+            bpt::common::log::info(kLog(), "MD exchange: {}", ex);
     }
 
     std::vector<refdata::RefdataClient::CanonicalFilter> filters;
@@ -92,7 +103,7 @@ void MomentumStrategy::start() {
 }
 
 void MomentumStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
-    bpt::common::log::info("[MomentumStrategy] Snapshot received ({} total instruments), resolving universe...", cache.size());
+    bpt::common::log::info(kLog(), "Snapshot received ({} total instruments), resolving universe...", cache.size());
 
     state_.clear();
 
@@ -113,7 +124,7 @@ void MomentumStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
         bpt::common::log::info("  [{}] {} @ {}", id, inst->symbol, inst->exchange);
     }
 
-    bpt::common::log::info("[MomentumStrategy] Trading universe: {} instrument(s)", state_.size());
+    bpt::common::log::info(kLog(), "Trading universe: {} instrument(s)", state_.size());
 
     if (!md_client_)
         return;
@@ -123,7 +134,7 @@ void MomentumStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
     for (const auto& [id, st] : state_)
         subs.push_back({id, st.exchange, st.symbol});
 
-    bpt::common::log::info("[MomentumStrategy] Subscribing MD service to {} instrument(s)", subs.size());
+    bpt::common::log::info(kLog(), "Subscribing MD service to {} instrument(s)", subs.size());
     md_client_->subscribe(correlation_id_, subs);
 }
 
@@ -136,11 +147,11 @@ void MomentumStrategy::on_delta(const refdata::Instrument& inst,
         if (!wanted)
             return;
         state_.emplace(inst.instrument_id, InstrumentState{.symbol = inst.symbol, .exchange = inst.exchange});
-        bpt::common::log::info("[MomentumStrategy] Delta ADD {} @ {}", inst.symbol, inst.exchange);
+        bpt::common::log::info(kLog(), "Delta ADD {} @ {}", inst.symbol, inst.exchange);
 
     } else if (update_type == bpt::messages::DeltaUpdateType::REMOVE) {
         state_.erase(inst.instrument_id);
-        bpt::common::log::info("[MomentumStrategy] Delta REMOVE {} @ {}", inst.symbol, inst.exchange);
+        bpt::common::log::info(kLog(), "Delta REMOVE {} @ {}", inst.symbol, inst.exchange);
     }
     // MODIFY: refdata fields (lot size, tick size) don't affect momentum state
 }
@@ -190,7 +201,7 @@ void MomentumStrategy::emit_signal(uint64_t instrument_id,
     // Look up venue execution config for this exchange.
     const auto it = venue_exec_.find(state.exchange);
     if (it == venue_exec_.end() || !it->second.enabled) {
-        bpt::common::log::debug("[MomentumStrategy] Venue {} not enabled — signal suppressed", state.exchange);
+        bpt::common::log::debug(kLog(), "Venue {} not enabled — signal suppressed", state.exchange);
         return;
     }
     const auto& vex = it->second;
@@ -199,7 +210,7 @@ void MomentumStrategy::emit_signal(uint64_t instrument_id,
     const auto tif = (vex.tif == "IOC") ? TimeInForce::IOC : (vex.tif == "FOK") ? TimeInForce::FOK : TimeInForce::GTC;
 
     if (!order_mgr_) {
-        bpt::common::log::info("[MomentumStrategy] SIGNAL {} {} @ {} mid={:.6f} momentum={:+.4f}% (no gateway)",
+        bpt::common::log::info(kLog(), "SIGNAL {} {} @ {} mid={:.6f} momentum={:+.4f}% (no gateway)",
                        (side == OrderSide::BUY ? "BUY" : "SELL"),
                        state.symbol,
                        state.exchange,
@@ -216,7 +227,7 @@ void MomentumStrategy::emit_signal(uint64_t instrument_id,
     // Quantity: 0.001 base currency in natural units (small size for testnet).
     static constexpr double kQty = 0.001;
 
-    bpt::common::log::info("[MomentumStrategy] SIGNAL {} {} @ {} mid={:.6f} momentum={:+.4f}%",
+    bpt::common::log::info(kLog(), "SIGNAL {} {} @ {} mid={:.6f} momentum={:+.4f}%",
                    (side == OrderSide::BUY ? "BUY" : "SELL"),
                    state.symbol,
                    state.exchange,
@@ -226,7 +237,7 @@ void MomentumStrategy::emit_signal(uint64_t instrument_id,
     const uint64_t order_id =
         order_mgr_->place_order(instrument_id, state.exchange_id, side, order_type, tif, price_f, kQty);
     if (order_id != 0)
-        bpt::common::log::info("[MomentumStrategy] order placed → order_id={}", order_id);
+        bpt::common::log::info(kLog(), "order placed → order_id={}", order_id);
 }
 
 }  // namespace bpt::strategy::strategy

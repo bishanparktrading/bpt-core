@@ -7,10 +7,19 @@
 
 #include <messages/BacktestCommand.h>
 
+#include <bpt_common/logging.h>
+
 #include <format>
 #include <stdexcept>
 
 namespace bpt::backtester::clock {
+
+namespace {
+quill::Logger* kLog() {
+    static quill::Logger* l = bpt::common::logging::get_logger("ClockMaster");
+    return l;
+}
+}  // namespace
 
 ClockMaster::ClockMaster(data::DataLoader& loader,
                          exchange::BinanceMdServer* binance_server,
@@ -32,11 +41,11 @@ void ClockMaster::run() {
 
     // Handshake: confirm Strategy is up and ready before releasing any ticks.
     if (ctrl_pub_) {
-        bpt::common::log::info("[ClockMaster] Tick-gating enabled — sending handshake to Strategy");
+        bpt::common::log::info(kLog(), "Tick-gating enabled — sending handshake to Strategy");
         ctrl_pub_->send(BacktestCommand::START, 0, 0);
         if (!ack_sub_->wait_for(0, kAckTimeout))
-            throw std::runtime_error("[ClockMaster] Handshake ack timed out — is Strategy running?");
-        bpt::common::log::info("[ClockMaster] Handshake ack received, starting tick loop");
+            throw std::runtime_error("Handshake ack timed out — is Strategy running?");
+        bpt::common::log::info(kLog(), "Handshake ack received, starting tick loop");
     }
 
     uint64_t seq = 0;
@@ -49,19 +58,19 @@ void ClockMaster::run() {
             ctrl_pub_->send(BacktestCommand::START, seq, event->timestamp_ns);
             if (!ack_sub_->wait_for(seq, kAckTimeout))
                 throw std::runtime_error(
-                    std::format("[ClockMaster] Ack timed out at seq={} ts={}", seq, event->timestamp_ns));
+                    std::format("Ack timed out at seq={} ts={}", seq, event->timestamp_ns));
         }
 
         if (seq % 100'000 == 0)
-            bpt::common::log::debug("[ClockMaster] {} ticks processed, last_ts={}", seq, event->timestamp_ns);
+            bpt::common::log::debug(kLog(), "{} ticks processed, last_ts={}", seq, event->timestamp_ns);
     }
 
     if (ctrl_pub_) {
         ctrl_pub_->send(BacktestCommand::STOP, seq, 0);
-        bpt::common::log::info("[ClockMaster] Sent STOP to Strategy");
+        bpt::common::log::info(kLog(), "Sent STOP to Strategy");
     }
 
-    bpt::common::log::info("[ClockMaster] Data exhausted after {} ticks.", seq);
+    bpt::common::log::info(kLog(), "Data exhausted after {} ticks.", seq);
 }
 
 void ClockMaster::dispatch(const data::MarketEvent& event) {
@@ -76,7 +85,7 @@ void ClockMaster::dispatch(const data::MarketEvent& event) {
         if (okx_server_)
             okx_server_->push(event);
     } else {
-        bpt::common::log::warn("[ClockMaster] No WS server for exchange '{}' — event dropped", exchange);
+        bpt::common::log::warn(kLog(), "No WS server for exchange '{}' — event dropped", exchange);
     }
 
     if (matching_engine_)

@@ -5,6 +5,15 @@
 
 namespace bpt::md_gateway::md {
 
+namespace {
+// Sub-module logger — auto-prefixed with "MdValidator" via %(logger).
+// Lazy-init because bpt::common::logging::init() runs after static init.
+quill::Logger* kLog() {
+    static quill::Logger* l = bpt::common::logging::get_logger("MdValidator");
+    return l;
+}
+}  // namespace
+
 MdValidator::MdValidator(double max_price_deviation_pct) : max_deviation_ratio_(max_price_deviation_pct / 100.0) {}
 
 void MdValidator::reset() {
@@ -22,7 +31,7 @@ static bool should_log(std::unordered_map<uint64_t, uint32_t>& counts, uint64_t 
 ValidationResult MdValidator::validate(const MdBbo& bbo) {
     if (bbo.bid_price <= 0.0 || bbo.ask_price <= 0.0) {
         if (should_log(drop_count_, bbo.instrument_id))
-            bpt::common::log::warn("[MdValidator] BBO invalid prices: bid={} ask={} id={}",
+            bpt::common::log::warn(kLog(), "BBO invalid prices: bid={} ask={} id={}",
                            bbo.bid_price,
                            bbo.ask_price,
                            bbo.instrument_id);
@@ -30,7 +39,7 @@ ValidationResult MdValidator::validate(const MdBbo& bbo) {
     }
     if (bbo.bid_qty <= 0.0 || bbo.ask_qty <= 0.0) {
         if (should_log(drop_count_, bbo.instrument_id))
-            bpt::common::log::warn("[MdValidator] BBO invalid quantities: bid_qty={} ask_qty={} id={}",
+            bpt::common::log::warn(kLog(), "BBO invalid quantities: bid_qty={} ask_qty={} id={}",
                            bbo.bid_qty,
                            bbo.ask_qty,
                            bbo.instrument_id);
@@ -38,7 +47,7 @@ ValidationResult MdValidator::validate(const MdBbo& bbo) {
     }
     if (bbo.ask_price <= bbo.bid_price) {
         if (should_log(drop_count_, bbo.instrument_id))
-            bpt::common::log::warn("[MdValidator] BBO crossed: bid={} ask={} id={}",
+            bpt::common::log::warn(kLog(), "BBO crossed: bid={} ask={} id={}",
                            bbo.bid_price,
                            bbo.ask_price,
                            bbo.instrument_id);
@@ -52,7 +61,7 @@ ValidationResult MdValidator::validate(const MdBbo& bbo) {
         double deviation = std::abs(mid - it->second) / it->second;
         if (deviation > max_deviation_ratio_) {
             if (should_log(drop_count_, bbo.instrument_id))
-                bpt::common::log::warn("[MdValidator] BBO price deviation {:.2f}% > {:.2f}%: mid={} last={} id={}",
+                bpt::common::log::warn(kLog(), "BBO price deviation {:.2f}% > {:.2f}%: mid={} last={} id={}",
                                deviation * 100.0,
                                max_deviation_ratio_ * 100.0,
                                mid,
@@ -71,12 +80,12 @@ ValidationResult MdValidator::validate(const MdBbo& bbo) {
 ValidationResult MdValidator::validate(const MdTrade& trade) {
     if (trade.price <= 0.0) {
         if (should_log(drop_count_, trade.instrument_id))
-            bpt::common::log::warn("[MdValidator] Trade invalid price={} id={}", trade.price, trade.instrument_id);
+            bpt::common::log::warn(kLog(), "Trade invalid price={} id={}", trade.price, trade.instrument_id);
         return ValidationResult::DROP;
     }
     if (trade.qty <= 0.0) {
         if (should_log(drop_count_, trade.instrument_id))
-            bpt::common::log::warn("[MdValidator] Trade invalid qty={} id={}", trade.qty, trade.instrument_id);
+            bpt::common::log::warn(kLog(), "Trade invalid qty={} id={}", trade.qty, trade.instrument_id);
         return ValidationResult::DROP;
     }
 
@@ -85,8 +94,8 @@ ValidationResult MdValidator::validate(const MdTrade& trade) {
         double deviation = std::abs(trade.price - it->second) / it->second;
         if (deviation > max_deviation_ratio_) {
             if (should_log(drop_count_, trade.instrument_id))
-                bpt::common::log::warn(
-                    "[MdValidator] Trade price deviation {:.2f}% > {:.2f}%: px={} last_mid={} "
+                bpt::common::log::warn(kLog(),
+                    "Trade price deviation {:.2f}% > {:.2f}%: px={} last_mid={} "
                     "id={}",
                     deviation * 100.0,
                     max_deviation_ratio_ * 100.0,
@@ -103,7 +112,7 @@ ValidationResult MdValidator::validate(const MdTrade& trade) {
 ValidationResult MdValidator::validate(const MdOrderBook& book) {
     if (book.bids.empty() || book.asks.empty()) {
         if (should_log(drop_count_, book.instrument_id))
-            bpt::common::log::warn("[MdValidator] OrderBook empty side id={}", book.instrument_id);
+            bpt::common::log::warn(kLog(), "OrderBook empty side id={}", book.instrument_id);
         return ValidationResult::DROP;
     }
 
@@ -112,7 +121,7 @@ ValidationResult MdValidator::validate(const MdOrderBook& book) {
 
     if (best_bid <= 0.0 || best_ask <= 0.0) {
         if (should_log(drop_count_, book.instrument_id))
-            bpt::common::log::warn("[MdValidator] OrderBook invalid prices: bid={} ask={} id={}",
+            bpt::common::log::warn(kLog(), "OrderBook invalid prices: bid={} ask={} id={}",
                            best_bid,
                            best_ask,
                            book.instrument_id);
@@ -120,7 +129,7 @@ ValidationResult MdValidator::validate(const MdOrderBook& book) {
     }
     if (best_ask <= best_bid) {
         if (should_log(drop_count_, book.instrument_id))
-            bpt::common::log::warn("[MdValidator] OrderBook crossed: bid={} ask={} id={}",
+            bpt::common::log::warn(kLog(), "OrderBook crossed: bid={} ask={} id={}",
                            best_bid,
                            best_ask,
                            book.instrument_id);
@@ -130,14 +139,14 @@ ValidationResult MdValidator::validate(const MdOrderBook& book) {
     for (std::size_t i = 1; i < book.bids.size(); ++i) {
         if (book.bids[i].first >= book.bids[i - 1].first) {
             if (should_log(drop_count_, book.instrument_id))
-                bpt::common::log::warn("[MdValidator] OrderBook bids not descending id={}", book.instrument_id);
+                bpt::common::log::warn(kLog(), "OrderBook bids not descending id={}", book.instrument_id);
             return ValidationResult::DROP;
         }
     }
     for (std::size_t i = 1; i < book.asks.size(); ++i) {
         if (book.asks[i].first <= book.asks[i - 1].first) {
             if (should_log(drop_count_, book.instrument_id))
-                bpt::common::log::warn("[MdValidator] OrderBook asks not ascending id={}", book.instrument_id);
+                bpt::common::log::warn(kLog(), "OrderBook asks not ascending id={}", book.instrument_id);
             return ValidationResult::DROP;
         }
     }
@@ -149,8 +158,8 @@ ValidationResult MdValidator::validate(const MdOrderBook& book) {
         double deviation = std::abs(mid - it->second) / it->second;
         if (deviation > max_deviation_ratio_) {
             if (should_log(drop_count_, book.instrument_id))
-                bpt::common::log::warn(
-                    "[MdValidator] OrderBook price deviation {:.2f}% > {:.2f}%: mid={} last={} "
+                bpt::common::log::warn(kLog(),
+                    "OrderBook price deviation {:.2f}% > {:.2f}%: mid={} last={} "
                     "id={}",
                     deviation * 100.0,
                     max_deviation_ratio_ * 100.0,
