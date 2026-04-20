@@ -25,6 +25,11 @@ public:
     [[nodiscard]] const char* exchange_name() const override { return "OKX"; }
     [[nodiscard]] bpt::common::util::LatencyHistogram& decode_latency_hist() noexcept override { return parser_.decode_lat_; }
 
+    // Override to push the subscribe frame immediately when connected,
+    // rather than waiting for on_tick (which in this Beast version may
+    // not fire while OKX is actively responding to our ping thread).
+    void subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth = 0) override;
+
 protected:
     std::unique_ptr<bpt::common::ws::AnyWsStream> connect_and_subscribe() override;
     void read_loop(bpt::common::ws::AnyWsStream& ws) override;

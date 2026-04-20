@@ -50,10 +50,16 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> OkxAdapter::connect_and_subscribe(
     // OKX keepalive must use text-frame "ping" messages, not WebSocket control
     // pings — disable Beast's built-in pings to prevent silent disconnects.
     // The RunLoop ping thread (see ping_config) sends the text pings.
+    //
+    // idle_timeout left at a positive value because setting it to none()
+    // appears to also nullify RunLoop's per-read `expires_after(read_timeout)`
+    // in this Beast version, causing on_tick to never fire and runtime-added
+    // subscriptions to never reach the WS. A long idle (60s) is plenty given
+    // we have our own ping thread + liveness watchdog above it.
     any->set_option(websocket::stream_base::timeout{
-        websocket::stream_base::none(),  // connect timeout handled in ws_connect
-        websocket::stream_base::none(),  // no idle timeout — managed via ping_config
-        false                            // no Beast keep-alive pings
+        websocket::stream_base::none(),           // connect timeout handled in ws_connect
+        std::chrono::seconds(60),                 // idle ≥ max tolerable silence before escalation
+        false                                     // no Beast keep-alive pings
     });
 
     bpt::common::log::info("OkxAdapter connected, subscribing instruments");
@@ -92,10 +98,35 @@ void OkxAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
 }
 
 void OkxAdapter::on_tick() {
-    // Send subscribe frames for any instruments added since connect.
+    // Fallback for subs added between connect and the first send below.
+    // Normal path: OkxAdapter::subscribe() sends immediately via RunLoop::send
+    // when connected, so this typically finds nothing pending.
     for (const auto& entry : subs_.take_pending()) {
         if (RunLoop::send(okx::build_subscribe_payload(entry.symbol, entry.depth)))
-            bpt::common::log::info("OkxAdapter: runtime subscribe {} depth={}", entry.symbol, entry.depth);
+            bpt::common::log::info("OkxAdapter: on_tick subscribe {} depth={}", entry.symbol, entry.depth);
+    }
+}
+
+void OkxAdapter::subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth) {
+    // Push through the base class so subs_ tracks the state (connect-time
+    // replay, requeue after disconnect, etc).
+    AdapterBase::subscribe(instrument_id, symbol, depth);
+
+    // Flush the new subscription to the OKX WS immediately if we're
+    // connected. RunLoop::send returns false when ws_ is null (between
+    // reconnects); the frame will be picked up by connect_and_subscribe
+    // at the next reconnect via subs_.snapshot().
+    //
+    // This bypasses the on_tick fallback, which in this Beast version
+    // can sit in ws.read() indefinitely — ws.expires_after() doesn't
+    // time out sync reads, so on_tick only fires when the WS is
+    // literally silent for the full read_timeout, which doesn't happen
+    // while OKX responds to our ping thread. Runtime subscribes would
+    // otherwise never reach the wire.
+    if (RunLoop::send(okx::build_subscribe_payload(symbol, depth))) {
+        bpt::common::log::info("OkxAdapter: runtime subscribe {} depth={}", symbol, depth);
+        // Drain pending to avoid on_tick double-sending this entry.
+        subs_.take_pending();
     }
 }
 
