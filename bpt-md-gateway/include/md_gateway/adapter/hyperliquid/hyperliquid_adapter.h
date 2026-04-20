@@ -33,10 +33,6 @@ protected:
     std::optional<bpt::common::ws::PingConfig> ping_config() const override;
 
 private:
-    // Build one of the three subscribe payloads HL requires per coin
-    // (l2Book, trades, activeAssetCtx). Caller iterates the three types.
-    std::string build_subscribe_payload(const char* sub_type, const std::string& coin) const;
-
     HyperliquidParser parser_;
     std::atomic<bool> rl_connected_{false};
 };

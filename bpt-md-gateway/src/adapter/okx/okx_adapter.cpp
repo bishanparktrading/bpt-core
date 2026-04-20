@@ -1,10 +1,11 @@
 #include "md_gateway/adapter/okx/okx_adapter.h"
 
+#include "md_gateway/adapter/okx/okx_md_encoder.h"
+
 #include <boost/asio/buffer.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 #include <chrono>
-#include <fmt/format.h>
 #include <bpt_common/ws/ws_connect.h>
 
 namespace bpt::md_gateway::adapter {
@@ -16,31 +17,6 @@ namespace net = boost::asio;
 OkxAdapter::OkxAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub)
     : AdapterBase(cfg, std::move(md_pub)),
       parser_(subs_) {}
-
-std::string OkxAdapter::build_subscribe_payload(const std::string& symbol, uint8_t depth) const {
-    // Channel selection:
-    //   depth 0  → bbo-tbt (tick-by-tick BBO)
-    //   depth ≤5 → books5  (top-5 levels)
-    //   depth >5 → books   (full depth, 400ms push)
-    const char* book_channel = (depth == 0) ? "bbo-tbt" : (depth <= 5) ? "books5" : "books";
-
-    // For perpetual swaps, bundle the funding-rate subscribe in the same
-    // frame so the IO round-trip cost matches depth/trade subscribes.
-    const bool is_swap = symbol.size() > 5 && symbol.substr(symbol.size() - 5) == "-SWAP";
-    if (is_swap) {
-        return fmt::format(
-            R"({{"op":"subscribe","args":[)"
-            R"({{"channel":"{}","instId":"{}"}},)"
-            R"({{"channel":"trades","instId":"{}"}},)"
-            R"({{"channel":"funding-rate","instId":"{}"}}]}})",
-            book_channel, symbol, symbol, symbol);
-    }
-    return fmt::format(
-        R"({{"op":"subscribe","args":[)"
-        R"({{"channel":"{}","instId":"{}"}},)"
-        R"({{"channel":"trades","instId":"{}"}}]}})",
-        book_channel, symbol, symbol);
-}
 
 std::unique_ptr<bpt::common::ws::AnyWsStream> OkxAdapter::connect_and_subscribe() {
     bpt::common::log::info("OkxAdapter connecting {}:{}{} (tls={})", cfg_.ws_host, cfg_.ws_port, cfg_.ws_path, cfg_.use_tls);
@@ -85,7 +61,7 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> OkxAdapter::connect_and_subscribe(
     // Drain pending so the read loop does not re-send what we subscribe here.
     subs_.take_pending();
     for (const auto& [id, entry] : subs_.snapshot())
-        any->write(net::buffer(build_subscribe_payload(entry.symbol, entry.depth)));
+        any->write(net::buffer(okx::build_subscribe_payload(entry.symbol, entry.depth)));
 
     return any;
 }
@@ -118,7 +94,7 @@ void OkxAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
 void OkxAdapter::on_tick() {
     // Send subscribe frames for any instruments added since connect.
     for (const auto& entry : subs_.take_pending()) {
-        if (RunLoop::send(build_subscribe_payload(entry.symbol, entry.depth)))
+        if (RunLoop::send(okx::build_subscribe_payload(entry.symbol, entry.depth)))
             bpt::common::log::info("OkxAdapter: runtime subscribe {} depth={}", entry.symbol, entry.depth);
     }
 }

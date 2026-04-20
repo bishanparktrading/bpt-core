@@ -41,9 +41,6 @@ protected:
     void on_tick() override;
 
 private:
-    std::string build_subscribe_rpc(const std::string& symbol, uint8_t depth);
-    std::string build_test_response();
-
     DeribitParser parser_;
     std::atomic<uint64_t> rpc_id_{1};
     std::atomic<bool> rl_connected_{false};

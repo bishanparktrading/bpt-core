@@ -1,10 +1,11 @@
 #include "md_gateway/adapter/deribit/deribit_adapter.h"
 
+#include "md_gateway/adapter/deribit/deribit_md_encoder.h"
+
 #include <boost/asio/buffer.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 #include <chrono>
-#include <fmt/format.h>
 #include <bpt_common/ws/ws_connect.h>
 
 namespace bpt::md_gateway::adapter {
@@ -25,22 +26,6 @@ void DeribitAdapter::unsubscribe(uint64_t instrument_id) {
 
 std::chrono::milliseconds DeribitAdapter::reconnect_delay() const {
     return std::chrono::seconds(2);
-}
-
-std::string DeribitAdapter::build_subscribe_rpc(const std::string& symbol, uint8_t depth) {
-    const std::string book_channel =
-        (depth == 0) ? fmt::format("quote.{}", symbol) : fmt::format("book.{}.100ms", symbol);
-
-    return fmt::format(
-        R"({{"jsonrpc":"2.0","id":{},"method":"public/subscribe","params":{{"channels":["trades.{}.100ms","{}"]}}}})",
-        rpc_id_.fetch_add(1, std::memory_order_relaxed),
-        symbol,
-        book_channel);
-}
-
-std::string DeribitAdapter::build_test_response() {
-    return fmt::format(R"({{"jsonrpc":"2.0","id":{},"method":"public/test","params":{{}}}})",
-                       rpc_id_.fetch_add(1, std::memory_order_relaxed));
 }
 
 std::unique_ptr<bpt::common::ws::AnyWsStream> DeribitAdapter::connect_and_subscribe() {
@@ -67,13 +52,9 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> DeribitAdapter::connect_and_subscr
 
     // Enable Deribit heartbeat — CRITICAL: Deribit disconnects within 30s if
     // test_request is not answered with public/test.
-    {
-        auto hb_req =
-            fmt::format(R"({{"jsonrpc":"2.0","id":{},"method":"public/set_heartbeat","params":{{"interval":30}}}})",
-                        rpc_id_.fetch_add(1, std::memory_order_relaxed));
-        ws->write(net::buffer(hb_req));
-        bpt::common::log::info("DeribitAdapter: heartbeat enabled (interval=30s)");
-    }
+    ws->write(net::buffer(deribit::build_set_heartbeat_rpc(
+        rpc_id_.fetch_add(1, std::memory_order_relaxed), /*interval_s=*/30)));
+    bpt::common::log::info("DeribitAdapter: heartbeat enabled (interval=30s)");
 
     // Clear stale order book gap state before receiving new snapshots.
     parser_.reset();
@@ -81,7 +62,8 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> DeribitAdapter::connect_and_subscr
     // Drain pending so the read loop does not re-send what we subscribe here.
     subs_.take_pending();
     for (const auto& [id, entry] : subs_.snapshot())
-        ws->write(net::buffer(build_subscribe_rpc(entry.symbol, entry.depth)));
+        ws->write(net::buffer(deribit::build_subscribe_rpc(
+            rpc_id_.fetch_add(1, std::memory_order_relaxed), entry.symbol, entry.depth)));
 
     return ws;
 }
@@ -102,7 +84,7 @@ void DeribitAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
     // preserves the previous pre-RunLoop latency on active connections.
     if (needs_test_response_.load(std::memory_order_acquire)) {
         needs_test_response_.store(false, std::memory_order_relaxed);
-        if (RunLoop::send(build_test_response()))
+        if (RunLoop::send(deribit::build_test_response_rpc(rpc_id_.fetch_add(1, std::memory_order_relaxed))))
             bpt::common::log::debug("DeribitAdapter: responded to test_request");
     }
 }
@@ -115,12 +97,13 @@ void DeribitAdapter::on_tick() {
     // observes the flag first.
     if (needs_test_response_.load(std::memory_order_acquire)) {
         needs_test_response_.store(false, std::memory_order_relaxed);
-        if (RunLoop::send(build_test_response()))
+        if (RunLoop::send(deribit::build_test_response_rpc(rpc_id_.fetch_add(1, std::memory_order_relaxed))))
             bpt::common::log::debug("DeribitAdapter: responded to test_request");
     }
 
     for (const auto& entry : subs_.take_pending())
-        RunLoop::send(build_subscribe_rpc(entry.symbol, entry.depth));
+        RunLoop::send(deribit::build_subscribe_rpc(
+            rpc_id_.fetch_add(1, std::memory_order_relaxed), entry.symbol, entry.depth));
 }
 
 void DeribitAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {

@@ -36,11 +36,6 @@ protected:
     std::optional<bpt::common::ws::PingConfig> ping_config() const override;
 
 private:
-    // Build the subscribe payload for one instrument. Used both at connect
-    // (written directly to the stream before RunLoop takes ownership) and
-    // at runtime (sent via RunLoop::send on the tick thread).
-    std::string build_subscribe_payload(const std::string& symbol, uint8_t depth) const;
-
     OkxParser parser_;
 
     // RunLoop::run signature needs a 'connected' atomic; AdapterBase

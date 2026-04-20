@@ -1,10 +1,11 @@
 #include "md_gateway/adapter/hyperliquid/hyperliquid_adapter.h"
 
+#include "md_gateway/adapter/hyperliquid/hyperliquid_md_encoder.h"
+
 #include <boost/asio/buffer.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 #include <chrono>
-#include <fmt/format.h>
 #include <bpt_common/ws/ws_connect.h>
 
 namespace bpt::md_gateway::adapter {
@@ -17,11 +18,6 @@ HyperliquidAdapter::HyperliquidAdapter(const config::AdapterConfig& cfg,
                                        std::shared_ptr<messaging::IMdPublisher> md_pub)
     : AdapterBase(cfg, std::move(md_pub)),
       parser_(subs_) {}
-
-std::string HyperliquidAdapter::build_subscribe_payload(const char* sub_type, const std::string& coin) const {
-    return fmt::format(R"({{"method":"subscribe","subscription":{{"type":"{}","coin":"{}"}}}})",
-                       sub_type, coin);
-}
 
 std::unique_ptr<bpt::common::ws::AnyWsStream> HyperliquidAdapter::connect_and_subscribe() {
     bpt::common::log::info("HyperliquidAdapter connecting {}:{}{}", cfg_.ws_host, cfg_.ws_port, cfg_.ws_path);
@@ -52,7 +48,7 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> HyperliquidAdapter::connect_and_su
     subs_.take_pending();
     for (const auto& [id, entry] : subs_.snapshot()) {
         for (const char* type : {"l2Book", "trades", "activeAssetCtx"})
-            ws->write(net::buffer(build_subscribe_payload(type, entry.symbol)));
+            ws->write(net::buffer(hyperliquid::build_subscribe_payload(type, entry.symbol)));
     }
 
     return ws;
@@ -73,7 +69,7 @@ void HyperliquidAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
 void HyperliquidAdapter::on_tick() {
     for (const auto& entry : subs_.take_pending()) {
         for (const char* type : {"l2Book", "trades", "activeAssetCtx"})
-            RunLoop::send(build_subscribe_payload(type, entry.symbol));
+            RunLoop::send(hyperliquid::build_subscribe_payload(type, entry.symbol));
         bpt::common::log::info("HyperliquidAdapter: runtime subscribe {}", entry.symbol);
     }
 }
@@ -84,7 +80,7 @@ std::optional<bpt::common::ws::PingConfig> HyperliquidAdapter::ping_config() con
     // when market data goes quiet.
     return bpt::common::ws::PingConfig{
         std::chrono::seconds(20),
-        [] { return std::string(R"({"method":"ping"})"); },
+        [] { return hyperliquid::build_ping_payload(); },
     };
 }
 

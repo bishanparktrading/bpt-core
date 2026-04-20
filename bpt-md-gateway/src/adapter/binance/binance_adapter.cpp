@@ -1,5 +1,7 @@
 #include "md_gateway/adapter/binance/binance_adapter.h"
 
+#include "md_gateway/adapter/binance/binance_md_encoder.h"
+
 #include <messages/ExchangeId.h>
 
 #include <boost/asio/ssl/stream.hpp>
@@ -48,13 +50,7 @@ void BinanceAdapter::stop() {
 }
 
 std::unique_ptr<bpt::common::ws::AnyWsStream> BinanceAdapter::connect_and_subscribe() {
-    std::string streams;
-    for (const auto& [id, entry] : subs_.snapshot()) {
-        if (!streams.empty())
-            streams += '/';
-        streams += entry.symbol + "@bookTicker/" + entry.symbol + "@aggTrade";
-    }
-
+    std::string streams = binance::build_streams_query(subs_);
     if (streams.empty())
         return nullptr;
 
