@@ -1,0 +1,230 @@
+# PromQL alert rules for the bpt-core stack.
+#
+# Severity convention:
+#   - critical : wake-you-up events — breakers latched, daily-loss hit,
+#                process down, strategy halted.  Routed to Discord with no
+#                grouping delay.
+#   - warning  : notify-but-not-urgent — disconnects, stale data, high
+#                latency.  Batched 2-minute windows in Alertmanager.
+#
+# Every rule includes a `summary` and `description` annotation so the
+# Discord message is self-contained — operator doesn't need to grep
+# metrics to know what tripped.
+#
+# Thresholds are tuned to "probably too sensitive initially" on purpose —
+# easier to loosen one that fires on normal noise than to miss a real
+# incident.  Dial each one in after a week of observation.
+
+groups:
+
+  # ─────────────── CRITICAL ──────────────────────────────────────────
+  - name: bpt-critical
+    interval: 15s
+    rules:
+
+      - alert: ServiceDown
+        # Prometheus' built-in `up` metric is 0 when a scrape fails.
+        # 30s of scrape failures (2 intervals) before we cry wolf.
+        expr: up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} is DOWN"
+          description: |
+            Scrape target {{ $labels.instance }} (job {{ $labels.job }})
+            has been unreachable for 30s.  Either the process is dead,
+            the metrics port is wrong, or systemd is mid-restart.
+            Check `systemctl --user status {{ $labels.job }}` and
+            `journalctl --user -u {{ $labels.job }} -n 50`.
+
+      - alert: DailyLossLatchTripped
+        # One-shot latch — fires the instant it flips to 1, stays firing
+        # until operator restarts the service (which clears the latch).
+        expr: order_gateway_daily_loss_latched == 1
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Daily-loss kill switch LATCHED"
+          description: |
+            PnlTracker has tripped the daily-loss kill switch.  All new
+            orders are being rejected by RiskChecker.  The latch does
+            NOT auto-clear at midnight — operator must review the day's
+            activity and restart bpt-order-gateway to resume trading.
+
+      - alert: RejectRateBreakerTripped
+        expr: order_gateway_reject_rate_breaker_tripped == 1
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Global reject-rate breaker TRIPPED"
+          description: |
+            Share of REJECTED exec reports over the rolling window
+            exceeded the configured threshold.  `RiskChecker.trading_enabled`
+            flipped to false — ALL new orders rejected venue-wide until
+            operator restart.  Likely cause: exchange auth problem,
+            unfunded account, or systematic config error.
+
+      - alert: DisconnectRateBreakerTripped
+        expr: order_gateway_disconnect_breaker_tripped == 1
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disconnect-rate breaker TRIPPED ({{ $labels.exchange }})"
+          description: |
+            Adapter for {{ $labels.exchange }} reconnected more times in
+            the rolling window than the disconnect_threshold.  Adapter
+            is halted — new orders to this venue rejected with
+            EXCHANGE_ERROR.  Other venues continue trading normally.
+            Operator restart required to resume.
+
+      - alert: ValidationDropBreakerTripped
+        expr: bpt_md_gateway_validation_drop_breaker_tripped == 1
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "MD validation-drop breaker TRIPPED ({{ $labels.exchange }})"
+          description: |
+            ValidatingPublisher for {{ $labels.exchange }} has stopped
+            forwarding MD to Aeron — validation drop ratio exceeded
+            threshold over the rolling window.  Downstream (strategy)
+            sees no data from this venue rather than bad data.  Cause
+            is usually a schema change or symbol-universe drift.
+            Operator restart required to resume.
+
+      - alert: StrategyHalted
+        expr: strategy_trading_halted == 1
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Strategy HALTED (dashboard kill-switch)"
+          description: |
+            The strategy's dashboard kill-switch has been engaged.
+            Trading is paused via the control stream — no quotes, no
+            new orders.  Auto-recovery is intentionally disabled here;
+            operator must un-halt from the dashboard.
+
+  # ─────────────── WARNING ───────────────────────────────────────────
+  - name: bpt-warning
+    interval: 15s
+    rules:
+
+      - alert: AdapterDisconnected
+        # Both md-gw and order-gw expose exchange_connected gauges.
+        # 30s of sustained disconnect — transient reconnect blips shouldn't page.
+        expr: |
+          (bpt_md_gateway_exchange_connected == 0)
+          or (order_gateway_exchange_connected == 0)
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Adapter disconnected: {{ $labels.exchange }} ({{ $labels.job }})"
+          description: |
+            {{ $labels.job }} has been disconnected from {{ $labels.exchange }}
+            for >30s.  Normal reconnects complete in 5-10s, so this
+            indicates a sustained outage — exchange downtime, WS
+            endpoint moved, or local network issue.  Check
+            `journalctl --user -u {{ $labels.job }} -n 100 | grep {{ $labels.exchange }}`.
+
+      - alert: AccountSnapshotStale
+        # time() returns unix seconds; the gauge carries unix ns. Divide.
+        # 60s without any snapshot = order-gateway isn't publishing them,
+        # which usually means its REST polling thread died.
+        expr: |
+          (time() - (strategy_account_snapshot_last_recv_ns / 1e9)) > 60
+          and strategy_account_snapshot_last_recv_ns > 0
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: "AccountSnapshot stale for {{ $labels.exchange }}"
+          description: |
+            Strategy hasn't received an AccountSnapshot from {{ $labels.exchange }}
+            in >60s.  Position reconciliation is blind; shutdown-flatten
+            will fall back to PositionTracker (strategy-side).  Likely
+            cause: order-gateway's periodic snapshot publisher stuck or
+            the REST endpoint is throwing.
+
+      - alert: StrategyPaused
+        expr: strategy_trading_paused == 1
+        for: 10s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Strategy trading is paused"
+          description: |
+            Strategy has paused trading — either a dependency heartbeat
+            (MD-gateway or OrderGateway) went stale, or an internal
+            watchdog fired.  Check `strategy_trading_paused` label set
+            and journalctl for the pause reason.
+
+      - alert: MDGatewayQuiet
+        # Rate of publish counter over 1 min. Zero for 60s is "nothing
+        # going through" — either reconnecting (covered by AdapterDisconnected)
+        # or a decoder is wedged.
+        expr: rate(bpt_md_gateway_md_messages_published_total[1m]) == 0
+        for: 60s
+        labels:
+          severity: warning
+        annotations:
+          summary: "MD Gateway is silent ({{ $labels.exchange }})"
+          description: |
+            No MD messages published for {{ $labels.exchange }} in the
+            last minute.  If AdapterDisconnected isn't also firing, the
+            adapter is connected but the decoder is stuck — probably a
+            schema drift or a parser exception path. `journalctl --user
+            -u bpt-md-gateway -n 200 | grep {{ $labels.exchange }}`.
+
+      - alert: RefdataStale
+        expr: (time() - (refdata_last_update_ns / 1e9)) > 300
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Refdata pipeline stale"
+          description: |
+            Refdata hasn't published a snapshot or delta in >5 min.
+            Downstream (strategy) is running on a frozen instrument
+            cache — delists / new listings invisible.  Check
+            `bpt-refdata` scrape target and journalctl.
+
+      - alert: ReconciliationDivergence
+        # increase() over 5m catches any new drift; rearms after the
+        # strategy/exchange views reconcile.
+        expr: increase(strategy_reconciliation_divergences_total[5m]) > 0
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Strategy ↔ exchange position divergence observed"
+          description: |
+            Reconciliation against the most recent AccountSnapshot
+            found a divergence between the strategy-side PositionTracker
+            and the exchange's reported positions.  Full instrument /
+            symbol / qty detail is in the WARN logs ("RECONCILIATION
+            DIVERGENCE ...").  Likely causes: dropped fill event,
+            scale bug, or manual intervention on the exchange.
+
+      - alert: HighLatencyP99
+        # Tick-to-strategy p99 > 500µs for a sustained window.
+        # Buckets in the histogram are roughly: 1µs, 5µs, ..., 500ms, 1s.
+        # 5e5 ns = 500µs. Adjust after baselining.
+        expr: |
+          histogram_quantile(0.99, rate(strategy_tick_to_strategy_ns_bucket[5m])) > 5e5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Strategy tick->callback p99 latency high ({{ $value | humanize }}ns)"
+          description: |
+            P99 latency of MD-tick → strategy callback has been above
+            500µs for 2 minutes.  Not fatal, but likely either CPU
+            contention (unpinned thread, missing isolcpus) or a slow
+            path in the strategy (refdata lookup hot-path, logging at
+            trace level, etc.).  Check `top -H -p $(pgrep -f bpt-strat)`.

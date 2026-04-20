@@ -198,11 +198,91 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
+# ── bpt-prometheus / bpt-alertmanager / bpt-heartbeat ───────────────────────
+# Monitoring stack — see deploy/monitoring/README.md for the full story.
+#
+# Prometheus scrapes every service's /metrics endpoint and evaluates the alert
+# rules under deploy/monitoring/prometheus/rules/.  Alertmanager receives
+# firing alerts and posts to Discord.  bpt-heartbeat.timer pings Healthchecks.io
+# every 5 min as a dead-man's-switch for the host-down case.
+
+cat > "$UNIT_DIR/bpt-prometheus.service" <<EOF
+[Unit]
+Description=BPT Prometheus (scraper + alert rule evaluator)
+PartOf=bpt-stack.target
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/prometheus \\
+  --config.file=$BPT_ROOT/deploy/monitoring/prometheus/prometheus.yml \\
+  --storage.tsdb.path=%h/.local/share/prometheus/data \\
+  --storage.tsdb.retention.time=14d \\
+  --web.listen-address=127.0.0.1:9090
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=bpt-stack.target
+EOF
+
+# Alertmanager: loads the Discord webhook URL via LoadCredentialEncrypted
+# (systemd-creds).  The creds file should already exist at
+# ~/.config/systemd/creds/bpt-discord-webhook.cred — see monitoring README.
+cat > "$UNIT_DIR/bpt-alertmanager.service" <<EOF
+[Unit]
+Description=BPT Alertmanager (Discord webhook dispatch)
+PartOf=bpt-stack.target
+After=bpt-prometheus.service
+
+[Service]
+Type=simple
+# Discord webhook URL — decrypted into \$CREDENTIALS_DIRECTORY at start.
+# The alertmanager.yml references webhook_url_file pointing to this path.
+LoadCredentialEncrypted=bpt-discord-webhook:$CRED_DIR/bpt-discord-webhook.cred
+ExecStart=/usr/bin/alertmanager \\
+  --config.file=$BPT_ROOT/deploy/monitoring/alertmanager/alertmanager.yml \\
+  --storage.path=%h/.local/share/alertmanager \\
+  --web.listen-address=127.0.0.1:9093
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=bpt-stack.target
+EOF
+
+# Heartbeat — dead-man's-switch so Healthchecks.io emails you when the
+# host itself is dead (Alertmanager can't alert on its own process death).
+# HC_URL lives in /etc/bpt/healthchecks.env, keyed per-host.
+cat > "$UNIT_DIR/bpt-heartbeat.service" <<EOF
+[Unit]
+Description=BPT Healthchecks.io dead-man's-switch ping
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/bpt/healthchecks.env
+ExecStart=/usr/bin/curl -fsS -m 10 --retry 3 \${HC_URL}
+EOF
+
+cat > "$UNIT_DIR/bpt-heartbeat.timer" <<EOF
+[Unit]
+Description=BPT heartbeat ping every 5 min
+PartOf=bpt-stack.target
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=bpt-stack.target
+EOF
+
 # ── bpt-stack.target ─────────────────────────────────────────────────────────
 cat > "$UNIT_DIR/bpt-stack.target" <<EOF
 [Unit]
 Description=BPT Trading Stack
-Wants=bpt-transport.service bpt-refdata.service bpt-md-gateway.service bpt-order-gateway.service bpt-strategy.service bpt-analytics.service bpt-bridge.service bpt-frontend.service
+Wants=bpt-transport.service bpt-refdata.service bpt-md-gateway.service bpt-order-gateway.service bpt-strategy.service bpt-analytics.service bpt-bridge.service bpt-frontend.service bpt-prometheus.service bpt-alertmanager.service bpt-heartbeat.timer
 
 [Install]
 WantedBy=default.target
@@ -215,7 +295,15 @@ echo "Active env: $(readlink -f "$ENV_FILE" 2>/dev/null || echo "$ENV_FILE")"
 echo
 echo "Enable + start:"
 echo "  systemctl --user enable --now bpt-config-sync.timer   # daily config pull"
+echo "  systemctl --user enable --now bpt-heartbeat.timer     # dead-man's-switch to Healthchecks.io"
 echo "  systemctl --user start bpt-stack.target               # bring the stack up"
+echo
+echo "Monitoring setup (see deploy/monitoring/README.md):"
+echo "  sudo apt install prometheus prometheus-alertmanager"
+echo "  sudo systemctl disable --now prometheus alertmanager  # we run as user units"
+echo "  echo -n 'https://discord.com/api/webhooks/...' | \\"
+echo "    systemd-creds encrypt - $CRED_DIR/bpt-discord-webhook.cred"
+echo "  echo 'HC_URL=https://hc-ping.com/YOUR-UUID' | sudo tee /etc/bpt/healthchecks.env"
 echo
 echo "Inspect:"
 echo "  systemctl --user status 'bpt-*'"

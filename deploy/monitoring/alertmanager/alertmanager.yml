@@ -1,0 +1,112 @@
+# Alertmanager config — routes incoming alerts from Prometheus to Discord.
+#
+# Receiver secret:
+#   Discord webhook URL is NOT in this file.  It's loaded at service
+#   start from systemd-creds and substituted via envsubst into a
+#   runtime copy of this file.  See deploy/generate-units.sh.
+#
+# Re-route precedence:
+#   routes are evaluated top-down; the first match wins.  Critical
+#   alerts route to #discord-critical via the default receiver below;
+#   warnings go to #discord-warning with a longer group window.
+#
+# Inhibit rules:
+#   When DailyLossLatchTripped fires, we don't also want to page on
+#   every subsequent downstream effect (e.g. the zero-order-rate might
+#   otherwise look like a latency anomaly).  Inhibits documented inline.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  # Top-level catch-all — routes below override per severity
+  receiver: discord-critical
+  # Group alerts by (alertname, severity, exchange) so OKX + HL
+  # disconnects arrive as one message not two, but different alert
+  # types stay distinct.
+  group_by: ['alertname', 'severity', 'exchange']
+  # How long to wait before sending the first alert for a new group.
+  # 10s gives time for related alerts to batch in the same message;
+  # overridden to 0s for critical below.
+  group_wait: 10s
+  # Resend after this window if the alert is still firing — long
+  # enough that you don't spam yourself for a breaker that stays
+  # tripped for an hour.
+  repeat_interval: 4h
+  # How long to wait before adding new alerts to an existing group.
+  group_interval: 5m
+
+  routes:
+    - matchers:
+        - severity="critical"
+      receiver: discord-critical
+      group_wait: 0s           # critical fires immediately
+      repeat_interval: 1h      # remind every hour until resolved
+
+    - matchers:
+        - severity="warning"
+      receiver: discord-warning
+      group_wait: 2m           # batch warnings in 2-minute windows
+      repeat_interval: 6h
+
+# ─── Receivers ────────────────────────────────────────────────────────
+#
+# Both receivers target the same Discord webhook for now.  Split them
+# onto separate channels later by pasting a second webhook URL and
+# swapping one of the url: fields.
+
+receivers:
+  - name: discord-critical
+    discord_configs:
+      - webhook_url_file: /run/credentials/bpt-alertmanager.service/bpt-discord-webhook
+        # Discord embed template — title colored red for critical.
+        # Alertmanager's default Discord template works fine; the
+        # message body below overrides with a more readable layout.
+        title: "🚨 {{ .CommonLabels.alertname }} — {{ .CommonLabels.severity | toUpper }}"
+        message: |
+          {{ range .Alerts }}
+          **{{ .Annotations.summary }}**
+          {{ .Annotations.description }}
+
+          `Labels:` {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
+          `StartsAt:` {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}
+          ────
+          {{ end }}
+
+  - name: discord-warning
+    discord_configs:
+      - webhook_url_file: /run/credentials/bpt-alertmanager.service/bpt-discord-webhook
+        title: "⚠️  {{ .CommonLabels.alertname }} — WARNING"
+        message: |
+          {{ range .Alerts }}
+          **{{ .Annotations.summary }}**
+          {{ .Annotations.description }}
+
+          `Labels:` {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
+          `StartsAt:` {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}
+          ────
+          {{ end }}
+
+# ─── Inhibit rules ────────────────────────────────────────────────────
+# When an upstream cause is already firing, don't also page on
+# downstream effects that are expected consequences.
+
+inhibit_rules:
+  # DailyLossLatch tripping rejects all new orders — the transient
+  # effects (reject rate climbing briefly before the latch is fully
+  # processed) shouldn't also page.
+  - source_matchers:
+      - alertname="DailyLossLatchTripped"
+    target_matchers:
+      - alertname="RejectRateBreakerTripped"
+    equal: []   # inhibit globally, not per-label
+
+  # ServiceDown inhibits every warning from the same service — e.g. if
+  # bpt-md-gateway is down, we don't need a stack of MDGatewayQuiet and
+  # AdapterDisconnected warnings on top of the critical ServiceDown.
+  - source_matchers:
+      - severity="critical"
+      - alertname="ServiceDown"
+    target_matchers:
+      - severity="warning"
+    equal: [service]
