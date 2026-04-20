@@ -18,9 +18,23 @@
 //     completes and BEFORE the read loop starts.
 //   - on_frame(payload, recv_ns): called for each inbound text/binary
 //     frame. recv_ns is WallClock::now_ns() at receive time.
+//   - on_tick(): called on every read_timeout expiry — use for periodic
+//     bookkeeping (stale-state cleanup, staleness metrics) that would
+//     otherwise need a separate timer thread. Default no-op.
 //   - ping_config(): return a cadence + payload-factory if the exchange
 //     expects application-level pings (OKX, HL). Return nullopt for
 //     exchanges with their own heartbeat protocol (Deribit).
+//
+// read_timeout vs liveness_timeout:
+//   - read_timeout: max per-read wait. On expiry the loop fires on_tick
+//     and checks stop_flag, then continues. Keep this short (seconds)
+//     so the subclass ticks promptly and the service can shut down
+//     quickly. A timeout alone does NOT kill the connection.
+//   - liveness_timeout: if > 0, throw when no frame has arrived within
+//     liveness_timeout — an application-level watchdog for a silently
+//     dead connection (TCP half-open, load balancer blackhole). Leave
+//     at 0 for exchanges whose own heartbeat protocol already detects
+//     this (Deribit set_heartbeat, or WS-level Beast pings).
 //
 // What's intentionally NOT in here:
 //   - Exchange auth payload construction (each exchange is different).
@@ -64,14 +78,19 @@ public:
 
     // Run the read + ping loop against the supplied (already-connected)
     // stream. Returns cleanly when stop_flag goes true; throws on any
-    // WS error so the caller's outer reconnect loop can catch + retry.
+    // WS error (including liveness timeout) so the caller's outer
+    // reconnect loop can catch + retry.
     //
     // connected is set true after on_handshake_complete() returns, and
     // false on exit (normal or exceptional).
+    //
+    // See the file header for read_timeout vs liveness_timeout
+    // semantics. liveness_timeout == 0 disables the watchdog.
     void run(AnyWsStream ws,
              std::atomic<bool>& stop_flag,
              std::atomic<bool>& connected,
-             std::chrono::milliseconds read_timeout = std::chrono::seconds(30));
+             std::chrono::milliseconds read_timeout = std::chrono::seconds(30),
+             std::chrono::milliseconds liveness_timeout = std::chrono::milliseconds(0));
 
     // Thread-safe write. Returns false if the stream is not currently
     // connected (before run() starts, after run() returns, or during a
@@ -82,6 +101,7 @@ public:
 protected:
     virtual void on_handshake_complete() {}
     virtual void on_frame(std::string_view payload, uint64_t recv_ns) = 0;
+    virtual void on_tick() {}
     virtual std::optional<PingConfig> ping_config() const { return std::nullopt; }
 
 private:
@@ -97,7 +117,8 @@ private:
 inline void RunLoop::run(AnyWsStream ws,
                          std::atomic<bool>& stop_flag,
                          std::atomic<bool>& connected,
-                         std::chrono::milliseconds read_timeout) {
+                         std::chrono::milliseconds read_timeout,
+                         std::chrono::milliseconds liveness_timeout) {
     namespace beast = boost::beast;
 
     ws.text(true);
@@ -163,6 +184,14 @@ inline void RunLoop::run(AnyWsStream ws,
         }
     } ping_guard{&ping_thread, &ping_stop};
 
+    // Track the wall-clock time of the last inbound frame so the
+    // liveness watchdog can fire on a silently-dead connection.
+    // Initialised to "now" so a just-opened socket isn't immediately
+    // flagged as stale before the first frame arrives.
+    uint64_t last_recv_ns = bpt::common::util::WallClock::now_ns();
+    const uint64_t liveness_ns =
+        static_cast<uint64_t>(liveness_timeout.count()) * 1'000'000ULL;
+
     try {
         beast::flat_buffer buf;
         while (!stop_flag.load(std::memory_order_relaxed)) {
@@ -171,16 +200,28 @@ inline void RunLoop::run(AnyWsStream ws,
             ws.read(buf, ec);
 
             if (ec == beast::error::timeout) {
-                // No frame within read_timeout. Drain and loop — this
-                // gives stop_flag a chance to be observed on quiet
-                // connections and is the main mechanism that prevents
-                // the loop from hanging on a silently-dead connection.
+                // No frame within read_timeout. Drain, fire the
+                // subclass tick hook, check liveness, and continue so
+                // stop_flag can be observed on quiet connections.
                 buf.consume(buf.size());
+
+                if (liveness_ns > 0) {
+                    const uint64_t now_ns = bpt::common::util::WallClock::now_ns();
+                    if (now_ns - last_recv_ns > liveness_ns) {
+                        // Escalate to the outer reconnect loop — a
+                        // silent stream is treated the same as an
+                        // explicit WS error.
+                        throw beast::system_error(beast::error::timeout);
+                    }
+                }
+
+                on_tick();
                 continue;
             }
             if (ec) throw beast::system_error(ec);
 
             const uint64_t recv_ns = bpt::common::util::WallClock::now_ns();
+            last_recv_ns = recv_ns;
             std::string_view payload(
                 static_cast<const char*>(buf.data().data()),
                 buf.data().size());
