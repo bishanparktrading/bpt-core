@@ -1,6 +1,6 @@
 # Instance config — QA environment (demo trading, testnet endpoints).
 # Switch to order-gateway.prod.toml for live trading.
-environment = "qa"
+environment = "dev"
 exchange_config = "config/exchanges/testnet.toml"
 exchanges = ["OKX"]
 
