@@ -42,6 +42,7 @@
 #include <bpt_common/util/tsc_clock.h>
 
 #include <execinfo.h>
+#include <sys/prctl.h>
 #include <cstdlib>
 #include <memory>
 #include <string>
@@ -79,7 +80,26 @@ int run(const std::string& service_name, Settings settings, BuildFn build_fn) {
     auto& base = settings.base;
 
     bpt::common::signal::install();
+
+    // Push service_name into the kernel's per-thread comm field so that
+    // top/htop/ps -o comm/perf samples show role rather than binary name.
+    // Linux TASK_COMM_LEN is 16 bytes incl. null → 15 usable chars; the
+    // kernel silently truncates overflow. Role-qualified names (e.g.
+    // "bpt-md-gw-okx") are constructed in each service's main() before
+    // passing service_name here.
+    ::prctl(PR_SET_NAME, service_name.substr(0, 15).c_str(), 0, 0, 0);
+
     bpt::common::logging::init(service_name, base.logging);
+
+    // Log the resolved identity so log files are self-documenting about
+    // what names the kernel actually sees after 15-char truncation — lets
+    // an operator match a log archive back to `ps -o comm` / `top -H`
+    // without reconstructing the truncation rules in their head, and
+    // surfaces accidental collisions between venues/shards immediately.
+    bpt::common::log::info("identity service={} comm={} backend_thread={}",
+                           service_name,
+                           service_name.substr(0, 15),
+                           bpt::common::logging::backend_thread_name_for(service_name));
 
     bpt::common::log::info("Starting (env={})", to_string(base.environment));
     // Loud banner for prod so operators can't miss it when skimming logs

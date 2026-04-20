@@ -4,10 +4,31 @@
 #include "bridge/settings.h"
 
 #include <CLI/CLI.hpp>
+#include <algorithm>
+#include <cctype>
 #include <memory>
 #include <string>
 #include <bpt_app/app.h>
 #include <bpt_common/logging.h>
+
+namespace {
+
+// Role-qualified service name: "bpt-bridge-<exchange>" when bound to a
+// single venue (typical per-dashboard deploy), else generic "bpt-bridge".
+// Multiple bridges can run side-by-side for separate dashboard sessions,
+// so the exchange axis is the most useful disambiguator.
+std::string derive_service_name(const std::string& exchange) {
+    std::string name = "bpt-bridge";
+    if (!exchange.empty()) {
+        std::string venue = exchange;
+        std::transform(venue.begin(), venue.end(), venue.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+        name += "-" + venue;
+    }
+    return name;
+}
+
+}  // namespace
 
 int main(int argc, char** argv) {
     CLI::App cli{"bpt-bridge — Aeron → WebSocket forwarder for dashboard"};
@@ -47,8 +68,10 @@ int main(int argc, char** argv) {
     if (!instrument_type_override.empty()) settings.instrument_type  = instrument_type_override;
     if (instrument_id_override > 0)        settings.instrument_id    = instrument_id_override;
 
+    const std::string service_name = derive_service_name(settings.exchange);
+
     try {
-        return bpt::app::run("bridge", std::move(settings),
+        return bpt::app::run(service_name, std::move(settings),
             [](auto& cfg, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
                 return std::make_unique<bridge::BridgeApp>(std::move(cfg), ctx.aeron);
             });

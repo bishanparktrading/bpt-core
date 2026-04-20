@@ -5,6 +5,8 @@
 #include "order_gateway/config/settings.h"
 
 #include <CLI/CLI.hpp>
+#include <algorithm>
+#include <cctype>
 #include <map>
 #include <memory>
 #include <stdexcept>
@@ -47,6 +49,22 @@ load_credentials(const std::vector<bpt::order_gateway::config::AdapterConfig>& a
     return creds;
 }
 
+// Role-qualified service name: "bpt-ogw-<venue>" when exactly one
+// exchange is active, else the generic "bpt-ogw". Feeds comm (via
+// bpt::app::run → prctl), log filename, [logger] prefix, and quill
+// backend thread name — one identity string across all four. Mirrors
+// the md-gateway derivation so operators can grep consistently.
+std::string derive_service_name(const std::vector<std::string>& exchanges) {
+    std::string name = "bpt-ogw";
+    if (exchanges.size() == 1) {
+        std::string venue = exchanges[0];
+        std::transform(venue.begin(), venue.end(), venue.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+        name += "-" + venue;
+    }
+    return name;
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -70,8 +88,10 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    const std::string service_name = derive_service_name(cfg.exchanges);
+
     try {
-        return bpt::app::run("order-gateway", std::move(cfg),
+        return bpt::app::run(service_name, std::move(cfg),
             [](auto& settings, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
                 auto creds = load_credentials(settings.gateway.adapters, settings.base.environment);
                 return std::make_unique<bpt::order_gateway::OrderGatewayApp>(

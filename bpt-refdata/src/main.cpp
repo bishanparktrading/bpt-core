@@ -3,11 +3,14 @@
 #include "refdata/config/settings.h"
 
 #include <CLI/CLI.hpp>
+#include <algorithm>
+#include <cctype>
 #include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 #include <bpt_app/app.h>
 #include <bpt_common/logging.h>
 #include <bpt_common/secrets/secrets_client.h>
@@ -50,6 +53,27 @@ load_credentials(const std::vector<bpt::refdata::config::AdapterConfig>& adapter
     return creds;
 }
 
+// Role-qualified service name: "bpt-rfd-<venue>" when exactly one
+// adapter is enabled, else generic "bpt-rfd". Refdata typically runs
+// one process per venue so the single-adapter case is the default
+// deploy shape. Compact "rfd" form saves budget for long venue names
+// — "bpt-rfd-hyperliqu" fits 15 (shows 8 venue chars) where the
+// verbose "bpt-refdata-hyp" only shows 3.
+std::string derive_service_name(const std::vector<bpt::refdata::config::AdapterConfig>& adapters) {
+    std::vector<std::string> enabled;
+    for (const auto& a : adapters) {
+        if (a.enabled) enabled.push_back(a.exchange);
+    }
+    std::string name = "bpt-rfd";
+    if (enabled.size() == 1) {
+        std::string venue = enabled[0];
+        std::transform(venue.begin(), venue.end(), venue.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+        name += "-" + venue;
+    }
+    return name;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -69,8 +93,10 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    const std::string service_name = derive_service_name(settings.adapters);
+
     try {
-        return bpt::app::run("bpt-refdata", std::move(settings),
+        return bpt::app::run(service_name, std::move(settings),
             [](auto& cfg, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
                 auto creds = load_credentials(cfg.adapters, cfg.base.environment);
                 return std::make_unique<bpt::refdata::RefdataApp>(
