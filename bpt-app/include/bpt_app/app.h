@@ -45,8 +45,10 @@
 #include <execinfo.h>
 #include <sys/prctl.h>
 #include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace bpt::app {
@@ -116,12 +118,47 @@ int run(const std::string& service_name, Settings settings, BuildFn build_fn) {
     if (base.calibrate_tsc)
         bpt::common::util::TscClock::calibrate();
 
-    // Default Aeron error handler: log the exception + a capped backtrace
-    // and keep running (Aeron's conductor thread is designed to survive).
-    // Services that want custom behaviour can bypass bpt::app::run() and
-    // build their own Aeron client, but no current service does.
+    // Default Aeron error handler: log the exception + a capped backtrace.
+    //
+    // Most Aeron errors are recoverable — transient I/O issues, brief
+    // contention, slow consumers. The conductor thread survives these
+    // and the client continues. For those, log-and-continue is correct.
+    //
+    // A specific class of errors, however, indicates the client's
+    // conductor state has become unrecoverable and the Aeron session
+    // is effectively dead — further publications will silently no-op
+    // until the process exits. Observed in production (laptop-sleep
+    // event 2026-04-21 on WSL2) where a 5.5h stack outage went unnoticed
+    // until MDGatewayQuiet fired: the process logged these errors in a
+    // loop but couldn't publish a byte.
+    //
+    // On detection of one of those fatal patterns, log a clear marker
+    // line and exit(1). systemd restarts the service, it rejoins the
+    // MediaDriver cleanly, alerting surfaces the brief ServiceDown and
+    // auto-resolves. Far better than silent-no-op for hours.
     auto aeron_error_handler = [svc = service_name](const std::exception& e) {
-        bpt::common::log::error("[Aeron] {}", e.what());
+        const std::string_view msg = e.what();
+        bpt::common::log::error("[Aeron] {}", msg);
+
+        // Aeron error patterns we've observed as genuinely unrecoverable
+        // (client state corrupted, no amount of retry from the conductor
+        // thread will reattach). Add more as they're seen in the wild.
+        static constexpr std::string_view kFatalPatterns[] = {
+            "timeout between service calls",        // client conductor missed 20s service window
+            "client heartbeat timestamp not active", // MediaDriver declared the client dead
+        };
+        for (const auto& pat : kFatalPatterns) {
+            if (msg.find(pat) != std::string_view::npos) {
+                bpt::common::log::error(
+                    "[Aeron] fatal — unrecoverable client state; exiting for systemd restart");
+                // _Exit skips destructors (Aeron's shutdown path may itself
+                // hit the conductor we just gave up on). systemd's
+                // Restart=on-failure in the unit file brings us back.
+                std::_Exit(1);
+            }
+        }
+
+        // Non-fatal: log the backtrace for post-hoc analysis and carry on.
         void* frames[32];
         int n = ::backtrace(frames, 32);
         char** syms = ::backtrace_symbols(frames, n);
