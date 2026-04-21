@@ -7,14 +7,14 @@
 
 #include <messages/ExchangeId.h>
 
+#include <bpt_common/signal.h>
+#include <bpt_common/util/thread_pin.h>
+#include <bpt_common/util/tsc_clock.h>
 #include <chrono>
 #include <map>
 #include <string>
 #include <thread>
 #include <x86intrin.h>
-#include <bpt_common/signal.h>
-#include <bpt_common/util/thread_pin.h>
-#include <bpt_common/util/tsc_clock.h>
 
 using namespace std::chrono_literals;
 using bpt::messages::ExchangeId;
@@ -22,9 +22,9 @@ using bpt::messages::ExchangeId;
 namespace bpt::order_gateway {
 
 OrderGatewayApp::OrderGatewayApp(config::Settings cfg,
-                         std::shared_ptr<aeron::Aeron> aeron,
-                         std::map<std::string, adapter::ExchangeCredentials> creds,
-                         const bpt::common::util::Topology& topology)
+                                 std::shared_ptr<aeron::Aeron> aeron,
+                                 std::map<std::string, adapter::ExchangeCredentials> creds,
+                                 const bpt::common::util::Topology& topology)
     : cfg_(std::move(cfg)),
       aeron_(aeron),
       metrics_(cfg_.base.metrics_port),
@@ -52,14 +52,13 @@ OrderGatewayApp::OrderGatewayApp(config::Settings cfg,
     risk::DisconnectRateBreaker::Config disc_cfg;
     disc_cfg.enabled = cfg_.gateway.risk.disconnect_breaker_enabled;
     disc_cfg.threshold = cfg_.gateway.risk.disconnect_threshold;
-    disc_cfg.window_ns =
-        static_cast<uint64_t>(cfg_.gateway.risk.disconnect_window_sec) * 1'000'000'000ULL;
+    disc_cfg.window_ns = static_cast<uint64_t>(cfg_.gateway.risk.disconnect_window_sec) * 1'000'000'000ULL;
 
     for (const auto& a_cfg : cfg_.gateway.adapters) {
         if (a_cfg.testnet)
             bpt::common::log::warn("*** TESTNET MODE *** adapter={} host={}",
-                           a_cfg.exchange,
-                           a_cfg.rest_host.empty() ? a_cfg.ws_host : a_cfg.rest_host);
+                                   a_cfg.exchange,
+                                   a_cfg.rest_host.empty() ? a_cfg.ws_host : a_cfg.rest_host);
 
         const auto& exchange_creds = [&]() -> const adapter::ExchangeCredentials& {
             static const adapter::ExchangeCredentials empty{};
@@ -91,16 +90,18 @@ OrderGatewayApp::OrderGatewayApp(config::Settings cfg,
     risk::RejectRateBreaker::Config breaker_cfg;
     breaker_cfg.enabled = cfg_.gateway.risk.reject_rate_breaker_enabled;
     breaker_cfg.threshold_pct = cfg_.gateway.risk.reject_rate_threshold_pct;
-    breaker_cfg.window_ns =
-        static_cast<uint64_t>(cfg_.gateway.risk.reject_rate_window_sec) * 1'000'000'000ULL;
+    breaker_cfg.window_ns = static_cast<uint64_t>(cfg_.gateway.risk.reject_rate_window_sec) * 1'000'000'000ULL;
     breaker_cfg.min_events = cfg_.gateway.risk.reject_rate_min_events;
 
-    processor_ = std::make_unique<order::OrderProcessor>(*exec_pub_, state_mgr_, risk_checker_,
+    processor_ = std::make_unique<order::OrderProcessor>(*exec_pub_,
+                                                         state_mgr_,
+                                                         risk_checker_,
                                                          pnl_tracker_,
                                                          cfg_.gateway.risk.max_daily_loss_usd,
                                                          cfg_.gateway.risk.max_position_usd,
                                                          breaker_cfg,
-                                                         metrics_, adapters_);
+                                                         metrics_,
+                                                         adapters_);
 
     order_sub_->on_new_order = [this](const bpt::messages::NewOrder& o) {
         processor_->on_new_order(o);
@@ -129,8 +130,8 @@ OrderGatewayApp::OrderGatewayApp(config::Settings cfg,
                     account_snap_pub_->publish(snap);
                 } catch (const std::exception& e) {
                     bpt::common::log::error("AccountSnapshot fetch failed for exchange={}: {}",
-                                    bpt::messages::ExchangeId::c_str(exchange_id),
-                                    e.what());
+                                            bpt::messages::ExchangeId::c_str(exchange_id),
+                                            e.what());
                     // Publish empty snapshot so Strategy's gate doesn't hang.
                     adapter::AccountSnapshotData empty;
                     empty.exchange_id = exchange_id;
@@ -144,7 +145,7 @@ OrderGatewayApp::OrderGatewayApp(config::Settings cfg,
             return;
         }
         bpt::common::log::warn("AccountSnapshotRequest for unconfigured exchange={}",
-                       bpt::messages::ExchangeId::c_str(exchange_id));
+                               bpt::messages::ExchangeId::c_str(exchange_id));
     };
 
     bpt::common::log::info("Ready — polling order stream {}", cfg_.aeron.order.stream_id);
@@ -183,22 +184,34 @@ void OrderGatewayApp::run() {
         if (now_ns - last_hb_ns >= hb_interval_ns) {
             uint8_t exchange_status = 0;
             for (const auto& a : adapters_) {
-                if (a->exchange_id() == ExchangeId::BINANCE && a->is_connected())
-                    exchange_status |= 0x01;
-                if (a->exchange_id() == ExchangeId::OKX && a->is_connected())
-                    exchange_status |= 0x02;
-                if (a->exchange_id() == ExchangeId::HYPERLIQUID && a->is_connected())
-                    exchange_status |= 0x04;
-                if (a->exchange_id() == ExchangeId::DERIBIT && a->is_connected())
-                    exchange_status |= 0x08;
+                const bool connected = a->is_connected();
+                if (connected) {
+                    switch (a->exchange_id()) {
+                        case ExchangeId::BINANCE:
+                            exchange_status |= 0x01;
+                            break;
+                        case ExchangeId::OKX:
+                            exchange_status |= 0x02;
+                            break;
+                        case ExchangeId::HYPERLIQUID:
+                            exchange_status |= 0x04;
+                            break;
+                        case ExchangeId::DERIBIT:
+                            exchange_status |= 0x08;
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                // Only emit a gauge for adapters actually configured in this
+                // process — prevents phantom "disconnected" alerts for
+                // venues a single-exchange deployment (e.g. bpt-ogw-okx)
+                // was never wired to in the first place.
+                metrics_.exchange_connected(a->exchange_name()).Set(connected ? 1.0 : 0.0);
             }
             const uint32_t open = state_mgr_.total_open_orders();
             const uint16_t open_orders = static_cast<uint16_t>(std::min<uint32_t>(open, 0xFFFF));
             hb_pub_->publish(1, open_orders, exchange_status);
-            metrics_.exchange_connected("BINANCE").Set((exchange_status & 0x01) ? 1.0 : 0.0);
-            metrics_.exchange_connected("OKX").Set((exchange_status & 0x02) ? 1.0 : 0.0);
-            metrics_.exchange_connected("HYPERLIQUID").Set((exchange_status & 0x04) ? 1.0 : 0.0);
-            metrics_.exchange_connected("DERIBIT").Set((exchange_status & 0x08) ? 1.0 : 0.0);
             metrics_.open_orders->Set(static_cast<double>(open));
 
             // Risk / breaker gauge sampling — piggyback on the heartbeat
@@ -206,8 +219,8 @@ void OrderGatewayApp::run() {
             // window. trading_enabled flipping to false is the daily-loss
             // latch; reject_rate_breaker_.tripped() latches on its own.
             metrics_.daily_loss_latched->Set(risk_checker_.trading_enabled() ? 0.0 : 1.0);
-            metrics_.reject_rate_breaker_tripped->Set(
-                processor_ && processor_->reject_rate_breaker_tripped() ? 1.0 : 0.0);
+            metrics_.reject_rate_breaker_tripped->Set(processor_ && processor_->reject_rate_breaker_tripped() ? 1.0
+                                                                                                              : 0.0);
             for (const auto& a : adapters_) {
                 metrics_.disconnect_breaker_tripped(a->exchange_name()).Set(a->is_halted() ? 1.0 : 0.0);
             }
@@ -223,7 +236,8 @@ void OrderGatewayApp::run() {
         if (now_ns - last_account_snap_ns >= kAccountSnapIntervalNs) {
             last_account_snap_ns = now_ns;
             for (auto& adapter : adapters_) {
-                if (!adapter->is_connected()) continue;
+                if (!adapter->is_connected())
+                    continue;
                 auto a = adapter;  // capture the shared_ptr by value
                 std::thread([this, a]() {
                     try {
@@ -231,8 +245,8 @@ void OrderGatewayApp::run() {
                         account_snap_pub_->publish(snap);
                     } catch (const std::exception& e) {
                         bpt::common::log::warn("Periodic AccountSnapshot fetch failed for {}: {}",
-                                       bpt::messages::ExchangeId::c_str(a->exchange_id()),
-                                       e.what());
+                                               bpt::messages::ExchangeId::c_str(a->exchange_id()),
+                                               e.what());
                     }
                 }).detach();
             }
