@@ -72,7 +72,7 @@ for svc in bpt-refdata bpt-md-gateway bpt-order-gateway; do
 Description=BPT ${svc^} Service
 After=$after
 Requires=bpt-transport.service
-PartOf=bpt-stack.target
+PartOf=bpt-stack.target bpt-transport.service
 
 [Service]
 Type=simple
@@ -94,7 +94,7 @@ cat > "$UNIT_DIR/bpt-strategy.service" <<EOF
 Description=BPT Strategy Engine
 After=bpt-md-gateway.service bpt-order-gateway.service
 Requires=bpt-transport.service
-PartOf=bpt-stack.target
+PartOf=bpt-stack.target bpt-transport.service
 
 [Service]
 Type=simple
@@ -115,7 +115,7 @@ cat > "$UNIT_DIR/bpt-analytics.service" <<EOF
 Description=BPT Analytics (markouts, toxicity, fill rate)
 After=bpt-strategy.service
 Requires=bpt-transport.service
-PartOf=bpt-stack.target
+PartOf=bpt-stack.target bpt-transport.service
 
 [Service]
 Type=simple
@@ -136,7 +136,7 @@ cat > "$UNIT_DIR/bpt-bridge.service" <<EOF
 Description=BPT Dashboard Bridge
 After=bpt-strategy.service
 Requires=bpt-transport.service
-PartOf=bpt-stack.target
+PartOf=bpt-stack.target bpt-transport.service
 
 [Service]
 Type=simple

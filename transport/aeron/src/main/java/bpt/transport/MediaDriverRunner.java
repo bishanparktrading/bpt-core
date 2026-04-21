@@ -102,9 +102,38 @@ public class MediaDriverRunner {
       LOGGER.info("MediaDriver launched successfully.");
 
       long intervalSec = config.heartbeatIntervalSec();
+      // Detect a walltime jump (WSL/laptop suspend → resume) by watching
+      // the gap between heartbeat ticks. When the VM freezes, no Java
+      // threads run; on resume, this scheduled task fires late. An
+      // unusually long gap means the MediaDriver's internal timers just
+      // skipped ahead, leaving stale session state that blocks clients
+      // from reattaching cleanly. Fail-fast so systemd restarts
+      // bpt-transport (which also restarts dependents via PartOf), giving
+      // the stack a clean bring-up instead of a hung post-sleep state.
+      //
+      // Mirrors the bpt-app fail-fast added in ea0786b for the C++
+      // services on the same failure mode.
+      final long skewThresholdMs = 60_000L;
+      final long intervalMs = intervalSec * 1000L;
+      final long[] lastHeartbeatMs = {System.currentTimeMillis()};
       heartbeatExecutor.scheduleAtFixedRate(
           () -> {
-            long uptime = (System.currentTimeMillis() - startTimeMs) / 1000;
+            long now = System.currentTimeMillis();
+            long gap = now - lastHeartbeatMs[0];
+            lastHeartbeatMs[0] = now;
+
+            if (gap > intervalMs + skewThresholdMs) {
+              LOGGER.error(
+                  "Walltime skew detected: heartbeat tick {}ms late (interval={}ms, threshold={}ms)"
+                      + " — host probably just resumed from suspend. Exiting so systemd restarts"
+                      + " bpt-transport + dependents cleanly.",
+                  gap - intervalMs,
+                  intervalMs,
+                  skewThresholdMs);
+              System.exit(1);
+            }
+
+            long uptime = (now - startTimeMs) / 1000;
             LOGGER.info(
                 "MediaDriver alive (uptime={}s, aeronDir={}, threading={}, idle={})",
                 uptime,
