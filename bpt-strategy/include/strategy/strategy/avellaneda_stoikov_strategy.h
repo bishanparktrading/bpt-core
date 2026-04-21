@@ -240,6 +240,14 @@ private:
     double max_inventory_;            // max |net position| in base units
     double order_qty_;                // quote size in natural units (e.g. 0.001 BTC)
     double min_half_spread_bps_;      // floor on half-spread expressed in basis points
+    // Sanity clamp: hard ceiling on the half-spread the AS formula
+    // can produce. Guards against the cold-start pathology where a
+    // noisy early σ² estimate or κ underestimate pushes the formula
+    // to quote 15x+ wider than the market. When clamped, we log at
+    // WARN with the formula value + the applied clamp so operators
+    // can see that warmup isn't done yet — better than silently
+    // quoting wide.
+    double max_half_spread_bps_;      // ceiling on half-spread in basis points
     uint8_t order_book_depth_;        // 0 = BBO only, >0 subscribes to L2 ladder
 
     // Drift (momentum) detection — Cartea-Jaimungal extension of AS.

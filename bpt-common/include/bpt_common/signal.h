@@ -15,6 +15,7 @@ namespace detail {
 // volatile sig_atomic_t is the only type safe to read/write from a signal
 // handler.  inline ensures a single definition across all translation units.
 inline volatile std::sig_atomic_t g_running = 1;
+inline volatile std::sig_atomic_t g_flatten_requested = 0;
 }  // namespace detail
 
 inline void handler(int signum) {
@@ -24,15 +25,42 @@ inline void handler(int signum) {
     bpt::common::log::info("Signal {} received, shutting down...", signum);
 }
 
+inline void flatten_handler(int /*signum*/) {
+    // Just set the flag; the main loop polls it and drives the flatten
+    // on the normal thread. Logging here would be nice but isn't
+    // strictly signal-safe — the main loop will log on observation.
+    detail::g_flatten_requested = 1;
+}
+
 // Register SIGINT and SIGTERM handlers.  Call once at the top of main.
 inline void install() {
     std::signal(SIGINT, handler);
     std::signal(SIGTERM, handler);
 }
 
+// Register SIGUSR1 handler — requests emergency flatten without exit.
+// Trigger from the shell with `kill -USR1 <pid>` or
+// `systemctl --user kill --signal=SIGUSR1 bpt-strategy.service`.
+// Main loop observes the flag, stops quoting, fires flatten, then
+// keeps polling (strategy stays alive for inspection).
+inline void install_flatten_handler() {
+    std::signal(SIGUSR1, flatten_handler);
+}
+
 // Returns false once a SIGINT, SIGTERM, or stop() has been called.
 inline bool is_running() noexcept {
     return detail::g_running != 0;
+}
+
+// Returns true if SIGUSR1 has been delivered since last clear.
+inline bool is_flatten_requested() noexcept {
+    return detail::g_flatten_requested != 0;
+}
+
+// Consume the flatten request. Caller should check, act, then clear —
+// so repeat SIGUSR1 deliveries can re-trigger if needed.
+inline void clear_flatten_request() noexcept {
+    detail::g_flatten_requested = 0;
 }
 
 // Programmatic shutdown — equivalent to receiving a signal.

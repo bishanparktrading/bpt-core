@@ -61,6 +61,7 @@ AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
       max_inventory_(cfg.params["max_inventory"].value<double>().value_or(0.1)),
       order_qty_(cfg.params["order_qty"].value<double>().value_or(0.001)),
       min_half_spread_bps_(cfg.params["min_half_spread_bps"].value<double>().value_or(1.0)),
+      max_half_spread_bps_(cfg.params["max_half_spread_bps"].value<double>().value_or(50.0)),
       order_book_depth_(static_cast<uint8_t>(cfg.params["order_book_depth"].value<int64_t>().value_or(0))),
       drift_halflife_s_(cfg.params["drift_halflife_s"].value<double>().value_or(30.0)),
       drift_suppress_bps_(cfg.params["drift_suppress_bps"].value<double>().value_or(0.0)),
@@ -95,7 +96,8 @@ AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
                            "γ={:.4f} κ_fallback={:.4f} session={:.0f}s "
                            "vol_halflife={:.1f}s vol_warmup={} "
                            "kappa_halflife={:.1f}s kappa_warmup={} kappa_min={:.4f} "
-                           "requote_thr={:.4f}% max_inv={:.4f} qty={:.6f} min_spread={:.1f}bps "
+                           "requote_thr={:.4f}% max_inv={:.4f} qty={:.6f} "
+                           "half_spread=[{:.1f},{:.1f}]bps "
                            "drift_halflife={:.1f}s drift_suppress={:.1f}bps",
                            gamma_,
                            kappa_,
@@ -109,6 +111,7 @@ AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
                            max_inventory_,
                            order_qty_,
                            min_half_spread_bps_,
+                           max_half_spread_bps_,
                            drift_halflife_s_,
                            drift_suppress_bps_);
     bpt::common::log::info(kLog(),
@@ -627,9 +630,35 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
     const double kappa = (st.kappa_ticks >= kappa_warmup_ticks_) ? std::max(kappa_min_, st.ewma_kappa) : kappa_;
 
     const double min_half_spread = std::max((min_half_spread_bps_ / 10000.0) * mid, fee_half_spread);
-    const double half_spread =
+    const double raw_half_spread =
         std::max(min_half_spread,
                  gamma_sigma_sq_T / 2.0 + (1.0 / effective_gamma) * std::log(1.0 + effective_gamma / kappa));
+
+    // Cold-start / pathological-σ² clamp. The AS formula can produce
+    // absurdly wide half-spreads before warmup settles or if σ² or κ
+    // estimates go haywire. max_half_spread_bps_ is the "never quote
+    // wider than this" sanity ceiling. If we hit it, warmup isn't done
+    // or something in the EWMA updater is off — log at WARN, rate-limited,
+    // so ops see it but logs don't flood.
+    const double max_half_spread = (max_half_spread_bps_ / 10000.0) * mid;
+    double half_spread = raw_half_spread;
+    if (raw_half_spread > max_half_spread) {
+        half_spread = max_half_spread;
+        static std::size_t clamp_count = 0;
+        if (++clamp_count <= 5 || clamp_count % 1000 == 0) {
+            bpt::common::log::warn(
+                kLog(),
+                "half-spread clamp: formula={:.2f} bps → clamped to {:.2f} bps "
+                "(σ²={:.2e} κ={:.4f} ticks={} {}; {} clamps so far)",
+                raw_half_spread / mid * 10000,
+                max_half_spread_bps_,
+                sigma_sq,
+                kappa,
+                st.ewma_ticks,
+                (st.ewma_ticks < vol_warmup_ticks_ * 3) ? "WARMUP" : "σ-SPIKE",
+                clamp_count);
+        }
+    }
 
     out_bid = reservation - half_spread;
     out_ask = reservation + half_spread;

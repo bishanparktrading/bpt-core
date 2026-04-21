@@ -15,6 +15,7 @@
 #include <cstring>
 #include <filesystem>
 #include <thread>
+#include <unistd.h>
 #include <bpt_common/aeron/aeron_utils.h>
 #include <bpt_common/signal.h>
 #include <bpt_common/util/thread_pin.h>
@@ -173,9 +174,32 @@ void StrategyApp::run() {
     // (the helper logs at INFO, matching other services).
     bpt::common::util::pin_thread_by_role(topology_, "strategy.main", "strategy.main");
 
+    // SIGUSR1 = emergency flatten without exit. Installed here (not in
+    // main()) so the behaviour is scoped to strategies and doesn't
+    // surprise other services that wouldn't know what to do with it.
+    bpt::common::signal::install_flatten_handler();
+
     bpt::common::log::info("Polling... waiting for RefDataReady before subscribing (Ctrl+C to exit)");
+    bpt::common::log::info("Emergency flatten: `kill -USR1 {}` (or systemctl --user kill --signal=SIGUSR1 bpt-strategy)",
+                   ::getpid());
 
     while (bpt::common::signal::is_running()) {
+        // SIGUSR1 → flip to halted state + run the shutdown flatten
+        // once. Strategy stays alive after, so the dashboard / logs
+        // can be inspected without the process exiting. Another
+        // SIGUSR1 re-triggers (clears the flag on consumption).
+        if (bpt::common::signal::is_flatten_requested()) {
+            bpt::common::signal::clear_flatten_request();
+            bpt::common::log::warn("EMERGENCY FLATTEN requested via SIGUSR1 — halting + draining");
+            if (!trading_halted_) {
+                trading_halted_ = true;
+                metrics_.trading_halted->Set(1.0);
+            }
+            shutdown_flatten();
+            bpt::common::log::warn("EMERGENCY FLATTEN complete — strategy stays halted. "
+                           "To resume, restart the process (no resume path by design).");
+        }
+
         int frags = refdata_->poll();
         if (md_client_)
             frags += md_client_->poll();
