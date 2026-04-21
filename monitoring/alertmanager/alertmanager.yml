@@ -1,31 +1,39 @@
-# Alertmanager config — routes incoming alerts from Prometheus to ntfy.sh.
+# Alertmanager config — routes incoming alerts from Prometheus to PagerDuty.
 #
-# ntfy.sh is an HTTP pub/sub notification service.  Alertmanager POSTs
-# each alert's default JSON payload to the topic URL; ntfy's server
-# auto-detects the Alertmanager payload shape and formats it into a
-# clean phone notification.  See https://docs.ntfy.sh for details.
+# PagerDuty's Events API v2 accepts a JSON payload keyed by a per-service
+# routing_key (the "integration key"). Alertmanager's pagerduty_configs
+# receiver handles the payload shape natively — no webhook template needed.
 #
 # Receiver secret:
-#   The full ntfy topic URL (e.g. "https://ntfy.sh/bpt-alerts-XXXXX?...")
-#   is NOT in this file.  It's loaded at service start from systemd-creds
-#   into $CREDENTIALS_DIRECTORY; alertmanager reads via webhook_configs.url_file.
-#   The topic name IS the secret — treat it like a password.
+#   The 32-char integration key is NOT in this file. It's loaded at service
+#   start via docker-compose bind mount from ~/.config/bpt/pagerduty-integration-key
+#   (mode 0600). Alertmanager reads it via pagerduty_configs.routing_key_file.
+#   Treat the key like an API credential — PagerDuty can rotate it at the
+#   integration's service-detail page in the UI.
 #
 # Re-route precedence:
-#   Routes are evaluated top-down; the first match wins.  Critical
-#   alerts use the `ntfy-critical` receiver (urgent priority, rotating-light tag);
-#   warnings use `ntfy-warning` (default priority, warning tag).
+#   Routes are evaluated top-down; the first match wins. Critical alerts
+#   use the `pd-critical` receiver (severity=critical → PagerDuty's
+#   escalation policy fires phone calls); warnings use `pd-warning`
+#   (severity=warning → mobile push only, no phone ring).
+#
+# repeat_interval vs PagerDuty escalation:
+#   PagerDuty re-pages on its own cadence per the escalation policy
+#   ("notify again after N minutes if not acked"). Alertmanager's
+#   repeat_interval is set high (24h for critical) so it doesn't
+#   simultaneously re-trigger the same incident — let PagerDuty own
+#   the repage rhythm.
 #
 # Inhibit rules:
 #   When an upstream cause is already firing, downstream effects are
-#   suppressed.  Documented inline below.
+#   suppressed. Documented inline below.
 
 global:
   resolve_timeout: 5m
 
 route:
   # Top-level catch-all — routes below override per severity
-  receiver: ntfy-critical
+  receiver: pd-critical
   # Group alerts by (alertname, severity, exchange) so OKX + HL
   # disconnects arrive as one message not two, but different alert
   # types stay distinct.
@@ -33,54 +41,48 @@ route:
   # 10s gives time for related alerts to batch; overridden to 0s for critical.
   group_wait: 10s
   # Resend while still firing so a breaker stuck on for hours doesn't
-  # get forgotten, but not spammily.
-  repeat_interval: 4h
+  # get forgotten — but low cadence because PagerDuty owns the repage.
+  repeat_interval: 24h
   # How long to wait before adding new alerts to an existing group.
   group_interval: 5m
 
   routes:
     - matchers:
         - severity="critical"
-      receiver: ntfy-critical
+      receiver: pd-critical
       group_wait: 0s           # critical fires immediately
-      repeat_interval: 1h      # remind every hour until resolved
+      repeat_interval: 24h     # PagerDuty handles repage cadence
 
     - matchers:
         - severity="warning"
-      receiver: ntfy-warning
+      receiver: pd-warning
       group_wait: 2m           # batch warnings in 2-minute windows
-      repeat_interval: 6h
+      repeat_interval: 24h
 
 # ─── Receivers ────────────────────────────────────────────────────────
 #
-# Both receivers target the same ntfy topic, but with different URL
-# query parameters so the phone-side priority / tag / notification-sound
-# differ per severity.  On Android / iOS, priority=urgent bypasses Do
-# Not Disturb if the operator has granted that permission to the ntfy
-# app — so critical alerts ring at 3am even if the phone is silenced.
-#
-# The url_file contents should be the FULL URL including query string.
-# Example for critical:
-#   https://ntfy.sh/bpt-alerts-XXXX?priority=urgent&tags=rotating_light&title=BPT+CRITICAL
-# Example for warning:
-#   https://ntfy.sh/bpt-alerts-XXXX?priority=default&tags=warning&title=BPT+WARNING
+# Both receivers target the same PagerDuty service (same routing_key).
+# severity field drives PagerDuty-side behaviour: critical triggers the
+# phone-call escalation step in the policy; warning stops at mobile push.
+# send_resolved=true so PagerDuty closes the incident when the underlying
+# metric recovers — otherwise incidents stay OPEN forever and need manual
+# resolve.
 
 receivers:
-  - name: ntfy-critical
-    webhook_configs:
-      # docker-compose bind-mounts ~/.config/bpt to /etc/bpt/creds (ro)
-      # so the ntfy URL files are readable inside the container without
-      # hitting git or docker-inspect.
-      - url_file: /etc/bpt/creds/ntfy-url-critical
+  - name: pd-critical
+    pagerduty_configs:
+      # docker-compose bind-mounts ~/.config/bpt to /etc/bpt/creds (ro).
+      - routing_key_file: /etc/bpt/creds/pagerduty-integration-key
+        severity: critical
         send_resolved: true
-        # ntfy auto-formats the Alertmanager JSON payload — no template
-        # configured here (webhook_configs doesn't support templates; the
-        # formatting happens server-side in ntfy).
+        description: '{{ .CommonLabels.alertname }} — {{ .CommonAnnotations.summary }}'
 
-  - name: ntfy-warning
-    webhook_configs:
-      - url_file: /etc/bpt/creds/ntfy-url-warning
+  - name: pd-warning
+    pagerduty_configs:
+      - routing_key_file: /etc/bpt/creds/pagerduty-integration-key
+        severity: warning
         send_resolved: true
+        description: '{{ .CommonLabels.alertname }} — {{ .CommonAnnotations.summary }}'
 
 # ─── Inhibit rules ────────────────────────────────────────────────────
 # When an upstream cause is already firing, don't also page on
