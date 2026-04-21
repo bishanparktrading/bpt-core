@@ -15,23 +15,47 @@ Usage:
     python3 scripts/flatten_hl_positions.py --mainnet        # mainnet
     python3 scripts/flatten_hl_positions.py --dry-run        # just show state
 
-Credentials are loaded from AWS Secrets Manager at bpt/{testnet,prod}/
-HYPERLIQUID — same path the C++ stack reads. Requires AWS creds with
-secretsmanager:GetSecretValue on that secret.
+Credentials load order:
+  1. Local env file at ~/.bpt-secrets/bpt-{testnet,prod}-HYPERLIQUID
+     (KEY=VALUE format, matches the C++ stack's dev fallback).
+  2. AWS Secrets Manager at bpt/{testnet,prod}/HYPERLIQUID — used on
+     prod/QA hosts where creds are centrally managed.
+The script prefers local so a dev laptop without AWS creds still works.
 """
 import argparse
 import json
+import os
 import sys
+from pathlib import Path
 
-import boto3
 from hyperliquid.exchange import Exchange
 from hyperliquid.info import Info
 from hyperliquid.utils import constants
 from eth_account import Account
 
 
-def fetch_credentials(mainnet: bool) -> tuple[str, str]:
-    env = "prod" if mainnet else "testnet"
+def _fetch_from_local_file(env: str) -> tuple[str, str] | None:
+    path = Path.home() / ".bpt-secrets" / f"bpt-{env}-HYPERLIQUID"
+    if not path.is_file():
+        return None
+    blob: dict[str, str] = {}
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        blob[k.strip()] = v.strip()
+    pk = blob.get("HYPERLIQUID_PRIVATE_KEY")
+    addr = blob.get("HYPERLIQUID_WALLET_ADDRESS")
+    if not pk or not addr:
+        return None
+    if not pk.startswith("0x"):
+        pk = "0x" + pk
+    return pk, addr
+
+
+def _fetch_from_aws(env: str) -> tuple[str, str]:
+    import boto3
     secret_id = f"bpt/{env}/HYPERLIQUID"
     sm = boto3.client("secretsmanager", region_name="ap-southeast-1")
     resp = sm.get_secret_value(SecretId=secret_id)
@@ -41,6 +65,16 @@ def fetch_credentials(mainnet: bool) -> tuple[str, str]:
     if not pk.startswith("0x"):
         pk = "0x" + pk
     return pk, addr
+
+
+def fetch_credentials(mainnet: bool) -> tuple[str, str]:
+    env = "prod" if mainnet else "testnet"
+    local = _fetch_from_local_file(env)
+    if local is not None:
+        print(f"Loaded credentials from ~/.bpt-secrets/bpt-{env}-HYPERLIQUID")
+        return local
+    print(f"Local creds not found, trying AWS Secrets Manager: bpt/{env}/HYPERLIQUID")
+    return _fetch_from_aws(env)
 
 
 def show_state(info: Info, wallet: str) -> tuple[list, list]:
