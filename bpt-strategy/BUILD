@@ -53,6 +53,9 @@ cc_binary(
     srcs = [
         "src/main.cpp",
         "src/app/strategy_app.cpp",
+        "src/app/strategy_app_wiring.cpp",
+        "src/app/strategy_app_shutdown.cpp",
+        "src/app/strategy_app_backtest.cpp",
         "src/app/startup_gate.cpp",
         "src/backtest/backtest_client.cpp",
         "src/config/config.cpp",
