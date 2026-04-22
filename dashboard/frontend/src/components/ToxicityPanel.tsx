@@ -52,10 +52,10 @@ export function ToxicityPanel() {
       <div className="panel" style={{ gridArea: 'toxicity' }}>
         <div className="panel-header">
           <span className="panel-title">Flow Toxicity</span>
-          <span className="panel-badge">TYR</span>
+          <span className="panel-badge">TOX</span>
         </div>
         <div style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: 13 }}>
-          Waiting for Tyr data.
+          Waiting for analytics data.
         </div>
       </div>
     )
@@ -71,7 +71,7 @@ export function ToxicityPanel() {
 
   const bothWarm = !bidWarmup && !askWarmup
   const badgeText = bothWarm
-    ? `TYR · ${tox.bidSamples + tox.askSamples} fills`
+    ? `TOX · ${tox.bidSamples + tox.askSamples} fills`
     : `WARMUP · bid ${tox.bidSamples}/${MIN_SAMPLES} ask ${tox.askSamples}/${MIN_SAMPLES}`
   const badgeClass = bothWarm ? 'panel-badge' : 'panel-badge panel-badge--warn'
 
