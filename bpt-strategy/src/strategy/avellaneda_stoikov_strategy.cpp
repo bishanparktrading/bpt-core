@@ -65,8 +65,10 @@ AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
       order_book_depth_(static_cast<uint8_t>(cfg.params["order_book_depth"].value<int64_t>().value_or(0))),
       drift_halflife_s_(cfg.params["drift_halflife_s"].value<double>().value_or(30.0)),
       drift_suppress_bps_(cfg.params["drift_suppress_bps"].value<double>().value_or(0.0)),
+      drift_suppress_sigma_mult_(cfg.params["drift_suppress_sigma_mult"].value<double>().value_or(0.0)),
       slow_drift_window_s_(cfg.params["slow_drift_window_s"].value<double>().value_or(300.0)),
       slow_drift_suppress_bps_(cfg.params["slow_drift_suppress_bps"].value<double>().value_or(0.0)),
+      slow_drift_suppress_sigma_mult_(cfg.params["slow_drift_suppress_sigma_mult"].value<double>().value_or(0.0)),
       tyr_suppress_threshold_(cfg.params["tyr_suppress_threshold"].value<double>().value_or(0.0)),
       queue_suppress_fill_prob_min_(cfg.params["queue_suppress_fill_prob_min"].value<double>().value_or(0.0)),
       shutdown_cross_bps_(cfg.params["shutdown_cross_bps"].value<double>().value_or(20.0)),
@@ -88,6 +90,7 @@ AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
           static_cast<uint64_t>(cfg.params["vol_gate_window_ms"].value<double>().value_or(1000.0) * 1e6),
           static_cast<uint64_t>(cfg.params["vol_gate_halt_ms"].value<double>().value_or(5000.0) * 1e6),
       },
+      vol_gate_sigma_mult_(cfg.params["vol_gate_sigma_mult"].value<double>().value_or(0.0)),
       instruments_(cfg.instruments),
       md_exchanges_(cfg.md_exchanges),
       venue_exec_(cfg.venue_exec),
@@ -100,8 +103,8 @@ AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
                            "kappa_halflife={:.1f}s kappa_warmup={} kappa_min={:.4f} "
                            "requote_thr={:.4f}% max_inv={:.4f} qty={:.6f} "
                            "half_spread=[{:.1f},{:.1f}]bps "
-                           "drift_halflife={:.1f}s drift_suppress={:.1f}bps "
-                           "slow_drift_window={:.0f}s slow_drift_suppress={:.1f}bps",
+                           "drift_halflife={:.1f}s drift_suppress={:.1f}bps (σ×{:.2f}) "
+                           "slow_drift_window={:.0f}s slow_drift_suppress={:.1f}bps (σ×{:.2f})",
                            gamma_,
                            kappa_,
                            session_duration_s_,
@@ -117,8 +120,10 @@ AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
                            max_half_spread_bps_,
                            drift_halflife_s_,
                            drift_suppress_bps_,
+                           drift_suppress_sigma_mult_,
                            slow_drift_window_s_,
-                           slow_drift_suppress_bps_);
+                           slow_drift_suppress_bps_,
+                           slow_drift_suppress_sigma_mult_);
     bpt::common::log::info(kLog(),
                            "risk: max_position_usd={} max_order_size_usd={}",
                            cfg.risk.max_position_usd,
@@ -432,6 +437,19 @@ void AvellanedaStoikovStrategy::on_bbo(const bpt::messages::MdMarketData& tick) 
     // fast move just happened; we cancel live quotes (so we don't get
     // run over on stale depth) and skip re-quoting until the halt
     // cooldown expires.
+    //
+    // Adaptive threshold: if vol_gate_sigma_mult_ > 0 and the vol EWMA
+    // has warmed, push `max(fixed_floor, k × σ × √window_s)` into the
+    // gate before the update. Lets one `vol_gate_sigma_mult` value
+    // work across asset classes — threshold tracks the realized vol
+    // instead of needing per-venue bps tuning.
+    if (vol_gate_sigma_mult_ > 0.0 && st.ewma_var > 0.0) {
+        const double sigma_bps = std::sqrt(st.ewma_var) * 1e4;
+        const double window_s = static_cast<double>(vol_gate_cfg_.window_ns) * 1e-9;
+        const double adaptive_bps = vol_gate_sigma_mult_ * sigma_bps * std::sqrt(window_s);
+        st.vol_gate.set_max_bps_per_window(
+            std::max(vol_gate_cfg_.max_bps_per_window, adaptive_bps));
+    }
     const bool was_halted = st.vol_gate.is_halted(ts_ns);
     const bool now_halted = st.vol_gate.update_and_check(mid, ts_ns);
     if (now_halted && !was_halted) {
@@ -724,19 +742,34 @@ AvellanedaStoikovStrategy::compute_suppression(const InstrumentState& st,
     // Intra-tick realized-vol gate — blocks BOTH sides during fast moves.
     s.vol_halted = st.vol_gate.is_halted(st.last_tick_ns);
 
-    // Drift (fast): suppress the side that would add adverse inventory
-    // when the per-√s drift EWMA exceeds the threshold. drift_suppress_bps_
-    // == 0 disables.
+    // Current σ in bps/√s — derived from the per-√s² variance EWMA
+    // AS already maintains. Used to scale drift, slow-drift, and
+    // vol-gate thresholds adaptively so one set of k-multiples works
+    // across assets and vol regimes (see drift_suppress_sigma_mult_
+    // docstring). 0 when EWMA hasn't warmed; adaptive part is then
+    // a no-op (threshold stays at the fixed floor).
+    const double sigma_bps = st.ewma_var > 0.0 ? std::sqrt(st.ewma_var) * 1e4 : 0.0;
+
+    // Drift (fast): suppress the adverse side when |µ| > threshold.
+    // Threshold = max(fixed_floor, sigma_mult × σ_bps). With sigma_mult
+    // = 3, this fires on ~3-SD-per-√s moves regardless of asset.
     const double drift_bps = std::abs(st.ewma_drift) * 1e4;
-    const bool drift_on = drift_suppress_bps_ > 0.0 && drift_bps > drift_suppress_bps_;
+    const double drift_threshold_bps =
+        std::max(drift_suppress_bps_, drift_suppress_sigma_mult_ * sigma_bps);
+    const bool drift_on = drift_threshold_bps > 0.0 && drift_bps > drift_threshold_bps;
     s.drift_ask = drift_on && st.ewma_drift > 0.0;  // uptrend → don't sell
     s.drift_bid = drift_on && st.ewma_drift < 0.0;  // downtrend → don't buy
 
-    // Trend (slow): same wrong-side logic, keyed on cumulative return
-    // over slow_drift_window_s_ rather than per-√s normalized return.
-    // Catches sustained slow bleeds the fast EWMA misses. 0 disables.
+    // Trend (slow): keyed on cumulative return over slow_drift_window_s_.
+    // Expected stdev of a window-cumulative return ≈ σ × √window_s in
+    // per-√s units, so the adaptive threshold multiplies σ_bps by the
+    // window time-scale √window_s. Setting sigma_mult = 3 ≈ "3-SD
+    // cumulative move over the window."
     const double trend_bps = std::abs(st.slow_drift_bps);
-    const bool trend_on = slow_drift_suppress_bps_ > 0.0 && trend_bps > slow_drift_suppress_bps_;
+    const double trend_threshold_bps = std::max(
+        slow_drift_suppress_bps_,
+        slow_drift_suppress_sigma_mult_ * sigma_bps * std::sqrt(slow_drift_window_s_));
+    const bool trend_on = trend_threshold_bps > 0.0 && trend_bps > trend_threshold_bps;
     s.trend_ask = trend_on && st.slow_drift_bps > 0.0;
     s.trend_bid = trend_on && st.slow_drift_bps < 0.0;
 

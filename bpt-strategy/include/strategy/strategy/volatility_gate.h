@@ -44,6 +44,18 @@ public:
     VolatilityGate() = default;
     explicit VolatilityGate(Config cfg) : cfg_(cfg) {}
 
+    // Adjust the trip threshold at runtime. Exposed so AS can make
+    // vol_gate adaptive to observed σ — threshold moves with the vol
+    // regime instead of requiring a per-asset tuning pass. No effect
+    // on an in-progress halt (halt_end_ns_ unchanged); only future
+    // update_and_check() calls see the new value.
+    void set_max_bps_per_window(double max_bps) noexcept {
+        cfg_.max_bps_per_window = max_bps;
+    }
+    [[nodiscard]] double max_bps_per_window() const noexcept {
+        return cfg_.max_bps_per_window;
+    }
+
     // Feed a new (timestamp, mid) sample. Returns the new halt state
     // AFTER any trip decision. Call this on every BBO tick even when
     // you don't intend to check halt state — it maintains the rolling

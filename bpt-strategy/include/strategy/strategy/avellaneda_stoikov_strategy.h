@@ -350,7 +350,14 @@ private:
 
     // Drift (momentum) detection — Cartea-Jaimungal extension of AS.
     double drift_halflife_s_;    // EWMA half-life for µ estimation (seconds)
-    double drift_suppress_bps_;  // suppress adverse side when |µ| > this (bps/√s)
+    double drift_suppress_bps_;  // suppress adverse side when |µ| > this (bps/√s, fixed floor)
+    // σ-multiple adaptive companion to drift_suppress_bps_. Effective
+    // threshold at runtime = max(drift_suppress_bps_,
+    //                            drift_suppress_sigma_mult_ × σ_ewma_bps).
+    // Makes the knob asset-independent: tune once as "k SDs of realized
+    // vol" rather than re-tuning bps for each venue / vol regime.
+    // 0 disables adaptive part (purely fixed threshold).
+    double drift_suppress_sigma_mult_;
 
     // Slow-drift (trend) detection — complements the per-√s EWMA drift
     // above. The fast signal is tuned for flash moves (threshold in
@@ -367,7 +374,16 @@ private:
     // a predictable threshold in absolute bps; EWMA would require an
     // adaptive threshold keyed to halflife.
     double slow_drift_window_s_;      // rolling anchor window (seconds)
-    double slow_drift_suppress_bps_;  // suppress when |cum_return| > this (bps). 0 disables.
+    double slow_drift_suppress_bps_;  // suppress when |cum_return| > this (bps, fixed floor). 0 disables.
+    // σ-multiple adaptive companion. Effective threshold at runtime =
+    //   max(slow_drift_suppress_bps_,
+    //       slow_drift_suppress_sigma_mult_ × σ_ewma_bps × √window_s).
+    // The √window_s factor converts per-√s σ into a "typical cumulative
+    // return magnitude over `window_s` seconds" — i.e., the expected
+    // stdev of the cumulative-return measure we're thresholding. Setting
+    // sigma_mult = 3 ≈ "fire on 3-SD cumulative moves over the window."
+    // 0 disables adaptive part.
+    double slow_drift_suppress_sigma_mult_;
 
     // Analytics toxicity suppression — suppress side when tyr score < threshold.
     // 0 disables. Typical value: -2.0 (suppress when 5s markout is -2bps or worse).
@@ -399,6 +415,14 @@ private:
 
     // Volatility gate config — applied per-instrument at snapshot time.
     VolatilityGate::Config vol_gate_cfg_;
+    // σ-multiple adaptive companion to vol_gate_cfg_.max_bps_per_window.
+    // Effective trip threshold at runtime =
+    //   max(vol_gate_cfg_.max_bps_per_window,
+    //       vol_gate_sigma_mult_ × σ_ewma_bps × √window_s).
+    // Updated into st.vol_gate via set_max_bps_per_window() on every
+    // on_bbo tick once the vol EWMA has warmed up. 0 disables adaptive
+    // part (purely fixed threshold).
+    double vol_gate_sigma_mult_;
 
     std::vector<std::string> instruments_;
     std::vector<std::string> md_exchanges_;
