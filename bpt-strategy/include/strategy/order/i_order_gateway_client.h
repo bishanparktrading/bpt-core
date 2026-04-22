@@ -71,15 +71,13 @@ public:
     virtual void send_account_snapshot_request(bpt::messages::ExchangeId::Value exchange_id,
                                                 uint64_t correlation_id) = 0;
 
-    // Drain any pending inbound fragments (exec reports / heartbeats /
-    // account snapshots for the Aeron impl; fill-engine ticks for the
-    // paper impl). Returns the number of events dispatched.
+    // Drain any pending inbound Aeron fragments (exec reports,
+    // heartbeats, account snapshots). Returns the number of events
+    // dispatched.
     virtual int poll(int fragment_limit = 10) = 0;
 
     // Monotonic wall-clock ns of the most recent gateway heartbeat —
-    // consumed by StrategyApp's liveness gate. Paper impls can return
-    // the current time (or any value that keeps the liveness check
-    // happy) since there's no real gateway to monitor.
+    // consumed by StrategyApp's liveness gate.
     [[nodiscard]] virtual uint64_t last_heartbeat_ns() const = 0;
 
     // Callbacks are shared data — set by StrategyApp once, fired by

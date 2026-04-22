@@ -16,7 +16,7 @@ namespace bpt::common {
 
 enum class Env {
     DEV,   // local / laptop / backtest
-    QA,    // staging / testnet / paper
+    QA,    // staging / testnet
     PROD,  // live capital
 };
 

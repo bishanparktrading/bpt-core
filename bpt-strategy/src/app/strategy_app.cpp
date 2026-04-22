@@ -114,7 +114,7 @@ StrategyApp::StrategyApp(config::AppConfig cfg,
 
     // Dashboard control subscription — halt/resume from the bridge.
     // 1-byte messages: 0x00 = HALT, 0x01 = RESUME.  Only enabled in
-    // live/paper mode (not backtest — backtest has its own control channel).
+    // live mode (not backtest — backtest has its own control channel).
     if (!cfg_.backtest_mode && ac.dashboard_control.stream_id != 0) {
         const int64_t reg_id = aeron->addSubscription(
             ac.dashboard_control.channel, ac.dashboard_control.stream_id);
