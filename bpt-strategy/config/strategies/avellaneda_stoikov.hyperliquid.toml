@@ -54,9 +54,12 @@ kappa_min = 5.0
 
 # Absolute upper clamp on half-spread. Belt-and-suspenders — if vol
 # or inventory skew ever push AS output past this, clip rather than
-# post an embarrassing quote. 5 bps/side = 10 bps total, at/near
-# XMR's market touch. Default in code is 50 (way too permissive).
-max_half_spread_bps = 5.0
+# post an embarrassing quote. Originally 5 bps/side to sit inside the
+# ~7 bps XMR touch, but in an adverse-selection trend AS *wants* to
+# widen to protect, and the 5 bps clamp stops it. Bumped to 12 bps —
+# drift/tyr/vol_gate still cap real-world behaviour at saner levels;
+# this is just a last-resort ceiling, not the operating point.
+max_half_spread_bps = 12.0
 
 # Paper-mode XMR sizing (HL mainnet XMR ~ $370, 7 bps baseline spread).
 # 0.1 XMR = ~$37 notional per order; max_inventory 1.0 XMR = ~$370.
@@ -105,11 +108,13 @@ min_half_spread_bps = 0.1
 #
 # 15s drift halflife reacts faster than vol (60s) — trends establish
 # quickly, and we'd rather suppress too early than too late.
-# XMR baseline spread is 7 bps — a 5 bps/√s sustained drift is a real
-# momentum event against a 3.5 bps half-spread; below that it's noise.
-# (BTC tuning was 1.5 bps against 0.14 bps baseline — same ratio.)
+# XMR baseline spread is 7 bps. Initially tuned 5 bps/√s but live
+# trending move on 2026-04-23 cleared only ~3.5 bps/√s — just under
+# the floor — and we accumulated -0.95 XMR short before anything
+# tripped. 3 bps/√s catches those before inventory builds; σ-mult
+# companion (below) still dominates in high-vol regimes.
 drift_halflife_s    = 15.0
-drift_suppress_bps  = 5.0
+drift_suppress_bps  = 3.0
 # σ-multiple adaptive companion. Effective threshold each tick:
 #   max(drift_suppress_bps, drift_suppress_sigma_mult × σ_ewma_bps)
 # 3.0 ≈ "fire on 3-SD-per-√s moves." Lets the same config target
@@ -135,15 +140,15 @@ drift_suppress_sigma_mult = 3.0
 # Tuning knobs:
 #   slow_drift_window_s    — window length in seconds. Shorter → more
 #                             reactive + noisier; longer → slower but
-#                             more stable. 300s (5min) is a reasonable
-#                             default for asset classes where sustained
-#                             trends last minutes, not seconds.
+#                             more stable. Initially 300s, tightened to
+#                             120s after an adverse trend rolled off
+#                             the 5min window before triggering.
 #   slow_drift_suppress_bps — threshold on |cum_return| over the window.
 #                             Set 2-3× typical noise-band over the same
 #                             window. 0 disables. For HL XMR where noise
-#                             is ~5-10 bps / 5min, 20 bps gives clean
-#                             separation.
-slow_drift_window_s     = 300.0
+#                             is ~5-10 bps / 2min, 20 bps still gives
+#                             clean separation.
+slow_drift_window_s     = 120.0
 slow_drift_suppress_bps = 20.0
 # σ-multiple adaptive companion. Effective threshold:
 #   max(slow_drift_suppress_bps, k × σ_bps × √window_s)
@@ -198,10 +203,13 @@ vol_gate_sigma_mult = 5.0
 # Loss / profit thresholds are in USD (matches realized PnL units
 # from PositionTracker — same currency as exchange equity reporting).
 # At ~$30 notional per fill and ~7 bps spread, a "good" round-trip
-# clears ~$0.02; loss_threshold = -1.0 ≈ "if 20 fills net $1+ loss,
-# widen." profit_threshold = +1.0 keeps it symmetric for now.
+# clears ~$0.02. Initial -$1 threshold was too slow — live run on
+# 2026-04-23 accumulated -$0.52 rpnl while the multiplier sat at 1.0
+# because the sum never crossed -$1. -$0.25 ≈ "3-4 consecutive small
+# losers," widens γ quickly enough to matter. Profit threshold kept
+# looser at +$1 — we want tightening to be earned, not reflexive.
 gamma_pnl_window_n         = 20
-gamma_pnl_loss_threshold_usd   = -1.0
+gamma_pnl_loss_threshold_usd   = -0.25
 gamma_pnl_profit_threshold_usd = 1.0
 gamma_pnl_widen_mult       = 1.5
 gamma_pnl_tighten_mult     = 0.85
