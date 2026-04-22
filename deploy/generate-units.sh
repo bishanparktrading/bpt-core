@@ -232,6 +232,34 @@ AccuracySec=30s
 WantedBy=bpt-stack.target
 EOF
 
+# ── bpt-log-cleanup.{service,timer} ─────────────────────────────────────────
+# Weekly prune of log files not modified in 30+ days. Catches orphan
+# log families left behind by service renames (quill rotates active
+# logs but can't reap a series that's no longer being written to).
+cat > "$UNIT_DIR/bpt-log-cleanup.service" <<EOF
+[Unit]
+Description=BPT stale log cleanup (>30d, untouched since rename)
+
+[Service]
+Type=oneshot
+ExecStart=$BPT_ROOT/scripts/cleanup-stale-logs.sh
+Environment=BPT_ROOT=$BPT_ROOT
+Environment=RETENTION_DAYS=30
+EOF
+
+cat > "$UNIT_DIR/bpt-log-cleanup.timer" <<EOF
+[Unit]
+Description=Weekly BPT log cleanup (Sunday 04:00)
+
+[Timer]
+OnCalendar=Sun *-*-* 04:00:00
+Persistent=true
+RandomizedDelaySec=15min
+
+[Install]
+WantedBy=timers.target
+EOF
+
 # ── bpt-stack.target ─────────────────────────────────────────────────────────
 cat > "$UNIT_DIR/bpt-stack.target" <<EOF
 [Unit]
