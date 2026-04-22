@@ -40,11 +40,11 @@ stream_id = 3002
 channel   = "aeron:ipc"
 stream_id = 3003
 
-[gateway]
+[order-gateway]
 heartbeat_interval_ms  = 2000
 stale_order_timeout_ms = 60000
 
-[gateway.risk]
+[order-gateway.risk]
 trading_enabled            = false
 max_order_size_usd         = 2500.0
 max_notional_per_order_usd = 10000.0

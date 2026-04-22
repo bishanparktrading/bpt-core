@@ -79,7 +79,14 @@ Settings load(const std::string& path) {
         s.aeron.account_snapshot = load_stream((*aeron)["account_snapshot"].as_table(), "aeron:ipc", 3004);
     }
 
-    if (auto* g = root["gateway"].as_table()) {
+    // TOML section is [order-gateway] / [order-gateway.risk] across every
+    // config file in bpt-order-gateway/config/. Previously the loader
+    // looked up root["gateway"] here, which never matches — so the entire
+    // gateway + risk block was silently ignored and the service ran on the
+    // hardcoded defaults in Settings (trading_enabled=true,
+    // max_daily_loss_usd=0.0 = DISABLED). That left the daily-loss kill
+    // switch effectively never armed in prod. Now reads the correct key.
+    if (auto* g = root["order-gateway"].as_table()) {
         if (auto v = (*g)["heartbeat_interval_ms"].value<int64_t>())
             s.gateway.heartbeat_interval_ms = static_cast<uint32_t>(*v);
         if (auto v = (*g)["stale_order_timeout_ms"].value<int64_t>())
