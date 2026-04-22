@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 
 namespace bpt::order_gateway::adapter::hyperliquid {
 
@@ -37,17 +38,26 @@ namespace bpt::order_gateway::adapter::hyperliquid {
 [[nodiscard]] std::string float_to_wire(double v);
 
 // Per-asset metadata needed to build a well-formed order action.
-// TODO(prod): load this from /info meta at startup instead of hardcoding.
-// Testnet uses different asset indices than mainnet.
+// Populated at adapter startup from HL's /info meta endpoint so mainnet
+// + testnet + any relisting are handled without a code change — see
+// HyperliquidOrderAdapter::load_asset_meta().
 struct AssetMeta {
     int asset_idx;       // HL universe index — what goes into action.orders[].a
     int sz_decimals;     // used to enforce price precision rules
     int max_px_decimals; // 6 - sz_decimals; max decimal places allowed in the price string
 };
 
-// Look up AssetMeta for a coin on HL testnet. Returns a sentinel for
-// unknown symbols (asset_idx = -1) — callers should reject.
-[[nodiscard]] AssetMeta lookup_testnet_asset(std::string_view exchange_symbol);
+// Map of coin symbol → AssetMeta. Callers (adapter, tests) populate one
+// instance (from /info meta in production, a literal in tests) and pass
+// individual AssetMeta entries into the encoder.
+using AssetTable = std::unordered_map<std::string, AssetMeta>;
+
+// Parse HL's `/info` response body (returned by POST {"type":"meta"})
+// into an AssetTable. Pure function for testability — no I/O, takes the
+// raw response string. Throws on malformed JSON or missing "universe"
+// array. Entries with non-string or missing `name` are silently skipped
+// so that a new HL field shape doesn't crash startup.
+[[nodiscard]] AssetTable parse_universe_meta(std::string_view meta_response_body);
 
 // HL time-in-force for the limit variant. Alo = Add Liquidity Only
 // (post-only) — HL rejects the order if it would cross the book at
@@ -58,16 +68,14 @@ enum class HlTif { Gtc, Alo, Ioc };
 // Wire string HL expects in action.orders[].t.limit.tif.
 [[nodiscard]] const char* tif_to_string(HlTif tif);
 
-// Build the `action` JSON for a new order (one-leg limit). Uses
-// lookup_testnet_asset for the asset index and float_to_wire + price
-// rounding for the wire price/size strings.
+// Build the `action` JSON for a new order (one-leg limit). Caller
+// resolves coin symbol → AssetMeta via the AssetTable populated at
+// startup from /info meta.
 //
 // price_natural / size_natural are in natural units (e.g. 72108.5 USD,
 // 0.001 BTC). The builder rounds the price to satisfy HL's "max 5 sig
-// figs / max (6 - szDecimals) decimals" rule for BTC perp, which at
-// ~$72k leaves only integer prices as valid. For other assets the
-// rounding will need to be per-asset — today it's BTC-only.
-[[nodiscard]] boost::json::value build_order_action(std::string_view exchange_symbol,
+// figs / max (6 - szDecimals) decimals" rule using meta.sz_decimals.
+[[nodiscard]] boost::json::value build_order_action(const AssetMeta& meta,
                                                     bool is_buy,
                                                     double price_natural,
                                                     double size_natural,
@@ -76,13 +84,13 @@ enum class HlTif { Gtc, Alo, Ioc };
 // Build the `action` JSON for a cancel-by-exchange-oid. The oid is the
 // HL exchange order id from the original `resting` response — NOT our
 // internal client order_id.
-[[nodiscard]] boost::json::value build_cancel_action(std::string_view exchange_symbol,
+[[nodiscard]] boost::json::value build_cancel_action(const AssetMeta& meta,
                                                      uint64_t exch_oid);
 
 // Build the `action` JSON for a modify. Note: HL does not accept modify
 // over the WS `post` endpoint — use REST for this path. Builder is
 // transport-agnostic, caller decides.
-[[nodiscard]] boost::json::value build_modify_action(std::string_view exchange_symbol,
+[[nodiscard]] boost::json::value build_modify_action(const AssetMeta& meta,
                                                      uint64_t client_or_exch_oid,
                                                      double price_natural,
                                                      double size_natural);

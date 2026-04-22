@@ -93,6 +93,28 @@ HyperliquidOrderAdapter::HyperliquidOrderAdapter(const config::AdapterConfig& cf
         },
         std::chrono::milliseconds(3000),
         static_cast<int64_t>(1.0 * 1e8));  // 1 USD tick
+
+    // Populate asset_meta_ from HL's /info meta endpoint. Done here
+    // synchronously so that by the time the OG accepts its first
+    // NewOrder, we already know every HL symbol's (asset_idx, szDecimals)
+    // and won't stamp `a: -1` into the wire payload.
+    load_asset_meta();
+}
+
+void HyperliquidOrderAdapter::load_asset_meta() {
+    try {
+        json::object req;
+        req["type"] = "meta";
+        const std::string resp = https_client_->post("/info", json::serialize(json::value(req)));
+        asset_meta_ = hlcodec::parse_universe_meta(resp);
+        bpt::common::log::info(
+            "HyperliquidOrderAdapter: loaded {} asset(s) from /info meta",
+            asset_meta_.size());
+    } catch (const std::exception& e) {
+        bpt::common::log::error(
+            "HyperliquidOrderAdapter: failed to load /info meta — orders "
+            "will be rejected until restart: {}", e.what());
+    }
 }
 
 // HTTPS/REST path extracted to HyperliquidHttpsClient.
@@ -137,13 +159,30 @@ void HyperliquidOrderAdapter::send_new_order(const bpt::messages::NewOrder& orde
         return hlcodec::HlTif::Gtc;
     }();
 
+    // Resolve coin → AssetMeta. If the meta table is empty (load failed at
+    // startup) or the coin is not listed on HL, REJECT before we stamp an
+    // invalid `a` value into the wire JSON — HL returns an opaque "Error
+    // parsing JSON into valid websocket request" on out-of-range asset
+    // indices, which is much worse diagnostically than a clean reject.
+    const auto meta_it = asset_meta_.find(exchange_symbol);
+    if (meta_it == asset_meta_.end()) {
+        bpt::common::log::warn("HyperliquidOrderAdapter: unknown symbol {} — rejecting", exchange_symbol);
+        const hyperliquid::OrderContext ctx{
+            order.orderId(), order.instrumentId(), order.side(), order.orderType(),
+            order.price(), order.quantity(),
+        };
+        exec_emitter_.emit_rejected(ctx);
+        return;
+    }
+    const hlcodec::AssetMeta meta = meta_it->second;
+
     try {
         // Build Hyperliquid order action JSON via the pure codec helper.
         // Do NOT mutate `action` after signing — the signer msgpacks the
         // exact bytes we pass to ws_client_->post_action, so any post-sign mutation
         // desyncs the signature from the wire payload.
         const json::value action = hlcodec::build_order_action(
-            exchange_symbol, is_buy, price_d, size_d, hl_tif);
+            meta, is_buy, price_d, size_d, hl_tif);
 
         const uint64_t nonce = signer_->next_nonce();
         auto tx = signer_->sign_l1_action(action, nonce);
@@ -290,8 +329,15 @@ void HyperliquidOrderAdapter::send_cancel(const bpt::messages::CancelOrder& canc
     }
     const uint64_t exch_oid = it->second;
 
+    const auto cancel_meta_it = asset_meta_.find(native_symbol);
+    if (cancel_meta_it == asset_meta_.end()) {
+        bpt::common::log::warn("HyperliquidOrderAdapter: cancel id={} unknown symbol {} — skipping",
+                               cancel.orderId(), native_symbol);
+        return;
+    }
+
     try {
-        const json::value action = hlcodec::build_cancel_action(native_symbol, exch_oid);
+        const json::value action = hlcodec::build_cancel_action(cancel_meta_it->second, exch_oid);
 
         const uint64_t nonce = signer_->next_nonce();
         auto tx = signer_->sign_l1_action(action, nonce);
@@ -356,9 +402,14 @@ void HyperliquidOrderAdapter::send_cancel_all(uint64_t instrument_id) {
             const std::string coin = std::string(o.at("coin").as_string());
             const uint64_t oid = static_cast<uint64_t>(o.at("oid").as_int64());
 
-            const auto meta = hlcodec::lookup_testnet_asset(coin);
+            const auto bulk_meta_it = asset_meta_.find(coin);
+            if (bulk_meta_it == asset_meta_.end()) {
+                bpt::common::log::warn("cancel_all: unknown coin {} in openOrders — skipping oid {}",
+                                       coin, oid);
+                continue;
+            }
             json::object c;
-            c["a"] = meta.asset_idx;
+            c["a"] = bulk_meta_it->second.asset_idx;
             c["o"] = oid;
             cancels.push_back(std::move(c));
         }
@@ -400,12 +451,19 @@ void HyperliquidOrderAdapter::send_modify(const bpt::messages::ModifyOrder& modi
         return;
     }
 
+    const auto modify_meta_it = asset_meta_.find(native_symbol);
+    if (modify_meta_it == asset_meta_.end()) {
+        bpt::common::log::warn("HyperliquidOrderAdapter: modify id={} unknown symbol {} — skipping",
+                               modify.orderId(), native_symbol);
+        return;
+    }
+
     try {
         const double price_d = static_cast<double>(modify.newPrice()) / kScale;
         const double size_d  = static_cast<double>(modify.newQuantity()) / kScale;
 
         const json::value action = hlcodec::build_modify_action(
-            native_symbol, modify.orderId(), price_d, size_d);
+            modify_meta_it->second, modify.orderId(), price_d, size_d);
 
         const uint64_t nonce = signer_->next_nonce();
         auto tx = signer_->sign_l1_action(action, nonce);

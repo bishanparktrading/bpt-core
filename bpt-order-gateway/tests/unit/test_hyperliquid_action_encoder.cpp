@@ -49,26 +49,54 @@ TEST(FloatToWireTest, FullPrecision) {
 }
 
 // ---------------------------------------------------------------------------
-// lookup_testnet_asset
+// Asset metadata stubs — tests construct these inline rather than hitting
+// HL's /info meta. Production path loads the map via
+// parse_universe_meta from the live API response.
 // ---------------------------------------------------------------------------
 
-TEST(AssetLookupTest, BTC) {
-    auto meta = lookup_testnet_asset("BTC");
-    EXPECT_EQ(meta.asset_idx, 3);
-    EXPECT_EQ(meta.sz_decimals, 5);
-    EXPECT_EQ(meta.max_px_decimals, 1);
+constexpr AssetMeta kBtcMeta{/*asset_idx=*/3,   /*sz_decimals=*/5, /*max_px_decimals=*/1};
+constexpr AssetMeta kEthMeta{/*asset_idx=*/4,   /*sz_decimals=*/4, /*max_px_decimals=*/2};
+constexpr AssetMeta kXmrMeta{/*asset_idx=*/202, /*sz_decimals=*/2, /*max_px_decimals=*/4};
+
+// ---------------------------------------------------------------------------
+// parse_universe_meta — HL /info meta response parsing
+// ---------------------------------------------------------------------------
+
+TEST(ParseUniverseMetaTest, BasicExtract) {
+    // Stripped-down HL /info meta response. Asset index = position in array.
+    constexpr const char* body = R"({
+      "universe": [
+        {"name": "SOL", "szDecimals": 2, "maxLeverage": 10},
+        {"name": "APT", "szDecimals": 2, "maxLeverage": 3},
+        {"name": "BTC", "szDecimals": 5, "maxLeverage": 40}
+      ]
+    })";
+    const auto table = parse_universe_meta(body);
+    ASSERT_EQ(table.size(), 3u);
+    EXPECT_EQ(table.at("BTC").asset_idx, 2);
+    EXPECT_EQ(table.at("BTC").sz_decimals, 5);
+    EXPECT_EQ(table.at("BTC").max_px_decimals, 1);
+    EXPECT_EQ(table.at("SOL").asset_idx, 0);
+    EXPECT_EQ(table.at("APT").asset_idx, 1);
 }
 
-TEST(AssetLookupTest, ETH) {
-    auto meta = lookup_testnet_asset("ETH");
-    EXPECT_EQ(meta.asset_idx, 4);
-    EXPECT_EQ(meta.sz_decimals, 4);
-    EXPECT_EQ(meta.max_px_decimals, 2);
+TEST(ParseUniverseMetaTest, ThrowsOnMissingUniverse) {
+    EXPECT_THROW(parse_universe_meta("{\"other\":42}"), std::runtime_error);
 }
 
-TEST(AssetLookupTest, UnknownAsset) {
-    auto meta = lookup_testnet_asset("SHIB");
-    EXPECT_EQ(meta.asset_idx, -1);
+TEST(ParseUniverseMetaTest, SkipsMalformedEntries) {
+    // Entry missing `name` should be skipped, not crash startup.
+    constexpr const char* body = R"({
+      "universe": [
+        {"name":"BTC","szDecimals":5},
+        {"szDecimals":2},
+        {"name":"ETH","szDecimals":4}
+      ]
+    })";
+    const auto table = parse_universe_meta(body);
+    EXPECT_EQ(table.size(), 2u);
+    EXPECT_EQ(table.at("BTC").asset_idx, 0);
+    EXPECT_EQ(table.at("ETH").asset_idx, 2);  // index preserved across skip
 }
 
 // ---------------------------------------------------------------------------
@@ -86,7 +114,7 @@ TEST(TifTest, AllVariants) {
 // ---------------------------------------------------------------------------
 
 TEST(BuildOrderActionTest, BasicBuyOrder) {
-    auto action = build_order_action("BTC", true, 72198.5, 0.001, HlTif::Gtc);
+    auto action = build_order_action(kBtcMeta, true, 72198.5, 0.001, HlTif::Gtc);
     const auto& obj = action.as_object();
 
     EXPECT_EQ(obj.at("type").as_string(), "order");
@@ -98,7 +126,7 @@ TEST(BuildOrderActionTest, BasicBuyOrder) {
 
     EXPECT_EQ(o.at("a").as_int64(), 3);   // BTC asset_idx
     EXPECT_EQ(o.at("b").as_bool(), true);  // is_buy
-    // Price rounded to integer for BTC at ~$72k
+    // Price rounded to integer for BTC at ~$72k — 5 sigfigs dominates.
     EXPECT_EQ(std::string(o.at("p").as_string()), "72199");
     EXPECT_EQ(std::string(o.at("s").as_string()), "0.001");
     EXPECT_EQ(o.at("r").as_bool(), false);
@@ -108,7 +136,7 @@ TEST(BuildOrderActionTest, BasicBuyOrder) {
 }
 
 TEST(BuildOrderActionTest, SellOrderAlo) {
-    auto action = build_order_action("BTC", false, 73000.0, 0.01, HlTif::Alo);
+    auto action = build_order_action(kBtcMeta, false, 73000.0, 0.01, HlTif::Alo);
     const auto& o = action.as_object().at("orders").as_array()[0].as_object();
 
     EXPECT_EQ(o.at("b").as_bool(), false);
@@ -117,7 +145,7 @@ TEST(BuildOrderActionTest, SellOrderAlo) {
 }
 
 TEST(BuildOrderActionTest, IocOrder) {
-    auto action = build_order_action("ETH", true, 3500.0, 0.5, HlTif::Ioc);
+    auto action = build_order_action(kEthMeta, true, 3500.0, 0.5, HlTif::Ioc);
     const auto& o = action.as_object().at("orders").as_array()[0].as_object();
 
     EXPECT_EQ(o.at("a").as_int64(), 4);  // ETH asset_idx
@@ -125,12 +153,22 @@ TEST(BuildOrderActionTest, IocOrder) {
     EXPECT_EQ(std::string(tif), "Ioc");
 }
 
+TEST(BuildOrderActionTest, XmrPriceRounding) {
+    // XMR at ~$385, szDecimals=2, max_px_decimals=4. 5-sigfig cap wins:
+    // 385.123456 → 385.12 (2 decimals post-cap). Regression test for the
+    // specific coin that prompted the /info-meta refactor.
+    auto action = build_order_action(kXmrMeta, true, 385.123456, 0.1, HlTif::Gtc);
+    const auto& o = action.as_object().at("orders").as_array()[0].as_object();
+    EXPECT_EQ(o.at("a").as_int64(), 202);
+    EXPECT_EQ(std::string(o.at("p").as_string()), "385.12");
+}
+
 // ---------------------------------------------------------------------------
 // build_cancel_action
 // ---------------------------------------------------------------------------
 
 TEST(BuildCancelActionTest, Basic) {
-    auto action = build_cancel_action("BTC", 12345);
+    auto action = build_cancel_action(kBtcMeta, 12345);
     const auto& obj = action.as_object();
 
     EXPECT_EQ(obj.at("type").as_string(), "cancel");
@@ -147,7 +185,7 @@ TEST(BuildCancelActionTest, Basic) {
 // ---------------------------------------------------------------------------
 
 TEST(BuildModifyActionTest, Basic) {
-    auto action = build_modify_action("BTC", 67890, 72000.0, 0.002);
+    auto action = build_modify_action(kBtcMeta, 67890, 72000.0, 0.002);
     const auto& obj = action.as_object();
 
     EXPECT_EQ(obj.at("type").as_string(), "modify");

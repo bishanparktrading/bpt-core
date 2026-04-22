@@ -2,6 +2,7 @@
 
 #include "order_gateway/adapter/common/credentials.h"
 #include "order_gateway/adapter/common/order_adapter_base.h"
+#include "order_gateway/adapter/hyperliquid/hyperliquid_action_encoder.h"
 #include "order_gateway/adapter/hyperliquid/hyperliquid_exec_emitter.h"
 #include "order_gateway/adapter/hyperliquid/hyperliquid_exec_parser.h"
 #include "order_gateway/adapter/hyperliquid/hyperliquid_https_client.h"
@@ -72,6 +73,20 @@ private:
     // REST client for /info queries (clearinghouseState, meta) and as
     // a fallback for signed actions the WS post path can't handle (modify).
     std::unique_ptr<hyperliquid::HyperliquidHttpsClient> https_client_;
+
+    // Asset metadata table — coin symbol → AssetMeta. Populated once at
+    // adapter construction from HL's /info meta endpoint. Empty entries
+    // (never-loaded or unknown symbol) cause send_new_order/cancel/modify
+    // to emit REJECTED with an UNKNOWN_SYMBOL-class reason rather than
+    // stamping the wire with `a: -1` and getting HL to reject at JSON
+    // parse (which is opaque). Superseded the prior BTC/ETH hardcoded
+    // table.
+    hyperliquid::AssetTable asset_meta_;
+
+    // Fetch /info meta via https_client_ and populate asset_meta_.
+    // Non-fatal on failure — logs WARN and leaves asset_meta_ empty, so
+    // orders reject cleanly until a manual restart retries the fetch.
+    void load_asset_meta();
 
     // Phantom-fill recovery. When post_action times out or the WS drops
     // mid-flight, the adapter pushes the candidate here instead of
