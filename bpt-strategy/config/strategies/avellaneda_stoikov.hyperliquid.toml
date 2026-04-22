@@ -69,6 +69,22 @@ order_qty = 0.1
 # practice of "requote when meaningful price move but not every tick".
 requote_threshold = 0.00035
 max_inventory = 1.0
+
+# Equity-fraction sizing — overrides order_qty / max_inventory above
+# when set. Notional sizes derived from AccountSnapshot.totalEquity each
+# tick; lets one config track capital changes (deposits, P&L) without
+# manual re-sizing. order_qty_min is an absolute floor that prevents
+# a shrinking equity from driving qty below the exchange lot size and
+# stranding the position un-unwindable.
+#
+# Tuning at $686 starting equity / $377 XMR mid:
+#   order_qty_fraction     = 0.05  → ~0.09 XMR (~$34 notional, similar
+#                                    to today's static 0.1)
+#   order_qty_min          = 0.05  → never below ~$19 notional
+#   max_inventory_fraction = 0.5   → ~0.91 XMR cap (similar to static 1.0)
+order_qty_fraction      = 0.05
+order_qty_min           = 0.05
+max_inventory_fraction  = 0.5
 # Unlike BTC spot where pro MMs pin the touch at 1 tick (0.14 bps),
 # XMR on HL has a 7 bps natural spread with fewer participants — a
 # 0.1 bps floor lets the AS formula pick the half-spread; gamma and
@@ -94,6 +110,12 @@ min_half_spread_bps = 0.1
 # (BTC tuning was 1.5 bps against 0.14 bps baseline — same ratio.)
 drift_halflife_s    = 15.0
 drift_suppress_bps  = 5.0
+# σ-multiple adaptive companion. Effective threshold each tick:
+#   max(drift_suppress_bps, drift_suppress_sigma_mult × σ_ewma_bps)
+# 3.0 ≈ "fire on 3-SD-per-√s moves." Lets the same config target
+# different vol regimes without re-tuning the bps floor; the floor
+# stays as a hard minimum.
+drift_suppress_sigma_mult = 3.0
 
 # ── Slow-drift (trend) suppression ─────────────────────────────────
 # Complements the per-√s drift EWMA above. Same wrong-side logic —
@@ -123,6 +145,13 @@ drift_suppress_bps  = 5.0
 #                             separation.
 slow_drift_window_s     = 300.0
 slow_drift_suppress_bps = 20.0
+# σ-multiple adaptive companion. Effective threshold:
+#   max(slow_drift_suppress_bps, k × σ_bps × √window_s)
+# At 300s window the √window factor is ~17.3, so sigma_mult = 3
+# fires at roughly 3 SDs of expected window-cumulative move — matching
+# the fast drift's k value for consistency. Floor at 20 bps keeps the
+# adaptive part from going below the manually-validated XMR threshold.
+slow_drift_suppress_sigma_mult = 3.0
 
 # ── Tyr toxicity feedback (optional) ──────────────────────────────
 # When tyr is running and fenrir subscribes to stream 5001 (set
@@ -147,3 +176,32 @@ tyr_suppress_threshold = -2.0
 vol_gate_max_bps    = 20.0
 vol_gate_window_ms  = 1000
 vol_gate_halt_ms    = 5000
+# σ-multiple adaptive companion to vol_gate_max_bps. Effective trip:
+#   max(vol_gate_max_bps, k × σ_bps × √window_s)
+# At 1s window, √window = 1, so sigma_mult ≈ k ≈ 5 fires at ~5σ-per-s
+# moves — distinctly above the ~3σ drift/trend signals so vol_gate
+# only catches genuine flash events, not gradient noise.
+vol_gate_sigma_mult = 5.0
+
+# ── γ feedback from recent realized P&L ───────────────────────────
+# Closes the third feedback loop: γ widens after a recent loss streak,
+# tightens after a recent profit streak. Otherwise stays in deadband
+# (multiplier = 1.0). Highest blast-radius adaptive feature on AS —
+# a mistuned widen_mult of 5x could lock the strategy into permanent
+# wide quotes and never recover. Conservative defaults below.
+#
+# Window is in fill count, NOT time. 20 fills = ~5–10 minutes of
+# trading on HL XMR at current fill cadence; long enough to smooth a
+# single bad fill, short enough to react when something is actually
+# trending wrong.
+#
+# Loss / profit thresholds are in USD (matches realized PnL units
+# from PositionTracker — same currency as exchange equity reporting).
+# At ~$30 notional per fill and ~7 bps spread, a "good" round-trip
+# clears ~$0.02; loss_threshold = -1.0 ≈ "if 20 fills net $1+ loss,
+# widen." profit_threshold = +1.0 keeps it symmetric for now.
+gamma_pnl_window_n         = 20
+gamma_pnl_loss_threshold_usd   = -1.0
+gamma_pnl_profit_threshold_usd = 1.0
+gamma_pnl_widen_mult       = 1.5
+gamma_pnl_tighten_mult     = 0.85
