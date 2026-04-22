@@ -1,30 +1,90 @@
 #!/bin/bash
-# generate-units.sh — Generate systemd user units for the BPT trading stack
-# (production/live variant). Writes units to ~/.config/systemd/user/.
+# generate-units.sh — Generate systemd user units for the BPT trading stack.
 #
-# Binaries are taken from bazel-bin/ (Bazel-built). The one exception used to
-# be bpt-refdata (blocked on aws-sdk-cpp); now that refdata is AWS-free, the
-# whole stack runs off bazel-bin/ and CMake is no longer referenced here.
+# Runs in two modes:
 #
-# The config-sync timer is also emitted — it git-pulls the repo daily so that
-# mapping/fee/config PRs merged to main propagate to the running services on
-# their next refresh tick. Code changes still ship via release tarballs.
+#   1. LAPTOP (default)
+#      - BPT_DEPLOY_ROOT unset
+#      - Binaries from $BPT_ROOT/bazel-bin/... (Bazel's nested output layout)
+#      - Configs / scripts / jar from the source checkout
+#      - Writes units to ~/.config/systemd/user/
+#      - Used by developers running the stack from their git checkout.
+#
+#   2. DEPLOY (set BPT_DEPLOY_ROOT=/opt/bpt)
+#      - Binaries from $BPT_DEPLOY_ROOT/current/bin/... (flat layout from tarball)
+#      - Configs from $BPT_DEPLOY_ROOT/config/active/
+#      - Scripts from $BPT_DEPLOY_ROOT/current/scripts/
+#      - Jar from $BPT_DEPLOY_ROOT/current/bin/transport/bpt-transport-*.jar
+#      - Writes units to $BPT_UNIT_DIR (defaults to /etc/bpt/systemd or ~/.config/systemd/user)
+#      - Run from deploy.sh during release swap.
+#
+# The config-sync timer is also emitted — it git-pulls the repo daily (laptop mode)
+# or the config dir (deploy mode) so config PRs propagate to running services on
+# their next refresh tick.
 set -euo pipefail
 
-BPT_ROOT="/home/jseow/code/bpt-core"
-UNIT_DIR="$HOME/.config/systemd/user"
-ENV_FILE="$BPT_ROOT/deploy/env/active.env"
+# ── Mode + path resolution ──────────────────────────────────────────────────
+if [ -n "${BPT_DEPLOY_ROOT:-}" ]; then
+    # Deploy mode — /opt/bpt/-style layout
+    BPT_ROOT="$BPT_DEPLOY_ROOT"
+    BPT_BIN_ROOT="$BPT_DEPLOY_ROOT/current/bin"
+    BPT_JAR_DIR="$BPT_DEPLOY_ROOT/current/bin/transport"
+    BPT_SCRIPT_DIR="$BPT_DEPLOY_ROOT/current/scripts"
+    BPT_CONFIG_DIR="$BPT_DEPLOY_ROOT/config/active"
+    # Host env file for active env — produced during deploy, not committed
+    ENV_FILE="$BPT_CONFIG_DIR/env"
+    UNIT_DIR="${BPT_UNIT_DIR:-$HOME/.config/systemd/user}"
+else
+    # Laptop mode — source checkout with Bazel outputs in-tree
+    BPT_ROOT="${BPT_ROOT:-/home/jseow/code/bpt-core}"
+    BPT_BIN_ROOT="$BPT_ROOT/bazel-bin"
+    BPT_JAR_DIR="$BPT_ROOT/transport/aeron/build/libs"
+    BPT_SCRIPT_DIR="$BPT_ROOT/deploy"
+    BPT_CONFIG_DIR="$BPT_ROOT"
+    ENV_FILE="$BPT_ROOT/deploy/env/active.env"
+    UNIT_DIR="${BPT_UNIT_DIR:-$HOME/.config/systemd/user}"
+fi
 
 mkdir -p "$UNIT_DIR"
 
-# ── Binary path resolution (all Bazel-built) ────────────────────────────────
+# ── Binary paths ────────────────────────────────────────────────────────────
+# Bazel output: $BPT_BIN_ROOT/<target>/<binary>       (nested, laptop)
+# Tarball output: $BPT_BIN_ROOT/<binary>              (flat, deploy)
 declare -A BIN
-BIN[bpt-refdata]="$BPT_ROOT/bazel-bin/bpt-refdata/bpt-refdata"
-BIN[bpt-md-gateway]="$BPT_ROOT/bazel-bin/bpt-md-gateway/bpt-md-gateway"
-BIN[bpt-order-gateway]="$BPT_ROOT/bazel-bin/bpt-order-gateway/bpt-order-gateway"
-BIN[bpt-strategy]="$BPT_ROOT/bazel-bin/bpt-strategy/bpt-strategy"
-BIN[bpt-analytics]="$BPT_ROOT/bazel-bin/bpt-analytics/bpt-analytics"
-BIN[bpt-bridge]="$BPT_ROOT/bazel-bin/dashboard/bridge/bridge"
+if [ -n "${BPT_DEPLOY_ROOT:-}" ]; then
+    BIN[bpt-refdata]="$BPT_BIN_ROOT/bpt-refdata"
+    BIN[bpt-md-gateway]="$BPT_BIN_ROOT/bpt-md-gateway"
+    BIN[bpt-order-gateway]="$BPT_BIN_ROOT/bpt-order-gateway"
+    BIN[bpt-strategy]="$BPT_BIN_ROOT/bpt-strategy"
+    BIN[bpt-analytics]="$BPT_BIN_ROOT/bpt-analytics"
+    BIN[bpt-bridge]="$BPT_BIN_ROOT/bridge"
+else
+    BIN[bpt-refdata]="$BPT_BIN_ROOT/bpt-refdata/bpt-refdata"
+    BIN[bpt-md-gateway]="$BPT_BIN_ROOT/bpt-md-gateway/bpt-md-gateway"
+    BIN[bpt-order-gateway]="$BPT_BIN_ROOT/bpt-order-gateway/bpt-order-gateway"
+    BIN[bpt-strategy]="$BPT_BIN_ROOT/bpt-strategy/bpt-strategy"
+    BIN[bpt-analytics]="$BPT_BIN_ROOT/bpt-analytics/bpt-analytics"
+    BIN[bpt-bridge]="$BPT_BIN_ROOT/dashboard/bridge/bridge"
+fi
+
+# Java jar — different filename convention between the two modes
+# (laptop: unversioned name from gradle, deploy: version-suffixed).
+TRANSPORT_JAR=$(ls "$BPT_JAR_DIR"/bpt-transport-*-all.jar 2>/dev/null | head -1)
+if [ -z "$TRANSPORT_JAR" ]; then
+    echo "ERROR: no bpt-transport-*-all.jar under $BPT_JAR_DIR" >&2
+    echo "       (laptop: run gradle shadowJar; deploy: tarball missing the jar)" >&2
+    exit 1
+fi
+
+# Transport YAML — baked into the release tarball on deploy, in the
+# gradle project tree on laptop.
+if [ -n "${BPT_DEPLOY_ROOT:-}" ]; then
+    TRANSPORT_CONFIG="$BPT_DEPLOY_ROOT/current/share/transport.yaml"
+    TRANSPORT_WORKDIR="$BPT_DEPLOY_ROOT"
+else
+    TRANSPORT_CONFIG="$BPT_ROOT/transport/aeron/config/config.yaml"
+    TRANSPORT_WORKDIR="$BPT_ROOT/transport"
+fi
 
 # ── bpt-transport (Aeron media driver, Gradle-built Java) ───────────────────
 cat > "$UNIT_DIR/bpt-transport.service" <<EOF
@@ -34,8 +94,8 @@ PartOf=bpt-stack.target
 
 [Service]
 Type=simple
-WorkingDirectory=$BPT_ROOT/transport
-ExecStart=/usr/bin/java --add-opens java.base/sun.nio.ch=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -jar $BPT_ROOT/transport/aeron/build/libs/bpt-transport-1.0.0-all.jar --config $BPT_ROOT/transport/aeron/config/config.yaml
+WorkingDirectory=$TRANSPORT_WORKDIR
+ExecStart=/usr/bin/java --add-opens java.base/sun.nio.ch=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -jar $TRANSPORT_JAR --config $TRANSPORT_CONFIG
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=10

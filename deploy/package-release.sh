@@ -98,6 +98,10 @@ cp transport/aeron/build/libs/bpt-transport-*-all.jar "$STAGE/bin/transport/"
 
 echo "--- Copying schema + mappings + config templates..."
 cp messages/schema/bpt-protocol.xml "$STAGE/share/schema/"
+# Transport (Aeron MediaDriver) config — baked into release so the
+# systemd unit on the host references a path inside the release root
+# rather than needing a separate config layout for transport.
+cp transport/aeron/config/config.yaml "$STAGE/share/transport.yaml"
 # Canonical instrument mappings (consumed at runtime by bpt-refdata).
 # Only ship runtime JSONs — skip Bazel BUILD files / anything else.
 for f in config/instruments/*.json; do
