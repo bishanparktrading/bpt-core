@@ -708,6 +708,64 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
     return true;
 }
 
+// ── Suppression state — single source of truth for both runtime
+//    (maybe_requote) and dashboard (get_strategy_state_json) ────────────────
+AvellanedaStoikovStrategy::SuppressionState
+AvellanedaStoikovStrategy::compute_suppression(const InstrumentState& st,
+                                               double net_qty,
+                                               double new_bid,
+                                               double new_ask) const {
+    SuppressionState s;
+
+    // Inventory cap — hardest blocker (we never want to add beyond max).
+    s.inventory_bid = net_qty >= max_inventory_;
+    s.inventory_ask = net_qty <= -max_inventory_;
+
+    // Intra-tick realized-vol gate — blocks BOTH sides during fast moves.
+    s.vol_halted = st.vol_gate.is_halted(st.last_tick_ns);
+
+    // Drift (fast): suppress the side that would add adverse inventory
+    // when the per-√s drift EWMA exceeds the threshold. drift_suppress_bps_
+    // == 0 disables.
+    const double drift_bps = std::abs(st.ewma_drift) * 1e4;
+    const bool drift_on = drift_suppress_bps_ > 0.0 && drift_bps > drift_suppress_bps_;
+    s.drift_ask = drift_on && st.ewma_drift > 0.0;  // uptrend → don't sell
+    s.drift_bid = drift_on && st.ewma_drift < 0.0;  // downtrend → don't buy
+
+    // Trend (slow): same wrong-side logic, keyed on cumulative return
+    // over slow_drift_window_s_ rather than per-√s normalized return.
+    // Catches sustained slow bleeds the fast EWMA misses. 0 disables.
+    const double trend_bps = std::abs(st.slow_drift_bps);
+    const bool trend_on = slow_drift_suppress_bps_ > 0.0 && trend_bps > slow_drift_suppress_bps_;
+    s.trend_ask = trend_on && st.slow_drift_bps > 0.0;
+    s.trend_bid = trend_on && st.slow_drift_bps < 0.0;
+
+    // Toxicity: suppress a side when analytics reports its 5s markout
+    // below threshold. Outcome-based (realized markout from our own
+    // fills), complements drift's signal-based approach. Threshold is
+    // negative; 0 disables.
+    if (tyr_suppress_threshold_ < 0.0 && st.tyr_data_received) {
+        s.tyr_bid = st.tyr_bid_toxicity < tyr_suppress_threshold_;
+        s.tyr_ask = st.tyr_ask_toxicity < tyr_suppress_threshold_;
+    }
+
+    // Queue position: project fill_prob at the candidate quote price
+    // using the live ladder. Below queue_suppress_fill_prob_min_, we'd
+    // sit buried behind enough size that expected fill accumulates
+    // stale-inventory risk without meaningful edge. Default fp = 1.0
+    // when the book isn't ready — i.e. don't suppress, quoting wins.
+    if (queue_suppress_fill_prob_min_ > 0.0 && st.book.ready()) {
+        const double qa_bid = st.book.bid_vol_above(new_bid) + st.book.size_at_bid(new_bid);
+        const double qa_ask = st.book.ask_vol_below(new_ask) + st.book.size_at_ask(new_ask);
+        s.fp_bid = order_qty_ / (order_qty_ + qa_bid);
+        s.fp_ask = order_qty_ / (order_qty_ + qa_ask);
+        s.queue_bid = s.fp_bid < queue_suppress_fill_prob_min_;
+        s.queue_ask = s.fp_ask < queue_suppress_fill_prob_min_;
+    }
+
+    return s;
+}
+
 void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
                                               InstrumentState& st,
                                               double net_qty,
@@ -726,123 +784,56 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
         bpt::common::log::info(kLog(), "Exchange backoff expired for {} @ {}, resuming quotes", st.symbol, st.exchange);
     }
 
-    const bool at_max_long = net_qty >= max_inventory_;
-    const bool at_max_short = net_qty <= -max_inventory_;
+    const SuppressionState supp = compute_suppression(st, net_qty, new_bid, new_ask);
 
-    // ── Drift-based side suppression ──────────────────────────────────────
-    // When the drift estimate exceeds the threshold, suppress the side that
-    // would accumulate adverse inventory. In an uptrend (µ > 0), suppress
-    // asks so we don't keep getting filled short. In a downtrend, suppress
-    // bids. This is stronger than the reservation price shift alone — it
-    // prevents new adverse orders entirely rather than just moving them.
-    //
-    // drift_suppress_bps_ = 0 disables this feature.
-    const double drift_bps = std::abs(st.ewma_drift) * 1e4;
-    const bool drift_suppressing = drift_suppress_bps_ > 0.0 && drift_bps > drift_suppress_bps_;
-    const bool suppress_asks = drift_suppressing && st.ewma_drift > 0.0;  // uptrend → don't sell
-    const bool suppress_bids = drift_suppressing && st.ewma_drift < 0.0;  // downtrend → don't buy
-
-    // ── Slow-drift (trend) side suppression ───────────────────────────────
-    // Complements the fast drift EWMA above — same wrong-side logic, but
-    // keyed on cumulative return over slow_drift_window_s_ rather than
-    // per-√s normalized return. Catches sustained slow bleeds that clear
-    // slow_drift_suppress_bps_ without ever registering on the per-√s
-    // threshold. See the session-forensics note in
-    // project_prod_hardening_backlog.md for the case that motivated this.
-    //
-    // slow_drift_suppress_bps_ = 0 disables.
-    const double slow_drift_bps_abs = std::abs(st.slow_drift_bps);
-    const bool trend_suppressing =
-        slow_drift_suppress_bps_ > 0.0 && slow_drift_bps_abs > slow_drift_suppress_bps_;
-    const bool trend_suppress_asks = trend_suppressing && st.slow_drift_bps > 0.0;  // uptrend → don't sell
-    const bool trend_suppress_bids = trend_suppressing && st.slow_drift_bps < 0.0;  // downtrend → don't buy
-
-    // ── Analytics toxicity-based side suppression ──────────────────────────────
-    // When tyr reports a toxicity score below the threshold for a side,
-    // suppress that side. This is outcome-based (actual fill markouts)
-    // rather than signal-based (drift estimate).
-    bool tyr_suppress_bids = false;
-    bool tyr_suppress_asks = false;
-    if (tyr_suppress_threshold_ < 0.0 && st.tyr_data_received) {
-        if (st.tyr_bid_toxicity < tyr_suppress_threshold_) {
-            tyr_suppress_bids = true;
-            bpt::common::log::info(kLog(),
-                                   "{} tyr suppress bids: score={:.2f} < {:.2f}",
-                                   st.symbol,
-                                   st.tyr_bid_toxicity,
-                                   tyr_suppress_threshold_);
-        }
-        if (st.tyr_ask_toxicity < tyr_suppress_threshold_) {
-            tyr_suppress_asks = true;
-            bpt::common::log::info(kLog(),
-                                   "{} tyr suppress asks: score={:.2f} < {:.2f}",
-                                   st.symbol,
-                                   st.tyr_ask_toxicity,
-                                   tyr_suppress_threshold_);
-        }
-    }
-
-    // ── Queue-position side suppression ───────────────────────────────────
-    // Project fill_prob at the candidate quote price using the current
-    // ladder. If we'd land behind so much size that our expected fill
-    // probability is tiny, quoting there only accumulates stale-inventory
-    // risk without meaningful edge.
-    //
-    // Gated on st.book.ready() — before the ladder warms up we default to
-    // "not suppressed" (equivalent to queue_ahead=0, fill_prob=1).
-    bool queue_suppress_bids = false;
-    bool queue_suppress_asks = false;
-    double fp_bid = 1.0;
-    double fp_ask = 1.0;
-    if (queue_suppress_fill_prob_min_ > 0.0 && st.book.ready()) {
-        const double qa_bid = st.book.bid_vol_above(new_bid) + st.book.size_at_bid(new_bid);
-        const double qa_ask = st.book.ask_vol_below(new_ask) + st.book.size_at_ask(new_ask);
-        fp_bid = order_qty_ / (order_qty_ + qa_bid);
-        fp_ask = order_qty_ / (order_qty_ + qa_ask);
-        queue_suppress_bids = fp_bid < queue_suppress_fill_prob_min_;
-        queue_suppress_asks = fp_ask < queue_suppress_fill_prob_min_;
-    }
-
-    // Combine drift, trend, tyr, and queue suppression — any can suppress a side.
-    const bool final_suppress_bids =
-        suppress_bids || trend_suppress_bids || tyr_suppress_bids || queue_suppress_bids;
-    const bool final_suppress_asks =
-        suppress_asks || trend_suppress_asks || tyr_suppress_asks || queue_suppress_asks;
-
-    if (trend_suppressing) {
+    // Info-level logging of the runtime triggers. Dashboard reporting
+    // consumes the same supp struct via get_strategy_state_json, so
+    // these log lines and the rendered badge can't drift.
+    if (supp.trend_bid || supp.trend_ask) {
         bpt::common::log::info(kLog(),
                                "{} trend suppress |Δ|={:.1f}bps > {:.1f}bps over {:.0f}s window — suppressing {}",
                                st.symbol,
-                               slow_drift_bps_abs,
+                               std::abs(st.slow_drift_bps),
                                slow_drift_suppress_bps_,
                                slow_drift_window_s_,
-                               st.slow_drift_bps > 0 ? "asks" : "bids");
+                               supp.trend_ask ? "asks" : "bids");
     }
-
-    if (drift_suppressing) {
+    if (supp.drift_bid || supp.drift_ask) {
         bpt::common::log::info(kLog(),
                                "{} drift suppress |µ|={:.1f}bps > {:.1f}bps — suppressing {}",
                                st.symbol,
-                               drift_bps,
+                               std::abs(st.ewma_drift) * 1e4,
                                drift_suppress_bps_,
-                               suppress_asks ? "asks" : "bids");
+                               supp.drift_ask ? "asks" : "bids");
     }
-    if (queue_suppress_bids) {
+    if (supp.tyr_bid) {
+        bpt::common::log::info(kLog(),
+                               "{} tyr suppress bids: score={:.2f} < {:.2f}",
+                               st.symbol, st.tyr_bid_toxicity, tyr_suppress_threshold_);
+    }
+    if (supp.tyr_ask) {
+        bpt::common::log::info(kLog(),
+                               "{} tyr suppress asks: score={:.2f} < {:.2f}",
+                               st.symbol, st.tyr_ask_toxicity, tyr_suppress_threshold_);
+    }
+    if (supp.queue_bid) {
         bpt::common::log::info(kLog(),
                                "{} queue suppress bids: fp={:.5f} < {:.5f} at px={:.4f}",
-                               st.symbol,
-                               fp_bid,
-                               queue_suppress_fill_prob_min_,
-                               new_bid);
+                               st.symbol, supp.fp_bid, queue_suppress_fill_prob_min_, new_bid);
     }
-    if (queue_suppress_asks) {
+    if (supp.queue_ask) {
         bpt::common::log::info(kLog(),
                                "{} queue suppress asks: fp={:.5f} < {:.5f} at px={:.4f}",
-                               st.symbol,
-                               fp_ask,
-                               queue_suppress_fill_prob_min_,
-                               new_ask);
+                               st.symbol, supp.fp_ask, queue_suppress_fill_prob_min_, new_ask);
     }
+
+    // Legacy variable names retained for the side-decision blocks below
+    // — match existing log-message key naming (`max_inv` vs `suppress`)
+    // so the operational log format is unchanged by the refactor.
+    const bool at_max_long  = supp.inventory_bid;
+    const bool at_max_short = supp.inventory_ask;
+    const bool final_suppress_bids = supp.bid_signal();
+    const bool final_suppress_asks = supp.ask_signal();
 
     // ── Bid side ──────────────────────────────────────────────────────────
     if (st.bid_order_id != 0 && !st.bid_cancel_pending) {
@@ -1115,50 +1106,17 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     const double reservation = quotes_valid ? (bid_quote + ask_quote) / 2.0 : st.last_mid;
     const double reservation_offset_bps = st.last_mid > 0 ? (reservation - st.last_mid) / st.last_mid * 1e4 : 0.0;
 
-    // Drift suppression state
-    const double drift_bps = std::abs(st.ewma_drift) * 1e4;
-    const bool drift_suppressing = drift_suppress_bps_ > 0 && drift_bps > drift_suppress_bps_;
-    const bool drift_suppress_bids = drift_suppressing && st.ewma_drift < 0;
-    const bool drift_suppress_asks = drift_suppressing && st.ewma_drift > 0;
-
-    // Slow-drift (trend) suppression state — mirror of the logic in
-    // compute_quotes so the dashboard badge agrees with the actual
-    // decision the strategy will make on the next quote.
-    const double slow_drift_bps_abs_state = std::abs(st.slow_drift_bps);
-    const bool trend_suppressing =
-        slow_drift_suppress_bps_ > 0 && slow_drift_bps_abs_state > slow_drift_suppress_bps_;
-    const bool trend_suppress_bids = trend_suppressing && st.slow_drift_bps < 0;
-    const bool trend_suppress_asks = trend_suppressing && st.slow_drift_bps > 0;
-
-    // Analytics suppression state
-    const bool tyr_suppress_bids =
-        tyr_suppress_threshold_ < 0 && st.tyr_data_received && st.tyr_bid_toxicity < tyr_suppress_threshold_;
-    const bool tyr_suppress_asks =
-        tyr_suppress_threshold_ < 0 && st.tyr_data_received && st.tyr_ask_toxicity < tyr_suppress_threshold_;
-
-    // Inventory suppression
-    const bool inv_suppress_bids = net_qty >= max_inventory_;
-    const bool inv_suppress_asks = net_qty <= -max_inventory_;
-
-    // Vol gate
-    const bool vol_halted = st.vol_gate.is_halted(st.last_tick_ns);
-
-    // Queue suppression — projected fill_prob at the *candidate* quote price.
-    // Same math the quoting path uses in maybe_requote, so the dashboard
-    // agrees with the actual decision the strategy will make on the next
-    // quote.
-    bool queue_suppress_bids = false;
-    bool queue_suppress_asks = false;
-    double projected_fp_bid = 1.0;
-    double projected_fp_ask = 1.0;
-    if (quotes_valid && queue_suppress_fill_prob_min_ > 0.0 && st.book.ready()) {
-        const double qa_bid = st.book.bid_vol_above(bid_quote) + st.book.size_at_bid(bid_quote);
-        const double qa_ask = st.book.ask_vol_below(ask_quote) + st.book.size_at_ask(ask_quote);
-        projected_fp_bid = order_qty_ / (order_qty_ + qa_bid);
-        projected_fp_ask = order_qty_ / (order_qty_ + qa_ask);
-        queue_suppress_bids = projected_fp_bid < queue_suppress_fill_prob_min_;
-        queue_suppress_asks = projected_fp_ask < queue_suppress_fill_prob_min_;
-    }
+    // Suppression snapshot shared with maybe_requote — single source of
+    // truth so the dashboard badge can't disagree with the actual
+    // runtime decision. Queue suppression is only meaningful when
+    // quotes_valid (pre-warmup returns fp=1); compute_suppression
+    // computes it unconditionally but the projected prices below are
+    // still defaulted from the struct, which is correct since st.book
+    // wouldn't be ready during warmup anyway.
+    const SuppressionState supp = compute_suppression(st, net_qty, bid_quote, ask_quote);
+    const double drift_bps = std::abs(st.ewma_drift) * 1e4;  // used in driftBps JSON field below
+    const double projected_fp_bid = supp.fp_bid;
+    const double projected_fp_ask = supp.fp_ask;
 
     // queue_ahead for any live resting orders — the ACTUAL tracked queue,
     // not the projected one. Used by the dashboard to show how buried the
@@ -1213,32 +1171,17 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     j["maxInventory"] = max_inventory_;
     j["inventoryPct"] = max_inventory_ > 0 ? std::abs(net_qty) / max_inventory_ * 100.0 : 0;
 
-    // Suppression state per side — order matters for reason priority:
-    // vol_gate → inventory → drift → trend → tyr → queue (most to least severe).
-    // "drift" and "trend" both indicate direction-adverse suppression but
-    // on different time horizons: drift = per-√s EWMA (flash moves),
-    // trend = cumulative return over slow_drift_window_s_ (sustained bleeds).
-    j["bidSuppressed"] = drift_suppress_bids || trend_suppress_bids || tyr_suppress_bids
-                         || inv_suppress_bids || vol_halted || queue_suppress_bids;
-    j["bidSuppressReason"] = vol_halted            ? "vol_gate"
-                             : inv_suppress_bids   ? "inventory"
-                             : drift_suppress_bids ? "drift"
-                             : trend_suppress_bids ? "trend"
-                             : tyr_suppress_bids   ? "tyr"
-                             : queue_suppress_bids ? "queue"
-                                                   : "";
-    j["askSuppressed"] = drift_suppress_asks || trend_suppress_asks || tyr_suppress_asks
-                         || inv_suppress_asks || vol_halted || queue_suppress_asks;
-    j["askSuppressReason"] = vol_halted            ? "vol_gate"
-                             : inv_suppress_asks   ? "inventory"
-                             : drift_suppress_asks ? "drift"
-                             : trend_suppress_asks ? "trend"
-                             : tyr_suppress_asks   ? "tyr"
-                             : queue_suppress_asks ? "queue"
-                                                   : "";
+    // Suppression state per side — priority ladder lives on the
+    // SuppressionState struct (vol_gate → inventory → drift → trend →
+    // tyr → queue). Both the boolean and reason string come from the
+    // same struct so they can never drift.
+    j["bidSuppressed"] = supp.bid_suppressed();
+    j["bidSuppressReason"] = std::string(supp.bid_reason());
+    j["askSuppressed"] = supp.ask_suppressed();
+    j["askSuppressReason"] = std::string(supp.ask_reason());
 
     // Vol gate
-    j["volGateHalted"] = vol_halted;
+    j["volGateHalted"] = supp.vol_halted;
     j["volGateTrips"] = st.vol_gate.trips_total();
 
     // Orders

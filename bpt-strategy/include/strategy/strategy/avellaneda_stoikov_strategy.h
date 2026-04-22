@@ -21,6 +21,7 @@
 
 #include <atomic>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -228,6 +229,84 @@ private:
                        double mid,
                        double new_bid,
                        double new_ask);
+
+    // Aggregated suppression state — one per-tick snapshot of every
+    // reason a side might be blocked from quoting. Exists to keep
+    // maybe_requote's runtime decisions and get_strategy_state_json's
+    // dashboard reporting in lockstep: prior to extraction, each path
+    // had its own copy of the logic and a new reason (e.g. today's
+    // trend_suppress) had to be added in two places or the dashboard
+    // would silently disagree with the actual decision.
+    //
+    // Organization: raw per-reason booleans for both sides, plus
+    // aggregate convenience accessors. Priority-ordered reason string
+    // comes out of the accessor so the string and the boolean can
+    // never drift.
+    struct SuppressionState {
+        bool drift_bid{false}, drift_ask{false};          // per-√s EWMA drift
+        bool trend_bid{false}, trend_ask{false};          // cumulative return over slow_drift_window_s
+        bool tyr_bid{false},  tyr_ask{false};             // analytics toxicity score
+        bool queue_bid{false}, queue_ask{false};          // projected fill-prob too low
+        bool inventory_bid{false}, inventory_ask{false};  // |net_qty| >= max_inventory
+        bool vol_halted{false};                            // intra-tick realized-vol gate
+
+        // Queue projection side outputs — populated when queue check
+        // runs, cached here so logging + dashboard don't recompute.
+        double fp_bid{1.0}, fp_ask{1.0};
+
+        // Full aggregate — every reason counted. Used by the dashboard
+        // bidSuppressed / askSuppressed flags.
+        [[nodiscard]] bool bid_suppressed() const noexcept {
+            return drift_bid || trend_bid || tyr_bid || queue_bid || inventory_bid || vol_halted;
+        }
+        [[nodiscard]] bool ask_suppressed() const noexcept {
+            return drift_ask || trend_ask || tyr_ask || queue_ask || inventory_ask || vol_halted;
+        }
+
+        // "Signal-only" aggregate — drift/trend/tyr/queue. Used by
+        // maybe_requote for the "cancel + don't replace" logic; the
+        // caller checks inventory + vol_gate separately because it
+        // wants different log strings for those cases.
+        [[nodiscard]] bool bid_signal() const noexcept {
+            return drift_bid || trend_bid || tyr_bid || queue_bid;
+        }
+        [[nodiscard]] bool ask_signal() const noexcept {
+            return drift_ask || trend_ask || tyr_ask || queue_ask;
+        }
+
+        // Priority-ordered reason string. Priority: vol_gate →
+        // inventory → drift → trend → tyr → queue (most to least
+        // severe). Shared by the dashboard and any future consumer
+        // that wants a single human-readable label.
+        [[nodiscard]] std::string_view bid_reason() const noexcept {
+            if (vol_halted)    return "vol_gate";
+            if (inventory_bid) return "inventory";
+            if (drift_bid)     return "drift";
+            if (trend_bid)     return "trend";
+            if (tyr_bid)       return "tyr";
+            if (queue_bid)     return "queue";
+            return "";
+        }
+        [[nodiscard]] std::string_view ask_reason() const noexcept {
+            if (vol_halted)    return "vol_gate";
+            if (inventory_ask) return "inventory";
+            if (drift_ask)     return "drift";
+            if (trend_ask)     return "trend";
+            if (tyr_ask)       return "tyr";
+            if (queue_ask)     return "queue";
+            return "";
+        }
+    };
+
+    // Compute the full suppression snapshot. Pure function of the
+    // instrument state + inventory + candidate quote prices; does not
+    // mutate state or log. maybe_requote does its own info-level
+    // logging of drift/trend/tyr/queue triggers using the values on
+    // the returned struct.
+    [[nodiscard]] SuppressionState compute_suppression(const InstrumentState& st,
+                                                       double net_qty,
+                                                       double new_bid,
+                                                       double new_ask) const;
 
     // Place a LIMIT IOC order at an aggressive price to unwind inventory.
     // Returns the assigned order_id (0 on failure).
