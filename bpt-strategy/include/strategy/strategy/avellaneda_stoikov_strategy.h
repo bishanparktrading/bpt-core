@@ -335,8 +335,24 @@ private:
     std::size_t kappa_warmup_ticks_;  // min trade ticks before live κ replaces fallback
     double kappa_min_;                // floor on κ to prevent ln(1 + γ/κ) blowing up
     double requote_threshold_;        // fractional price move that triggers a requote
-    double max_inventory_;            // max |net position| in base units
-    double order_qty_;                // quote size in natural units (e.g. 0.001 BTC)
+    double max_inventory_;            // max |net position| in base units (fixed fallback)
+    double order_qty_;                // quote size in natural units (e.g. 0.001 BTC, fixed fallback)
+    // Equity-fraction sizing — adaptive companions to the fixed values
+    // above. When set (>0), strategy derives actual sizes from the
+    // exchange-reported totalEquity each tick:
+    //   order_qty     = max(order_qty_min_,
+    //                       order_qty_fraction_ × equity_usd / mid)
+    //   max_inventory = max_inventory_fraction_ × equity_usd / mid
+    // Lets one config target multiple capital scales + asset prices
+    // without re-hand-sizing. 0 on either fraction disables the
+    // adaptive part for that knob; fallback is the fixed value.
+    //
+    // order_qty_min_ is an absolute base-unit floor — prevents a shrinking
+    // equity trajectory from driving qty to "unfillable by lot-size" and
+    // stranding the position. Applied only when order_qty_fraction_ > 0.
+    double order_qty_fraction_;
+    double order_qty_min_;
+    double max_inventory_fraction_;
     double min_half_spread_bps_;      // floor on half-spread expressed in basis points
     // Sanity clamp: hard ceiling on the half-spread the AS formula
     // can produce. Guards against the cold-start pathology where a
@@ -479,6 +495,24 @@ private:
     };
     std::unordered_map<CcyKey, int64_t, CcyKeyHash> initial_ccy_equity_e8_;
     bool initial_ccy_equity_captured_{false};
+
+    // Latest exchange-reported total equity, in USD-equivalent quote
+    // currency units (e8 fixed-point from AccountSnapshot.totalEquityE8).
+    // Consumed only when equity-fraction sizing is enabled — zero means
+    // "not yet received", and the fixed fallback order_qty / max_inventory
+    // are used until the first snapshot arrives. Refreshed on every
+    // on_account_snapshot call (bpt-order-gateway polls every 5s).
+    int64_t last_equity_e8_{0};
+
+    // Resolve the per-instrument order quote size. Returns adaptive
+    // value when order_qty_fraction_ > 0 and equity + mid are known,
+    // else the fixed order_qty_. Floor at order_qty_min_ when adaptive.
+    [[nodiscard]] double effective_order_qty(const InstrumentState& st) const;
+
+    // Resolve the per-instrument max inventory cap. Same pattern as
+    // above; no explicit floor since a shrunk cap naturally restricts
+    // new quotes via the existing inventory-suppression path.
+    [[nodiscard]] double effective_max_inventory(const InstrumentState& st) const;
 };
 
 }  // namespace bpt::strategy::strategy

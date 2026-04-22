@@ -60,6 +60,9 @@ AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
       requote_threshold_(cfg.params["requote_threshold"].value<double>().value_or(0.0001)),
       max_inventory_(cfg.params["max_inventory"].value<double>().value_or(0.1)),
       order_qty_(cfg.params["order_qty"].value<double>().value_or(0.001)),
+      order_qty_fraction_(cfg.params["order_qty_fraction"].value<double>().value_or(0.0)),
+      order_qty_min_(cfg.params["order_qty_min"].value<double>().value_or(0.0)),
+      max_inventory_fraction_(cfg.params["max_inventory_fraction"].value<double>().value_or(0.0)),
       min_half_spread_bps_(cfg.params["min_half_spread_bps"].value<double>().value_or(1.0)),
       max_half_spread_bps_(cfg.params["max_half_spread_bps"].value<double>().value_or(50.0)),
       order_book_depth_(static_cast<uint8_t>(cfg.params["order_book_depth"].value<int64_t>().value_or(0))),
@@ -726,6 +729,24 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
     return true;
 }
 
+// ── Effective sizing — adaptive vs fixed ───────────────────────────────────
+double AvellanedaStoikovStrategy::effective_order_qty(const InstrumentState& st) const {
+    if (order_qty_fraction_ > 0.0 && last_equity_e8_ > 0 && st.last_mid > 0.0) {
+        const double equity_usd = static_cast<double>(last_equity_e8_) / 1e8;
+        const double derived = order_qty_fraction_ * equity_usd / st.last_mid;
+        return std::max(order_qty_min_, derived);
+    }
+    return order_qty_;
+}
+
+double AvellanedaStoikovStrategy::effective_max_inventory(const InstrumentState& st) const {
+    if (max_inventory_fraction_ > 0.0 && last_equity_e8_ > 0 && st.last_mid > 0.0) {
+        const double equity_usd = static_cast<double>(last_equity_e8_) / 1e8;
+        return max_inventory_fraction_ * equity_usd / st.last_mid;
+    }
+    return max_inventory_;
+}
+
 // ── Suppression state — single source of truth for both runtime
 //    (maybe_requote) and dashboard (get_strategy_state_json) ────────────────
 AvellanedaStoikovStrategy::SuppressionState
@@ -736,8 +757,9 @@ AvellanedaStoikovStrategy::compute_suppression(const InstrumentState& st,
     SuppressionState s;
 
     // Inventory cap — hardest blocker (we never want to add beyond max).
-    s.inventory_bid = net_qty >= max_inventory_;
-    s.inventory_ask = net_qty <= -max_inventory_;
+    const double max_inv = effective_max_inventory(st);
+    s.inventory_bid = net_qty >= max_inv;
+    s.inventory_ask = net_qty <= -max_inv;
 
     // Intra-tick realized-vol gate — blocks BOTH sides during fast moves.
     s.vol_halted = st.vol_gate.is_halted(st.last_tick_ns);
@@ -790,8 +812,9 @@ AvellanedaStoikovStrategy::compute_suppression(const InstrumentState& st,
     if (queue_suppress_fill_prob_min_ > 0.0 && st.book.ready()) {
         const double qa_bid = st.book.bid_vol_above(new_bid) + st.book.size_at_bid(new_bid);
         const double qa_ask = st.book.ask_vol_below(new_ask) + st.book.size_at_ask(new_ask);
-        s.fp_bid = order_qty_ / (order_qty_ + qa_bid);
-        s.fp_ask = order_qty_ / (order_qty_ + qa_ask);
+        const double qty = effective_order_qty(st);
+        s.fp_bid = qty / (qty + qa_bid);
+        s.fp_ask = qty / (qty + qa_ask);
         s.queue_bid = s.fp_bid < queue_suppress_fill_prob_min_;
         s.queue_ask = s.fp_ask < queue_suppress_fill_prob_min_;
     }
@@ -818,6 +841,12 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
     }
 
     const SuppressionState supp = compute_suppression(st, net_qty, new_bid, new_ask);
+
+    // Resolve per-tick sizing — adaptive when order_qty_fraction_ > 0,
+    // fixed otherwise. Computed once so every order submit / modify /
+    // unwind this tick uses the same qty (important: if equity /
+    // price change between calls, downstream aggregation gets messy).
+    const double eff_qty = effective_order_qty(st);
 
     // Info-level logging of the runtime triggers. Dashboard reporting
     // consumes the same supp struct via get_strategy_state_json, so
@@ -899,7 +928,7 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
                 if (st.tick_size > 0.0)
                     price = std::floor(price / st.tick_size) * st.tick_size;
                 const int64_t price_fixed = static_cast<int64_t>(std::round(price * kPriceScale));
-                const uint64_t qty_fp = static_cast<uint64_t>(std::round(order_qty_ * 1e8));
+                const uint64_t qty_fp = static_cast<uint64_t>(std::round(eff_qty * 1e8));
                 bpt::common::log::debug(kLog(),
                                         "Modify bid order_id={} {} @ {} → {:.6f}",
                                         st.bid_order_id,
@@ -914,7 +943,7 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
     }
 
     if (st.bid_order_id == 0 && !st.bid_cancel_pending && !at_max_long && !final_suppress_bids) {
-        const uint64_t oid = send_limit_order(instrument_id, st, bpt::messages::OrderSide::BUY, new_bid, order_qty_);
+        const uint64_t oid = send_limit_order(instrument_id, st, bpt::messages::OrderSide::BUY, new_bid, eff_qty);
         if (oid != 0) {
             st.bid_order_id = oid;
             st.last_bid_price = new_bid;
@@ -948,7 +977,7 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
                 if (st.tick_size > 0.0)
                     price = std::ceil(price / st.tick_size) * st.tick_size;
                 const int64_t price_fixed = static_cast<int64_t>(std::round(price * kPriceScale));
-                const uint64_t qty_fp = static_cast<uint64_t>(std::round(order_qty_ * 1e8));
+                const uint64_t qty_fp = static_cast<uint64_t>(std::round(eff_qty * 1e8));
                 bpt::common::log::debug(kLog(),
                                         "Modify ask order_id={} {} @ {} → {:.6f}",
                                         st.ask_order_id,
@@ -963,7 +992,7 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
     }
 
     if (st.ask_order_id == 0 && !st.ask_cancel_pending && !at_max_short && !final_suppress_asks) {
-        const uint64_t oid = send_limit_order(instrument_id, st, bpt::messages::OrderSide::SELL, new_ask, order_qty_);
+        const uint64_t oid = send_limit_order(instrument_id, st, bpt::messages::OrderSide::SELL, new_ask, eff_qty);
         if (oid != 0) {
             st.ask_order_id = oid;
             st.last_ask_price = new_ask;
@@ -976,11 +1005,11 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
     // to reduce it rather than waiting passively for resting orders to fill.
     if (st.unwind_order_id == 0) {
         if (at_max_long) {
-            const uint64_t oid = send_unwind_order(instrument_id, st, bpt::messages::OrderSide::SELL, mid, order_qty_);
+            const uint64_t oid = send_unwind_order(instrument_id, st, bpt::messages::OrderSide::SELL, mid, eff_qty);
             if (oid != 0)
                 st.unwind_order_id = oid;
         } else if (at_max_short) {
-            const uint64_t oid = send_unwind_order(instrument_id, st, bpt::messages::OrderSide::BUY, mid, order_qty_);
+            const uint64_t oid = send_unwind_order(instrument_id, st, bpt::messages::OrderSide::BUY, mid, eff_qty);
             if (oid != 0)
                 st.unwind_order_id = oid;
         }
@@ -1199,10 +1228,13 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     j["halfSpread"] = half_spread;
     j["halfSpreadBps"] = st.last_mid > 0 ? half_spread / st.last_mid * 1e4 : 0;
 
-    // Inventory
+    // Inventory — report the EFFECTIVE cap (adaptive when configured),
+    // not the static fallback, so the dashboard inventoryPct gauge
+    // tracks the same threshold the strategy is actually enforcing.
+    const double max_inv = effective_max_inventory(st);
     j["inventory"] = net_qty;
-    j["maxInventory"] = max_inventory_;
-    j["inventoryPct"] = max_inventory_ > 0 ? std::abs(net_qty) / max_inventory_ * 100.0 : 0;
+    j["maxInventory"] = max_inv;
+    j["inventoryPct"] = max_inv > 0 ? std::abs(net_qty) / max_inv * 100.0 : 0;
 
     // Suppression state per side — priority ladder lives on the
     // SuppressionState struct (vol_gate → inventory → drift → trend →
@@ -1351,6 +1383,15 @@ std::size_t AvellanedaStoikovStrategy::on_account_snapshot(bpt::messages::Accoun
     // the old code path; crash-or-garbage once we also call
     // currencyBalances here).
     snap.sbeRewind();
+
+    // Cache exchange-reported total equity for equity-fraction sizing
+    // (see effective_order_qty / effective_max_inventory). Captured here
+    // so every AccountSnapshot refresh updates the sizing baseline; if
+    // equity moves, next tick's quote sizes follow without operator
+    // intervention. Quoted in USD-equivalent for HL perp; SPOT venues
+    // need conversion that is out of scope for the single-instrument
+    // PERP path this is currently exercised on.
+    last_equity_e8_ = snap.totalEquityE8();
 
     const auto exchange_id = snap.exchangeId();
     // Row-level extract preserves avg entry price alongside qty so we
