@@ -29,7 +29,9 @@ if [ -n "${BPT_DEPLOY_ROOT:-}" ]; then
     BPT_ROOT="$BPT_DEPLOY_ROOT"
     BPT_BIN_ROOT="$BPT_DEPLOY_ROOT/current/bin"
     BPT_JAR_DIR="$BPT_DEPLOY_ROOT/current/bin/transport"
-    BPT_SCRIPT_DIR="$BPT_DEPLOY_ROOT/current/scripts"
+    # Deploy ships both scripts flat under current/scripts/
+    SYNC_CONFIG_SCRIPT="$BPT_DEPLOY_ROOT/current/scripts/sync-config.sh"
+    LOG_CLEANUP_SCRIPT="$BPT_DEPLOY_ROOT/current/scripts/cleanup-stale-logs.sh"
     BPT_CONFIG_DIR="$BPT_DEPLOY_ROOT/config/active"
     # Host env file for active env — produced during deploy, not committed
     ENV_FILE="$BPT_CONFIG_DIR/env"
@@ -39,7 +41,10 @@ else
     BPT_ROOT="${BPT_ROOT:-/home/jseow/code/bpt-core}"
     BPT_BIN_ROOT="$BPT_ROOT/bazel-bin"
     BPT_JAR_DIR="$BPT_ROOT/transport/aeron/build/libs"
-    BPT_SCRIPT_DIR="$BPT_ROOT/deploy"
+    # Laptop: sync-config lives under deploy/, cleanup under scripts/
+    # (split is historical; tarball flattens both into scripts/)
+    SYNC_CONFIG_SCRIPT="$BPT_ROOT/deploy/sync-config.sh"
+    LOG_CLEANUP_SCRIPT="$BPT_ROOT/scripts/cleanup-stale-logs.sh"
     BPT_CONFIG_DIR="$BPT_ROOT"
     ENV_FILE="$BPT_ROOT/deploy/env/active.env"
     UNIT_DIR="${BPT_UNIT_DIR:-$HOME/.config/systemd/user}"
@@ -127,9 +132,16 @@ for svc in bpt-refdata bpt-md-gateway bpt-order-gateway; do
         done
     fi
 
+    case "$svc" in
+        bpt-refdata)       svc_desc="Refdata" ;;
+        bpt-md-gateway)    svc_desc="Market Data Gateway" ;;
+        bpt-order-gateway) svc_desc="Order Gateway" ;;
+        *)                 svc_desc="${svc#bpt-}" ;;
+    esac
+
     cat > "$UNIT_DIR/$svc.service" <<EOF
 [Unit]
-Description=BPT ${svc^} Service
+Description=BPT $svc_desc
 After=$after
 Requires=bpt-transport.service
 PartOf=bpt-stack.target bpt-transport.service
@@ -211,8 +223,13 @@ TimeoutStopSec=10
 WantedBy=bpt-stack.target
 EOF
 
-# ── bpt-frontend (dashboard UI, Vite dev server) ────────────────────────────
-cat > "$UNIT_DIR/bpt-frontend.service" <<EOF
+# ── bpt-frontend (dashboard UI, Vite dev server) — LAPTOP ONLY ──────────────
+# Vite dev server runs from the source checkout; not shipped in deploy tarballs.
+# Deploy hosts serve the built dashboard via bridge or a separate nginx/caddy
+# out of band; emitting a unit that points at $BPT_DEPLOY_ROOT/dashboard/frontend
+# would produce a ghost unit that fails to start on every boot.
+if [ -z "${BPT_DEPLOY_ROOT:-}" ]; then
+    cat > "$UNIT_DIR/bpt-frontend.service" <<EOF
 [Unit]
 Description=BPT Dashboard Frontend
 After=bpt-bridge.service
@@ -231,6 +248,7 @@ TimeoutStopSec=5
 [Install]
 WantedBy=bpt-stack.target
 EOF
+fi
 
 # ── bpt-config-sync.{service,timer} ─────────────────────────────────────────
 # Pulls config changes (instrument mapping, fees, service TOMLs) from origin
@@ -242,7 +260,7 @@ Description=BPT Config Sync (git pull for config-only updates)
 
 [Service]
 Type=oneshot
-ExecStart=$BPT_ROOT/deploy/sync-config.sh
+ExecStart=$SYNC_CONFIG_SCRIPT
 Environment=BPT_ROOT=$BPT_ROOT
 EOF
 
@@ -302,7 +320,7 @@ Description=BPT stale log cleanup (>30d, untouched since rename)
 
 [Service]
 Type=oneshot
-ExecStart=$BPT_ROOT/scripts/cleanup-stale-logs.sh
+ExecStart=$LOG_CLEANUP_SCRIPT
 Environment=BPT_ROOT=$BPT_ROOT
 Environment=RETENTION_DAYS=30
 EOF
@@ -321,16 +339,29 @@ WantedBy=timers.target
 EOF
 
 # ── bpt-stack.target ─────────────────────────────────────────────────────────
+# Frontend unit only exists in laptop mode; keep it out of the target's
+# Wants= in deploy mode so systemd doesn't try to start a ghost unit.
+stack_wants="bpt-transport.service bpt-refdata.service bpt-md-gateway.service bpt-order-gateway.service bpt-strategy.service bpt-analytics.service bpt-bridge.service bpt-heartbeat.timer"
+if [ -z "${BPT_DEPLOY_ROOT:-}" ]; then
+    stack_wants="$stack_wants bpt-frontend.service"
+fi
+
 cat > "$UNIT_DIR/bpt-stack.target" <<EOF
 [Unit]
 Description=BPT Trading Stack
-Wants=bpt-transport.service bpt-refdata.service bpt-md-gateway.service bpt-order-gateway.service bpt-strategy.service bpt-analytics.service bpt-bridge.service bpt-frontend.service bpt-heartbeat.timer
+Wants=$stack_wants
 
 [Install]
 WantedBy=default.target
 EOF
 
-systemctl --user daemon-reload
+# Only daemon-reload when we're writing into the user's live systemd dir.
+# When BPT_UNIT_DIR is overridden (e.g. deploy.sh staging into a tmp dir
+# before copying atomically), reloading would be a no-op with the wrong
+# side effect of stopping-on-syntax-errors in the staging tree.
+if [ "$UNIT_DIR" = "$HOME/.config/systemd/user" ]; then
+    systemctl --user daemon-reload
+fi
 
 echo "Generated $(ls "$UNIT_DIR"/bpt-*.service "$UNIT_DIR"/bpt-*.timer "$UNIT_DIR"/bpt-*.target 2>/dev/null | wc -l) units in $UNIT_DIR"
 echo "Active env: $(readlink -f "$ENV_FILE" 2>/dev/null || echo "$ENV_FILE")"
