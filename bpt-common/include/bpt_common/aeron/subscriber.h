@@ -58,6 +58,18 @@ public:
           subscription_(wait_for_subscription(std::move(aeron), channel_, stream_id)),
           assembler_(std::make_unique<::aeron::FragmentAssembler>(std::move(handler))) {}
 
+    // Non-copyable, non-movable. The stored handler almost always
+    // captures `this` of the owning class; moving a Subscriber while
+    // the handler still carries the old pointer is a dangling-capture
+    // time-bomb (fires under vector-realloc, return-by-value, etc.).
+    // Classes that hold a Subscriber must also be non-movable; wrap
+    // in std::unique_ptr if you need movability at the owner level —
+    // the unique_ptr moves, the Subscriber object stays put.
+    Subscriber(const Subscriber&)            = delete;
+    Subscriber& operator=(const Subscriber&) = delete;
+    Subscriber(Subscriber&&)                 = delete;
+    Subscriber& operator=(Subscriber&&)      = delete;
+
     // Poll up to `limit` fragments. Returns the number of fragments
     // actually consumed — a poll returning 0 is the caller's cue to
     // yield or sleep.

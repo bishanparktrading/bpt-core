@@ -70,6 +70,16 @@ public:
           max_retries_(max_retries),
           publication_(wait_for_publication(std::move(aeron), channel_, stream_id)) {}
 
+    // Non-copyable, non-movable. The internal std::mutex already makes
+    // it implicitly non-movable, but making it explicit documents the
+    // intent and keeps Publisher symmetric with Subscriber (where the
+    // move-deletion fixes a real dangling-capture bug — see its header).
+    // Wrap in std::unique_ptr if the owner needs to be movable.
+    Publisher(const Publisher&)            = delete;
+    Publisher& operator=(const Publisher&) = delete;
+    Publisher(Publisher&&)                 = delete;
+    Publisher& operator=(Publisher&&)      = delete;
+
     // Offer a pre-encoded buffer slice. Returns true if successfully
     // offered, false if dropped (NOT_CONNECTED / CLOSED / retry
     // budget exhausted). Never throws.
