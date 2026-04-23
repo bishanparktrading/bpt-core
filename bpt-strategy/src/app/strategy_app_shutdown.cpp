@@ -49,7 +49,17 @@ void StrategyApp::shutdown_flatten() {
     // slow (network hiccup, adapter reconnect mid-flatten) the budget
     // could expire with orders still live. We now log clearly when
     // the budget expires so ops know to look.
+    //
+    // kMinDrainNs enforces a floor so the shutdown-flatten's cancel_all
+    // has time to complete its async round-trip (strategy → OG → HL
+    // /info openOrders + batch cancel on /exchange → exec reports back
+    // to strategy). has_pending_flatten() tracks only tracked orders,
+    // so it can return false before cancel_all's orphan-sweep exec
+    // reports arrive; without this floor the drain exits prematurely
+    // and orphan orders survive into the next session. 2s covers the
+    // typical HL round-trip comfortably with headroom for network jitter.
     const uint64_t drain_start_ns = bpt::common::util::TscClock::now_epoch_ns();
+    constexpr uint64_t kMinDrainNs = 2ULL * 1'000'000'000ULL;
     constexpr uint64_t kDrainBudgetNs = 5ULL * 1'000'000'000ULL;
     bool drained_cleanly = true;
     if (order_gw_) {
@@ -66,7 +76,10 @@ void StrategyApp::shutdown_flatten() {
                 }
                 break;
             }
-            if (!strategy_->has_pending_flatten()) {
+            // Need both: tracked orders drained AND minimum cancel_all
+            // settle time elapsed. Tracked orders typically clear in
+            // <100ms; cancel_all's orphan sweep takes 200–500ms.
+            if (elapsed >= kMinDrainNs && !strategy_->has_pending_flatten()) {
                 bpt::common::log::info("shutdown drain completed cleanly in {} ms",
                                elapsed / 1'000'000ULL);
                 break;

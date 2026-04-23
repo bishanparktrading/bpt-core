@@ -1343,6 +1343,26 @@ void AvellanedaStoikovStrategy::on_shutdown_flatten() {
 
     int cancels = 0;
     int unwinds = 0;
+    int cancel_alls = 0;
+
+    // Exchange-authoritative sweep, fired FIRST before the tracked-order
+    // cancels below. Routes via order-gateway → adapter.send_cancel_all,
+    // which (on HL) queries /info openOrders and batch-cancels every
+    // returned oid. Catches orphans our in-memory state never knew about
+    // — WS reconnect, lost cancel-ack races, and (critically) orders
+    // left behind by a previous session whose shutdown thought it had
+    // nothing to cancel because bid_order_id / ask_order_id had already
+    // been cleared locally. Individual cancels below stay — they provide
+    // the has_pending_flatten() drain signal; cancel_all is fire-and-
+    // forget from the strategy side (see strategy_app_shutdown for the
+    // minimum drain window that gives the async round-trip time to land).
+    for (const auto& [instrument_id, st] : state_) {
+        bpt::common::log::warn(kLog(),
+                               "SHUTDOWN FLATTEN {} {} cancel_all (exchange-authoritative sweep)",
+                               st.symbol, st.exchange);
+        order_mgr_->cancel_all(st.exchange_id, instrument_id);
+        ++cancel_alls;
+    }
 
     for (auto& [instrument_id, st] : state_) {
         // Cancel resting bid + ask so they don't interfere with the unwind
@@ -1410,9 +1430,10 @@ void AvellanedaStoikovStrategy::on_shutdown_flatten() {
         ++unwinds;
     }
 
-    if (cancels > 0 || unwinds > 0)
+    if (cancels > 0 || unwinds > 0 || cancel_alls > 0)
         bpt::common::log::warn(kLog(),
-                               "shutdown flatten: cancelled {} resting order(s), fired {} unwind IOC(s)",
+                               "shutdown flatten: cancel_all swept {} venue(s), cancelled {} tracked order(s), fired {} unwind IOC(s)",
+                               cancel_alls,
                                cancels,
                                unwinds);
 }
