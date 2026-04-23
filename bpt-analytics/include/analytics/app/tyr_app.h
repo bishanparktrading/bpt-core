@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <bpt_app/app.h>
 #include <bpt_common/aeron/publisher.h>
+#include <bpt_common/aeron/subscriber.h>
 
 namespace bpt::analytics {
 
@@ -25,12 +26,17 @@ private:
     void on_exec_fill(uint64_t instrument_id, int side_sign, double fill_price, uint64_t timestamp_ns);
     void maybe_publish(uint64_t now_ns);
 
+    void handle_exec_report(aeron::AtomicBuffer& buf, aeron::util::index_t offset,
+                            aeron::util::index_t length, aeron::Header& hdr);
+    void handle_md(aeron::AtomicBuffer& buf, aeron::util::index_t offset,
+                   aeron::util::index_t length, aeron::Header& hdr);
+
     config::Settings settings_;
     std::shared_ptr<aeron::Aeron> aeron_;
 
     // Aeron I/O
-    std::shared_ptr<aeron::Subscription> exec_sub_;
-    std::shared_ptr<aeron::Subscription> md_sub_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> exec_sub_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> md_sub_;
     std::unique_ptr<bpt::common::aeron::Publisher> toxicity_pub_;
 
     // Per-instrument state

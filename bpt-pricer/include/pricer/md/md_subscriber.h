@@ -6,6 +6,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <bpt_common/aeron/subscriber.h>
 
 namespace bpt::pricer::md {
 
@@ -17,7 +18,7 @@ public:
     using BboCallback = std::function<void(uint64_t instrument_id, double bid, double ask, uint64_t timestamp_ns)>;
     using TradeCallback = std::function<void(uint64_t instrument_id, double price, double qty, uint64_t timestamp_ns)>;
 
-    MdSubscriber(std::shared_ptr<aeron::Aeron> aeron, const std::string& channel, int32_t stream_id);
+    MdSubscriber(std::shared_ptr<::aeron::Aeron> aeron, const std::string& channel, int32_t stream_id);
 
     void set_bbo_callback(BboCallback cb) { on_bbo_ = std::move(cb); }
     void set_trade_callback(TradeCallback cb) { on_trade_ = std::move(cb); }
@@ -26,12 +27,12 @@ public:
     int poll(int fragment_limit = 10);
 
 private:
-    void on_fragment(const aeron::concurrent::AtomicBuffer& buffer,
-                     aeron::util::index_t offset,
-                     aeron::util::index_t length,
-                     const aeron::Header& header);
+    void on_fragment(::aeron::AtomicBuffer& buffer,
+                     ::aeron::util::index_t offset,
+                     ::aeron::util::index_t length,
+                     ::aeron::Header& header);
 
-    std::shared_ptr<aeron::Subscription> sub_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> sub_;
     BboCallback on_bbo_;
     TradeCallback on_trade_;
 };

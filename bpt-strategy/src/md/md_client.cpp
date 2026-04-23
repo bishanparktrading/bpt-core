@@ -24,12 +24,17 @@ MdClient::MdClient(std::shared_ptr<aeron::Aeron> aeron,
     ctrl_pub_ = std::make_unique<bpt::common::aeron::Publisher>(
         aeron, channel, control_stream,
         bpt::common::aeron::Publisher::Policy::kRetryOnBackpressure);
-    data_sub_ = bpt::common::aeron::wait_for_subscription(aeron, channel, data_stream);
-    ack_hb_sub_ = bpt::common::aeron::wait_for_subscription(aeron, channel, ack_hb_stream);
-
-    data_assembler_ = std::make_unique<aeron::FragmentAssembler>(
-        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset, aeron::util::index_t length, aeron::Header& hdr) {
+    data_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
+        aeron, channel, data_stream,
+        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset,
+               aeron::util::index_t length, aeron::Header& hdr) {
             handle_data_fragment(buf, offset, length, hdr);
+        });
+    ack_hb_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
+        aeron, channel, ack_hb_stream,
+        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset,
+               aeron::util::index_t length, aeron::Header& hdr) {
+            handle_ack_hb_fragment(buf, offset, length, hdr);
         });
 
     bpt::common::log::info("MdClient connected: ctrl={} data={} ack_hb={}", control_stream, data_stream, ack_hb_stream);
@@ -166,7 +171,7 @@ void MdClient::handle_ack_hb_fragment(aeron::AtomicBuffer& buffer,
 int MdClient::poll(int fragment_limit) {
     int total = 0;
 
-    int data_frags = data_sub_->poll(data_assembler_->handler(), fragment_limit);
+    int data_frags = data_sub_->poll(fragment_limit);
     total += data_frags;
 
     static uint64_t data_poll_count = 0;
@@ -176,15 +181,10 @@ int MdClient::poll(int fragment_limit) {
         bpt::common::log::info("[MdClient] poll stats: polls={} data_frags_total={} connected={}",
                        data_poll_count,
                        total_data_frags,
-                       data_sub_->isConnected());
+                       data_sub_->is_connected());
     }
 
-    total += ack_hb_sub_->poll(
-        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset, aeron::util::index_t length, aeron::Header& hdr) {
-            handle_ack_hb_fragment(buf, offset, length, hdr);
-        },
-        fragment_limit);
-
+    total += ack_hb_sub_->poll(fragment_limit);
     return total;
 }
 

@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 #include <bpt_common/aeron/publisher.h>
+#include <bpt_common/aeron/subscriber.h>
 
 namespace bpt::strategy::refdata {
 
@@ -111,20 +112,15 @@ private:
                                 aeron::Header& header);
 
     std::unique_ptr<bpt::common::aeron::Publisher> ctrl_pub_;
-    std::shared_ptr<aeron::Subscription> snap_sub_;
-    std::shared_ptr<aeron::Subscription> delta_sub_;
-    std::shared_ptr<aeron::Subscription> fee_sub_;
-    std::shared_ptr<aeron::Subscription> funding_sub_;
-    std::shared_ptr<aeron::Subscription> status_sub_;
-
-    // FragmentAssemblers reassemble multi-frame Aeron messages before dispatching.
-    // The snapshot can be very large (thousands of instruments) and will always span
-    // multiple frames; without assembly the SBE decoder receives a partial buffer (E108).
-    std::unique_ptr<aeron::FragmentAssembler> snap_assembler_;
-    std::unique_ptr<aeron::FragmentAssembler> delta_assembler_;
-    std::unique_ptr<aeron::FragmentAssembler> fee_assembler_;
-    std::unique_ptr<aeron::FragmentAssembler> funding_assembler_;
-    std::unique_ptr<aeron::FragmentAssembler> status_assembler_;
+    // Subscriber owns its own FragmentAssembler — essential for the
+    // snapshot stream, which can span many frames (thousands of
+    // instruments). Without assembly the SBE decoder sees a partial
+    // buffer and fails with E108.
+    std::unique_ptr<bpt::common::aeron::Subscriber> snap_sub_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> delta_sub_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> fee_sub_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> funding_sub_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> status_sub_;
 
     FeeCache& fee_cache_;
     FundingRateCache& funding_rate_cache_;

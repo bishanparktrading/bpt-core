@@ -31,7 +31,32 @@ MdGatewayApp::MdGatewayApp(config::Settings cfg,
                                                                      cfg_.aeron.funding_rate.channel,
                                                                      cfg_.aeron.funding_rate.stream_id);
 
-    ctrl_sub_ = bpt::common::aeron::wait_for_subscription(aeron, cfg_.aeron.control.channel, cfg_.aeron.control.stream_id);
+    ctrl_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
+        aeron, cfg_.aeron.control.channel, cfg_.aeron.control.stream_id,
+        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset,
+               aeron::util::index_t length, aeron::Header& /*hdr*/) {
+            using namespace bpt::messages;
+
+            if (static_cast<std::size_t>(length) < MessageHeader::encodedLength())
+                return;
+
+            char* data = reinterpret_cast<char*>(buf.buffer()) + offset;
+            MessageHeader hdr(data, static_cast<std::size_t>(length));
+
+            if (hdr.templateId() != MdSubscribeBatch::sbeTemplateId())
+                return;
+
+            MdSubscribeBatch msg;
+            msg.wrapForDecode(data,
+                              MessageHeader::encodedLength(),
+                              hdr.blockLength(),
+                              hdr.version(),
+                              static_cast<std::size_t>(length));
+
+            bpt::common::log::info("Received MdSubscribeBatch correlation_id={}", msg.correlationId());
+            sub_mgr_.apply_batch(msg, ack_pub_);
+            metrics_.subscription_batches_total->Increment();
+        });
 
     for (const auto& a_cfg : cfg_.adapters) {
         std::shared_ptr<adapter::IAdapter> adapter;
@@ -87,35 +112,8 @@ void MdGatewayApp::run() {
     auto last_sub_hb = std::chrono::steady_clock::now();
     auto last_lat_report = std::chrono::steady_clock::now();
 
-    aeron::FragmentAssembler ctrl_assembler([this](aeron::AtomicBuffer& buf,
-                                                   aeron::util::index_t offset,
-                                                   aeron::util::index_t length,
-                                                   aeron::Header& /*hdr*/) {
-        using namespace bpt::messages;
-
-        if (static_cast<std::size_t>(length) < MessageHeader::encodedLength())
-            return;
-
-        char* data = reinterpret_cast<char*>(buf.buffer()) + offset;
-        MessageHeader hdr(data, static_cast<std::size_t>(length));
-
-        if (hdr.templateId() != MdSubscribeBatch::sbeTemplateId())
-            return;
-
-        MdSubscribeBatch msg;
-        msg.wrapForDecode(data,
-                          MessageHeader::encodedLength(),
-                          hdr.blockLength(),
-                          hdr.version(),
-                          static_cast<std::size_t>(length));
-
-        bpt::common::log::info("Received MdSubscribeBatch correlation_id={}", msg.correlationId());
-        sub_mgr_.apply_batch(msg, ack_pub_);
-        metrics_.subscription_batches_total->Increment();
-    });
-
     while (bpt::common::signal::is_running()) {
-        int fragments = ctrl_sub_->poll(ctrl_assembler.handler(), 10);
+        int fragments = ctrl_sub_->poll(10);
 
         auto now = std::chrono::steady_clock::now();
 

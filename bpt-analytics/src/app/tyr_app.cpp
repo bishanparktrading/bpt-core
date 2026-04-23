@@ -37,14 +37,22 @@ AnalyticsApp::AnalyticsApp(config::Settings settings, std::shared_ptr<aeron::Aer
     };
 
     // Subscribe to exec reports (stream 3002)
-    exec_sub_ = bpt::common::aeron::wait_for_subscription(aeron_, settings_.exec_report.channel,
-                                                   settings_.exec_report.stream_id);
+    exec_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
+        aeron_, settings_.exec_report.channel, settings_.exec_report.stream_id,
+        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset,
+               aeron::util::index_t length, aeron::Header& hdr) {
+            handle_exec_report(buf, offset, length, hdr);
+        });
     bpt::common::log::info("Exec report subscription ready: {} stream {}",
                    settings_.exec_report.channel, settings_.exec_report.stream_id);
 
     // Subscribe to MD (stream 2002)
-    md_sub_ = bpt::common::aeron::wait_for_subscription(aeron_, settings_.md_data.channel,
-                                                 settings_.md_data.stream_id);
+    md_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
+        aeron_, settings_.md_data.channel, settings_.md_data.stream_id,
+        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset,
+               aeron::util::index_t length, aeron::Header& hdr) {
+            handle_md(buf, offset, length, hdr);
+        });
     bpt::common::log::info("MD subscription ready: {} stream {}",
                    settings_.md_data.channel, settings_.md_data.stream_id);
 
@@ -165,6 +173,70 @@ void AnalyticsApp::maybe_publish(uint64_t now_ns) {
     }
 }
 
+void AnalyticsApp::handle_exec_report(aeron::AtomicBuffer& buffer,
+                                      aeron::util::index_t offset,
+                                      aeron::util::index_t length,
+                                      aeron::Header& /*hdr_header*/) {
+    if (length < static_cast<aeron::util::index_t>(MessageHeader::encodedLength()))
+        return;
+
+    auto* data = reinterpret_cast<char*>(buffer.buffer() + offset);
+    MessageHeader hdr;
+    hdr.wrap(data, 0, MessageHeader::sbeSchemaVersion(), static_cast<uint64_t>(length));
+
+    if (hdr.templateId() != ExecutionReport::sbeTemplateId())
+        return;
+
+    ExecutionReport rpt;
+    rpt.wrapForDecode(data, MessageHeader::encodedLength(),
+                      hdr.blockLength(), hdr.version(),
+                      static_cast<uint64_t>(length));
+
+    const auto status = rpt.status();
+    const int side_sign = (rpt.side() == OrderSide::BUY) ? +1 : -1;
+    const uint64_t now_ns = static_cast<uint64_t>(
+        std::chrono::steady_clock::now().time_since_epoch().count());
+    const uint64_t order_id = rpt.orderId();
+
+    // Route instrument_id=0 to the first tracked instrument
+    uint64_t inst_id = rpt.instrumentId();
+    if (inst_id == 0 && !state_.empty())
+        inst_id = state_.begin()->first;
+    auto& st = get_or_create(inst_id);
+
+    if (status == ExecStatus::ACKED) {
+        st.fill_rate.on_acked(order_id, side_sign, now_ns);
+    } else if (status == ExecStatus::FILLED || status == ExecStatus::PARTIAL) {
+        const double price = static_cast<double>(rpt.price()) / 1e8;
+        on_exec_fill(inst_id, side_sign, price, now_ns);
+        st.fill_rate.on_filled(order_id, now_ns);
+    } else if (status == ExecStatus::CANCELLED) {
+        st.fill_rate.on_cancelled(order_id, now_ns);
+    }
+}
+
+void AnalyticsApp::handle_md(aeron::AtomicBuffer& buffer,
+                             aeron::util::index_t offset,
+                             aeron::util::index_t length,
+                             aeron::Header& /*hdr_header*/) {
+    if (length < static_cast<aeron::util::index_t>(MessageHeader::encodedLength()))
+        return;
+
+    auto* data = reinterpret_cast<char*>(buffer.buffer() + offset);
+    MessageHeader hdr;
+    hdr.wrap(data, 0, MessageHeader::sbeSchemaVersion(), static_cast<uint64_t>(length));
+
+    if (hdr.templateId() != MdMarketData::sbeTemplateId())
+        return;
+
+    MdMarketData md;
+    md.wrapForDecode(data, MessageHeader::encodedLength(),
+                     hdr.blockLength(), hdr.version(),
+                     static_cast<uint64_t>(length));
+
+    on_bbo(md.instrumentId(), md.bidPrice(), md.askPrice(), md.timestampNs());
+}
+
 void AnalyticsApp::run() {
     bpt::common::log::info("Starting main loop (publish every {}ms, window={} fills, min_samples={})",
                    settings_.publish_interval_ms,
@@ -172,81 +244,9 @@ void AnalyticsApp::run() {
                    settings_.scorer_min_samples);
 
     while (bpt::common::signal::is_running()) {
-        // Poll exec reports
-        if (exec_sub_) {
-            exec_sub_->poll(
-                [this](const aeron::concurrent::AtomicBuffer& buffer,
-                       aeron::util::index_t offset,
-                       aeron::util::index_t length,
-                       const aeron::Header&) {
-                    if (length < static_cast<aeron::util::index_t>(MessageHeader::encodedLength()))
-                        return;
+        if (exec_sub_) exec_sub_->poll(10);
+        if (md_sub_)   md_sub_->poll(10);
 
-                    auto* data = const_cast<char*>(reinterpret_cast<const char*>(buffer.buffer() + offset));
-                    MessageHeader hdr;
-                    hdr.wrap(data, 0, MessageHeader::sbeSchemaVersion(), static_cast<uint64_t>(length));
-
-                    if (hdr.templateId() != ExecutionReport::sbeTemplateId())
-                        return;
-
-                    ExecutionReport rpt;
-                    rpt.wrapForDecode(data, MessageHeader::encodedLength(),
-                                      hdr.blockLength(), hdr.version(),
-                                      static_cast<uint64_t>(length));
-
-                    const auto status = rpt.status();
-                    const int side_sign = (rpt.side() == OrderSide::BUY) ? +1 : -1;
-                    const uint64_t now_ns = static_cast<uint64_t>(
-                        std::chrono::steady_clock::now().time_since_epoch().count());
-                    const uint64_t order_id = rpt.orderId();
-
-                    // Route instrument_id=0 to the first tracked instrument
-                    uint64_t inst_id = rpt.instrumentId();
-                    if (inst_id == 0 && !state_.empty())
-                        inst_id = state_.begin()->first;
-                    auto& st = get_or_create(inst_id);
-
-                    if (status == ExecStatus::ACKED) {
-                        st.fill_rate.on_acked(order_id, side_sign, now_ns);
-                    } else if (status == ExecStatus::FILLED || status == ExecStatus::PARTIAL) {
-                        const double price = static_cast<double>(rpt.price()) / 1e8;
-                        on_exec_fill(inst_id, side_sign, price, now_ns);
-                        st.fill_rate.on_filled(order_id, now_ns);
-                    } else if (status == ExecStatus::CANCELLED) {
-                        st.fill_rate.on_cancelled(order_id, now_ns);
-                    }
-                },
-                10);
-        }
-
-        // Poll MD
-        if (md_sub_) {
-            md_sub_->poll(
-                [this](const aeron::concurrent::AtomicBuffer& buffer,
-                       aeron::util::index_t offset,
-                       aeron::util::index_t length,
-                       const aeron::Header&) {
-                    if (length < static_cast<aeron::util::index_t>(MessageHeader::encodedLength()))
-                        return;
-
-                    auto* data = const_cast<char*>(reinterpret_cast<const char*>(buffer.buffer() + offset));
-                    MessageHeader hdr;
-                    hdr.wrap(data, 0, MessageHeader::sbeSchemaVersion(), static_cast<uint64_t>(length));
-
-                    if (hdr.templateId() != MdMarketData::sbeTemplateId())
-                        return;
-
-                    MdMarketData md;
-                    md.wrapForDecode(data, MessageHeader::encodedLength(),
-                                     hdr.blockLength(), hdr.version(),
-                                     static_cast<uint64_t>(length));
-
-                    on_bbo(md.instrumentId(), md.bidPrice(), md.askPrice(), md.timestampNs());
-                },
-                10);
-        }
-
-        // Publish toxicity updates periodically
         const uint64_t now_ns = static_cast<uint64_t>(
             std::chrono::steady_clock::now().time_since_epoch().count());
         maybe_publish(now_ns);

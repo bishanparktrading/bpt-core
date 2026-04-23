@@ -14,6 +14,7 @@
 #include <memory>
 #include <string>
 #include <bpt_common/aeron/publisher.h>
+#include <bpt_common/aeron/subscriber.h>
 
 namespace bpt::strategy::order {
 
@@ -74,12 +75,9 @@ private:
                                           aeron::Header& hdr);
 
     std::unique_ptr<bpt::common::aeron::Publisher> order_pub_;
-    std::shared_ptr<aeron::Subscription> exec_report_sub_;
-    std::shared_ptr<aeron::Subscription> heartbeat_sub_;
-    std::shared_ptr<aeron::Subscription> account_snapshot_sub_;
-    std::unique_ptr<aeron::FragmentAssembler> exec_assembler_;
-    std::unique_ptr<aeron::FragmentAssembler> hb_assembler_;
-    std::unique_ptr<aeron::FragmentAssembler> account_snapshot_assembler_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> exec_report_sub_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> heartbeat_sub_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> account_snapshot_sub_;
     uint64_t last_heartbeat_ns_{0};
 };
 

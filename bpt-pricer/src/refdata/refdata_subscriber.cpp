@@ -42,25 +42,29 @@ static std::string trim_null(const char* data, size_t len) {
     return s;
 }
 
-RefdataSubscriber::RefdataSubscriber(std::shared_ptr<aeron::Aeron> aeron,
+RefdataSubscriber::RefdataSubscriber(std::shared_ptr<::aeron::Aeron> aeron,
                                      const std::string& snapshot_channel,
                                      int32_t snapshot_stream_id,
                                      const std::string& delta_channel,
                                      int32_t delta_stream_id,
                                      const std::string& control_channel,
                                      int32_t control_stream_id) {
-    snapshot_sub_ = bpt::common::aeron::wait_for_subscription(aeron, snapshot_channel, snapshot_stream_id);
-    delta_sub_ = bpt::common::aeron::wait_for_subscription(aeron, delta_channel, delta_stream_id);
+    snapshot_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
+        aeron, snapshot_channel, snapshot_stream_id,
+        [this](::aeron::AtomicBuffer& buf, ::aeron::util::index_t offset,
+               ::aeron::util::index_t length, ::aeron::Header& hdr) {
+            on_snapshot_fragment(buf, offset, length, hdr);
+        });
+    delta_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
+        aeron, delta_channel, delta_stream_id,
+        [this](::aeron::AtomicBuffer& buf, ::aeron::util::index_t offset,
+               ::aeron::util::index_t length, ::aeron::Header& hdr) {
+            on_delta_fragment(buf, offset, length, hdr);
+        });
     if (control_stream_id != 0)
         ctrl_pub_ = bpt::common::aeron::wait_for_publication(aeron, control_channel, control_stream_id);
 
     bpt::common::log::info("[RefdataSubscriber] Snapshot + delta subscriptions ready");
-    snap_assembler_ = std::make_unique<aeron::FragmentAssembler>(
-        [this](aeron::AtomicBuffer& buffer,
-               aeron::util::index_t offset,
-               aeron::util::index_t length,
-               aeron::Header& header) { on_snapshot_fragment(buffer, offset, length, header); });
-
     if (ctrl_pub_)
         bpt::common::log::info("[RefdataSubscriber] Control publication ready");
 }
@@ -107,24 +111,15 @@ void RefdataSubscriber::send_subscription_request(uint64_t correlation_id) {
 
 int RefdataSubscriber::poll(int fragment_limit) {
     int total = 0;
-    if (snapshot_sub_ && snap_assembler_) {
-        total += snapshot_sub_->poll(snap_assembler_->handler(), fragment_limit);
-    }
-    if (delta_sub_) {
-        total +=
-            delta_sub_->poll([this](const aeron::concurrent::AtomicBuffer& buffer,
-                                    aeron::util::index_t offset,
-                                    aeron::util::index_t length,
-                                    const aeron::Header& header) { on_delta_fragment(buffer, offset, length, header); },
-                             fragment_limit);
-    }
+    if (snapshot_sub_) total += snapshot_sub_->poll(fragment_limit);
+    if (delta_sub_)    total += delta_sub_->poll(fragment_limit);
     return total;
 }
 
-void RefdataSubscriber::on_snapshot_fragment(const aeron::concurrent::AtomicBuffer& buffer,
+void RefdataSubscriber::on_snapshot_fragment(::aeron::AtomicBuffer& buffer,
                                              aeron::util::index_t offset,
                                              aeron::util::index_t length,
-                                             const aeron::Header& /*header*/) {
+                                             ::aeron::Header& /*header*/) {
     using namespace bpt::messages;
 
     if (length < static_cast<aeron::util::index_t>(MessageHeader::encodedLength()))
@@ -197,10 +192,10 @@ void RefdataSubscriber::on_snapshot_fragment(const aeron::concurrent::AtomicBuff
     bpt::common::log::info("[RefdataSubscriber] Snapshot: {} total instruments, {} options", total_count, option_count);
 }
 
-void RefdataSubscriber::on_delta_fragment(const aeron::concurrent::AtomicBuffer& buffer,
+void RefdataSubscriber::on_delta_fragment(::aeron::AtomicBuffer& buffer,
                                           aeron::util::index_t offset,
                                           aeron::util::index_t length,
-                                          const aeron::Header& /*header*/) {
+                                          ::aeron::Header& /*header*/) {
     using namespace bpt::messages;
 
     if (length < static_cast<aeron::util::index_t>(MessageHeader::encodedLength()))

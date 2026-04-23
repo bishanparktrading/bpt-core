@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <bpt_common/aeron/subscriber.h>
 
 namespace bridge {
 
@@ -15,7 +16,7 @@ public:
     // (instrument_id, mid_price, ts_ns)
     using TickHandler = std::function<void(uint64_t, double, uint64_t)>;
 
-    MdSubscriber(std::shared_ptr<aeron::Aeron> aeron,
+    MdSubscriber(std::shared_ptr<::aeron::Aeron> aeron,
                  const std::string& channel,
                  int32_t stream_id);
 
@@ -25,12 +26,12 @@ public:
     int poll(int fragment_limit = 32);
 
 private:
-    void on_fragment(const aeron::concurrent::AtomicBuffer& buffer,
-                     aeron::util::index_t offset,
-                     aeron::util::index_t length,
-                     const aeron::Header& header);
+    void on_fragment(::aeron::AtomicBuffer& buffer,
+                     ::aeron::util::index_t offset,
+                     ::aeron::util::index_t length,
+                     ::aeron::Header& header);
 
-    std::shared_ptr<aeron::Subscription> sub_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> sub_;
     TickHandler handler_;
 };
 

@@ -3,7 +3,6 @@
 #include "pricer/surface/surface_builder.h"
 
 #include <Aeron.h>
-#include <FragmentAssembler.h>
 
 #include <messages/ExchangeId.h>
 
@@ -11,6 +10,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <bpt_common/aeron/subscriber.h>
 
 namespace bpt::pricer::refdata {
 
@@ -29,7 +29,7 @@ public:
     using PerpCallback = std::function<void(const PerpInstrument& inst)>;
     using RemoveCallback = std::function<void(uint64_t instrument_id)>;
 
-    RefdataSubscriber(std::shared_ptr<aeron::Aeron> aeron,
+    RefdataSubscriber(std::shared_ptr<::aeron::Aeron> aeron,
                       const std::string& snapshot_channel,
                       int32_t snapshot_stream_id,
                       const std::string& delta_channel,
@@ -50,19 +50,21 @@ public:
     int poll(int fragment_limit = 10);
 
 private:
-    void on_snapshot_fragment(const aeron::concurrent::AtomicBuffer& buffer,
-                              aeron::util::index_t offset,
-                              aeron::util::index_t length,
-                              const aeron::Header& header);
-    void on_delta_fragment(const aeron::concurrent::AtomicBuffer& buffer,
-                           aeron::util::index_t offset,
-                           aeron::util::index_t length,
-                           const aeron::Header& header);
+    void on_snapshot_fragment(::aeron::AtomicBuffer& buffer,
+                              ::aeron::util::index_t offset,
+                              ::aeron::util::index_t length,
+                              ::aeron::Header& header);
+    void on_delta_fragment(::aeron::AtomicBuffer& buffer,
+                           ::aeron::util::index_t offset,
+                           ::aeron::util::index_t length,
+                           ::aeron::Header& header);
 
-    std::shared_ptr<aeron::Subscription> snapshot_sub_;
-    std::shared_ptr<aeron::Subscription> delta_sub_;
-    std::shared_ptr<aeron::Publication> ctrl_pub_;
-    std::unique_ptr<aeron::FragmentAssembler> snap_assembler_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> snapshot_sub_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> delta_sub_;
+    // ctrl_pub_ intentionally raw — uses a 10s warmup deadline in
+    // send_subscription_request, which doesn't fit the Publisher
+    // helper's policy enum cleanly.
+    std::shared_ptr<::aeron::Publication> ctrl_pub_;
     InstrumentCallback on_option_;
     PerpCallback on_perp_;
     RemoveCallback on_remove_;

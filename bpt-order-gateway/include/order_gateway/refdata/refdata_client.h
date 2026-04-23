@@ -4,7 +4,6 @@
 #include "order_gateway/refdata/instrument_cache.h"
 
 #include <Aeron.h>
-#include <FragmentAssembler.h>
 
 #include <messages/InstrumentType.h>
 
@@ -13,6 +12,7 @@
 #include <string>
 #include <vector>
 #include <bpt_common/aeron/publisher.h>
+#include <bpt_common/aeron/subscriber.h>
 
 namespace bpt::order_gateway::refdata {
 
@@ -66,10 +66,8 @@ private:
                                aeron::Header& header);
 
     std::unique_ptr<bpt::common::aeron::Publisher> ctrl_pub_;
-    std::shared_ptr<aeron::Subscription> snap_sub_;
-    std::shared_ptr<aeron::Subscription> delta_sub_;
-    std::unique_ptr<aeron::FragmentAssembler> snap_assembler_;
-    std::unique_ptr<aeron::FragmentAssembler> delta_assembler_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> snap_sub_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> delta_sub_;
     InstrumentCache cache_;
     uint64_t correlation_id_{0};
     uint64_t last_heartbeat_ns_{0};

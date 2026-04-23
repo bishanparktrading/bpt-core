@@ -3,8 +3,6 @@
 #include <messages/AccountSnapshot.h>
 #include <messages/MessageHeader.h>
 
-#include <chrono>
-#include <thread>
 #include <bpt_common/logging.h>
 
 namespace bridge {
@@ -13,37 +11,26 @@ namespace {
 constexpr double kE8 = 1e8;
 }
 
-AccountSubscriber::AccountSubscriber(std::shared_ptr<aeron::Aeron> aeron,
+AccountSubscriber::AccountSubscriber(std::shared_ptr<::aeron::Aeron> aeron,
                                      const std::string& channel,
                                      int32_t stream_id) {
-    const int64_t reg_id = aeron->addSubscription(channel, stream_id);
-    for (int i = 0; i < 500; ++i) {
-        sub_ = aeron->findSubscription(reg_id);
-        if (sub_) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-    if (!sub_) {
-        bpt::common::log::error("[bridge/Account] failed to register subscription on {} stream {}",
-                        channel, stream_id);
-    } else {
-        bpt::common::log::info("[bridge/Account] subscribed on {} stream {}", channel, stream_id);
-    }
+    sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
+        std::move(aeron), channel, stream_id,
+        [this](::aeron::AtomicBuffer& b, ::aeron::util::index_t o,
+               ::aeron::util::index_t l, ::aeron::Header& h) {
+            on_fragment(b, o, l, h);
+        });
+    bpt::common::log::info("[bridge/Account] subscribed on {} stream {}", channel, stream_id);
 }
 
 int AccountSubscriber::poll(int fragment_limit) {
-    if (!sub_) return 0;
-    return sub_->poll(
-        [this](const aeron::concurrent::AtomicBuffer& b,
-               aeron::util::index_t o,
-               aeron::util::index_t l,
-               const aeron::Header& h) { on_fragment(b, o, l, h); },
-        fragment_limit);
+    return sub_ ? sub_->poll(fragment_limit) : 0;
 }
 
-void AccountSubscriber::on_fragment(const aeron::concurrent::AtomicBuffer& buffer,
-                                    aeron::util::index_t offset,
-                                    aeron::util::index_t length,
-                                    const aeron::Header& /*header*/) {
+void AccountSubscriber::on_fragment(::aeron::AtomicBuffer& buffer,
+                                    ::aeron::util::index_t offset,
+                                    ::aeron::util::index_t length,
+                                    ::aeron::Header& /*header*/) {
     using namespace bpt::messages;
 
     if (length < static_cast<aeron::util::index_t>(MessageHeader::encodedLength())) return;

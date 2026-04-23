@@ -31,35 +31,35 @@ RefdataClient::RefdataClient(std::shared_ptr<aeron::Aeron> aeron,
     ctrl_pub_ = std::make_unique<bpt::common::aeron::Publisher>(
         aeron, channel, control_stream,
         bpt::common::aeron::Publisher::Policy::kRetryOnBackpressure);
-    snap_sub_ = bpt::common::aeron::wait_for_subscription(aeron, channel, snapshot_stream);
-    delta_sub_ = bpt::common::aeron::wait_for_subscription(aeron, channel, delta_stream);
-    fee_sub_ = bpt::common::aeron::wait_for_subscription(aeron, channel, fee_schedule_stream);
-    funding_sub_ = bpt::common::aeron::wait_for_subscription(aeron, channel, funding_rate_stream);
-    status_sub_ = bpt::common::aeron::wait_for_subscription(aeron, channel, status_stream);
-
-    snap_assembler_ = std::make_unique<aeron::FragmentAssembler>(
-        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset, aeron::util::index_t length, aeron::Header& hdr) {
+    snap_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
+        aeron, channel, snapshot_stream,
+        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset,
+               aeron::util::index_t length, aeron::Header& hdr) {
             handle_snapshot_fragment(buf, offset, length, hdr);
         });
-
-    delta_assembler_ = std::make_unique<aeron::FragmentAssembler>(
-        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset, aeron::util::index_t length, aeron::Header& hdr) {
+    delta_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
+        aeron, channel, delta_stream,
+        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset,
+               aeron::util::index_t length, aeron::Header& hdr) {
             handle_delta_fragment(buf, offset, length, hdr);
         });
-
-    fee_assembler_ = std::make_unique<aeron::FragmentAssembler>(
-        [this](aeron::AtomicBuffer& buf, aeron::util::index_t off, aeron::util::index_t len, aeron::Header& hdr) {
-            handle_fee_schedule_fragment(buf, off, len, hdr);
+    fee_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
+        aeron, channel, fee_schedule_stream,
+        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset,
+               aeron::util::index_t length, aeron::Header& hdr) {
+            handle_fee_schedule_fragment(buf, offset, length, hdr);
         });
-
-    funding_assembler_ = std::make_unique<aeron::FragmentAssembler>(
-        [this](aeron::AtomicBuffer& buf, aeron::util::index_t off, aeron::util::index_t len, aeron::Header& hdr) {
-            handle_funding_rate_fragment(buf, off, len, hdr);
+    funding_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
+        aeron, channel, funding_rate_stream,
+        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset,
+               aeron::util::index_t length, aeron::Header& hdr) {
+            handle_funding_rate_fragment(buf, offset, length, hdr);
         });
-
-    status_assembler_ = std::make_unique<aeron::FragmentAssembler>(
-        [this](aeron::AtomicBuffer& buf, aeron::util::index_t off, aeron::util::index_t len, aeron::Header& hdr) {
-            handle_status_fragment(buf, off, len, hdr);
+    status_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
+        aeron, channel, status_stream,
+        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset,
+               aeron::util::index_t length, aeron::Header& hdr) {
+            handle_status_fragment(buf, offset, length, hdr);
         });
 
     bpt::common::log::info("RefdataClient connected: ctrl={} snap={} delta={} fee={} funding={} status={}",
@@ -318,11 +318,11 @@ void RefdataClient::handle_status_fragment(aeron::AtomicBuffer& buffer,
 
 int RefdataClient::poll(int fragment_limit) {
     int total = 0;
-    total += snap_sub_->poll(snap_assembler_->handler(), fragment_limit);
-    total += delta_sub_->poll(delta_assembler_->handler(), fragment_limit);
-    total += fee_sub_->poll(fee_assembler_->handler(), fragment_limit);
-    total += funding_sub_->poll(funding_assembler_->handler(), fragment_limit);
-    total += status_sub_->poll(status_assembler_->handler(), fragment_limit);
+    total += snap_sub_->poll(fragment_limit);
+    total += delta_sub_->poll(fragment_limit);
+    total += fee_sub_->poll(fragment_limit);
+    total += funding_sub_->poll(fragment_limit);
+    total += status_sub_->poll(fragment_limit);
     return total;
 }
 

@@ -25,28 +25,27 @@ AeronOrderGatewayClient::AeronOrderGatewayClient(std::shared_ptr<aeron::Aeron> a
     order_pub_ = std::make_unique<bpt::common::aeron::Publisher>(
         aeron, channel, order_stream,
         bpt::common::aeron::Publisher::Policy::kRetryOnBackpressure);
-    exec_report_sub_ = bpt::common::aeron::wait_for_subscription(aeron, channel, exec_report_stream);
-    heartbeat_sub_ = bpt::common::aeron::wait_for_subscription(aeron, channel, heartbeat_stream);
-
-    if (account_snapshot_stream != 0) {
-        account_snapshot_sub_ =
-            bpt::common::aeron::wait_for_subscription(aeron, channel, account_snapshot_stream);
-        account_snapshot_assembler_ = std::make_unique<aeron::FragmentAssembler>(
-            [this](aeron::AtomicBuffer& buf,
-                   aeron::util::index_t offset,
-                   aeron::util::index_t length,
-                   aeron::Header& hdr) { handle_account_snapshot_fragment(buf, offset, length, hdr); });
-    }
-
-    exec_assembler_ = std::make_unique<aeron::FragmentAssembler>(
-        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset, aeron::util::index_t length, aeron::Header& hdr) {
+    exec_report_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
+        aeron, channel, exec_report_stream,
+        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset,
+               aeron::util::index_t length, aeron::Header& hdr) {
             handle_exec_report_fragment(buf, offset, length, hdr);
         });
-
-    hb_assembler_ = std::make_unique<aeron::FragmentAssembler>(
-        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset, aeron::util::index_t length, aeron::Header& hdr) {
+    heartbeat_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
+        aeron, channel, heartbeat_stream,
+        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset,
+               aeron::util::index_t length, aeron::Header& hdr) {
             handle_heartbeat_fragment(buf, offset, length, hdr);
         });
+
+    if (account_snapshot_stream != 0) {
+        account_snapshot_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
+            aeron, channel, account_snapshot_stream,
+            [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset,
+                   aeron::util::index_t length, aeron::Header& hdr) {
+                handle_account_snapshot_fragment(buf, offset, length, hdr);
+            });
+    }
 }
 
 bool AeronOrderGatewayClient::send_new_order(uint64_t order_id,
@@ -176,10 +175,10 @@ void AeronOrderGatewayClient::send_account_snapshot_request(bpt::messages::Excha
 
 int AeronOrderGatewayClient::poll(int fragment_limit) {
     int total = 0;
-    total += exec_report_sub_->poll(exec_assembler_->handler(), fragment_limit);
-    total += heartbeat_sub_->poll(hb_assembler_->handler(), fragment_limit);
+    total += exec_report_sub_->poll(fragment_limit);
+    total += heartbeat_sub_->poll(fragment_limit);
     if (account_snapshot_sub_)
-        total += account_snapshot_sub_->poll(account_snapshot_assembler_->handler(), fragment_limit);
+        total += account_snapshot_sub_->poll(fragment_limit);
     return total;
 }
 

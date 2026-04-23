@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Aeron.h>
-#include <FragmentAssembler.h>
 
 #include <messages/AccountSnapshotRequest.h>
 #include <messages/CancelAll.h>
@@ -12,6 +11,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <bpt_common/aeron/subscriber.h>
 
 namespace bpt::order_gateway::messaging {
 
@@ -23,7 +23,7 @@ using OnAccountSnapshotRequestFn = std::function<void(const bpt::messages::Accou
 
 class OrderSubscriber {
 public:
-    OrderSubscriber(std::shared_ptr<aeron::Aeron> aeron, const std::string& channel, int stream_id);
+    OrderSubscriber(std::shared_ptr<::aeron::Aeron> aeron, const std::string& channel, int stream_id);
 
     // Poll for incoming order messages. Returns number of fragments processed.
     int poll(int fragment_limit = 10);
@@ -41,8 +41,7 @@ private:
                          aeron::util::index_t length,
                          aeron::Header& hdr);
 
-    std::shared_ptr<aeron::Subscription> subscription_;
-    std::unique_ptr<aeron::FragmentAssembler> assembler_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> subscription_;
 };
 
 }  // namespace bpt::order_gateway::messaging

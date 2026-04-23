@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <bpt_common/aeron/subscriber.h>
 
 namespace bridge {
 
@@ -47,7 +48,7 @@ public:
 
     using Handler = std::function<void(const Snapshot&)>;
 
-    AccountSubscriber(std::shared_ptr<aeron::Aeron> aeron,
+    AccountSubscriber(std::shared_ptr<::aeron::Aeron> aeron,
                       const std::string& channel,
                       int32_t stream_id);
 
@@ -56,12 +57,12 @@ public:
     int poll(int fragment_limit = 8);
 
 private:
-    void on_fragment(const aeron::concurrent::AtomicBuffer& buffer,
-                     aeron::util::index_t offset,
-                     aeron::util::index_t length,
-                     const aeron::Header& header);
+    void on_fragment(::aeron::AtomicBuffer& buffer,
+                     ::aeron::util::index_t offset,
+                     ::aeron::util::index_t length,
+                     ::aeron::Header& header);
 
-    std::shared_ptr<aeron::Subscription> sub_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> sub_;
     Handler handler_;
 };
 

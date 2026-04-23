@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 #include <bpt_app/app.h>
+#include <bpt_common/aeron/subscriber.h>
 #include <bpt_common/util/latency_histogram.h>
 #include <bpt_common/util/topology.h>
 
@@ -35,7 +36,7 @@ private:
     std::shared_ptr<messaging::MdPublisher> md_pub_;
     std::shared_ptr<messaging::FundingRatePublisher> funding_pub_;
     messaging::AckPublisher ack_pub_;
-    std::shared_ptr<aeron::Subscription> ctrl_sub_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> ctrl_sub_;
     subscription::SubscriptionManager sub_mgr_;
 
     // Collected at construction; used by the periodic latency reporter in run().

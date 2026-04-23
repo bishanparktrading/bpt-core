@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 #include <bpt_common/aeron/publisher.h>
+#include <bpt_common/aeron/subscriber.h>
 
 namespace bpt::strategy::md {
 
@@ -81,9 +82,8 @@ private:
                                 aeron::Header& header);
 
     std::unique_ptr<bpt::common::aeron::Publisher> ctrl_pub_;
-    std::shared_ptr<aeron::Subscription> data_sub_;
-    std::shared_ptr<aeron::Subscription> ack_hb_sub_;
-    std::unique_ptr<aeron::FragmentAssembler> data_assembler_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> data_sub_;
+    std::unique_ptr<bpt::common::aeron::Subscriber> ack_hb_sub_;
     uint64_t last_service_hb_ns_{0};
 };
 

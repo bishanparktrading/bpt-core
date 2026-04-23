@@ -12,11 +12,11 @@
 
 namespace bpt::order_gateway::messaging {
 
-OrderSubscriber::OrderSubscriber(std::shared_ptr<aeron::Aeron> aeron, const std::string& channel, int stream_id) {
-    subscription_ = bpt::common::aeron::wait_for_subscription(aeron, channel, stream_id);
-
-    assembler_ = std::make_unique<aeron::FragmentAssembler>(
-        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset, aeron::util::index_t length, aeron::Header& hdr) {
+OrderSubscriber::OrderSubscriber(std::shared_ptr<::aeron::Aeron> aeron, const std::string& channel, int stream_id) {
+    subscription_ = std::make_unique<bpt::common::aeron::Subscriber>(
+        std::move(aeron), channel, stream_id,
+        [this](::aeron::AtomicBuffer& buf, ::aeron::util::index_t offset,
+               ::aeron::util::index_t length, ::aeron::Header& hdr) {
             handle_fragment(buf, offset, length, hdr);
         });
 }
@@ -91,7 +91,7 @@ void OrderSubscriber::handle_fragment(aeron::AtomicBuffer& buf,
 }
 
 int OrderSubscriber::poll(int fragment_limit) {
-    return subscription_->poll(assembler_->handler(), fragment_limit);
+    return subscription_->poll(fragment_limit);
 }
 
 }  // namespace bpt::order_gateway::messaging
