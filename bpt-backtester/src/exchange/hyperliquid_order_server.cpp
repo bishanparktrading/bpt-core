@@ -143,17 +143,27 @@ private:
         const auto& action = payload.at("action").as_object();
         std::string action_type = std::string(action.at("type").as_string());
 
-        json::object response_payload;
-        response_payload["type"] = "ok";
-
+        // HL WS post payload shape: {"status":"ok","response":{"type":"<action>",
+        // "data":{"statuses":[...]}}}. The order-gateway's HyperliquidExecEmitter
+        // reads `status` at the top level and bails to REJECTED if it's not
+        // "ok"; previous nesting put `type:ok` under payload directly, which
+        // emit_order_response doesn't recognise → every order falsely rejected.
+        json::object inner_response;
         if (action_type == "order") {
-            response_payload["data"] = handle_order_action(action);
+            inner_response["type"] = "order";
+            inner_response["data"] = handle_order_action(action);
         } else if (action_type == "cancel") {
-            response_payload["data"] = handle_cancel_action(action);
+            inner_response["type"] = "cancel";
+            inner_response["data"] = handle_cancel_action(action);
         } else {
             // Unknown action type — return ok empty so client unblocks.
-            response_payload["data"] = json::object{};
+            inner_response["type"] = action_type;
+            inner_response["data"] = json::object{};
         }
+
+        json::object response_payload;
+        response_payload["status"] = "ok";
+        response_payload["response"] = std::move(inner_response);
 
         json::object response;
         response["type"] = "action";
