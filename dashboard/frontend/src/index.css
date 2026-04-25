@@ -541,10 +541,10 @@ html, body, #root {
 }
 
 /* Detail: risk strip on top, equity chart middle, blotter bottom.
- * Risk strip is 200px so all six stat cells (3 rows × 2 cols) fit
- * without clipping the bottom two (Win Rate / Fills). */
+ * Risk strip is 250px to fit eight stat cells (4 rows × 2 cols)
+ * including the BUY/SELL split. */
 .archive-body--detail {
-  grid-template-rows: 200px 1fr 240px;
+  grid-template-rows: 250px 1fr 240px;
   grid-template-areas:
     "risk"
     "equity"

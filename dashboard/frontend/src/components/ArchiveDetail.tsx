@@ -15,6 +15,15 @@ interface Summary {
   total_fills: number
   win_fills: number
   win_rate_pct: number
+  // Universal-core (optional — older runs lack these).
+  buy_count?: number
+  sell_count?: number
+  buy_notional_usd?: number
+  sell_notional_usd?: number
+  simulation_start?: string
+  simulation_end?: string
+  wallclock_duration_ms?: number
+  instruments?: string[]
 }
 
 interface TradeRow {
@@ -88,7 +97,23 @@ export function ArchiveDetail({ name }: Props) {
     sharpe:     summary.sharpe_per_fill,
     winRate:    summary.win_rate_pct,
     totalFills: summary.total_fills,
+    buyCount:   summary.buy_count,
+    sellCount:  summary.sell_count,
+    buyNotional:  summary.buy_notional_usd,
+    sellNotional: summary.sell_notional_usd,
   }
+
+  const metadataLine = [
+    summary.instruments && summary.instruments.length > 0 ? summary.instruments.join(' · ') : null,
+    summary.simulation_start && summary.simulation_end
+      ? `${summary.simulation_start} → ${summary.simulation_end}`
+      : null,
+    summary.wallclock_duration_ms !== undefined
+      ? `wallclock ${(summary.wallclock_duration_ms / 1000).toFixed(1)}s`
+      : null,
+  ]
+    .filter((s): s is string => s !== null)
+    .join('   ')
 
   return (
     <div className="archive-body archive-body--detail">
@@ -103,6 +128,9 @@ export function ArchiveDetail({ name }: Props) {
       <div className="panel" style={{ gridArea: 'equity' }}>
         <div className="panel-header">
           <span className="panel-title">Equity Curve</span>
+          <span className="panel-badge" style={{ flex: 1, textAlign: 'left', marginLeft: 16, color: 'var(--text-muted)' }}>
+            {metadataLine}
+          </span>
           <span className="panel-badge">
             ${summary.final_equity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             {' · '}

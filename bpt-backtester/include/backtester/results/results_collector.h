@@ -22,7 +22,18 @@ namespace bpt::backtester::results {
 // position update the running average cost.
 class ResultsCollector {
 public:
-    ResultsCollector(double starting_capital, std::string output_dir);
+    // Identity fields the archive list can use to differentiate runs without
+    // opening the detail view. simulation_start/end are ISO strings copied
+    // straight from the simulation config. wallclock_start_ns is captured
+    // here at construction; wallclock_duration_ms is computed at write() time.
+    struct RunMetadata {
+        std::string simulation_start;          // ISO 8601, e.g. "2026-04-25T00:00:00Z"
+        std::string simulation_end;
+        std::vector<std::string> instruments;  // e.g. ["HYPERLIQUID:APE"]
+    };
+
+    ResultsCollector(double starting_capital, std::string output_dir,
+                     RunMetadata metadata = {});
 
     // Called on every fill from MatchingEngine.
     void on_fill(const matching::FillReport& fill);
@@ -79,6 +90,8 @@ private:
 
     double starting_capital_;
     std::string output_dir_;
+    RunMetadata metadata_;
+    uint64_t wallclock_start_ns_{0};
 
     std::unordered_map<std::string, Position> positions_;  // key = "EXCHANGE:SYMBOL"
     std::unordered_map<std::string, double> mid_prices_;   // key = "EXCHANGE:SYMBOL"

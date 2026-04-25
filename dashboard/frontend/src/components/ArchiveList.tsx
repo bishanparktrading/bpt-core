@@ -14,6 +14,15 @@ interface RunRow {
   sharpe_per_fill: number
   total_fills: number
   win_rate_pct: number
+  // Universal-core fields — optional so older runs (pre-2026-04-26) still load.
+  buy_count?: number
+  sell_count?: number
+  buy_notional_usd?: number
+  sell_notional_usd?: number
+  simulation_start?: string
+  simulation_end?: string
+  wallclock_duration_ms?: number
+  instruments?: string[]
 }
 
 type SortKey = 'name' | 'return_pct' | 'max_drawdown_pct' | 'sharpe_per_fill' | 'total_fills' | 'win_rate_pct'
@@ -83,7 +92,7 @@ export function ArchiveList({ onOpen }: Props) {
           {!error && runs === null && <div style={{ padding: 16, color: 'var(--text-muted)' }}>Loading…</div>}
           {!error && runs !== null && runs.length === 0 && (
             <div style={{ padding: 16, color: 'var(--text-muted)' }}>
-              No runs found in jormungandr/results/.
+              No runs found in bpt-backtester/results/.
             </div>
           )}
           {runs && runs.length > 0 && (
@@ -91,11 +100,13 @@ export function ArchiveList({ onOpen }: Props) {
               <thead>
                 <tr>
                   <th onClick={() => toggleSort('name')} className="th-sortable">Run{arrow('name')}</th>
+                  <th>Instruments</th>
                   <th onClick={() => toggleSort('return_pct')} className="th-sortable num">Return{arrow('return_pct')}</th>
                   <th onClick={() => toggleSort('max_drawdown_pct')} className="th-sortable num">Max DD{arrow('max_drawdown_pct')}</th>
                   <th onClick={() => toggleSort('sharpe_per_fill')} className="th-sortable num">Sharpe/fill{arrow('sharpe_per_fill')}</th>
                   <th onClick={() => toggleSort('win_rate_pct')} className="th-sortable num">Win %{arrow('win_rate_pct')}</th>
                   <th onClick={() => toggleSort('total_fills')} className="th-sortable num">Fills{arrow('total_fills')}</th>
+                  <th className="num">Wallclock</th>
                   <th className="num">Final equity</th>
                 </tr>
               </thead>
@@ -103,11 +114,19 @@ export function ArchiveList({ onOpen }: Props) {
                 {sorted.map((r) => (
                   <tr key={r.name} onClick={() => onOpen(r.name)} className="archive-row">
                     <td>{r.name}</td>
+                    <td style={{ color: 'var(--text-secondary)' }}>
+                      {r.instruments && r.instruments.length > 0 ? r.instruments.join(', ') : '—'}
+                    </td>
                     <td className={`num ${pnlClass(r.return_pct)}`}>{fmtPct(r.return_pct)}</td>
                     <td className="num pnl-neg">{r.max_drawdown_pct.toFixed(2)}%</td>
                     <td className="num">{fmtNum(r.sharpe_per_fill)}</td>
                     <td className="num">{r.win_rate_pct.toFixed(2)}%</td>
                     <td className="num">{r.total_fills.toLocaleString()}</td>
+                    <td className="num" style={{ color: 'var(--text-secondary)' }}>
+                      {r.wallclock_duration_ms !== undefined
+                        ? `${(r.wallclock_duration_ms / 1000).toFixed(1)}s`
+                        : '—'}
+                    </td>
                     <td className="num">${r.final_equity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   </tr>
                 ))}

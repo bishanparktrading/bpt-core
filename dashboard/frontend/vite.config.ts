@@ -3,8 +3,8 @@ import react from '@vitejs/plugin-react'
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
-// Resolve bpt-core/jormungandr/results from the frontend directory.
-const RESULTS_DIR = resolve(__dirname, '../../jormungandr/results')
+// Resolve bpt-core/bpt-backtester/results from the frontend directory.
+const RESULTS_DIR = resolve(__dirname, '../../bpt-backtester/results')
 
 /**
  * Dev-server plugin that exposes completed backtest runs as a tiny JSON API.
@@ -56,6 +56,15 @@ function backtestArchivePlugin(): Plugin {
                     sharpe_per_fill: summary.sharpe_per_fill,
                     total_fills: summary.total_fills,
                     win_rate_pct: summary.win_rate_pct,
+                    // Universal-core fields — optional so older runs still parse.
+                    buy_count: summary.buy_count,
+                    sell_count: summary.sell_count,
+                    buy_notional_usd: summary.buy_notional_usd,
+                    sell_notional_usd: summary.sell_notional_usd,
+                    simulation_start: summary.simulation_start,
+                    simulation_end: summary.simulation_end,
+                    wallclock_duration_ms: summary.wallclock_duration_ms,
+                    instruments: summary.instruments,
                   }
                 } catch {
                   return null

@@ -14,17 +14,24 @@ interface RiskPanelProps {
     sharpe: number
     winRate: number
     totalFills: number
+    // Optional per-side aggregates from summary.json (universal-core, may be
+    // absent on pre-2026-04-26 runs).
+    buyCount?: number
+    sellCount?: number
+    buyNotional?: number
+    sellNotional?: number
   }
 }
 
 export function RiskPanel(props: RiskPanelProps = {}) {
   // Two modes — see EquityChart for the same split:
-  //   1. Live/paper — Total PnL / Return / Max DD come from the heimdall
+  //   1. Live/paper — Total PnL / Return / Max DD come from the bpt-order-gateway
   //      AccountSnapshot history in the store. Sharpe / Win Rate / Fills
   //      still come from the local fill stream.
   //   2. Archive — props.fills + props.startingCapital + optional precomputed.
   const liveFills = useStore((s) => s.fills)
   const accountHistory = useStore((s) => s.accountHistory)
+  const liveUnrealizedPnl = useStore((s) => s.unrealizedPnl)
   const isArchive = props.fills !== undefined
   const fills = props.fills ?? liveFills
   const startingCapital = props.startingCapital ?? 0
@@ -67,23 +74,32 @@ export function RiskPanel(props: RiskPanelProps = {}) {
     winRate = realised.length ? (wins / realised.length) * 100 : 0
     totalFills = fills.length
   } else {
-    // Live mode — anchor on the first observed account equity; deltas from
-    // there give Total PnL / Return / Max DD. Sharpe and Win Rate still come
-    // from the fill stream because account snapshots don't carry per-trade
-    // realised PnL.
+    // Live mode — true trading PnL is realized (per fill) + unrealized
+    // (current position mark). NOT equity-diff: on Hyperliquid (and any
+    // venue with auto-collateralize between spot and perp), USDC moves
+    // in and out of the perp accountValue without any trading happening,
+    // so equity-diff treats deposits as profit and withdrawals as loss.
+    // Both realizedPnl per fill and unrealizedPnl on current position
+    // are deposit-immune by construction.
     const first = accountHistory[0]?.equity ?? 0
-    const last = accountHistory[accountHistory.length - 1]?.equity ?? first
-    totalPnl  = first ? last - first : 0
+    const realisedSum = liveFills.reduce((acc, f) => acc + f.realizedPnl, 0)
+    totalPnl  = realisedSum + liveUnrealizedPnl
     returnPct = first ? (totalPnl / first) * 100 : 0
 
-    let peak = first
+    // Max DD computed on cumulative realized PnL series (deposit-immune).
+    // Approximation: drops intra-fill unrealized swings — drawdowns shorter
+    // than fill cadence are invisible. Acceptable for AS-style frequencies
+    // where we typically fill multiple times per minute. If fills are sparse,
+    // revisit by building a true MTM equity series via fold of trade prices
+    // over time.
+    let runningPnl = 0
+    let peakPnl = 0
     let maxDd = 0
-    for (const a of accountHistory) {
-      if (a.equity > peak) peak = a.equity
-      if (peak > 0) {
-        const dd = (peak - a.equity) / peak
-        if (dd > maxDd) maxDd = dd
-      }
+    for (const f of liveFills) {
+      runningPnl += f.realizedPnl
+      if (runningPnl > peakPnl) peakPnl = runningPnl
+      const dd = first > 0 ? (peakPnl - runningPnl) / first : 0
+      if (dd > maxDd) maxDd = dd
     }
     maxDdPct = maxDd * 100
 
@@ -103,6 +119,16 @@ export function RiskPanel(props: RiskPanelProps = {}) {
     totalPnl > 0 ? 'stat-value--green' : totalPnl < 0 ? 'stat-value--red' : 'stat-value--muted'
   const retColour =
     returnPct > 0 ? 'stat-value--green' : returnPct < 0 ? 'stat-value--red' : 'stat-value--muted'
+
+  // Per-side fill split is currently only carried through the archive
+  // precomputed prop. In live mode we'd derive it from liveFills, but the
+  // panel already covers Win Rate / Fills there, so skip rather than
+  // double up.
+  const buyCount     = props.precomputed?.buyCount
+  const sellCount    = props.precomputed?.sellCount
+  const buyNotional  = props.precomputed?.buyNotional
+  const sellNotional = props.precomputed?.sellNotional
+  const showSideSplit = buyCount !== undefined && sellCount !== undefined
 
   return (
     <div className="panel">
@@ -141,6 +167,32 @@ export function RiskPanel(props: RiskPanelProps = {}) {
           <span className="stat-label">Fills</span>
           <span className="stat-value stat-value--sm stat-value--muted">{totalFills}</span>
         </div>
+        {showSideSplit && (
+          <>
+            <div className="stat-cell">
+              <span className="stat-label">Buys</span>
+              <span className="stat-value stat-value--sm">
+                {buyCount}
+                {buyNotional !== undefined && (
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11, marginLeft: 8 }}>
+                    ${buyNotional.toFixed(0)}
+                  </span>
+                )}
+              </span>
+            </div>
+            <div className="stat-cell">
+              <span className="stat-label">Sells</span>
+              <span className="stat-value stat-value--sm">
+                {sellCount}
+                {sellNotional !== undefined && (
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11, marginLeft: 8 }}>
+                    ${sellNotional.toFixed(0)}
+                  </span>
+                )}
+              </span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

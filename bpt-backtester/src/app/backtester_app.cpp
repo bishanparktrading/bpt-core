@@ -90,7 +90,15 @@ BacktesterApp::BacktesterApp(config::Settings settings, std::shared_ptr<aeron::A
     std::string end_tag = settings_.simulation.end.substr(0, 10);
     std::string out_dir = std::format("{}/{}_{}", settings_.results.output_dir, start_tag, end_tag);
 
-    results_ = std::make_unique<results::ResultsCollector>(settings_.results.starting_capital, out_dir);
+    results::ResultsCollector::RunMetadata metadata;
+    metadata.simulation_start = settings_.simulation.start;
+    metadata.simulation_end = settings_.simulation.end;
+    metadata.instruments.reserve(settings_.instruments.size());
+    for (const auto& inst : settings_.instruments)
+        metadata.instruments.push_back(inst.exchange + ":" + inst.symbol);
+
+    results_ = std::make_unique<results::ResultsCollector>(
+        settings_.results.starting_capital, out_dir, std::move(metadata));
 
     matching_engine_->set_fill_callback([this](matching::FillReport fill) {
         results_->on_fill(fill);

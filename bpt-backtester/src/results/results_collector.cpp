@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <boost/json.hpp>
+#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <format>
@@ -21,9 +22,15 @@ using matching::OrderSide;
 
 // ── Construction ──────────────────────────────────────────────────────────────
 
-ResultsCollector::ResultsCollector(double starting_capital, std::string output_dir)
+ResultsCollector::ResultsCollector(double starting_capital, std::string output_dir,
+                                   RunMetadata metadata)
     : starting_capital_(starting_capital),
-      output_dir_(std::move(output_dir)) {
+      output_dir_(std::move(output_dir)),
+      metadata_(std::move(metadata)),
+      wallclock_start_ns_(static_cast<uint64_t>(
+          std::chrono::duration_cast<std::chrono::nanoseconds>(
+              std::chrono::system_clock::now().time_since_epoch())
+              .count())) {
     // Seed the equity curve with the starting point (ts=0 means pre-simulation).
     equity_curve_.push_back({0, starting_capital_});
 }
@@ -229,10 +236,32 @@ void ResultsCollector::write() const {
         double sharpe = compute_sharpe();
 
         int win_trades = 0;
-        for (const auto& r : trades_)
+        int buy_count = 0;
+        int sell_count = 0;
+        double buy_notional = 0.0;
+        double sell_notional = 0.0;
+        for (const auto& r : trades_) {
             if (r.realized_pnl > 0.0)
                 ++win_trades;
+            const double notional = r.qty * r.price;
+            if (r.side == "BUY") {
+                ++buy_count;
+                buy_notional += notional;
+            } else {
+                ++sell_count;
+                sell_notional += notional;
+            }
+        }
         double win_rate = trades_.empty() ? 0.0 : static_cast<double>(win_trades) / trades_.size() * 100.0;
+
+        const uint64_t wallclock_end_ns = static_cast<uint64_t>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::system_clock::now().time_since_epoch())
+                .count());
+        const uint64_t wallclock_duration_ms =
+            (wallclock_end_ns > wallclock_start_ns_)
+                ? (wallclock_end_ns - wallclock_start_ns_) / 1'000'000ULL
+                : 0;
 
         namespace json = boost::json;
         json::object obj;
@@ -245,6 +274,21 @@ void ResultsCollector::write() const {
         obj["total_fills"] = static_cast<int64_t>(trades_.size());
         obj["win_fills"] = static_cast<int64_t>(win_trades);
         obj["win_rate_pct"] = win_rate;
+
+        // Universal-core metadata + per-side fill aggregates. Older runs
+        // without these fields will still parse — frontend treats them as
+        // optional.
+        obj["buy_count"] = static_cast<int64_t>(buy_count);
+        obj["sell_count"] = static_cast<int64_t>(sell_count);
+        obj["buy_notional_usd"] = buy_notional;
+        obj["sell_notional_usd"] = sell_notional;
+        obj["simulation_start"] = metadata_.simulation_start;
+        obj["simulation_end"] = metadata_.simulation_end;
+        obj["wallclock_duration_ms"] = static_cast<int64_t>(wallclock_duration_ms);
+        json::array instruments_arr;
+        for (const auto& inst : metadata_.instruments)
+            instruments_arr.push_back(json::value(inst));
+        obj["instruments"] = std::move(instruments_arr);
 
         std::ofstream f(output_dir_ + "/summary.json");
         if (!f)
