@@ -57,15 +57,21 @@ order_qty_min           = 50
 max_inventory_fraction  = 0
 min_half_spread_bps     = 1.0
 
+# Backtest knobs: real HL APE shows drift ≈ 6.7 bps/√s and σ² ≈ 1.6e-4
+# at steady state, well above the prod 3.0 bps drift_suppress and the
+# slow-drift 20.0 bps gate. The prod thresholds are calibrated for
+# live use where staying out on adverse drift is the right call;
+# here we deliberately loosen to validate pipeline mechanics
+# (quotes, fills, fees, equity) on the data we have.
 drift_halflife_s    = 15.0
-drift_suppress_bps  = 3.0
-drift_suppress_sigma_mult = 1.5
+drift_suppress_bps  = 50.0
+drift_suppress_sigma_mult = 10.0
 
 slow_drift_window_s     = 120.0
-slow_drift_suppress_bps = 20.0
-slow_drift_suppress_sigma_mult = 3.0
+slow_drift_suppress_bps = 200.0
+slow_drift_suppress_sigma_mult = 20.0
 
-tox_suppress_threshold = -2.0
+tox_suppress_threshold = -100.0
 
 # Cold-start tolerance: real-time backtest replays 10ms apart, so a
 # 1s window of fresh ticks routinely shows σ > 20 bps before the
@@ -83,7 +89,10 @@ gamma_pnl_profit_threshold_usd = 1.0
 gamma_pnl_widen_mult           = 1.5
 gamma_pnl_tighten_mult         = 0.85
 
-pause_below_rpnl_usd = -0.30
+# Drawdown pause kept loose: tiny APE notional × maker fee accumulates
+# to -$0.30 in ~45 fills, which would falsely halt the run. Push out
+# of the way for backtest profile.
+pause_below_rpnl_usd = -1000.0
 pause_cooldown_s     = 300.0
 
 [fenrir.strategy.params.fair_value]
