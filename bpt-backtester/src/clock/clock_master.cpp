@@ -24,6 +24,7 @@ quill::Logger* kLog() {
 ClockMaster::ClockMaster(data::DataLoader& loader,
                          exchange::BinanceMdServer* binance_server,
                          exchange::OkxMdServer* okx_server,
+                         exchange::HyperliquidMdServer* hyperliquid_server,
                          matching::MatchingEngine* matching_engine,
                          results::ResultsCollector* results,
                          messaging::BacktestControlPublisher* ctrl_pub,
@@ -31,6 +32,7 @@ ClockMaster::ClockMaster(data::DataLoader& loader,
     : loader_(loader),
       binance_server_(binance_server),
       okx_server_(okx_server),
+      hyperliquid_server_(hyperliquid_server),
       matching_engine_(matching_engine),
       results_(results),
       ctrl_pub_(ctrl_pub),
@@ -84,6 +86,9 @@ void ClockMaster::dispatch(const data::MarketEvent& event) {
     } else if (exchange == "OKX") {
         if (okx_server_)
             okx_server_->push(event);
+    } else if (exchange == "HYPERLIQUID") {
+        if (hyperliquid_server_)
+            hyperliquid_server_->push(event);
     } else {
         bpt::common::log::warn(kLog(), "No WS server for exchange '{}' — event dropped", exchange);
     }

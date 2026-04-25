@@ -26,6 +26,10 @@ struct EndpointConfig {
     uint16_t okx_order_port{9111};
     uint16_t hyperliquid_order_port{9112};
     uint16_t deribit_order_port{9113};
+
+    // HL REST /info simulator (used by bpt-refdata + bpt-order-gateway in
+    // backtest mode for instrument metadata + asset_idx mapping).
+    uint16_t hyperliquid_info_port{9114};
 };
 
 // Simulated fill latency per venue.
@@ -45,6 +49,10 @@ struct SimulationConfig {
 
 struct DataConfig {
     std::string local_cache{"/opt/bpt/data/backtest-cache"};
+    // Path to refdata snapshot JSON captured by bpt-refdata's recording mode.
+    // Empty = HL info server unavailable (refdata in backtest mode will fail
+    // to load instruments — set this to feed it from a recording).
+    std::string hyperliquid_refdata_snapshot;
 };
 
 struct ResultsConfig {

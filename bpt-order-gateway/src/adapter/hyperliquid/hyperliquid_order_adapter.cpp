@@ -28,10 +28,10 @@ namespace hlcodec = bpt::order_gateway::adapter::hyperliquid;
 HyperliquidOrderAdapter::HyperliquidOrderAdapter(const config::AdapterConfig& cfg, const ExchangeCredentials& creds)
     : OrderAdapterBase(cfg),
       wallet_address_(creds.wallet_address) {
-    https_client_ = std::make_unique<hyperliquid::HyperliquidHttpsClient>(cfg.rest_host, cfg.rest_port);
+    https_client_ = std::make_unique<hyperliquid::HyperliquidHttpsClient>(cfg.rest_host, cfg.rest_port, cfg.use_tls);
     ws_client_ = std::make_unique<hyperliquid::HyperliquidWsClient>(
         ioc_, ssl_ctx_, cfg.ws_host, cfg.ws_port, cfg.ws_path, wallet_address_,
-        cfg.pinned_tls_sha256);
+        cfg.pinned_tls_sha256, cfg.use_tls);
 
     parser_.on_exec_event = [this](const ExecEvent& ev) {
         if (!exec_queue_.try_push(ev))
@@ -44,18 +44,67 @@ HyperliquidOrderAdapter::HyperliquidOrderAdapter(const config::AdapterConfig& cf
             parser_.handle_fills(fills, recv_ns);
         });
 
-    if (creds.private_key.empty()) {
+    // Backtest mode: when the adapter is pointed at the local backtester
+    // (plain TCP + 127.0.0.1) the simulator's HyperliquidOrderServer
+    // ignores signatures, so an empty private_key still needs a signer
+    // object — but only to satisfy secp256k1's seckey_verify and produce
+    // bytes the WS server will discard. Substitute a deterministic
+    // throwaway key. This combination cannot occur in qa/prod (those
+    // always use TLS to api.hyperliquid.xyz).
+    const bool is_backtest = !cfg.use_tls && cfg.rest_host == "127.0.0.1";
+    std::string_view signer_key = creds.private_key;
+    if (signer_key.empty() && is_backtest) {
+        static constexpr std::string_view kBacktestKey =
+            "0x0000000000000000000000000000000000000000000000000000000000000001";
+        signer_key = kBacktestKey;
+    }
+    if (signer_key.empty()) {
         enabled_ = false;
         bpt::common::log::warn("HyperliquidOrderAdapter: disabled — private_key not set");
         return;
     }
     try {
-        signer_ = std::make_unique<HyperliquidSigner>(creds.private_key, !cfg.testnet);
+        signer_ = std::make_unique<HyperliquidSigner>(signer_key, !cfg.testnet);
         enabled_ = true;
-        bpt::common::log::info("HyperliquidOrderAdapter: signer loaded");
+        bpt::common::log::info("HyperliquidOrderAdapter: signer loaded{}",
+                               creds.private_key.empty() ? " (backtest dummy)" : "");
     } catch (const std::exception& e) {
         enabled_ = false;
         bpt::common::log::warn("HyperliquidOrderAdapter: disabled — {}", e.what());
+    }
+
+    // Determine account abstraction mode. Drives whether
+    // fetch_account_snapshot pulls spotClearinghouseState (unified /
+    // portfolio margin: spot auto-collateralizes perp) or relies on
+    // clearinghouseState alone (disabled / standard). On query
+    // failure we leave account_mode_ at kUnknown and fall back to the
+    // perp-only path — safer than guessing wrong about source-of-truth.
+    if (!wallet_address_.empty()) {
+        try {
+            json::object req;
+            req["type"] = "userAbstraction";
+            req["user"] = wallet_address_;
+            const std::string resp = https_client_->post(
+                "/info", json::serialize(json::value(req)));
+            const auto v = json::parse(resp);
+            if (v.is_string()) {
+                const std::string mode_str = std::string(v.as_string());
+                if      (mode_str == "disabled")        account_mode_ = HyperliquidAccountMode::kDisabled;
+                else if (mode_str == "unifiedAccount")  account_mode_ = HyperliquidAccountMode::kUnifiedAccount;
+                else if (mode_str == "portfolioMargin") account_mode_ = HyperliquidAccountMode::kPortfolioMargin;
+                else if (mode_str == "default")         account_mode_ = HyperliquidAccountMode::kDefault;
+                else if (mode_str == "dexAbstraction")  account_mode_ = HyperliquidAccountMode::kDexAbstraction;
+                bpt::common::log::info("HyperliquidOrderAdapter: account mode = {}", mode_str);
+            } else {
+                bpt::common::log::warn(
+                    "HyperliquidOrderAdapter: userAbstraction returned non-string; "
+                    "falling back to perp-only balance reporting");
+            }
+        } catch (const std::exception& e) {
+            bpt::common::log::warn(
+                "HyperliquidOrderAdapter: userAbstraction query failed ({}); "
+                "falling back to perp-only balance reporting", e.what());
+        }
     }
 
     // Phantom-fill reconciler. Poller wraps the existing HTTPS client —
@@ -564,9 +613,51 @@ AccountSnapshotData HyperliquidOrderAdapter::fetch_account_snapshot(uint64_t cor
         bpt::common::log::error("HyperliquidOrderAdapter: failed to parse account snapshot: {}", e.what());
     }
 
+    // Unified / portfolio-margin override: spot is the source of truth.
+    // In these modes perp clearinghouseState.accountValue reports only
+    // the *currently allocated* portion of the spot pool, severely
+    // underreporting trading capacity. Per HL docs, spotClearinghouseState
+    // holds the real total. Positions still come from clearinghouseState
+    // (perp-only) above.
+    //
+    // DO NOT add spot + perp — that double-counts (spot.total already
+    // includes the hold = perp.accountValue allocation).
+    if (account_mode_ == HyperliquidAccountMode::kUnifiedAccount ||
+        account_mode_ == HyperliquidAccountMode::kPortfolioMargin) {
+        try {
+            json::object spot_req;
+            spot_req["type"] = "spotClearinghouseState";
+            spot_req["user"] = wallet_address;
+            const std::string spot_resp = https_client_->post(
+                "/info", json::serialize(json::value(spot_req)));
+            const auto sj = json::parse(spot_resp).as_object();
+            if (sj.contains("balances") && sj.at("balances").is_array()) {
+                for (const auto& bal_v : sj.at("balances").as_array()) {
+                    if (!bal_v.is_object())
+                        continue;
+                    const auto& bal = bal_v.as_object();
+                    if (!bal.contains("coin") || std::string(bal.at("coin").as_string()) != "USDC")
+                        continue;
+                    const double total = bal.contains("total") && bal.at("total").is_string()
+                        ? std::stod(std::string(bal.at("total").as_string())) : 0.0;
+                    const double hold = bal.contains("hold") && bal.at("hold").is_string()
+                        ? std::stod(std::string(bal.at("hold").as_string())) : 0.0;
+                    snap.total_equity_e8     = static_cast<int64_t>(std::round(total * 1e8));
+                    snap.available_balance_e8 = static_cast<int64_t>(std::round((total - hold) * 1e8));
+                    break;
+                }
+            }
+        } catch (const std::exception& e) {
+            bpt::common::log::warn(
+                "HyperliquidOrderAdapter: spotClearinghouseState fetch failed ({}); "
+                "using perp clearinghouseState fields as-is", e.what());
+        }
+    }
+
     bpt::common::log::info(
-        "HyperliquidOrderAdapter: account snapshot fetched — balance={:.2f} "
-        "positions={}",
+        "HyperliquidOrderAdapter: account snapshot fetched — totalEq={:.2f} "
+        "availBal={:.2f} positions={}",
+        static_cast<double>(snap.total_equity_e8) / 1e8,
         static_cast<double>(snap.available_balance_e8) / 1e8,
         snap.positions.size());
     return snap;

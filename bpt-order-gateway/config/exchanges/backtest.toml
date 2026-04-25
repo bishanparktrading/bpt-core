@@ -1,7 +1,7 @@
 # Exchange adapter endpoints — BACKTEST mode
-# Points to Jormungandr's local order WS servers instead of real exchanges.
-# use_tls = false: Jormungandr serves plain TCP WebSocket (no TLS).
-# No credentials needed — Jormungandr's order servers are unauthenticated.
+# Points to bpt-backtester's local order WS servers instead of real exchanges.
+# use_tls = false: bpt-backtester serves plain TCP WebSocket (no TLS).
+# No credentials needed — bpt-backtester's order servers are unauthenticated.
 
 [[adapters]]
 exchange    = "BINANCE"
@@ -24,3 +24,20 @@ ws_host     = "127.0.0.1"
 ws_port     = "18111"
 ws_path     = "/ws/v5/private"
 use_tls     = false
+
+[[adapters]]
+exchange    = "HYPERLIQUID"
+secret_name = ""
+testnet     = false
+# REST → backtester's HyperliquidInfoServer (instrument meta + account state).
+# WS → backtester's HyperliquidOrderServer (order placement + fills).
+rest_host   = "127.0.0.1"
+rest_port   = "18113"
+ws_host     = "127.0.0.1"
+ws_port     = "18112"
+ws_path     = "/ws"
+use_tls     = false
+# Wallet address: empty in real backtest (signer skipped), but order-gateway
+# refuses to fetch account state without one. Use a deterministic dummy
+# address so the simulator's clearinghouseState lookup matches.
+wallet_address = "0x0000000000000000000000000000000000000000"

@@ -1,6 +1,6 @@
 # Exchange adapter endpoints — BACKTEST mode
-# Points to Jormungandr's local WS servers instead of real exchanges.
-# use_tls = false: Jormungandr serves plain TCP WebSocket (no TLS).
+# Points to bpt-backtester's local WS servers instead of real exchanges.
+# use_tls = false: bpt-backtester serves plain TCP WebSocket (no TLS).
 
 [[adapters]]
 exchange             = "BINANCE"
@@ -15,5 +15,13 @@ exchange             = "OKX"
 ws_host              = "127.0.0.1"
 ws_port              = "18101"
 ws_path              = "/ws/v5/public"
+use_tls              = false
+ws_read_timeout_ms   = 5000
+
+[[adapters]]
+exchange             = "HYPERLIQUID"
+ws_host              = "127.0.0.1"
+ws_port              = "18102"
+ws_path              = "/ws"
 use_tls              = false
 ws_read_timeout_ms   = 5000

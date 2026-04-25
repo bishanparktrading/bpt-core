@@ -31,9 +31,12 @@ Settings load(const std::string& path) {
         }
     }
 
-    if (auto* d = root["data"].as_table())
+    if (auto* d = root["data"].as_table()) {
         if (auto v = (*d)["local_cache"].value<std::string>())
             s.data.local_cache = *v;
+        if (auto v = (*d)["hyperliquid_refdata_snapshot"].value<std::string>())
+            s.data.hyperliquid_refdata_snapshot = *v;
+    }
 
     if (auto* ep = root["endpoints"].as_table()) {
         if (auto v = (*ep)["binance_md_port"].value<int64_t>())
@@ -52,6 +55,8 @@ Settings load(const std::string& path) {
             s.endpoints.hyperliquid_order_port = static_cast<uint16_t>(*v);
         if (auto v = (*ep)["deribit_order_port"].value<int64_t>())
             s.endpoints.deribit_order_port = static_cast<uint16_t>(*v);
+        if (auto v = (*ep)["hyperliquid_info_port"].value<int64_t>())
+            s.endpoints.hyperliquid_info_port = static_cast<uint16_t>(*v);
     }
 
     if (auto* arr = root["instruments"].as_array()) {

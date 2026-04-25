@@ -17,10 +17,20 @@ namespace net = boost::asio;
 namespace ssl = net::ssl;
 using tcp = net::ip::tcp;
 
-HyperliquidHttpsClient::HyperliquidHttpsClient(std::string host, std::string port)
-    : host_(std::move(host)), port_(std::move(port)) {}
+HyperliquidHttpsClient::HyperliquidHttpsClient(std::string host, std::string port, bool use_tls)
+    : host_(std::move(host)), port_(std::move(port)), use_tls_(use_tls) {}
 
 void HyperliquidHttpsClient::connect() {
+    tcp::resolver resolver(ioc_);
+    const auto results = resolver.resolve(host_, port_);
+
+    if (!use_tls_) {
+        plain_stream_ = std::make_unique<beast::tcp_stream>(ioc_);
+        plain_stream_->connect(results);
+        bpt::common::log::info("HyperliquidHttpsClient: plain TCP connected to {}:{}", host_, port_);
+        return;
+    }
+
     // Lazily initialise the ssl::context on first connect so ctor stays cheap.
     static bool ssl_ctx_ready = false;
     if (!ssl_ctx_ready) {
@@ -36,8 +46,6 @@ void HyperliquidHttpsClient::connect() {
         throw std::runtime_error("SSL_set_tlsext_host_name failed");
     }
 
-    tcp::resolver resolver(ioc_);
-    const auto results = resolver.resolve(host_, port_);
     beast::get_lowest_layer(*stream_).connect(results);
     stream_->handshake(ssl::stream_base::client);
 
@@ -45,10 +53,16 @@ void HyperliquidHttpsClient::connect() {
 }
 
 void HyperliquidHttpsClient::close() noexcept {
-    if (!stream_) return;
-    beast::error_code ec;
-    stream_->shutdown(ec);
-    stream_.reset();
+    if (stream_) {
+        beast::error_code ec;
+        stream_->shutdown(ec);
+        stream_.reset();
+    }
+    if (plain_stream_) {
+        beast::error_code ec;
+        plain_stream_->socket().shutdown(tcp::socket::shutdown_both, ec);
+        plain_stream_.reset();
+    }
 }
 
 std::string HyperliquidHttpsClient::post(const std::string& path, const std::string& body) {
@@ -69,16 +83,20 @@ std::string HyperliquidHttpsClient::post(const std::string& path, const std::str
         try {
             const uint64_t t0 = bpt::common::util::TscClock::now_epoch_ns();
 
-            const bool needed_connect = !stream_;
+            const bool needed_connect = !stream_ && !plain_stream_;
             if (needed_connect) connect();
             const uint64_t t_conn = bpt::common::util::TscClock::now_epoch_ns();
 
-            http::write(*stream_, req);
-            const uint64_t t_write = bpt::common::util::TscClock::now_epoch_ns();
-
             beast::flat_buffer buf;
             http::response<http::string_body> res;
-            http::read(*stream_, buf, res);
+            if (stream_) {
+                http::write(*stream_, req);
+                http::read(*stream_, buf, res);
+            } else {
+                http::write(*plain_stream_, req);
+                http::read(*plain_stream_, buf, res);
+            }
+            const uint64_t t_write = t_conn;  // detail timing not split per-stream
             const uint64_t t_read = bpt::common::util::TscClock::now_epoch_ns();
 
             if (!res.keep_alive()) close();

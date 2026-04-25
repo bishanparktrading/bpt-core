@@ -2,6 +2,7 @@
 
 #include "backtester/data/data_loader.h"
 #include "backtester/exchange/binance_md_server.h"
+#include "backtester/exchange/hyperliquid_md_server.h"
 #include "backtester/exchange/okx_md_server.h"
 #include "backtester/matching/matching_engine.h"
 #include "backtester/messaging/backtest_ack_subscriber.h"
@@ -29,6 +30,7 @@ public:
     ClockMaster(data::DataLoader& loader,
                 exchange::BinanceMdServer* binance_server,
                 exchange::OkxMdServer* okx_server,
+                exchange::HyperliquidMdServer* hyperliquid_server,
                 matching::MatchingEngine* matching_engine,
                 results::ResultsCollector* results,
                 messaging::BacktestControlPublisher* ctrl_pub = nullptr,
@@ -43,6 +45,7 @@ private:
     data::DataLoader& loader_;
     exchange::BinanceMdServer* binance_server_;
     exchange::OkxMdServer* okx_server_;
+    exchange::HyperliquidMdServer* hyperliquid_server_;
     matching::MatchingEngine* matching_engine_;
     results::ResultsCollector* results_;
     messaging::BacktestControlPublisher* ctrl_pub_;

@@ -31,7 +31,10 @@ class HyperliquidHttpsClient {
 public:
     // host/port are the REST endpoint — typically api.hyperliquid.xyz:443
     // or api.hyperliquid-testnet.xyz:443 from AdapterConfig.
-    HyperliquidHttpsClient(std::string host, std::string port);
+    // use_tls=false is a backtest-only path: the bpt-backtester
+    // HyperliquidInfoServer speaks plain HTTP on 127.0.0.1, so we skip the
+    // TLS handshake. Real HL only ever serves TLS.
+    HyperliquidHttpsClient(std::string host, std::string port, bool use_tls = true);
 
     // POST `body` to `path` with Content-Type: application/json, return
     // the response body. Throws std::exception on any I/O error that
@@ -44,11 +47,16 @@ private:
 
     const std::string host_;
     const std::string port_;
+    const bool use_tls_;
 
     std::mutex mutex_;
     boost::asio::io_context ioc_;
     boost::asio::ssl::context ssl_ctx_{boost::asio::ssl::context::tls_client};
+    // Exactly one of these is non-null while connected; the other path's
+    // unique_ptr stays empty. Switching between them at construction
+    // avoids a runtime variant for the hot read/write path.
     std::unique_ptr<boost::beast::ssl_stream<boost::beast::tcp_stream>> stream_;
+    std::unique_ptr<boost::beast::tcp_stream> plain_stream_;
 };
 
 }  // namespace bpt::order_gateway::adapter::hyperliquid

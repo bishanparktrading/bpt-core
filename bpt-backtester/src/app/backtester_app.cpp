@@ -39,6 +39,20 @@ BacktesterApp::BacktesterApp(config::Settings settings, std::shared_ptr<aeron::A
     okx_md_server_ = std::make_unique<exchange::OkxMdServer>(settings_.endpoints.okx_md_port);
     okx_md_server_->start();
 
+    hyperliquid_md_server_ =
+        std::make_unique<exchange::HyperliquidMdServer>(settings_.endpoints.hyperliquid_md_port);
+    hyperliquid_md_server_->start();
+
+    // HL REST /info simulator. Loads refdata snapshot from disk and serves it
+    // to bpt-refdata + bpt-order-gateway in backtest mode. Asset universe
+    // populated from the snapshot is used to initialize HyperliquidOrderServer
+    // so asset_idx → coin lookup works.
+    hyperliquid_info_server_ = std::make_unique<exchange::HyperliquidInfoServer>(
+        settings_.endpoints.hyperliquid_info_port,
+        settings_.data.hyperliquid_refdata_snapshot,
+        settings_.results.starting_capital);
+    hyperliquid_info_server_->start();
+
     // ── Matching engine ────────────────────────────────────────────────────
     matching_engine_ = std::make_unique<matching::MatchingEngine>();
 
@@ -50,6 +64,26 @@ BacktesterApp::BacktesterApp(config::Settings settings, std::shared_ptr<aeron::A
     okx_order_server_ =
         std::make_unique<exchange::OkxOrderServer>(settings_.endpoints.okx_order_port, *matching_engine_);
     okx_order_server_->start();
+
+    // HL asset universe: prefer the snapshot served by HyperliquidInfoServer
+    // (matches HL's real asset_idx ordering). Fall back to [[instruments]]
+    // config for older configs that don't ship a snapshot path.
+    std::vector<std::string> hl_universe = hyperliquid_info_server_->asset_universe();
+    if (hl_universe.empty()) {
+        for (const auto& inst : settings_.instruments) {
+            if (inst.exchange == "HYPERLIQUID")
+                hl_universe.push_back(inst.symbol);
+        }
+        bpt::common::log::warn("[BacktesterApp] HL asset universe empty from snapshot — "
+                               "fell back to [[instruments]] config ({} entries)",
+                               hl_universe.size());
+    } else {
+        bpt::common::log::info("[BacktesterApp] HL asset universe: {} coins from snapshot",
+                               hl_universe.size());
+    }
+    hyperliquid_order_server_ = std::make_unique<exchange::HyperliquidOrderServer>(
+        settings_.endpoints.hyperliquid_order_port, *matching_engine_, std::move(hl_universe));
+    hyperliquid_order_server_->start();
 
     // ── Results collector ──────────────────────────────────────────────────
     std::string start_tag = settings_.simulation.start.substr(0, 10);
@@ -64,6 +98,8 @@ BacktesterApp::BacktesterApp(config::Settings settings, std::shared_ptr<aeron::A
             binance_order_server_->push_fill(fill);
         } else if (fill.exchange == "OKX") {
             okx_order_server_->push_fill(fill);
+        } else if (fill.exchange == "HYPERLIQUID") {
+            hyperliquid_order_server_->push_fill(fill);
         } else {
             bpt::common::log::warn("[BacktesterApp] No order server for exchange '{}' — fill dropped", fill.exchange);
         }
@@ -73,6 +109,7 @@ BacktesterApp::BacktesterApp(config::Settings settings, std::shared_ptr<aeron::A
     clock_master_ = std::make_unique<clock::ClockMaster>(*loader_,
                                                          binance_md_server_.get(),
                                                          okx_md_server_.get(),
+                                                         hyperliquid_md_server_.get(),
                                                          matching_engine_.get(),
                                                          results_.get(),
                                                          ctrl_pub_.get(),
@@ -89,7 +126,13 @@ void BacktesterApp::run() {
     bpt::common::log::info("Waiting for subscriber (timeout={}s)...", timeout_s);
 
     uint32_t waited = 0;
-    while (okx_md_server_ && okx_md_server_->session_count() == 0) {
+    auto md_session_count = [this]() -> std::size_t {
+        std::size_t n = 0;
+        if (okx_md_server_) n += okx_md_server_->session_count();
+        if (hyperliquid_md_server_) n += hyperliquid_md_server_->session_count();
+        return n;
+    };
+    while (md_session_count() == 0) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
         if (++waited >= timeout_s) {
             bpt::common::log::warn("No subscriber after {}s — starting anyway", timeout_s);
@@ -97,7 +140,7 @@ void BacktesterApp::run() {
         }
     }
 
-    if (okx_md_server_ && okx_md_server_->session_count() > 0)
+    if (md_session_count() > 0)
         bpt::common::log::info("Subscriber connected, starting backtest");
 
     bpt::common::log::info("Starting backtest");

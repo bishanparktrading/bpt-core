@@ -47,7 +47,8 @@ public:
                         std::string port,
                         std::string path,
                         std::string wallet_address,
-                        std::vector<std::string> pinned_tls_sha256 = {});
+                        std::vector<std::string> pinned_tls_sha256 = {},
+                        bool use_tls = true);
 
     void set_user_fills_handler(UserFillsHandler h);
 
@@ -79,6 +80,7 @@ private:
     const std::string path_;
     const std::string wallet_address_;
     const std::vector<std::string> pinned_tls_sha256_;
+    const bool use_tls_;
 
     std::atomic<uint64_t> next_post_id_{1};
     std::mutex pending_posts_mutex_;

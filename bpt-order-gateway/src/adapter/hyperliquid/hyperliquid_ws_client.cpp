@@ -16,14 +16,16 @@ HyperliquidWsClient::HyperliquidWsClient(boost::asio::io_context& ioc,
                                          std::string port,
                                          std::string path,
                                          std::string wallet_address,
-                                         std::vector<std::string> pinned_tls_sha256)
+                                         std::vector<std::string> pinned_tls_sha256,
+                                         bool use_tls)
     : ioc_(ioc),
       ssl_ctx_(ssl_ctx),
       host_(std::move(host)),
       port_(std::move(port)),
       path_(std::move(path)),
       wallet_address_(std::move(wallet_address)),
-      pinned_tls_sha256_(std::move(pinned_tls_sha256)) {}
+      pinned_tls_sha256_(std::move(pinned_tls_sha256)),
+      use_tls_(use_tls) {}
 
 void HyperliquidWsClient::set_user_fills_handler(UserFillsHandler h) {
     user_fills_handler_ = std::move(h);
@@ -243,14 +245,21 @@ void HyperliquidWsClient::fail_pending_posts(const std::string& reason) {
 }
 
 void HyperliquidWsClient::run(std::atomic<bool>& stop_flag, std::atomic<bool>& connected) {
-    bpt::common::log::info("HyperliquidWsClient connecting WS {}:{}{}",
-                   host_, port_, path_);
+    bpt::common::log::info("HyperliquidWsClient connecting WS {}:{}{}{}",
+                   host_, port_, path_, use_tls_ ? "" : " (plain)");
 
-    auto ws_ptr = bpt::common::ws::ws_connect(ioc_, ssl_ctx_, host_, port_, path_,
-                                      /*so_rcvbuf_bytes=*/0,
-                                      /*connect_timeout_ms=*/30000,
-                                      /*user_agent=*/"bpt-order-gateway/0.1",
-                                      pinned_tls_sha256_);
+    bpt::common::ws::AnyWsStream ws = use_tls_
+        ? bpt::common::ws::AnyWsStream(
+              bpt::common::ws::ws_connect(ioc_, ssl_ctx_, host_, port_, path_,
+                                          /*so_rcvbuf_bytes=*/0,
+                                          /*connect_timeout_ms=*/30000,
+                                          /*user_agent=*/"bpt-order-gateway/0.1",
+                                          pinned_tls_sha256_))
+        : bpt::common::ws::AnyWsStream(
+              bpt::common::ws::ws_connect_plain(ioc_, host_, port_, path_,
+                                                /*so_rcvbuf_bytes=*/0,
+                                                /*connect_timeout_ms=*/30000,
+                                                /*user_agent=*/"bpt-order-gateway/0.1"));
 
     // Fail any in-flight posts on exit, whether clean or exceptional.
     // RunLoop's own SendGuard clears its internal stream pointer so
@@ -263,7 +272,7 @@ void HyperliquidWsClient::run(std::atomic<bool>& stop_flag, std::atomic<bool>& c
     } pending_guard{this};
 
     bpt::common::log::info("HyperliquidWsClient connected");
-    RunLoop::run(bpt::common::ws::AnyWsStream(std::move(ws_ptr)), stop_flag, connected);
+    RunLoop::run(std::move(ws), stop_flag, connected);
 }
 
 }  // namespace bpt::order_gateway::adapter::hyperliquid

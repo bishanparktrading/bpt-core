@@ -1,8 +1,8 @@
-environment = "backtest"
+environment    = "dev"
 
 [simulation]
-start              = "2026-01-06T00:00:00Z"
-end                = "2026-01-12T23:59:59Z"
+start              = "2026-04-25T00:00:00Z"
+end                = "2026-04-25T23:59:59Z"
 allow_partial_data = true
 
 [simulation.latency]
@@ -12,18 +12,26 @@ hyperliquid_jitter_ms = 50
 
 [data]
 local_cache = "/opt/bpt/data/backtest-cache"
+hyperliquid_refdata_snapshot = "/opt/bpt/data/raw/hyperliquid/2026-04-25/meta.json"
 
 # Instruments must match exchange-native symbols in the Parquet files.
-# They must also be a subset of what Fenrir's strategy is configured to trade.
+# They must also be a subset of what bpt-strategy is configured to trade.
 [[instruments]]
 exchange = "OKX"
 symbol   = "BTC-USDT"
 
+[[instruments]]
+exchange = "HYPERLIQUID"
+symbol   = "APE"
+
 [endpoints]
-binance_md_port    = 18100
-okx_md_port        = 18101
-binance_order_port = 18110
-okx_order_port     = 18111
+binance_md_port       = 18100
+okx_md_port           = 18101
+hyperliquid_md_port   = 18102
+binance_order_port    = 18110
+okx_order_port        = 18111
+hyperliquid_order_port = 18112
+hyperliquid_info_port  = 18113
 
 [aeron]
 media_driver_dir = "/dev/shm/aeron-bpt"
