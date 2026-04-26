@@ -433,10 +433,45 @@ RandomizedDelaySec=5min
 WantedBy=bpt-recording.target
 EOF
 
+# Recorder dead-man's-switch: not "host is alive" (the trading-stack
+# bpt-heartbeat covers that for trading hosts) but "the recorder is
+# actually capturing frames". The script verifies the service is
+# active AND the latest .wslog mtime is fresh — silent WS death is
+# the failure mode this catches.
+if [ -n "${BPT_DEPLOY_ROOT:-}" ]; then
+    health_exec="$BPT_DEPLOY_ROOT/current/scripts/check_recording_health.sh"
+else
+    health_exec="$BPT_ROOT/scripts/check_recording_health.sh"
+fi
+
+cat > "$UNIT_DIR/bpt-recording-heartbeat.service" <<EOF
+[Unit]
+Description=BPT recorder freshness check + Healthchecks.io ping
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/bpt/healthchecks.env
+ExecStart=$health_exec
+EOF
+
+cat > "$UNIT_DIR/bpt-recording-heartbeat.timer" <<EOF
+[Unit]
+Description=BPT recorder heartbeat every 5 min
+PartOf=bpt-recording.target
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=bpt-recording.target
+EOF
+
 cat > "$UNIT_DIR/bpt-recording.target" <<EOF
 [Unit]
-Description=BPT Recording Stack (md-recorder + daily Parquet rotate)
-Wants=bpt-transport.service bpt-md-recorder.service bpt-recording-rotate.timer
+Description=BPT Recording Stack (md-recorder + daily Parquet rotate + heartbeat)
+Wants=bpt-transport.service bpt-md-recorder.service bpt-recording-rotate.timer bpt-recording-heartbeat.timer
 
 [Install]
 WantedBy=default.target

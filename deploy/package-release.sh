@@ -166,8 +166,9 @@ cp deploy/rollback.sh            "$STAGE/scripts/"
 # Recording-host scripts. Always packaged; harmless on a trading host
 # (the units that drive them only get started by bpt-recording.target,
 # not bpt-stack.target).
-cp scripts/rotate_recordings.sh  "$STAGE/scripts/"
-cp scripts/wslog_to_parquet.py   "$STAGE/scripts/"
+cp scripts/rotate_recordings.sh    "$STAGE/scripts/"
+cp scripts/check_recording_health.sh "$STAGE/scripts/"
+cp scripts/wslog_to_parquet.py     "$STAGE/scripts/"
 
 echo "$VERSION" > "$STAGE/VERSION"
 date -u +%FT%TZ > "$STAGE/BUILT_AT"
