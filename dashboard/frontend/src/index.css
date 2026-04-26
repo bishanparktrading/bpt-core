@@ -541,10 +541,11 @@ html, body, #root {
 }
 
 /* Detail: risk strip on top, equity chart middle, blotter bottom.
- * Risk strip is 250px to fit eight stat cells (4 rows × 2 cols)
- * including the BUY/SELL split. */
+ * Risk strip is 300px to fit ten stat cells (5 rows × 2 cols):
+ * Total PnL / Return / Max DD / Sharpe / Win Rate / Fills / BUY / SELL
+ * / Round-trips / Avg holding. */
 .archive-body--detail {
-  grid-template-rows: 250px 1fr 240px;
+  grid-template-rows: 300px 1fr 240px;
   grid-template-areas:
     "risk"
     "equity"
@@ -555,7 +556,7 @@ html, body, #root {
 /* When a run has markouts, slot a 180px row for the markout table
  * between the risk strip and the equity chart. */
 .archive-body--detail-markouts {
-  grid-template-rows: 250px 180px 1fr 240px;
+  grid-template-rows: 300px 180px 1fr 240px;
   grid-template-areas:
     "risk"
     "markouts"

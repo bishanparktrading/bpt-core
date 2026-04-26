@@ -37,6 +37,16 @@ interface Summary {
     '5s'?: MarkoutHorizon
     '30s'?: MarkoutHorizon
   }
+  round_trips?: {
+    closed_round_trips: number
+    avg_holding_ms?: number
+    median_holding_ms?: number
+    max_holding_ms?: number
+    min_holding_ms?: number
+    winning_round_trips?: number
+    round_trip_win_rate_pct?: number
+    avg_round_trip_pnl?: number
+  }
 }
 
 interface TradeRow {
@@ -114,6 +124,10 @@ export function ArchiveDetail({ name }: Props) {
     sellCount:  summary.sell_count,
     buyNotional:  summary.buy_notional_usd,
     sellNotional: summary.sell_notional_usd,
+    closedRoundTrips: summary.round_trips?.closed_round_trips,
+    avgHoldingMs:     summary.round_trips?.avg_holding_ms,
+    medianHoldingMs:  summary.round_trips?.median_holding_ms,
+    rtWinRatePct:     summary.round_trips?.round_trip_win_rate_pct,
   }
 
   const metadataLine = [

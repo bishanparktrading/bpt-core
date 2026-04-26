@@ -83,6 +83,18 @@ private:
         double net_qty{0};   // positive = long, negative = short
         double avg_cost{0};  // average entry price per unit
         double realized_pnl{0};
+        // Holding-period accounting: ts of the fill that opened the
+        // current non-flat run. Reset to 0 each time net_qty returns
+        // to flat. We only track closed round-trips — an unflat
+        // position at backtest end is excluded from stats.
+        uint64_t open_ts_ns{0};
+    };
+
+    struct RoundTrip {
+        uint64_t open_ts_ns;
+        uint64_t close_ts_ns;
+        // Realised PnL accumulated across all fills in this round-trip.
+        double realized_pnl;
     };
 
     // Apply a fill to the position, return realized PnL from any closed portion.
@@ -132,6 +144,10 @@ private:
 
     std::vector<TradeRow> trades_;
     std::vector<EquityPoint> equity_curve_;
+    std::vector<RoundTrip> round_trips_;
+    // Realised PnL accumulator that resets at each round-trip close so
+    // we can attribute the closed round's PnL.
+    std::unordered_map<std::string, double> open_realized_;
 
     // Pending markout resolutions — populated on each fill, drained on
     // each subsequent market event whose ts crosses the target. Linear

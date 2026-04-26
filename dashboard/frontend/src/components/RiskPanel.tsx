@@ -20,6 +20,11 @@ interface RiskPanelProps {
     sellCount?: number
     buyNotional?: number
     sellNotional?: number
+    // Round-trip aggregates (closed open→flat→close cycles).
+    closedRoundTrips?: number
+    avgHoldingMs?: number
+    medianHoldingMs?: number
+    rtWinRatePct?: number
   }
 }
 
@@ -130,6 +135,17 @@ export function RiskPanel(props: RiskPanelProps = {}) {
   const sellNotional = props.precomputed?.sellNotional
   const showSideSplit = buyCount !== undefined && sellCount !== undefined
 
+  const closedRTs    = props.precomputed?.closedRoundTrips
+  const avgHoldMs    = props.precomputed?.avgHoldingMs
+  const rtWinRate    = props.precomputed?.rtWinRatePct
+  const showRoundTrips = closedRTs !== undefined && closedRTs > 0
+  const fmtHolding = (ms: number | undefined): string => {
+    if (ms === undefined) return '—'
+    if (ms < 1000)    return `${ms.toFixed(0)}ms`
+    if (ms < 60_000)  return `${(ms / 1000).toFixed(1)}s`
+    return `${(ms / 60_000).toFixed(1)}m`
+  }
+
   return (
     <div className="panel">
       <div className="panel-header">
@@ -190,6 +206,25 @@ export function RiskPanel(props: RiskPanelProps = {}) {
                   </span>
                 )}
               </span>
+            </div>
+          </>
+        )}
+        {showRoundTrips && (
+          <>
+            <div className="stat-cell">
+              <span className="stat-label">Round-trips</span>
+              <span className="stat-value stat-value--sm">
+                {closedRTs}
+                {rtWinRate !== undefined && (
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11, marginLeft: 8 }}>
+                    {rtWinRate.toFixed(0)}% wins
+                  </span>
+                )}
+              </span>
+            </div>
+            <div className="stat-cell">
+              <span className="stat-label">Avg holding</span>
+              <span className="stat-value stat-value--sm">{fmtHolding(avgHoldMs)}</span>
             </div>
           </>
         )}

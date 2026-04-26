@@ -48,6 +48,13 @@ interface Summary {
     '5s'?: MarkoutHorizon
     '30s'?: MarkoutHorizon
   }
+  round_trips?: {
+    closed_round_trips: number
+    avg_holding_ms?: number
+    median_holding_ms?: number
+    round_trip_win_rate_pct?: number
+    avg_round_trip_pnl?: number
+  }
 }
 
 interface RunDetail {
@@ -141,6 +148,26 @@ export function ArchiveDiff({ runA, runB }: Props) {
     }
   }
 
+  // Round-trip rows — strategy-agnostic, so always include if either
+  // run has them. "higherIsBetter" varies: more closed trips & higher
+  // win-rate are good; longer holding period is neither — we set false
+  // (shorter = "better" for risk turnover) but it's mostly informative.
+  const rtRows: MetricRow[] = []
+  if (sa.round_trips || sb.round_trips) {
+    rtRows.push(
+      { label: 'Closed round-trips', a: sa.round_trips?.closed_round_trips,
+        b: sb.round_trips?.closed_round_trips, digits: 0, higherIsBetter: true },
+      { label: 'Avg holding (ms)',   a: sa.round_trips?.avg_holding_ms,
+        b: sb.round_trips?.avg_holding_ms,    digits: 0, higherIsBetter: false },
+      { label: 'Median holding (ms)', a: sa.round_trips?.median_holding_ms,
+        b: sb.round_trips?.median_holding_ms, digits: 0, higherIsBetter: false },
+      { label: 'RT win rate %',      a: sa.round_trips?.round_trip_win_rate_pct,
+        b: sb.round_trips?.round_trip_win_rate_pct, digits: 2, suffix: '%', higherIsBetter: true },
+      { label: 'Avg RT PnL ($)',     a: sa.round_trips?.avg_round_trip_pnl,
+        b: sb.round_trips?.avg_round_trip_pnl, digits: 4, higherIsBetter: true },
+    )
+  }
+
   return (
     <div className="archive-body archive-body--diff">
       <div className="panel" style={{ overflow: 'auto' }}>
@@ -163,14 +190,16 @@ export function ArchiveDiff({ runA, runB }: Props) {
               </tr>
             </thead>
             <tbody>
-              {[...rows, ...markoutRows].map((r, idx) => {
+              {[...rows, ...markoutRows, ...rtRows].map((r, idx) => {
                 const av = r.a
                 const bv = r.b
                 const delta = av !== undefined && bv !== undefined ? bv - av : undefined
-                // Visual break before the markout block.
+                // Visual break before each metric block.
                 const isMarkoutStart = idx === rows.length && markoutRows.length > 0
+                const isRtStart      = idx === rows.length + markoutRows.length && rtRows.length > 0
+                const sectionTop = isMarkoutStart || isRtStart
                 return (
-                  <tr key={r.label} style={isMarkoutStart ? { borderTop: '2px solid var(--border-strong)' } : undefined}>
+                  <tr key={r.label} style={sectionTop ? { borderTop: '2px solid var(--border-strong)' } : undefined}>
                     <td>{r.label}</td>
                     <td className="num">{fmt(av, r.digits, r.suffix)}</td>
                     <td className="num">{fmt(bv, r.digits, r.suffix)}</td>

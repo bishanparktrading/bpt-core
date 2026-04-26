@@ -133,7 +133,30 @@ double ResultsCollector::current_equity() const {
 
 void ResultsCollector::on_fill(const matching::FillReport& fill) {
     std::string key = fill.exchange + ':' + fill.symbol;
-    double realized = apply_fill(positions_[key], fill.last_fill_qty, fill.last_fill_price, fill.side);
+
+    // Round-trip accounting straddles apply_fill so we can compare
+    // pre- vs post-fill net_qty. A non-flat→flat transition closes
+    // the current round-trip; flat→non-flat opens a new one.
+    auto& pos = positions_[key];
+    const double pre_qty = pos.net_qty;
+    double realized = apply_fill(pos, fill.last_fill_qty, fill.last_fill_price, fill.side);
+    open_realized_[key] += realized;
+
+    constexpr double kFlatTol = 1e-12;
+    const bool was_flat = std::abs(pre_qty) < kFlatTol;
+    const bool is_flat  = std::abs(pos.net_qty) < kFlatTol;
+    if (was_flat && !is_flat) {
+        pos.open_ts_ns = fill.simulation_ts;
+        open_realized_[key] = 0.0;  // start the round-trip's realized accumulator
+    } else if (!was_flat && is_flat) {
+        round_trips_.push_back({
+            pos.open_ts_ns,
+            fill.simulation_ts,
+            open_realized_[key],
+        });
+        pos.open_ts_ns = 0;
+        open_realized_[key] = 0.0;
+    }
 
     double eq = current_equity();
     equity_curve_.push_back({fill.simulation_ts, eq});
@@ -400,6 +423,37 @@ void ResultsCollector::write() const {
             markouts_obj[kMarkoutHorizonLabels[h]] = std::move(horizon_obj);
         }
         obj["markouts"] = std::move(markouts_obj);
+
+        // Holding-period stats from closed round-trips. Open positions
+        // at end-of-data are intentionally excluded — they don't have a
+        // close ts, and including their elapsed time biases the average
+        // toward the longest possible duration.
+        json::object rt_obj;
+        rt_obj["closed_round_trips"] = static_cast<int64_t>(round_trips_.size());
+        if (!round_trips_.empty()) {
+            std::vector<uint64_t> durations;
+            durations.reserve(round_trips_.size());
+            int wins = 0;
+            double sum_pnl = 0.0;
+            for (const auto& rt : round_trips_) {
+                durations.push_back(rt.close_ts_ns - rt.open_ts_ns);
+                if (rt.realized_pnl > 0.0) ++wins;
+                sum_pnl += rt.realized_pnl;
+            }
+            std::sort(durations.begin(), durations.end());
+            const double avg_ns = std::accumulate(durations.begin(), durations.end(), 0.0)
+                                  / static_cast<double>(durations.size());
+            const uint64_t median_ns = durations[durations.size() / 2];
+            rt_obj["avg_holding_ms"]    = avg_ns / 1e6;
+            rt_obj["median_holding_ms"] = static_cast<double>(median_ns) / 1e6;
+            rt_obj["max_holding_ms"]    = static_cast<double>(durations.back()) / 1e6;
+            rt_obj["min_holding_ms"]    = static_cast<double>(durations.front()) / 1e6;
+            rt_obj["winning_round_trips"] = static_cast<int64_t>(wins);
+            rt_obj["round_trip_win_rate_pct"] =
+                static_cast<double>(wins) / round_trips_.size() * 100.0;
+            rt_obj["avg_round_trip_pnl"] = sum_pnl / round_trips_.size();
+        }
+        obj["round_trips"] = std::move(rt_obj);
 
         std::ofstream f(output_dir_ + "/summary.json");
         if (!f)
