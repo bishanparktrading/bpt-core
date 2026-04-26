@@ -55,6 +55,12 @@ export function ArchiveList({ onOpen, onCompare }: Props) {
   // Compare-selection: at most two runs at a time. Order = pick order, so
   // the diff column "Δ (B − A)" reads "second pick − first pick".
   const [selected, setSelected] = useState<string[]>([])
+  // Filter inputs — case-insensitive substring match on each field.
+  // Empty filter = match-all. Useful once a sweep has produced 50+ runs
+  // and the list scrolls.
+  const [fStrategy, setFStrategy] = useState('')
+  const [fParams, setFParams] = useState('')
+  const [fInstrument, setFInstrument] = useState('')
 
   useEffect(() => {
     fetch('/api/backtest-runs')
@@ -65,8 +71,19 @@ export function ArchiveList({ onOpen, onCompare }: Props) {
 
   const sorted = useMemo(() => {
     if (!runs) return []
-    const copy = [...runs]
-    copy.sort((a, b) => {
+    const ql = fStrategy.trim().toLowerCase()
+    const qp = fParams.trim().toLowerCase()
+    const qi = fInstrument.trim().toLowerCase()
+    const filtered = runs.filter((r) => {
+      if (ql && !(r.strategy_name ?? '').toLowerCase().includes(ql)) return false
+      if (qp && !(r.params_hash ?? '').toLowerCase().includes(qp)) return false
+      if (qi) {
+        const insts = (r.instruments ?? []).join(' ').toLowerCase()
+        if (!insts.includes(qi)) return false
+      }
+      return true
+    })
+    filtered.sort((a, b) => {
       const av = a[sortKey]
       const bv = b[sortKey]
       if (typeof av === 'string' && typeof bv === 'string') {
@@ -74,8 +91,8 @@ export function ArchiveList({ onOpen, onCompare }: Props) {
       }
       return sortDesc ? (bv as number) - (av as number) : (av as number) - (bv as number)
     })
-    return copy
-  }, [runs, sortKey, sortDesc])
+    return filtered
+  }, [runs, sortKey, sortDesc, fStrategy, fParams, fInstrument])
 
   const toggleSort = (k: SortKey) => {
     if (k === sortKey) setSortDesc((d) => !d)
@@ -118,6 +135,43 @@ export function ArchiveList({ onOpen, onCompare }: Props) {
           <span className="panel-badge">{runs ? `${runs.length} run${runs.length === 1 ? '' : 's'}` : '—'}</span>
         </div>
         <div className="panel-body panel-body--flush">
+          {/* Filter strip — substring match on each field. Lives in the
+              panel body so it scrolls with the table; sticky positioning
+              keeps it visible regardless. */}
+          <div className="archive-filter-row">
+            <input
+              className="archive-filter-input"
+              type="text"
+              placeholder="strategy"
+              value={fStrategy}
+              onChange={(e) => setFStrategy(e.target.value)}
+            />
+            <input
+              className="archive-filter-input"
+              type="text"
+              placeholder="params hash prefix"
+              value={fParams}
+              onChange={(e) => setFParams(e.target.value)}
+            />
+            <input
+              className="archive-filter-input"
+              type="text"
+              placeholder="instrument (e.g. APE)"
+              value={fInstrument}
+              onChange={(e) => setFInstrument(e.target.value)}
+            />
+            {(fStrategy || fParams || fInstrument) && (
+              <button
+                className="archive-filter-clear"
+                onClick={() => { setFStrategy(''); setFParams(''); setFInstrument('') }}
+              >
+                clear
+              </button>
+            )}
+            <span className="archive-filter-count">
+              {sorted.length} / {runs?.length ?? 0}
+            </span>
+          </div>
           {error && <div style={{ padding: 16, color: 'var(--red)' }}>Error loading runs: {error}</div>}
           {!error && runs === null && <div style={{ padding: 16, color: 'var(--text-muted)' }}>Loading…</div>}
           {!error && runs !== null && runs.length === 0 && (

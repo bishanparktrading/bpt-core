@@ -574,6 +574,50 @@ html, body, #root {
 .archive-row--selected:hover { background: rgba(56, 139, 253, 0.16); }
 .archive-table .mono-7 { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em; }
 
+/* Filter strip — sits above the table inside the panel body and stays
+ * visible while the table scrolls underneath. */
+.archive-filter-row {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border);
+}
+.archive-filter-input {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 4px 8px;
+  min-width: 160px;
+  outline: none;
+}
+.archive-filter-input:focus { border-color: var(--blue); }
+.archive-filter-input::placeholder { color: var(--text-muted); }
+.archive-filter-clear {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.archive-filter-clear:hover { color: var(--text-primary); border-color: var(--border-strong); }
+.archive-filter-count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 /* Diff variant: single full-height panel with the metrics table + the
  * dual-equity overlay inside it. No multi-row template — the panel
  * scrolls internally if content overflows. */
