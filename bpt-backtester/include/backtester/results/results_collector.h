@@ -3,12 +3,25 @@
 #include "backtester/data/market_event.h"
 #include "backtester/matching/open_order.h"
 
+#include <array>
 #include <cstdint>
+#include <deque>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 namespace bpt::backtester::results {
+
+// Post-fill markout horizons. Markout = (mid_at_target - fill_price) /
+// fill_price * 1e4, sign-flipped on SELL so a positive value always
+// means "you got a good fill" (price moved with you, not against).
+// 50 ms / 1 s / 5 s / 30 s — the standard maker adverse-selection grid.
+inline constexpr std::array<int64_t, 4> kMarkoutHorizonsNs = {
+    50'000'000LL, 1'000'000'000LL, 5'000'000'000LL, 30'000'000'000LL,
+};
+inline constexpr std::array<const char*, 4> kMarkoutHorizonLabels = {
+    "50ms", "1s", "5s", "30s",
+};
 
 // Collects fills and market prices throughout a backtest run and writes
 // three output files when write() is called:
@@ -92,7 +105,15 @@ private:
         double price;
         double realized_pnl;  // from this fill only
         double equity;        // total equity after this fill
+        // Markouts in basis points, sign-corrected so positive = good fill.
+        // Filled async as later MD events cross each horizon's target_ts.
+        // Slot remains kUnresolved if data ran out before the horizon hit.
+        std::array<double, 4> markouts_bps{kUnresolved, kUnresolved, kUnresolved, kUnresolved};
     };
+
+    // Sentinel for an unresolved markout. Chosen so any real bps value
+    // (rare to exceed ±10000 in practice) is unambiguous.
+    static constexpr double kUnresolved = -1e18;
 
     struct EquityPoint {
         uint64_t simulation_ts;
@@ -111,6 +132,17 @@ private:
 
     std::vector<TradeRow> trades_;
     std::vector<EquityPoint> equity_curve_;
+
+    // Pending markout resolutions — populated on each fill, drained on
+    // each subsequent market event whose ts crosses the target. Linear
+    // scan is fine: the queue stays small (≤ 4 × in-flight unresolved
+    // fills) and per-event resolution is amortised cheap.
+    struct PendingMarkout {
+        std::size_t trade_idx;
+        std::size_t horizon_idx;
+        uint64_t target_ts_ns;
+    };
+    std::deque<PendingMarkout> pending_markouts_;
 };
 
 }  // namespace bpt::backtester::results

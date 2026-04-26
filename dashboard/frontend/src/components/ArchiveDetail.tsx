@@ -5,6 +5,13 @@ import { RiskPanel } from './RiskPanel'
 
 // Shape returned by the Vite dev-server plugin's detail endpoint
 // (see vite.config.ts). Numeric fields are already parsed.
+interface MarkoutHorizon {
+  resolved_fills: number
+  avg_bps: number
+  avg_buy_bps: number
+  avg_sell_bps: number
+}
+
 interface Summary {
   starting_capital: number
   final_equity: number
@@ -24,6 +31,12 @@ interface Summary {
   simulation_end?: string
   wallclock_duration_ms?: number
   instruments?: string[]
+  markouts?: {
+    '50ms'?: MarkoutHorizon
+    '1s'?: MarkoutHorizon
+    '5s'?: MarkoutHorizon
+    '30s'?: MarkoutHorizon
+  }
 }
 
 interface TradeRow {
@@ -115,8 +128,22 @@ export function ArchiveDetail({ name }: Props) {
     .filter((s): s is string => s !== null)
     .join('   ')
 
+  const markouts = summary.markouts
+  const hasMarkouts = !!markouts && Object.values(markouts).some((h) => h && h.resolved_fills > 0)
+  const markoutHorizons: Array<['50ms' | '1s' | '5s' | '30s', MarkoutHorizon | undefined]> = [
+    ['50ms', markouts?.['50ms']],
+    ['1s',   markouts?.['1s']],
+    ['5s',   markouts?.['5s']],
+    ['30s',  markouts?.['30s']],
+  ]
+  const bpsCell = (v: number | undefined) => {
+    if (v === undefined) return <span style={{ color: 'var(--text-muted)' }}>—</span>
+    const cls = v > 0.5 ? 'pnl-pos' : v < -0.5 ? 'pnl-neg' : 'pnl-zero'
+    return <span className={cls}>{v >= 0 ? '+' : ''}{v.toFixed(2)}</span>
+  }
+
   return (
-    <div className="archive-body archive-body--detail">
+    <div className={`archive-body archive-body--detail${hasMarkouts ? ' archive-body--detail-markouts' : ''}`}>
       <div style={{ gridArea: 'risk', display: 'grid' }}>
         <RiskPanel
           fills={fills}
@@ -124,6 +151,41 @@ export function ArchiveDetail({ name }: Props) {
           precomputed={precomputed}
         />
       </div>
+
+      {hasMarkouts && (
+        <div className="panel" style={{ gridArea: 'markouts' }}>
+          <div className="panel-header">
+            <span className="panel-title">Markouts (bps)</span>
+            <span className="panel-badge" style={{ color: 'var(--text-muted)' }}>
+              positive = price moved with you · 4 horizons
+            </span>
+          </div>
+          <div style={{ padding: 12, overflow: 'auto' }}>
+            <table className="blotter-table" style={{ width: '100%' }}>
+              <thead>
+                <tr>
+                  <th>Horizon</th>
+                  <th className="num">All</th>
+                  <th className="num">Buys</th>
+                  <th className="num">Sells</th>
+                  <th className="num">Resolved</th>
+                </tr>
+              </thead>
+              <tbody>
+                {markoutHorizons.map(([label, h]) => (
+                  <tr key={label}>
+                    <td>{label}</td>
+                    <td className="num">{bpsCell(h?.avg_bps)}</td>
+                    <td className="num">{bpsCell(h?.avg_buy_bps)}</td>
+                    <td className="num">{bpsCell(h?.avg_sell_bps)}</td>
+                    <td className="num" style={{ color: 'var(--text-muted)' }}>{h?.resolved_fills ?? 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="panel" style={{ gridArea: 'equity' }}>
         <div className="panel-header">

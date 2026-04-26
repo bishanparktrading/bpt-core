@@ -150,7 +150,18 @@ void ResultsCollector::on_fill(const matching::FillReport& fill) {
     row.price = fill.last_fill_price;
     row.realized_pnl = realized;
     row.equity = eq;
+    const std::size_t trade_idx = trades_.size();
     trades_.push_back(std::move(row));
+
+    // Schedule one markout entry per horizon. Resolved later in
+    // on_market_event when an event's ts crosses the target.
+    for (std::size_t h = 0; h < kMarkoutHorizonsNs.size(); ++h) {
+        pending_markouts_.push_back({
+            trade_idx,
+            h,
+            fill.simulation_ts + static_cast<uint64_t>(kMarkoutHorizonsNs[h]),
+        });
+    }
 }
 
 void ResultsCollector::on_market_event(const data::MarketEvent& event) {
@@ -162,6 +173,36 @@ void ResultsCollector::on_market_event(const data::MarketEvent& event) {
     double ask = ob.ask_px[0];
     if (bid > 0.0 && ask > 0.0)
         mid_prices_[key] = (bid + ask) * 0.5;
+
+    // Resolve any pending markouts whose target_ts has been crossed.
+    // Single linear pass; entries that resolve are erased, the rest stay
+    // for a later event. Using an index into the deque rather than an
+    // iterator-based erase to keep the code simple — trade volumes
+    // typical for this backtester make this cheap regardless.
+    if (pending_markouts_.empty()) return;
+    std::size_t write = 0;
+    for (std::size_t i = 0; i < pending_markouts_.size(); ++i) {
+        const auto& p = pending_markouts_[i];
+        if (event.timestamp_ns < p.target_ts_ns) {
+            if (write != i) pending_markouts_[write] = p;
+            ++write;
+            continue;
+        }
+        TradeRow& trade = trades_[p.trade_idx];
+        std::string trade_key = trade.exchange + ':' + trade.symbol;
+        auto mid_it = mid_prices_.find(trade_key);
+        if (mid_it == mid_prices_.end() || trade.price <= 0.0) {
+            // No mid available yet for this symbol — drop the entry; we
+            // can't do anything useful with it later (target already passed).
+            continue;
+        }
+        const double mid = mid_it->second;
+        double bps = (mid - trade.price) / trade.price * 10000.0;
+        if (trade.side == "SELL") bps = -bps;
+        trade.markouts_bps[p.horizon_idx] = bps;
+        // entry resolved → not copied forward → effectively erased
+    }
+    pending_markouts_.resize(write);
 }
 
 // ── Output metrics ────────────────────────────────────────────────────────────
@@ -220,9 +261,10 @@ void ResultsCollector::write() const {
         if (!f)
             throw std::runtime_error("Cannot open " + output_dir_ + "/trades.csv");
         f << "simulation_ts,exchange,symbol,order_id,client_order_id,"
-             "side,type,qty,price,realized_pnl,equity\n";
+             "side,type,qty,price,realized_pnl,equity,"
+             "markout_50ms_bps,markout_1s_bps,markout_5s_bps,markout_30s_bps\n";
         for (const auto& r : trades_) {
-            f << std::format("{},{},{},{},{},{},{},{:.10g},{:.10g},{:.10g},{:.10g}\n",
+            f << std::format("{},{},{},{},{},{},{},{:.10g},{:.10g},{:.10g},{:.10g}",
                              r.simulation_ts,
                              r.exchange,
                              r.symbol,
@@ -234,6 +276,15 @@ void ResultsCollector::write() const {
                              r.price,
                              r.realized_pnl,
                              r.equity);
+            // Empty cell instead of NaN for unresolved horizons — pandas
+            // and dashboard parsers both treat it as missing.
+            for (double mk : r.markouts_bps) {
+                if (mk == kUnresolved)
+                    f << ",";
+                else
+                    f << std::format(",{:.4f}", mk);
+            }
+            f << "\n";
         }
         bpt::common::log::info("[ResultsCollector] Wrote {}/trades.csv ({} rows)", output_dir_, trades_.size());
     }
@@ -314,6 +365,32 @@ void ResultsCollector::write() const {
         for (const auto& inst : metadata_.instruments)
             instruments_arr.push_back(json::value(inst));
         obj["instruments"] = std::move(instruments_arr);
+
+        // Aggregate markouts. Per horizon: avg over all resolved fills,
+        // plus avg restricted to BUY and SELL sides separately so a
+        // toxicity asymmetry (e.g. picked off only on BUYs) is visible.
+        // Resolved-fill count per horizon is also reported so a low
+        // sample size can be spotted.
+        json::object markouts_obj;
+        for (std::size_t h = 0; h < kMarkoutHorizonsNs.size(); ++h) {
+            double sum_all = 0.0; int n_all = 0;
+            double sum_buy = 0.0; int n_buy = 0;
+            double sum_sell = 0.0; int n_sell = 0;
+            for (const auto& t : trades_) {
+                const double mk = t.markouts_bps[h];
+                if (mk == kUnresolved) continue;
+                sum_all += mk; ++n_all;
+                if (t.side == "BUY")  { sum_buy  += mk; ++n_buy;  }
+                else                  { sum_sell += mk; ++n_sell; }
+            }
+            json::object horizon_obj;
+            horizon_obj["resolved_fills"] = static_cast<int64_t>(n_all);
+            horizon_obj["avg_bps"]      = (n_all  > 0) ? sum_all  / n_all  : 0.0;
+            horizon_obj["avg_buy_bps"]  = (n_buy  > 0) ? sum_buy  / n_buy  : 0.0;
+            horizon_obj["avg_sell_bps"] = (n_sell > 0) ? sum_sell / n_sell : 0.0;
+            markouts_obj[kMarkoutHorizonLabels[h]] = std::move(horizon_obj);
+        }
+        obj["markouts"] = std::move(markouts_obj);
 
         std::ofstream f(output_dir_ + "/summary.json");
         if (!f)

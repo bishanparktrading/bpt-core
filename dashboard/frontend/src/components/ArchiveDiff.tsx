@@ -14,6 +14,13 @@ import {
 //   /archive#diff:<runA>:<runB>
 // where the run names are the raw on-disk dir names (URL-encoded).
 
+interface MarkoutHorizon {
+  resolved_fills: number
+  avg_bps: number
+  avg_buy_bps: number
+  avg_sell_bps: number
+}
+
 interface Summary {
   starting_capital: number
   final_equity: number
@@ -35,6 +42,12 @@ interface Summary {
   strategy_name?: string
   params_hash?: string
   git_sha?: string
+  markouts?: {
+    '50ms'?: MarkoutHorizon
+    '1s'?: MarkoutHorizon
+    '5s'?: MarkoutHorizon
+    '30s'?: MarkoutHorizon
+  }
 }
 
 interface RunDetail {
@@ -112,6 +125,22 @@ export function ArchiveDiff({ runA, runB }: Props) {
                                        digits: 2, suffix: 's', higherIsBetter: false },
   ]
 
+  // Markout rows — only if either run has them. Higher = better
+  // (positive markout means price moved with you, less adverse).
+  const horizons: Array<'50ms' | '1s' | '5s' | '30s'> = ['50ms', '1s', '5s', '30s']
+  const markoutRows: MetricRow[] = []
+  if (sa.markouts || sb.markouts) {
+    for (const h of horizons) {
+      markoutRows.push({
+        label: `Markout ${h} (bps)`,
+        a: sa.markouts?.[h]?.avg_bps,
+        b: sb.markouts?.[h]?.avg_bps,
+        digits: 2,
+        higherIsBetter: true,
+      })
+    }
+  }
+
   return (
     <div className="archive-body archive-body--diff">
       <div className="panel" style={{ overflow: 'auto' }}>
@@ -134,12 +163,14 @@ export function ArchiveDiff({ runA, runB }: Props) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
+              {[...rows, ...markoutRows].map((r, idx) => {
                 const av = r.a
                 const bv = r.b
                 const delta = av !== undefined && bv !== undefined ? bv - av : undefined
+                // Visual break before the markout block.
+                const isMarkoutStart = idx === rows.length && markoutRows.length > 0
                 return (
-                  <tr key={r.label}>
+                  <tr key={r.label} style={isMarkoutStart ? { borderTop: '2px solid var(--border-strong)' } : undefined}>
                     <td>{r.label}</td>
                     <td className="num">{fmt(av, r.digits, r.suffix)}</td>
                     <td className="num">{fmt(bv, r.digits, r.suffix)}</td>

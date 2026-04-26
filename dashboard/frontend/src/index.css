@@ -552,6 +552,17 @@ html, body, #root {
   gap: var(--gap);
 }
 
+/* When a run has markouts, slot a 180px row for the markout table
+ * between the risk strip and the equity chart. */
+.archive-body--detail-markouts {
+  grid-template-rows: 250px 180px 1fr 240px;
+  grid-template-areas:
+    "risk"
+    "markouts"
+    "equity"
+    "blotter";
+}
+
 /* Each grid cell in the detail view should clamp to its row height. */
 .archive-body--detail > * { min-height: 0; min-width: 0; }
 
