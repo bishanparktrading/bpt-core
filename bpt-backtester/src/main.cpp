@@ -14,11 +14,20 @@ int main(int argc, char* argv[]) {
     CLI::App cli{"bpt-backtester — replay-driven backtest runner"};
     std::string config_path;
     std::optional<double> starting_capital_override;
+    std::string strategy_name;
+    std::string params_hash;
+    std::string git_sha;
     cli.add_option("-c,--config", config_path, "Path to TOML config file")
         ->required()
         ->check(CLI::ExistingFile);
     cli.add_option("--starting-capital", starting_capital_override,
                    "Override [results].starting_capital");
+    cli.add_option("--strategy-name", strategy_name,
+                   "Strategy identity (e.g. AvellanedaStoikov) — recorded in summary.json + run_id");
+    cli.add_option("--params-hash", params_hash,
+                   "sha256 of the strategy config file (orchestrator computes); 8+ chars used in run_id");
+    cli.add_option("--git-sha", git_sha,
+                   "Repo HEAD SHA at run time; first 7 chars used in run_id");
     CLI11_PARSE(cli, argc, argv);
 
     bpt::backtester::config::Settings settings;
@@ -33,6 +42,9 @@ int main(int argc, char* argv[]) {
     if (starting_capital_override) {
         settings.results.starting_capital = *starting_capital_override;
     }
+    if (!strategy_name.empty()) settings.results.strategy_name = std::move(strategy_name);
+    if (!params_hash.empty())   settings.results.params_hash   = std::move(params_hash);
+    if (!git_sha.empty())       settings.results.git_sha       = std::move(git_sha);
 
     try {
         return bpt::app::run("bpt-backtester", std::move(settings),

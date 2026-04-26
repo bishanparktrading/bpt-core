@@ -22,6 +22,28 @@ using matching::OrderSide;
 
 // ── Construction ──────────────────────────────────────────────────────────────
 
+std::string ResultsCollector::compose_run_id(const RunMetadata& m,
+                                             const std::string& start_tag,
+                                             const std::string& end_tag) {
+    // Layout: {strategy}_{git7}_{params8}_{start}_{end}
+    // Any missing component is dropped so a run identified only by its
+    // window still yields a clean "{start}_{end}" path. Truncations
+    // (7/8 chars) match git's short-SHA convention and balance
+    // readability vs collision risk.
+    std::string out;
+    auto append = [&](const std::string& s) {
+        if (s.empty()) return;
+        if (!out.empty()) out += '_';
+        out += s;
+    };
+    append(m.strategy_name);
+    append(m.git_sha.size() > 7 ? m.git_sha.substr(0, 7) : m.git_sha);
+    append(m.params_hash.size() > 8 ? m.params_hash.substr(0, 8) : m.params_hash);
+    append(start_tag);
+    append(end_tag);
+    return out.empty() ? std::string{"run"} : out;
+}
+
 ResultsCollector::ResultsCollector(double starting_capital, std::string output_dir,
                                    RunMetadata metadata)
     : starting_capital_(starting_capital),
@@ -285,6 +307,9 @@ void ResultsCollector::write() const {
         obj["simulation_start"] = metadata_.simulation_start;
         obj["simulation_end"] = metadata_.simulation_end;
         obj["wallclock_duration_ms"] = static_cast<int64_t>(wallclock_duration_ms);
+        obj["strategy_name"] = metadata_.strategy_name;
+        obj["params_hash"] = metadata_.params_hash;
+        obj["git_sha"] = metadata_.git_sha;
         json::array instruments_arr;
         for (const auto& inst : metadata_.instruments)
             instruments_arr.push_back(json::value(inst));

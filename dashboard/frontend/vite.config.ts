@@ -65,6 +65,9 @@ function backtestArchivePlugin(): Plugin {
                     simulation_end: summary.simulation_end,
                     wallclock_duration_ms: summary.wallclock_duration_ms,
                     instruments: summary.instruments,
+                    strategy_name: summary.strategy_name,
+                    params_hash: summary.params_hash,
+                    git_sha: summary.git_sha,
                   }
                 } catch {
                   return null

@@ -88,7 +88,6 @@ BacktesterApp::BacktesterApp(config::Settings settings, std::shared_ptr<aeron::A
     // ── Results collector ──────────────────────────────────────────────────
     std::string start_tag = settings_.simulation.start.substr(0, 10);
     std::string end_tag = settings_.simulation.end.substr(0, 10);
-    std::string out_dir = std::format("{}/{}_{}", settings_.results.output_dir, start_tag, end_tag);
 
     results::ResultsCollector::RunMetadata metadata;
     metadata.simulation_start = settings_.simulation.start;
@@ -96,6 +95,13 @@ BacktesterApp::BacktesterApp(config::Settings settings, std::shared_ptr<aeron::A
     metadata.instruments.reserve(settings_.instruments.size());
     for (const auto& inst : settings_.instruments)
         metadata.instruments.push_back(inst.exchange + ":" + inst.symbol);
+    metadata.strategy_name = settings_.results.strategy_name;
+    metadata.params_hash   = settings_.results.params_hash;
+    metadata.git_sha       = settings_.results.git_sha;
+
+    const std::string run_id =
+        results::ResultsCollector::compose_run_id(metadata, start_tag, end_tag);
+    const std::string out_dir = std::format("{}/{}", settings_.results.output_dir, run_id);
 
     results_ = std::make_unique<results::ResultsCollector>(
         settings_.results.starting_capital, out_dir, std::move(metadata));

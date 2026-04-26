@@ -58,6 +58,14 @@ struct DataConfig {
 struct ResultsConfig {
     std::string output_dir{"results"};
     double starting_capital{100'000.0};
+    // Run identity — populated from CLI flags by main.cpp (the orchestrator
+    // script knows the strategy file + git state, the backtester binary
+    // doesn't). All optional; when unset, ResultsCollector falls back to
+    // a window-only run_id and leaves the corresponding summary.json
+    // fields empty.
+    std::string strategy_name;
+    std::string params_hash;
+    std::string git_sha;
 };
 
 // Aeron streams used for backtest tick-gating.

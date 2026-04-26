@@ -30,7 +30,20 @@ public:
         std::string simulation_start;          // ISO 8601, e.g. "2026-04-25T00:00:00Z"
         std::string simulation_end;
         std::vector<std::string> instruments;  // e.g. ["HYPERLIQUID:APE"]
+        // Run identity. All optional — when empty the run still records,
+        // it just can't be diff'd against a peer or replayed exactly.
+        std::string strategy_name;             // e.g. "AvellanedaStoikov"
+        std::string params_hash;               // sha256 of strategy config (8 chars typical)
+        std::string git_sha;                   // `git rev-parse HEAD` (7 chars typical)
     };
+
+    // Compose a deterministic run_id from the metadata + window. Used for
+    // the on-disk output directory and as the primary key in archive
+    // tooling. Falls back to "{start}_{end}" if the identity fields are
+    // empty so older runs and ad-hoc invocations still produce a path.
+    static std::string compose_run_id(const RunMetadata& m,
+                                      const std::string& start_tag,
+                                      const std::string& end_tag);
 
     ResultsCollector(double starting_capital, std::string output_dir,
                      RunMetadata metadata = {});

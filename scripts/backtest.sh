@@ -1,7 +1,7 @@
 #!/bin/bash
 # backtest.sh — Run a Strategy backtest against Backtester.
 #
-# Backtester acts as the exchange simulator behind Huginn and Heimdall.
+# Backtester acts as the exchange simulator behind bpt-md-gateway and bpt-order-gateway.
 # Strategy runs in its normal live mode — no backtest-specific code paths.
 # All inter-service communication still flows through bpt-transport (Aeron IPC).
 #
@@ -67,41 +67,60 @@ do_start() {
     "$TRANSPORT_DIR/scripts/dev_start.sh"
     echo
 
-    # 2. Refdata — reference data (connects to live exchanges for canonical IDs)
-    "$REFDATA_DIR/scripts/start.sh" "$REFDATA_DIR/config/bpt-refdata.qa-okx.toml"
+    # 2. Refdata — reference data. Default = HL config because AS backtests
+    # target HL APE. Override via $BPT_REFDATA_CONFIG when backtesting other venues.
+    "$REFDATA_DIR/scripts/start.sh" "${BPT_REFDATA_CONFIG:-$REFDATA_DIR/config/bpt-refdata.qa-hyperliquid.toml}"
     echo
 
-    # 3. Huginn + Heimdall — connect to Backtester WS servers once Backtester is up.
+    # 3. bpt-md-gateway + bpt-order-gateway — connect to Backtester WS servers once Backtester is up.
     #    Start them now so they are in reconnect-retry loop when Backtester launches.
     "$MD_GATEWAY_DIR/scripts/start.sh" "$MD_GATEWAY_DIR/config/bpt-md-gateway.backtest.toml" &
     MD_GATEWAY_PID=$!
 
-    "$ORDER_GATEWAY_DIR/scripts/start.sh" "$ORDER_GATEWAY_DIR/config/order-gateway.backtest.toml" &
+    "$ORDER_GATEWAY_DIR/scripts/start.sh" "$ORDER_GATEWAY_DIR/config/bpt-order-gateway.backtest.toml" &
     ORDER_GATEWAY_PID=$!
 
     wait "$MD_GATEWAY_PID"
     wait "$ORDER_GATEWAY_PID"
     echo
 
-    # 4. Strategy — must be up and have sent MD subscription requests to Huginn before
+    # 4. Strategy — must be up and have sent MD subscription requests to bpt-md-gateway before
     #    Backtester starts feeding data. Strategy waits for RefDataReady from Refdata, then
-    #    subscribes. Give it time to settle so Huginn has a non-empty subscription list.
+    #    subscribes. Give it time to settle so bpt-md-gateway has a non-empty subscription list.
     "$STRATEGY_DIR/scripts/start.sh" "$STRATEGY_CONFIG"
     echo
 
-    echo "Waiting 15s for Strategy to subscribe to instruments via Huginn..."
+    echo "Waiting 15s for Strategy to subscribe to instruments via bpt-md-gateway..."
     sleep 15
 
-    # 5. Backtester — start last so that Huginn already has subscriptions queued.
-    #    The subscriber gate fires when Huginn reconnects with a non-empty subscription list.
-    #    Forward STARTING_CAPITAL to bpt-backtester via its extra-args env var.
+    # 5. Backtester — start last so that bpt-md-gateway already has subscriptions queued.
+    #    The subscriber gate fires when bpt-md-gateway reconnects with a non-empty subscription list.
+
+    # Run identity passed through to the backtester:
+    #   strategy_name = filename stem before the first dot
+    #     (avellaneda_stoikov.backtest.toml → AvellanedaStoikov, formatted CamelCase)
+    #   params_hash   = sha256 of the strategy config bytes
+    #   git_sha       = repo HEAD
+    # All three end up in summary.json + the on-disk run_id so the archive
+    # tooling can identify "this strategy + these params + this commit"
+    # without ambiguity.
+    STRATEGY_BASENAME="$(basename "$STRATEGY_CONFIG")"
+    STRATEGY_STEM="${STRATEGY_BASENAME%%.*}"
+    STRATEGY_NAME="$(echo "$STRATEGY_STEM" \
+        | awk -F_ '{ for (i=1;i<=NF;i++) printf "%s%s", toupper(substr($i,1,1)), substr($i,2); print "" }')"
+    PARAMS_HASH="$(sha256sum "$STRATEGY_CONFIG" | awk '{print $1}')"
+    GIT_SHA="$(git -C "$STACK_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
+
+    EXTRA="--strategy-name $STRATEGY_NAME --params-hash $PARAMS_HASH --git-sha $GIT_SHA"
     if [ -n "${STARTING_CAPITAL:-}" ]; then
         echo "  (starting_capital override: \$$STARTING_CAPITAL)"
-        BACKTESTER_EXTRA_ARGS="--starting-capital $STARTING_CAPITAL" \
-            "$BACKTESTER_DIR/scripts/start.sh" "$BACKTESTER_CONFIG"
-    else
-        "$BACKTESTER_DIR/scripts/start.sh" "$BACKTESTER_CONFIG"
+        EXTRA="$EXTRA --starting-capital $STARTING_CAPITAL"
     fi
+    echo "  Run identity:"
+    echo "    strategy_name : $STRATEGY_NAME"
+    echo "    params_hash   : ${PARAMS_HASH:0:8}…"
+    echo "    git_sha       : ${GIT_SHA:0:7}"
+    BACKTESTER_EXTRA_ARGS="$EXTRA" "$BACKTESTER_DIR/scripts/start.sh" "$BACKTESTER_CONFIG"
     echo
 
     echo "=== Backtest stack is up — waiting for Backtester to exhaust data ==="

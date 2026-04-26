@@ -23,9 +23,12 @@ interface RunRow {
   simulation_end?: string
   wallclock_duration_ms?: number
   instruments?: string[]
+  strategy_name?: string
+  params_hash?: string
+  git_sha?: string
 }
 
-type SortKey = 'name' | 'return_pct' | 'max_drawdown_pct' | 'sharpe_per_fill' | 'total_fills' | 'win_rate_pct'
+type SortKey = 'name' | 'strategy_name' | 'return_pct' | 'max_drawdown_pct' | 'sharpe_per_fill' | 'total_fills' | 'win_rate_pct'
 
 interface Props {
   onOpen: (name: string) => void
@@ -99,7 +102,10 @@ export function ArchiveList({ onOpen }: Props) {
             <table className="blotter-table archive-table">
               <thead>
                 <tr>
-                  <th onClick={() => toggleSort('name')} className="th-sortable">Run{arrow('name')}</th>
+                  <th onClick={() => toggleSort('strategy_name')} className="th-sortable">Strategy{arrow('strategy_name')}</th>
+                  <th>SHA</th>
+                  <th>Params</th>
+                  <th>Window</th>
                   <th>Instruments</th>
                   <th onClick={() => toggleSort('return_pct')} className="th-sortable num">Return{arrow('return_pct')}</th>
                   <th onClick={() => toggleSort('max_drawdown_pct')} className="th-sortable num">Max DD{arrow('max_drawdown_pct')}</th>
@@ -111,25 +117,40 @@ export function ArchiveList({ onOpen }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((r) => (
-                  <tr key={r.name} onClick={() => onOpen(r.name)} className="archive-row">
-                    <td>{r.name}</td>
-                    <td style={{ color: 'var(--text-secondary)' }}>
-                      {r.instruments && r.instruments.length > 0 ? r.instruments.join(', ') : '—'}
-                    </td>
-                    <td className={`num ${pnlClass(r.return_pct)}`}>{fmtPct(r.return_pct)}</td>
-                    <td className="num pnl-neg">{r.max_drawdown_pct.toFixed(2)}%</td>
-                    <td className="num">{fmtNum(r.sharpe_per_fill)}</td>
-                    <td className="num">{r.win_rate_pct.toFixed(2)}%</td>
-                    <td className="num">{r.total_fills.toLocaleString()}</td>
-                    <td className="num" style={{ color: 'var(--text-secondary)' }}>
-                      {r.wallclock_duration_ms !== undefined
-                        ? `${(r.wallclock_duration_ms / 1000).toFixed(1)}s`
-                        : '—'}
-                    </td>
-                    <td className="num">${r.final_equity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  </tr>
-                ))}
+                {sorted.map((r) => {
+                  // Window: prefer the simulation_start/end strings, fall back to
+                  // parsing the run name (older runs were keyed solely on dates).
+                  const window =
+                    r.simulation_start && r.simulation_end
+                      ? `${r.simulation_start.slice(0, 10)} → ${r.simulation_end.slice(0, 10)}`
+                      : r.name
+                  return (
+                    <tr key={r.name} onClick={() => onOpen(r.name)} className="archive-row">
+                      <td>{r.strategy_name ?? '—'}</td>
+                      <td className="mono-7" style={{ color: 'var(--text-secondary)' }}>
+                        {r.git_sha ? r.git_sha.slice(0, 7) : '—'}
+                      </td>
+                      <td className="mono-7" style={{ color: 'var(--text-secondary)' }}>
+                        {r.params_hash ? r.params_hash.slice(0, 8) : '—'}
+                      </td>
+                      <td style={{ color: 'var(--text-secondary)' }}>{window}</td>
+                      <td style={{ color: 'var(--text-secondary)' }}>
+                        {r.instruments && r.instruments.length > 0 ? r.instruments.join(', ') : '—'}
+                      </td>
+                      <td className={`num ${pnlClass(r.return_pct)}`}>{fmtPct(r.return_pct)}</td>
+                      <td className="num pnl-neg">{r.max_drawdown_pct.toFixed(2)}%</td>
+                      <td className="num">{fmtNum(r.sharpe_per_fill)}</td>
+                      <td className="num">{r.win_rate_pct.toFixed(2)}%</td>
+                      <td className="num">{r.total_fills.toLocaleString()}</td>
+                      <td className="num" style={{ color: 'var(--text-secondary)' }}>
+                        {r.wallclock_duration_ms !== undefined
+                          ? `${(r.wallclock_duration_ms / 1000).toFixed(1)}s`
+                          : '—'}
+                      </td>
+                      <td className="num">${r.final_equity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}
