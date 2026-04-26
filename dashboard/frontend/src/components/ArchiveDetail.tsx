@@ -199,11 +199,7 @@ export function ArchiveDetail({ name }: Props) {
             {equityPoints.length.toLocaleString()} pts
           </span>
         </div>
-        <EquityChart
-          fills={equityPoints}
-          startingCapital={summary.starting_capital}
-          fillMarkers={fills}
-        />
+        <EquityChart fills={equityPoints} startingCapital={summary.starting_capital} />
       </div>
 
       <Blotter fills={fills} />
