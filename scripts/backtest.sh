@@ -111,7 +111,18 @@ do_start() {
     PARAMS_HASH="$(sha256sum "$STRATEGY_CONFIG" | awk '{print $1}')"
     GIT_SHA="$(git -C "$STACK_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
 
-    EXTRA="--strategy-name $STRATEGY_NAME --params-hash $PARAMS_HASH --git-sha $GIT_SHA"
+    # Resolve the leaf params file (the strategy config has a
+    # `strategy_config = "strategies/...toml"` pointer to it). Falls back
+    # to the instance config itself when no pointer exists, so older
+    # one-file strategies still get a params.toml copied into the run dir.
+    PARAMS_REL="$(awk -F= '/^strategy_config/ { gsub(/[ \t"]/, "", $2); print $2 }' "$STRATEGY_CONFIG" | head -1)"
+    if [ -n "$PARAMS_REL" ]; then
+        PARAMS_FILE="$(cd "$(dirname "$STRATEGY_CONFIG")" && pwd)/$PARAMS_REL"
+    else
+        PARAMS_FILE="$STRATEGY_CONFIG"
+    fi
+
+    EXTRA="--strategy-name $STRATEGY_NAME --params-hash $PARAMS_HASH --git-sha $GIT_SHA --params-file $PARAMS_FILE"
     if [ -n "${STARTING_CAPITAL:-}" ]; then
         echo "  (starting_capital override: \$$STARTING_CAPITAL)"
         EXTRA="$EXTRA --starting-capital $STARTING_CAPITAL"

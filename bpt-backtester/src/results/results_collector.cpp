@@ -287,6 +287,24 @@ double ResultsCollector::compute_sharpe() const {
 void ResultsCollector::write() const {
     fs::create_directories(output_dir_);
 
+    // ── params.toml ───────────────────────────────────────────────────────
+    // Copy the strategy params file into the run dir so the dashboard
+    // can render the actual param values (not just the hash) — needed
+    // for sweep visualisations that label each cell by its tuned param.
+    if (!metadata_.params_file.empty()) {
+        try {
+            fs::copy_file(metadata_.params_file,
+                          output_dir_ + "/params.toml",
+                          fs::copy_options::overwrite_existing);
+            bpt::common::log::info("[ResultsCollector] Copied params {} → {}/params.toml",
+                                   metadata_.params_file, output_dir_);
+        } catch (const std::exception& e) {
+            bpt::common::log::warn(
+                "[ResultsCollector] Failed to copy params {} → {}/params.toml: {}",
+                metadata_.params_file, output_dir_, e.what());
+        }
+    }
+
     // ── trades.csv ────────────────────────────────────────────────────────
     {
         std::ofstream f(output_dir_ + "/trades.csv");

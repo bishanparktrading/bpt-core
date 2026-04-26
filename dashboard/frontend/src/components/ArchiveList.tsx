@@ -33,6 +33,7 @@ type SortKey = 'name' | 'strategy_name' | 'return_pct' | 'max_drawdown_pct' | 's
 interface Props {
   onOpen: (name: string) => void
   onCompare: (runA: string, runB: string) => void
+  onSweep: (runs: string[]) => void
 }
 
 function fmtPct(x: number) {
@@ -47,7 +48,7 @@ function pnlClass(x: number) {
   return 'pnl-zero'
 }
 
-export function ArchiveList({ onOpen, onCompare }: Props) {
+export function ArchiveList({ onOpen, onCompare, onSweep }: Props) {
   const [runs, setRuns] = useState<RunRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('name')
@@ -107,8 +108,8 @@ export function ArchiveList({ onOpen, onCompare }: Props) {
   const toggleSelect = (name: string) => {
     setSelected((cur) => {
       if (cur.includes(name)) return cur.filter((n) => n !== name)
-      // Cap at 2: pick the latest two when user selects a third.
-      if (cur.length >= 2) return [cur[1], name]
+      // No cap — 2 picks → diff view, 3+ picks → sweep view. The
+      // button labels in the header switch automatically.
       return [...cur, name]
     })
   }
@@ -119,9 +120,9 @@ export function ArchiveList({ onOpen, onCompare }: Props) {
         <div className="panel-header">
           <span className="panel-title">Backtest Runs</span>
           <span className="panel-badge" style={{ flex: 1, textAlign: 'left', marginLeft: 16, color: 'var(--text-muted)' }}>
-            {selected.length === 0 && 'tip: tick two rows to enable compare'}
-            {selected.length === 1 && `selected: ${selected[0]} — pick one more to compare`}
-            {selected.length === 2 && `selected: ${selected[0]} ↔ ${selected[1]}`}
+            {selected.length === 0 && 'tip: tick 2 to compare, 3+ to sweep'}
+            {selected.length === 1 && `selected: 1 (pick one more to compare, or 2+ more to sweep)`}
+            {selected.length >= 2 && `selected: ${selected.length}`}
           </span>
           {selected.length === 2 && (
             <button
@@ -130,6 +131,15 @@ export function ArchiveList({ onOpen, onCompare }: Props) {
               onClick={() => onCompare(selected[0], selected[1])}
             >
               Compare →
+            </button>
+          )}
+          {selected.length >= 3 && (
+            <button
+              className="kill-switch"
+              style={{ marginRight: 12, background: 'rgba(210,153,34,0.18)', color: 'var(--yellow)', borderColor: 'var(--yellow)' }}
+              onClick={() => onSweep(selected)}
+            >
+              Sweep ({selected.length}) →
             </button>
           )}
           <span className="panel-badge">{runs ? `${runs.length} run${runs.length === 1 ? '' : 's'}` : '—'}</span>

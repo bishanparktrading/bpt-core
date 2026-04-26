@@ -17,6 +17,7 @@ int main(int argc, char* argv[]) {
     std::string strategy_name;
     std::string params_hash;
     std::string git_sha;
+    std::string params_file;
     cli.add_option("-c,--config", config_path, "Path to TOML config file")
         ->required()
         ->check(CLI::ExistingFile);
@@ -28,6 +29,9 @@ int main(int argc, char* argv[]) {
                    "sha256 of the strategy config file (orchestrator computes); 8+ chars used in run_id");
     cli.add_option("--git-sha", git_sha,
                    "Repo HEAD SHA at run time; first 7 chars used in run_id");
+    cli.add_option("--params-file", params_file,
+                   "Resolved strategy params toml — copied into the run dir as params.toml")
+        ->check(CLI::ExistingFile);
     CLI11_PARSE(cli, argc, argv);
 
     bpt::backtester::config::Settings settings;
@@ -45,6 +49,7 @@ int main(int argc, char* argv[]) {
     if (!strategy_name.empty()) settings.results.strategy_name = std::move(strategy_name);
     if (!params_hash.empty())   settings.results.params_hash   = std::move(params_hash);
     if (!git_sha.empty())       settings.results.git_sha       = std::move(git_sha);
+    if (!params_file.empty())   settings.results.params_file   = std::move(params_file);
 
     try {
         return bpt::app::run("bpt-backtester", std::move(settings),

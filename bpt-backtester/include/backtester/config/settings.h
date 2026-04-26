@@ -66,6 +66,7 @@ struct ResultsConfig {
     std::string strategy_name;
     std::string params_hash;
     std::string git_sha;
+    std::string params_file;  // resolved params toml — copied into output dir
 };
 
 // Aeron streams used for backtest tick-gating.

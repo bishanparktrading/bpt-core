@@ -98,6 +98,7 @@ BacktesterApp::BacktesterApp(config::Settings settings, std::shared_ptr<aeron::A
     metadata.strategy_name = settings_.results.strategy_name;
     metadata.params_hash   = settings_.results.params_hash;
     metadata.git_sha       = settings_.results.git_sha;
+    metadata.params_file   = settings_.results.params_file;
 
     const std::string run_id =
         results::ResultsCollector::compose_run_id(metadata, start_tag, end_tag);

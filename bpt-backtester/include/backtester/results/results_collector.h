@@ -48,6 +48,11 @@ public:
         std::string strategy_name;             // e.g. "AvellanedaStoikov"
         std::string params_hash;               // sha256 of strategy config (8 chars typical)
         std::string git_sha;                   // `git rev-parse HEAD` (7 chars typical)
+        // Path to the strategy params file used for this run. When set,
+        // ResultsCollector::write() copies it into the run dir as
+        // `params.toml` so the dashboard can read the actual param values
+        // for sweep visualisation. Empty = no copy.
+        std::string params_file;
     };
 
     // Compose a deterministic run_id from the metadata + window. Used for

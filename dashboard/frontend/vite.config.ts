@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { parse as parseToml } from 'smol-toml'
 
 // Resolve bpt-core/bpt-backtester/results from the frontend directory.
 const RESULTS_DIR = resolve(__dirname, '../../bpt-backtester/results')
@@ -45,6 +46,15 @@ function backtestArchivePlugin(): Plugin {
                 try {
                   const summary = JSON.parse(readFileSync(summaryPath, 'utf-8'))
                   const stat = statSync(summaryPath)
+                  // Lazy params parse — only used by sweep detection,
+                  // tolerable to do on every list request because dev
+                  // archives stay in the dozens-to-hundreds range.
+                  const paramsPath = join(RESULTS_DIR, name, 'params.toml')
+                  let params: unknown = null
+                  if (existsSync(paramsPath)) {
+                    try { params = parseToml(readFileSync(paramsPath, 'utf-8')) }
+                    catch { params = null }
+                  }
                   return {
                     name,
                     mtime: stat.mtimeMs,
@@ -68,6 +78,7 @@ function backtestArchivePlugin(): Plugin {
                     strategy_name: summary.strategy_name,
                     params_hash: summary.params_hash,
                     git_sha: summary.git_sha,
+                    params,
                   }
                 } catch {
                   return null
@@ -92,6 +103,7 @@ function backtestArchivePlugin(): Plugin {
           const summaryPath = join(runDir, 'summary.json')
           const tradesPath = join(runDir, 'trades.csv')
           const pnlPath = join(runDir, 'pnl_curve.csv')
+          const paramsPath = join(runDir, 'params.toml')
 
           const summary = existsSync(summaryPath)
             ? JSON.parse(readFileSync(summaryPath, 'utf-8'))
@@ -102,10 +114,27 @@ function backtestArchivePlugin(): Plugin {
           const pnlCurve = existsSync(pnlPath)
             ? parsePnlCsv(readFileSync(pnlPath, 'utf-8'))
             : []
+          // params.toml is optional: present for runs after the
+          // 2026-04-26 universal-core extension, absent for earlier
+          // ones. We pass through both the parsed object (for
+          // structured access in sweep detection) and the raw text
+          // (for the detail-view code block). Parse failures fall
+          // back to raw text only.
+          let paramsRaw: string | null = null
+          let paramsParsed: unknown = null
+          if (existsSync(paramsPath)) {
+            paramsRaw = readFileSync(paramsPath, 'utf-8')
+            try {
+              paramsParsed = parseToml(paramsRaw)
+            } catch {
+              paramsParsed = null
+            }
+          }
 
           res.statusCode = 200
           res.setHeader('Content-Type', 'application/json')
-          res.end(JSON.stringify({ name, summary, trades, pnlCurve }))
+          res.end(JSON.stringify({ name, summary, trades, pnlCurve,
+                                  params: paramsParsed, paramsRaw }))
         } catch (e) {
           res.statusCode = 500
           res.end(JSON.stringify({ error: String(e) }))

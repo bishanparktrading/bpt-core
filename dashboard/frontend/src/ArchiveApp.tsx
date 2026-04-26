@@ -3,16 +3,19 @@ import './App.css'
 import { ArchiveList } from './components/ArchiveList'
 import { ArchiveDetail } from './components/ArchiveDetail'
 import { ArchiveDiff } from './components/ArchiveDiff'
+import { ArchiveSweep } from './components/ArchiveSweep'
 
 // Selected run is encoded in location.hash so the browser back button works
 // and run URLs are shareable:
-//   /archive                       → list
-//   /archive#<run-name>            → detail view of that run
-//   /archive#diff:<runA>:<runB>    → diff view of the two runs
+//   /archive                                → list
+//   /archive#<run-name>                     → detail view of that run
+//   /archive#diff:<runA>:<runB>             → diff view of the two runs
+//   /archive#sweep:<runA>:<runB>:<runC>...  → 1D/2D sweep heatmap of N runs
 type Route =
   | { kind: 'list' }
   | { kind: 'detail'; name: string }
   | { kind: 'diff'; a: string; b: string }
+  | { kind: 'sweep'; runs: string[] }
 
 function readRoute(): Route {
   const h = window.location.hash.replace(/^#/, '')
@@ -21,6 +24,13 @@ function readRoute(): Route {
     const parts = h.slice(5).split(':')
     if (parts.length === 2) {
       return { kind: 'diff', a: decodeURIComponent(parts[0]), b: decodeURIComponent(parts[1]) }
+    }
+    return { kind: 'list' }
+  }
+  if (h.startsWith('sweep:')) {
+    const parts = h.slice(6).split(':').filter((p) => p.length > 0)
+    if (parts.length >= 2) {
+      return { kind: 'sweep', runs: parts.map(decodeURIComponent) }
     }
     return { kind: 'list' }
   }
@@ -42,6 +52,9 @@ export default function ArchiveApp() {
   const openDiff = (a: string, b: string) => {
     window.location.hash = `diff:${encodeURIComponent(a)}:${encodeURIComponent(b)}`
   }
+  const openSweep = (runs: string[]) => {
+    window.location.hash = `sweep:${runs.map(encodeURIComponent).join(':')}`
+  }
   const backToList = () => {
     window.location.hash = ''
   }
@@ -59,6 +72,13 @@ export default function ArchiveApp() {
       <>
         <a href="#" onClick={(e) => { e.preventDefault(); backToList() }} className="archive-back">← runs</a>
         <span style={{ marginLeft: 12 }}>diff: {route.a} ↔ {route.b}</span>
+      </>
+    )
+  } else if (route.kind === 'sweep') {
+    title = (
+      <>
+        <a href="#" onClick={(e) => { e.preventDefault(); backToList() }} className="archive-back">← runs</a>
+        <span style={{ marginLeft: 12 }}>sweep: {route.runs.length} runs</span>
       </>
     )
   } else {
@@ -79,7 +99,8 @@ export default function ArchiveApp() {
 
       {route.kind === 'detail' && <ArchiveDetail name={route.name} />}
       {route.kind === 'diff' && <ArchiveDiff runA={route.a} runB={route.b} />}
-      {route.kind === 'list' && <ArchiveList onOpen={openRun} onCompare={openDiff} />}
+      {route.kind === 'sweep' && <ArchiveSweep runs={route.runs} />}
+      {route.kind === 'list' && <ArchiveList onOpen={openRun} onCompare={openDiff} onSweep={openSweep} />}
     </div>
   )
 }
