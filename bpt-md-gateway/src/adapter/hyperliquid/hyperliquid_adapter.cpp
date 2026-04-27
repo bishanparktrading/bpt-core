@@ -15,9 +15,8 @@ namespace websocket = beast::websocket;
 namespace net = boost::asio;
 
 HyperliquidAdapter::HyperliquidAdapter(const config::AdapterConfig& cfg,
-                                       std::shared_ptr<messaging::IMdPublisher> md_pub,
-                                       const config::RecordingConfig& recording)
-    : AdapterBase(cfg, std::move(md_pub), recording),
+                                       std::shared_ptr<messaging::IMdPublisher> md_pub)
+    : AdapterBase(cfg, std::move(md_pub)),
       parser_(subs_) {}
 
 std::unique_ptr<bpt::common::ws::AnyWsStream> HyperliquidAdapter::connect_and_subscribe() {
@@ -76,12 +75,10 @@ void HyperliquidAdapter::read_loop(bpt::common::ws::AnyWsStream& ws) {
 }
 
 void HyperliquidAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
-    record_raw(payload, recv_ns);
     push_frame(payload, recv_ns);
 }
 
 void HyperliquidAdapter::on_tick() {
-    maybe_checkpoint();
     // Fallback for subs added between connect_and_subscribe's take_pending
     // and the first read iteration. Primary path is subscribe() below.
     for (const auto& entry : subs_.take_pending()) {

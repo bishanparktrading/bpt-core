@@ -1,7 +1,5 @@
 #include "md_gateway/adapter/common/adapter_base.h"
 
-#include <fmt/format.h>
-
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -41,44 +39,12 @@ std::string pub_thread_name(const char* exchange) {
     return "mdgw-" + lowercase_venue(exchange) + "-pub";
 }
 
-// Minimal JSON escape for embedding caught exception messages into a
-// WS_DISCONNECT marker payload. Handles the characters that would break
-// json.loads() in the Python converter; non-ASCII bytes pass through.
-std::string json_escape(std::string_view s) {
-    std::string out;
-    out.reserve(s.size());
-    for (char c : s) {
-        switch (c) {
-            case '"':  out += "\\\""; break;
-            case '\\': out += "\\\\"; break;
-            case '\n': out += "\\n"; break;
-            case '\r': out += "\\r"; break;
-            case '\t': out += "\\t"; break;
-            default:
-                if (static_cast<unsigned char>(c) < 0x20) {
-                    out += fmt::format("\\u{:04x}", static_cast<unsigned char>(c));
-                } else {
-                    out += c;
-                }
-                break;
-        }
-    }
-    return out;
-}
-
-uint64_t wall_now_ns() {
-    return static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count());
-}
-
 }  // namespace
 
 namespace ssl = boost::asio::ssl;
 
 AdapterBase::AdapterBase(const config::AdapterConfig& cfg,
-                         std::shared_ptr<messaging::IMdPublisher> md_pub,
-                         const config::RecordingConfig& recording)
+                         std::shared_ptr<messaging::IMdPublisher> md_pub)
     : cfg_(cfg),
       md_pub_(std::move(md_pub)),
       validator_(cfg.max_price_deviation_pct),
@@ -98,57 +64,6 @@ AdapterBase::AdapterBase(const config::AdapterConfig& cfg,
     db_cfg.window_ns = static_cast<uint64_t>(cfg_.validation_drop_window_sec) * 1'000'000'000ULL;
     db_cfg.min_events = cfg_.validation_drop_min_events;
     validating_pub_.set_drop_breaker_config(db_cfg);
-
-    if (recording.enabled) {
-        recorder::RawSpool::Config sc{
-            .root_dir = recording.output_dir,
-            .venue_tag = lowercase_venue(cfg_.exchange.c_str()),
-            .rotate_interval_seconds = recording.rotate_interval_seconds,
-            .buffer_bytes = recording.buffer_bytes,
-            .flush_interval_ns = static_cast<uint64_t>(recording.fsync_interval_ms) * 1'000'000ULL,
-        };
-        spool_ = std::make_unique<recorder::RawSpool>(std::move(sc));
-        checkpoint_interval_ns_ =
-            static_cast<uint64_t>(recording.checkpoint_interval_seconds) * 1'000'000'000ULL;
-
-        // SESSION_START with config snapshot — pid, exchange, ws endpoint.
-        // The recv_ts is wall-clock so converters can match it to audit log.
-        const uint64_t now_ns = static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count());
-        const std::string snapshot = fmt::format(
-            R"({{"pid":{},"exchange":"{}","ws":"{}://{}:{}{}"}})",
-            ::getpid(), cfg_.exchange,
-            cfg_.use_tls ? "wss" : "ws",
-            cfg_.ws_host, cfg_.ws_port, cfg_.ws_path);
-        spool_->write_marker(now_ns, recorder::RecordType::SESSION_START, snapshot);
-        spool_->flush();
-        last_checkpoint_ns_ = now_ns;
-
-        bpt::common::log::info("Raw recording enabled for {} → {}",
-                               cfg_.exchange, spool_->current_path());
-    }
-}
-
-void AdapterBase::record_raw(std::string_view payload, uint64_t recv_ns) noexcept {
-    if (spool_)
-        spool_->write_frame(recv_ns, payload);
-}
-
-void AdapterBase::maybe_checkpoint() noexcept {
-    if (!spool_ || checkpoint_interval_ns_ == 0)
-        return;
-    const uint64_t now_ns = static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count());
-    if (now_ns - last_checkpoint_ns_ < checkpoint_interval_ns_)
-        return;
-    last_checkpoint_ns_ = now_ns;
-    const std::string payload = fmt::format(
-        R"({{"frames":{},"bytes":{}}})",
-        spool_->frames_written(), spool_->bytes_written());
-    spool_->write_marker(now_ns, recorder::RecordType::CHECKPOINT, payload);
-    spool_->flush();  // checkpoint flush bounds replay-loss to ≤ checkpoint interval
 }
 
 void AdapterBase::subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth) {
@@ -171,18 +86,6 @@ void AdapterBase::stop() {
         thread_.join();
     if (pub_thread_.joinable())
         pub_thread_.join();
-
-    // IO thread is now joined — safe to write a final SESSION_STOP without
-    // racing the on_frame writer. Done here (not in destructor) because
-    // process exit may not run destructors under SIGKILL or std::abort.
-    if (spool_) {
-        const uint64_t now_ns = static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count());
-        const std::string payload = R"({"reason":"stop"})";
-        spool_->write_marker(now_ns, recorder::RecordType::SESSION_STOP, payload);
-        spool_->flush();
-    }
 }
 
 std::chrono::milliseconds AdapterBase::reconnect_delay() const {
@@ -233,27 +136,11 @@ void AdapterBase::run() {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 continue;
             }
-            if (spool_ && was_disconnected_) {
-                ++reconnect_count_;
-                spool_->write_marker(
-                    wall_now_ns(), recorder::RecordType::WS_RECONNECT,
-                    fmt::format(R"({{"attempt":{}}})", reconnect_count_));
-                spool_->flush();
-                was_disconnected_ = false;
-            }
             if (on_connect)
                 on_connect();
             read_loop(*ws);  // NOLINT(bugprone-unchecked-optional-access)
         } catch (const std::exception& e) {
             if (!stop_flag_.load(std::memory_order_relaxed)) {
-                if (spool_) {
-                    spool_->write_marker(
-                        wall_now_ns(), recorder::RecordType::WS_DISCONNECT,
-                        fmt::format(R"({{"reason":"{}","attempt":{}}})",
-                                    json_escape(e.what()), reconnect_count_ + 1));
-                    spool_->flush();
-                    was_disconnected_ = true;
-                }
                 if (on_disconnect)
                     on_disconnect();
                 bpt::common::log::error("{} error: {}, reconnecting in {}ms",

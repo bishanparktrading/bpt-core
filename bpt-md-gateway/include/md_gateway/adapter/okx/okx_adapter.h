@@ -20,8 +20,7 @@ namespace bpt::md_gateway::adapter {
 // hooks express the OKX-specific bits only.
 class OkxAdapter : public AdapterBase, private bpt::common::ws::RunLoop {
 public:
-    explicit OkxAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub,
-                        const config::RecordingConfig& recording = {});
+    explicit OkxAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub);
 
     [[nodiscard]] const char* exchange_name() const override { return "OKX"; }
     [[nodiscard]] bpt::common::util::LatencyHistogram& decode_latency_hist() noexcept override { return parser_.decode_lat_; }

@@ -9,6 +9,7 @@ cc_library(
     srcs = [
         "src/env.cpp",
         "src/logging.cpp",
+        "src/recorder/raw_spool.cpp",
         "src/secrets/secrets_client.cpp",
         "src/util/topology.cpp",
         "src/util/tsc_clock.cpp",

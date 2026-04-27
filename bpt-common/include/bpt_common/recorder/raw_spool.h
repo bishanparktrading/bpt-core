@@ -1,11 +1,12 @@
 #pragma once
 
 /// @file
-/// Raw WS-frame spool. Tees every frame received by an md-gateway venue
-/// adapter to disk in its native bytes — JSON for OKX/Binance/HL, FIX for
-/// Deribit if/when we add it. Replay through bpt-backtester's exchange
-/// simulators preserves bit-exact wire-level fidelity, surfacing parser
-/// bugs the same way the live trading path would.
+/// Raw frame spool. Append-only file writer used by the recording host
+/// (md-recorder) to capture venue payloads — WS frames from md-gateway
+/// adapters and REST response bodies from refdata adapters — in their
+/// native bytes. Replay through the backtester / converter goes through
+/// the same parser code as live, so any parser drift surfaces in test
+/// rather than production.
 ///
 /// File format (little-endian):
 ///
@@ -17,16 +18,16 @@
 ///   uint8_t payload[length];
 ///
 /// File layout: {root}/{venue_tag}/YYYY-MM-DD/{venue_tag}-HHMMSS.wslog
-/// Hourly rotation by default. One spool per adapter — no contention.
+/// Hourly rotation by default. One spool per writer thread — no contention.
 ///
-/// Thread model: callers (the adapter IO thread) call write_frame()
-/// directly; the spool buffers in userspace and flushes to fwrite on
-/// buffer-full or on flush(). NOT thread-safe — single writer per spool.
+/// Thread model: callers own the spool from a single thread (the IO thread
+/// that produces the bytes); the spool buffers in userspace and flushes to
+/// fwrite on buffer-full or on flush(). NOT thread-safe — single writer.
 ///
 /// Disk-on-hot-path note: write_frame() does an in-memory memcpy in the
 /// common case. Buffer-full or rotation triggers a synchronous fwrite,
-/// which under disk stall would backpressure the WS reader. For prod-grade
-/// recording, wrap with a writer-thread ring buffer (TODO).
+/// which under disk stall would backpressure the producer thread. For
+/// prod-grade recording, wrap with a writer-thread ring buffer (TODO).
 
 #include <atomic>
 #include <cstdint>
@@ -35,7 +36,7 @@
 #include <string_view>
 #include <vector>
 
-namespace bpt::md_gateway::recorder {
+namespace bpt::common::recorder {
 
 enum class RecordType : uint8_t {
     WS_FRAME      = 0,  // raw venue frame (JSON / FIX / etc.)
@@ -100,4 +101,4 @@ private:
     std::atomic<uint64_t> bytes_written_{0};
 };
 
-}  // namespace bpt::md_gateway::recorder
+}  // namespace bpt::common::recorder

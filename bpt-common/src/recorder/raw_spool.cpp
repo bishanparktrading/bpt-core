@@ -1,4 +1,4 @@
-#include "md_gateway/recorder/raw_spool.h"
+#include "bpt_common/recorder/raw_spool.h"
 
 #include <fmt/format.h>
 
@@ -7,7 +7,7 @@
 #include <ctime>
 #include <filesystem>
 
-namespace bpt::md_gateway::recorder {
+namespace bpt::common::recorder {
 
 namespace fs = std::filesystem;
 
@@ -169,4 +169,4 @@ void RawSpool::flush() {
             std::chrono::system_clock::now().time_since_epoch()).count());
 }
 
-}  // namespace bpt::md_gateway::recorder
+}  // namespace bpt::common::recorder

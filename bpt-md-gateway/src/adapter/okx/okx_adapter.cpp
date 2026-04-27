@@ -14,8 +14,8 @@ namespace beast = boost::beast;
 namespace websocket = beast::websocket;
 namespace net = boost::asio;
 
-OkxAdapter::OkxAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub, const config::RecordingConfig& recording)
-    : AdapterBase(cfg, std::move(md_pub), recording),
+OkxAdapter::OkxAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub)
+    : AdapterBase(cfg, std::move(md_pub)),
       parser_(subs_) {}
 
 std::unique_ptr<bpt::common::ws::AnyWsStream> OkxAdapter::connect_and_subscribe() {
@@ -84,7 +84,6 @@ void OkxAdapter::read_loop(bpt::common::ws::AnyWsStream& ws) {
 }
 
 void OkxAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
-    record_raw(payload, recv_ns);
     // OKX's app-level heartbeat is bidirectional: the exchange may send
     // "ping" expecting a "pong" reply, and we send "ping" via ping_config.
     // Don't push keepalive text frames onto the parser queue.
@@ -99,7 +98,6 @@ void OkxAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
 }
 
 void OkxAdapter::on_tick() {
-    maybe_checkpoint();
     // Fallback for subs added between connect and the first send below.
     // Normal path: OkxAdapter::subscribe() sends immediately via RunLoop::send
     // when connected, so this typically finds nothing pending.
