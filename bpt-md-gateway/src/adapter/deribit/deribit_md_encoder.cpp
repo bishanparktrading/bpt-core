@@ -8,9 +8,19 @@ std::string build_subscribe_rpc(uint64_t rpc_id, const std::string& symbol, uint
     const std::string book_channel =
         (depth == 0) ? fmt::format("quote.{}", symbol) : fmt::format("book.{}.100ms", symbol);
 
+    // ticker.{instrument}.100ms carries mark_price, index_price, current_funding
+    // (perps) / funding_8h, open_interest, and last_price all in one channel —
+    // everything the backtester needs for perp PnL marking + funding cashflow.
+    // For options, ticker also carries Greeks / IV; for futures, basis info.
+    // TODO: for full options-surface capture, switch to markprice.options.{currency}
+    // (currency-multiplexed) once we run an options strategy that needs it.
     return fmt::format(
-        R"({{"jsonrpc":"2.0","id":{},"method":"public/subscribe","params":{{"channels":["trades.{}.100ms","{}"]}}}})",
+        R"({{"jsonrpc":"2.0","id":{},"method":"public/subscribe","params":{{"channels":[)"
+        R"("trades.{}.100ms",)"
+        R"("ticker.{}.100ms",)"
+        R"("{}"]}}}})",
         rpc_id,
+        symbol,
         symbol,
         book_channel);
 }
