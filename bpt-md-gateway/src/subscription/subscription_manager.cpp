@@ -21,44 +21,15 @@ adapter::IAdapter* SubscriptionManager::find_adapter(const std::string& exchange
     return nullptr;
 }
 
-void SubscriptionManager::apply_batch(bpt::messages::MdSubscribeBatch& msg, messaging::IAckPublisher& ack_pub) {
+void SubscriptionManager::apply_requests(uint64_t correlation_id,
+                                         const std::vector<SubscribeRequest>& desired,
+                                         messaging::IAckPublisher& ack_pub) {
     using namespace bpt::messages;
-
-    uint64_t correlation_id = msg.correlationId();
-
-    // Collect the new desired set
-    struct Instrument {
-        uint64_t id;
-        std::string exchange;
-        std::string symbol;
-        uint8_t depth{0};
-    };
-    std::vector<Instrument> desired;
-
-    // The SBE exchange field is a fixed 8-char array, so long names like
-    // "HYPERLIQUID" arrive truncated to "HYPERLIQ". Restore the canonical
-    // full name to match the adapter registry. Remove once SBE schema is
-    // widened / migrated to ExchangeId enum.
-    auto canonicalize = [](std::string s) {
-        if (s == "HYPERLIQ") return std::string("HYPERLIQUID");
-        return s;
-    };
-
-    auto& g = msg.instruments();
-    while (g.hasNext()) {
-        g.next();
-        Instrument inst;
-        inst.id = g.instrumentId();
-        inst.exchange = canonicalize(g.getExchangeAsString());
-        inst.symbol = g.getSymbolAsString();
-        inst.depth = g.depth();
-        desired.push_back(std::move(inst));
-    }
 
     // Compute to_remove = active - desired
     std::unordered_set<uint64_t> desired_ids;
     for (const auto& d : desired)
-        desired_ids.insert(d.id);
+        desired_ids.insert(d.instrument_id);
 
     for (auto it = active_.begin(); it != active_.end();) {
         if (desired_ids.find(it->first) == desired_ids.end()) {
@@ -78,22 +49,47 @@ void SubscriptionManager::apply_batch(bpt::messages::MdSubscribeBatch& msg, mess
 
         if (!adapter) {
             bpt::common::log::warn("SubscriptionManager: no adapter for exchange {}", d.exchange);
-            ack_pub.publish_ack(correlation_id, d.id, d.exchange.c_str(), AckStatus::NOT_FOUND);
+            ack_pub.publish_ack(correlation_id, d.instrument_id, d.exchange.c_str(), AckStatus::NOT_FOUND);
             continue;
         }
 
-        if (active_.find(d.id) == active_.end()) {
-            adapter->subscribe(d.id, d.symbol, d.depth);
-            active_[d.id] = {d.id, d.exchange, d.symbol, d.depth};
+        if (active_.find(d.instrument_id) == active_.end()) {
+            adapter->subscribe(d.instrument_id, d.symbol, d.depth);
+            active_[d.instrument_id] = {d.instrument_id, d.exchange, d.symbol, d.depth};
             bpt::common::log::info("SubscriptionManager: subscribed {} ({}) on {} depth={}",
-                           d.id,
+                           d.instrument_id,
                            d.symbol,
                            d.exchange,
                            d.depth);
         }
 
-        ack_pub.publish_ack(correlation_id, d.id, d.exchange.c_str(), AckStatus::OK);
+        ack_pub.publish_ack(correlation_id, d.instrument_id, d.exchange.c_str(), AckStatus::OK);
     }
+}
+
+void SubscriptionManager::apply_batch(bpt::messages::MdSubscribeBatch& msg, messaging::IAckPublisher& ack_pub) {
+    // The SBE exchange field is a fixed 8-char array, so long names like
+    // "HYPERLIQUID" arrive truncated to "HYPERLIQ". Restore the canonical
+    // full name to match the adapter registry. Remove once SBE schema is
+    // widened / migrated to ExchangeId enum.
+    auto canonicalize = [](std::string s) {
+        if (s == "HYPERLIQ") return std::string("HYPERLIQUID");
+        return s;
+    };
+
+    std::vector<SubscribeRequest> desired;
+    auto& g = msg.instruments();
+    while (g.hasNext()) {
+        g.next();
+        SubscribeRequest req;
+        req.instrument_id = g.instrumentId();
+        req.exchange = canonicalize(g.getExchangeAsString());
+        req.symbol = g.getSymbolAsString();
+        req.depth = g.depth();
+        desired.push_back(std::move(req));
+    }
+
+    apply_requests(msg.correlationId(), desired, ack_pub);
 }
 
 void SubscriptionManager::publish_subscription_heartbeats(messaging::IAckPublisher& ack_pub) {

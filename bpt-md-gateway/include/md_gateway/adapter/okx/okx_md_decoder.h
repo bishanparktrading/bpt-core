@@ -24,9 +24,9 @@ namespace bpt::md_gateway::adapter {
 // Uses simdjson on-demand API with pre-allocated padded buffer (IExchangeDecoder base)
 // for zero-allocation hot-path JSON parsing.  Decode latency (JSON parse + field
 // extraction + Aeron offer) is recorded into decode_lat_ for Prometheus export.
-class OkxDecoder : public IExchangeDecoder {
+class OkxMdDecoder : public IExchangeDecoder {
 public:
-    explicit OkxDecoder(const SubscriptionMap& subs) : subs_(subs) {}
+    explicit OkxMdDecoder(const SubscriptionMap& subs) : subs_(subs) {}
 
     void parse(std::string_view payload,
                uint64_t recv_ns,

@@ -1,8 +1,8 @@
-// Component tests for DeribitDecoder.
+// Component tests for DeribitMdDecoder.
 
 #include "fake_md_publisher.h"
 #include "md_gateway/adapter/common/subscription_map.h"
-#include "md_gateway/adapter/deribit/deribit_decoder.h"
+#include "md_gateway/adapter/deribit/deribit_md_decoder.h"
 
 #include <gtest/gtest.h>
 
@@ -11,7 +11,7 @@ namespace {
 
 struct DeribitParserFixture {
     SubscriptionMap subs;
-    DeribitDecoder parser{subs};
+    DeribitMdDecoder parser{subs};
     test::FakeMdPublisher pub;
     messaging::FundingRateCallback fr_cb;
 

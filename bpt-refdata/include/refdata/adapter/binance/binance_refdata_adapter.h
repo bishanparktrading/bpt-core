@@ -1,6 +1,6 @@
 #pragma once
 
-#include "refdata/adapter/binance/binance_decoder.h"
+#include "refdata/adapter/binance/binance_refdata_decoder.h"
 #include "refdata/adapter/common/i_exchange_refdata_adapter.h"
 #include "refdata/adapter/credentials.h"
 #include "refdata/config/settings.h"
@@ -52,7 +52,7 @@ private:
 
     std::shared_ptr<http::RestClient> spot_client_;
     std::shared_ptr<http::RestClient> fapi_client_;
-    BinanceDecoder decoder_;
+    BinanceRefdataDecoder decoder_;
 };
 
 }  // namespace bpt::refdata::adapter

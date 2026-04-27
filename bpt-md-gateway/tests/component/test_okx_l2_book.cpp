@@ -4,7 +4,7 @@
 
 #include "fake_md_publisher.h"
 #include "md_gateway/adapter/common/subscription_map.h"
-#include "md_gateway/adapter/okx/okx_decoder.h"
+#include "md_gateway/adapter/okx/okx_md_decoder.h"
 
 #include <gtest/gtest.h>
 
@@ -13,7 +13,7 @@ namespace {
 
 struct OkxL2Fixture {
     SubscriptionMap subs;
-    OkxDecoder parser{subs};
+    OkxMdDecoder parser{subs};
     test::FakeMdPublisher pub;
     messaging::FundingRateCallback fr_cb;
 

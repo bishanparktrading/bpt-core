@@ -2,7 +2,7 @@
 
 #include "refdata/adapter/common/i_exchange_refdata_adapter.h"
 #include "refdata/adapter/credentials.h"
-#include "refdata/adapter/hyperliquid/hyperliquid_decoder.h"
+#include "refdata/adapter/hyperliquid/hyperliquid_refdata_decoder.h"
 #include "refdata/config/settings.h"
 #include "refdata/http/rest_client.h"
 #include "refdata/mapping/instrument_mapping_loader.h"
@@ -51,7 +51,7 @@ private:
     std::string wallet_address_;
 
     std::shared_ptr<http::RestClient> client_;
-    HyperliquidDecoder decoder_;
+    HyperliquidRefdataDecoder decoder_;
 };
 
 }  // namespace bpt::refdata::adapter

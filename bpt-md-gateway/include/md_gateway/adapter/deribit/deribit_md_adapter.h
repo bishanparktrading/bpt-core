@@ -1,7 +1,7 @@
 #pragma once
 
 #include "md_gateway/adapter/common/adapter_base.h"
-#include "md_gateway/adapter/deribit/deribit_decoder.h"
+#include "md_gateway/adapter/deribit/deribit_md_decoder.h"
 
 #include <atomic>
 #include <cstdint>
@@ -46,7 +46,7 @@ protected:
     void on_tick() override;
 
 private:
-    DeribitDecoder decoder_;
+    DeribitMdDecoder decoder_;
     std::atomic<uint64_t> rpc_id_{1};
     std::atomic<bool> rl_connected_{false};
 

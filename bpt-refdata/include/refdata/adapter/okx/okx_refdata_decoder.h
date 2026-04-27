@@ -12,9 +12,9 @@ namespace bpt::refdata::adapter {
 
 // Pure JSON parser for OKX REST refdata responses.
 // No network I/O, no side effects — suitable for unit testing with fixture data.
-class OKXDecoder {
+class OKXRefdataDecoder {
 public:
-    explicit OKXDecoder(std::shared_ptr<mapping::InstrumentMappingLoader> mapping);
+    explicit OKXRefdataDecoder(std::shared_ptr<mapping::InstrumentMappingLoader> mapping);
 
     // GET /api/v5/public/instruments?instType=SPOT|SWAP|FUTURES
     std::vector<refdata::Instrument> parse_instruments(const std::string& body,

@@ -7,17 +7,15 @@
 
 namespace bpt::md_gateway::adapter {
 
-// Parses Binance combined-stream WebSocket frames.
+// Parses Hyperliquid WebSocket frames.
 //
-// Handled message types:
-//   <sym>@bookTicker  → publish_bbo
-//   <sym>@aggTrade    → publish_trade
-//
-// Funding rates arrive on a separate BinanceMdAdapter thread
-// (fstream.binance.com) and are not handled here.
-class BinanceDecoder : public IExchangeDecoder {
+// Handled channels:
+//   l2Book          → publish_bbo (top of book only)
+//   trades          → publish_trade (one publish per trade in the array)
+//   activeAssetCtx  → on_funding_rate callback (no nextFundingTime from HL)
+class HyperliquidMdDecoder : public IExchangeDecoder {
 public:
-    explicit BinanceDecoder(const SubscriptionMap& subs) : subs_(subs) {}
+    explicit HyperliquidMdDecoder(const SubscriptionMap& subs) : subs_(subs) {}
 
     void parse(std::string_view payload,
                uint64_t recv_ns,

@@ -1,4 +1,4 @@
-#include "refdata/adapter/binance/binance_decoder.h"
+#include "refdata/adapter/binance/binance_refdata_decoder.h"
 #include "refdata/mapping/instrument_mapping_loader.h"
 #include "refdata/refdata/types.h"
 
@@ -83,8 +83,8 @@ static const char* kSpotExchangeInfo = R"({
   ]
 })";
 
-TEST(BinanceDecoder, SpotParsesKnownInstruments) {
-    BinanceDecoder parser(make_mapping());
+TEST(BinanceRefdataDecoder, SpotParsesKnownInstruments) {
+    BinanceRefdataDecoder parser(make_mapping());
     auto result = parser.parse_spot_exchange_info(kSpotExchangeInfo, 12345u);
 
     ASSERT_EQ(result.size(), 2u);  // XYZUSDT not in mapping; LTCUSDT not TRADING
@@ -108,22 +108,22 @@ TEST(BinanceDecoder, SpotParsesKnownInstruments) {
     EXPECT_DOUBLE_EQ(eth.lot_size, 0.0001);
 }
 
-TEST(BinanceDecoder, SpotSkipsUnknownMappingSymbol) {
-    BinanceDecoder parser(make_mapping());
+TEST(BinanceRefdataDecoder, SpotSkipsUnknownMappingSymbol) {
+    BinanceRefdataDecoder parser(make_mapping());
     auto result = parser.parse_spot_exchange_info(kSpotExchangeInfo, 0u);
     for (const auto& inst : result)
         EXPECT_NE(inst.venue_symbol, "XYZUSDT");
 }
 
-TEST(BinanceDecoder, SpotSkipsNonTradingStatus) {
-    BinanceDecoder parser(make_mapping());
+TEST(BinanceRefdataDecoder, SpotSkipsNonTradingStatus) {
+    BinanceRefdataDecoder parser(make_mapping());
     auto result = parser.parse_spot_exchange_info(kSpotExchangeInfo, 0u);
     for (const auto& inst : result)
         EXPECT_NE(inst.venue_symbol, "LTCUSDT");
 }
 
-TEST(BinanceDecoder, SpotEmptySymbolsReturnsEmpty) {
-    BinanceDecoder parser(make_mapping());
+TEST(BinanceRefdataDecoder, SpotEmptySymbolsReturnsEmpty) {
+    BinanceRefdataDecoder parser(make_mapping());
     auto result = parser.parse_spot_exchange_info(R"({"symbols":[]})", 0u);
     EXPECT_TRUE(result.empty());
 }
@@ -171,8 +171,8 @@ static const char* kFuturesExchangeInfo = R"({
   ]
 })";
 
-TEST(BinanceDecoder, FuturesParsesPerp) {
-    BinanceDecoder parser(make_mapping());
+TEST(BinanceRefdataDecoder, FuturesParsesPerp) {
+    BinanceRefdataDecoder parser(make_mapping());
     auto result = parser.parse_futures_exchange_info(kFuturesExchangeInfo, 99u);
 
     // XYZUSDT not in mapping; BTCUSDT_SETTLED not TRADING/DELIVERING → 2 results
@@ -187,9 +187,9 @@ TEST(BinanceDecoder, FuturesParsesPerp) {
     EXPECT_EQ(btc.inst_uid, make_inst_uid(1001, EXCHANGE_ID_BINANCE));
 }
 
-TEST(BinanceDecoder, FuturesDeliveryDateConvertedToNs) {
+TEST(BinanceRefdataDecoder, FuturesDeliveryDateConvertedToNs) {
     // deliveryDate in ms — should be stored as ns
-    BinanceDecoder parser(make_mapping());
+    BinanceRefdataDecoder parser(make_mapping());
     auto result = parser.parse_futures_exchange_info(kFuturesExchangeInfo, 0u);
     ASSERT_GE(result.size(), 1u);
 
@@ -198,8 +198,8 @@ TEST(BinanceDecoder, FuturesDeliveryDateConvertedToNs) {
     EXPECT_EQ(*result[0].expiry_timestamp, 4133404800000ULL * 1'000'000ULL);
 }
 
-TEST(BinanceDecoder, FuturesSkipsNonTradingStatus) {
-    BinanceDecoder parser(make_mapping());
+TEST(BinanceRefdataDecoder, FuturesSkipsNonTradingStatus) {
+    BinanceRefdataDecoder parser(make_mapping());
     auto result = parser.parse_futures_exchange_info(kFuturesExchangeInfo, 0u);
     for (const auto& inst : result)
         EXPECT_NE(inst.venue_symbol, "BTCUSDT_SETTLED");
@@ -215,8 +215,8 @@ static const char* kTradeFee = R"([
   {"symbol": "XYZUSDT", "makerCommission": "0.001",  "takerCommission": "0.001"}
 ])";
 
-TEST(BinanceDecoder, TradeFeeParsedAsBps) {
-    BinanceDecoder parser(make_mapping());
+TEST(BinanceRefdataDecoder, TradeFeeParsedAsBps) {
+    BinanceRefdataDecoder parser(make_mapping());
     auto result = parser.parse_trade_fee(kTradeFee, 777u);
 
     // XYZUSDT_SPOT not in mapping → skipped; 2 results
@@ -235,20 +235,20 @@ TEST(BinanceDecoder, TradeFeeParsedAsBps) {
     EXPECT_EQ(eth.taker_fee_bps, 10);
 }
 
-TEST(BinanceDecoder, TradeFeeSkipsUnknownMappingSymbol) {
-    BinanceDecoder parser(make_mapping());
+TEST(BinanceRefdataDecoder, TradeFeeSkipsUnknownMappingSymbol) {
+    BinanceRefdataDecoder parser(make_mapping());
     auto result = parser.parse_trade_fee(kTradeFee, 0u);
     EXPECT_EQ(result.size(), 2u);  // XYZUSDT skipped
 }
 
-TEST(BinanceDecoder, TradeFeeEmptyArrayReturnsEmpty) {
-    BinanceDecoder parser(make_mapping());
+TEST(BinanceRefdataDecoder, TradeFeeEmptyArrayReturnsEmpty) {
+    BinanceRefdataDecoder parser(make_mapping());
     auto result = parser.parse_trade_fee("[]", 0u);
     EXPECT_TRUE(result.empty());
 }
 
-TEST(BinanceDecoder, TradeFeeNonArrayReturnsEmpty) {
-    BinanceDecoder parser(make_mapping());
+TEST(BinanceRefdataDecoder, TradeFeeNonArrayReturnsEmpty) {
+    BinanceRefdataDecoder parser(make_mapping());
     auto result = parser.parse_trade_fee(R"({"error":"unauthorized"})", 0u);
     EXPECT_TRUE(result.empty());
 }

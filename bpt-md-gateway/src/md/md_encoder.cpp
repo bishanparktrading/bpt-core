@@ -1,43 +1,8 @@
 #include "md_gateway/md/md_encoder.h"
 
-// Use explicit SBE namespace aliases to avoid ambiguity with bpt::md_gateway::md types
-// that share names (MdTrade, MdOrderBook).
 namespace sbe = bpt::messages;
 
 namespace bpt::md_gateway::md {
-
-std::size_t MdEncoder::encode(const MdBbo& bbo, uint64_t seq_num, char* buf, std::size_t capacity) noexcept {
-    if (capacity < kBboBufSize)
-        return 0;
-
-    sbe::MdMarketData msg;
-    msg.wrapAndApplyHeader(buf, 0, capacity)
-        .timestampNs(bbo.timestamp_ns)
-        .instrumentId(bbo.instrument_id)
-        .bidPrice(bbo.bid_price)
-        .bidQty(bbo.bid_qty)
-        .askPrice(bbo.ask_price)
-        .askQty(bbo.ask_qty)
-        .seqNum(seq_num);
-
-    return kBboBufSize;
-}
-
-std::size_t MdEncoder::encode(const MdTrade& trade, uint64_t seq_num, char* buf, std::size_t capacity) noexcept {
-    if (capacity < kTradeBufSize)
-        return 0;
-
-    sbe::MdTrade msg;
-    msg.wrapAndApplyHeader(buf, 0, capacity)
-        .timestampNs(trade.timestamp_ns)
-        .instrumentId(trade.instrument_id)
-        .price(trade.price)
-        .qty(trade.qty)
-        .side(trade.side)
-        .seqNum(seq_num);
-
-    return kTradeBufSize;
-}
 
 std::size_t MdEncoder::encode(const MdOrderBook& book, uint64_t seq_num, char* buf, std::size_t capacity) noexcept {
     auto n_bids = static_cast<uint16_t>(book.bids.size());

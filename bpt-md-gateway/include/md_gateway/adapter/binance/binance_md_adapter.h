@@ -1,7 +1,7 @@
 #pragma once
 
 #include "md_gateway/adapter/binance/binance_funding_rate_stream.h"
-#include "md_gateway/adapter/binance/binance_decoder.h"
+#include "md_gateway/adapter/binance/binance_md_decoder.h"
 #include "md_gateway/adapter/common/adapter_base.h"
 
 #include <atomic>
@@ -45,7 +45,7 @@ protected:
     void on_frame(std::string_view payload, uint64_t recv_ns) override;
 
 private:
-    BinanceDecoder decoder_;
+    BinanceMdDecoder decoder_;
     std::atomic<bool> rl_connected_{false};
     BinanceFundingRateStream fr_stream_;
 };

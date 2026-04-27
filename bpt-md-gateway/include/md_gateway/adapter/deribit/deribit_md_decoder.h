@@ -23,9 +23,9 @@ namespace bpt::md_gateway::adapter {
 // test_request_pending is set from parse() and consumed by the adapter read
 // loop via take_test_request(). Both are called sequentially on the IO thread
 // so no locking is needed.
-class DeribitDecoder : public IExchangeDecoder {
+class DeribitMdDecoder : public IExchangeDecoder {
 public:
-    explicit DeribitDecoder(SubscriptionMap& subs) : subs_(subs) {}
+    explicit DeribitMdDecoder(SubscriptionMap& subs) : subs_(subs) {}
 
     void parse(std::string_view payload,
                uint64_t recv_ns,

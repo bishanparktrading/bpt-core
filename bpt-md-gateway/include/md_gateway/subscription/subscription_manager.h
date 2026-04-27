@@ -24,8 +24,25 @@ namespace bpt::md_gateway::subscription {
 // per instrument in the new batch.
 class SubscriptionManager {
 public:
+    // One requested subscription — produced either by decoding an incoming
+    // MdSubscribeBatch or by a standalone config loader.
+    struct SubscribeRequest {
+        uint64_t instrument_id;
+        std::string exchange;
+        std::string symbol;
+        uint8_t depth{0};
+    };
+
     // Register an adapter.  Multiple adapters may serve different exchanges.
     void add_adapter(std::shared_ptr<adapter::IAdapter> adapter);
+
+    // Apply a full-replace desired subscription set: diff against active_,
+    // unsubscribe what dropped out, subscribe what's new, ack everything
+    // still desired. Used by both apply_batch (SBE control stream) and the
+    // standalone startup path.
+    void apply_requests(uint64_t correlation_id,
+                        const std::vector<SubscribeRequest>& desired,
+                        messaging::IAckPublisher& ack_pub);
 
     // Process a full-replace subscription batch.
     // Sends acks via ack_pub for every instrument in the batch.

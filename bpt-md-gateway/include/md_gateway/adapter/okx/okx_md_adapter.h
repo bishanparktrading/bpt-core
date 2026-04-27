@@ -1,7 +1,7 @@
 #pragma once
 
 #include "md_gateway/adapter/common/adapter_base.h"
-#include "md_gateway/adapter/okx/okx_decoder.h"
+#include "md_gateway/adapter/okx/okx_md_decoder.h"
 
 #include <atomic>
 #include <bpt_common/ws/run_loop.h>
@@ -41,7 +41,7 @@ protected:
     std::optional<bpt::common::ws::PingConfig> ping_config() const override;
 
 private:
-    OkxDecoder decoder_;
+    OkxMdDecoder decoder_;
 
     // RunLoop::run signature needs a 'connected' atomic; AdapterBase
     // already tracks connection state via on_connect/on_disconnect

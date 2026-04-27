@@ -13,21 +13,15 @@
 
 namespace bpt::md_gateway::messaging {
 
-// Publishes normalised market-data structs on the MdGateway→Strategy data stream
-// (stream 2002).
-//
-// Encoding is delegated to MdEncoder (struct → SBE bytes into a stack buffer).
-// Only the Aeron offer() call lives here, keeping transport fully decoupled
-// from the SBE schema.
-//
-// Stack buffers are intentionally NOT zero-initialised: MdEncoder writes every
-// byte it uses and offer() reads only `len` bytes, so zeroing is wasted work.
-// A pre-allocated member buffer would be a data race — multiple adapter
-// publisher threads share this instance.
-//
-// Thread-safe: multiple adapter threads may call publish() concurrently.
-// aeron::Publication::offer() uses an internal CAS; seq_ is incremented via
-// fetch_add (relaxed — each message carries its own sequence number).
+/// Publishes normalised market-data structs on stream 2002 (MdGateway→Strategy).
+///
+/// BBO and Trade use the zero-copy publish<T> path — SBE encodes directly into
+/// the Aeron log buffer via tryClaim. OrderBook stays on offer() because its
+/// payload is variable-length (up to kMaxLevels per side).
+///
+/// Thread-safe: multiple adapter threads may call publish() concurrently.
+/// Publisher's internal mutex serialises tryClaim/offer; seq_ uses relaxed
+/// fetch_add — each message carries its own sequence number.
 class MdPublisher : public IMdPublisher {
 public:
     MdPublisher(std::shared_ptr<::aeron::Aeron> aeron, const std::string& channel, int stream_id);
@@ -40,7 +34,7 @@ public:
     [[nodiscard]] uint64_t drop_count() const { return drops_.load(std::memory_order_relaxed); }
 
 private:
-    void offer(const char* buf, std::size_t len, uint64_t instrument_id, const char* label);
+    void record_drop(uint64_t instrument_id, const char* label);
 
     bpt::common::aeron::Publisher publisher_;
     std::atomic<uint64_t> seq_{0};

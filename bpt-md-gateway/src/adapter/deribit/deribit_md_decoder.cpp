@@ -1,4 +1,4 @@
-#include "md_gateway/adapter/deribit/deribit_decoder.h"
+#include "md_gateway/adapter/deribit/deribit_md_decoder.h"
 
 #include <messages/TradeSide.h>
 
@@ -7,22 +7,22 @@
 
 namespace bpt::md_gateway::adapter {
 
-void DeribitDecoder::reset() {
+void DeribitMdDecoder::reset() {
     last_change_id_.clear();
 }
 
-bool DeribitDecoder::take_test_request() noexcept {
+bool DeribitMdDecoder::take_test_request() noexcept {
     if (!test_request_pending_)
         return false;
     test_request_pending_ = false;
     return true;
 }
 
-void DeribitDecoder::forget(const std::string& symbol) {
+void DeribitMdDecoder::forget(const std::string& symbol) {
     last_change_id_.erase(symbol);
 }
 
-void DeribitDecoder::parse(std::string_view payload,
+void DeribitMdDecoder::parse(std::string_view payload,
                           uint64_t recv_ns,
                           messaging::IMdPublisher& pub,
                           messaging::FundingRateCallback& /*on_funding_rate*/) {
@@ -151,7 +151,7 @@ void DeribitDecoder::parse(std::string_view payload,
                 std::string sym_key(symbol);
                 auto lcid_it = last_change_id_.find(sym_key);
                 if (lcid_it != last_change_id_.end() && lcid_it->second != prev_change_id) {
-                    bpt::common::log::warn("DeribitDecoder: book gap for {} (expected={} got={}), resubscribing",
+                    bpt::common::log::warn("DeribitMdDecoder: book gap for {} (expected={} got={}), resubscribing",
                                    sym_key,
                                    lcid_it->second,
                                    prev_change_id);

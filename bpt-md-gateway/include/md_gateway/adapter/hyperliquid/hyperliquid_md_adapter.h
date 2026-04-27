@@ -1,7 +1,7 @@
 #pragma once
 
 #include "md_gateway/adapter/common/adapter_base.h"
-#include "md_gateway/adapter/hyperliquid/hyperliquid_decoder.h"
+#include "md_gateway/adapter/hyperliquid/hyperliquid_md_decoder.h"
 
 #include <atomic>
 #include <bpt_common/ws/run_loop.h>
@@ -39,7 +39,7 @@ protected:
     std::optional<bpt::common::ws::PingConfig> ping_config() const override;
 
 private:
-    HyperliquidDecoder decoder_;
+    HyperliquidMdDecoder decoder_;
     std::atomic<bool> rl_connected_{false};
 };
 

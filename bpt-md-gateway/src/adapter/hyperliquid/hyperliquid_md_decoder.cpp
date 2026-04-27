@@ -1,4 +1,4 @@
-#include "md_gateway/adapter/hyperliquid/hyperliquid_decoder.h"
+#include "md_gateway/adapter/hyperliquid/hyperliquid_md_decoder.h"
 
 #include <messages/ExchangeId.h>
 #include <messages/TradeSide.h>
@@ -10,7 +10,7 @@
 
 namespace bpt::md_gateway::adapter {
 
-void HyperliquidDecoder::parse(std::string_view payload,
+void HyperliquidMdDecoder::parse(std::string_view payload,
                               uint64_t recv_ns,
                               messaging::IMdPublisher& pub,
                               messaging::FundingRateCallback& on_funding_rate) {

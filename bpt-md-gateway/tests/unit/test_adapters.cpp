@@ -1,10 +1,10 @@
 // Smoke tests verifying the parser classes are reachable and produce correct
 // output for the most basic cases.  Full coverage lives in the component tests.
 
-#include "md_gateway/adapter/binance/binance_decoder.h"
+#include "md_gateway/adapter/binance/binance_md_decoder.h"
 #include "md_gateway/adapter/common/subscription_map.h"
-#include "md_gateway/adapter/hyperliquid/hyperliquid_decoder.h"
-#include "md_gateway/adapter/okx/okx_decoder.h"
+#include "md_gateway/adapter/hyperliquid/hyperliquid_md_decoder.h"
+#include "md_gateway/adapter/okx/okx_md_decoder.h"
 #include "md_gateway/md/md_types.h"
 #include "md_gateway/messaging/i_md_publisher.h"
 
@@ -32,7 +32,7 @@ struct CapturePub : messaging::IMdPublisher {
 TEST(AdapterSmokeTest, BinanceBookTicker) {
     adapter::SubscriptionMap subs;
     subs.subscribe(100, "btcusdt");
-    adapter::BinanceDecoder parser(subs);
+    adapter::BinanceMdDecoder parser(subs);
     CapturePub pub;
     messaging::FundingRateCallback fr;
 
@@ -52,7 +52,7 @@ TEST(AdapterSmokeTest, BinanceBookTicker) {
 TEST(AdapterSmokeTest, OkxBooks5) {
     adapter::SubscriptionMap subs;
     subs.subscribe(200, "BTC-USDT-SWAP", 5);
-    adapter::OkxDecoder parser(subs);
+    adapter::OkxMdDecoder parser(subs);
     CapturePub pub;
     messaging::FundingRateCallback fr;
 
@@ -72,7 +72,7 @@ TEST(AdapterSmokeTest, OkxBooks5) {
 TEST(AdapterSmokeTest, HyperliquidL2Book) {
     adapter::SubscriptionMap subs;
     subs.subscribe(300, "BTC");
-    adapter::HyperliquidDecoder parser(subs);
+    adapter::HyperliquidMdDecoder parser(subs);
     CapturePub pub;
     messaging::FundingRateCallback fr;
 

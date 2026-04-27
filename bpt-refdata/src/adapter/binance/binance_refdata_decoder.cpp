@@ -1,4 +1,4 @@
-#include "refdata/adapter/binance/binance_decoder.h"
+#include "refdata/adapter/binance/binance_refdata_decoder.h"
 
 #include "refdata/refdata/types.h"
 
@@ -49,10 +49,10 @@ void parse_filters(const json& filters, double& tick_size, double& lot_size, dou
 
 }  // namespace
 
-BinanceDecoder::BinanceDecoder(std::shared_ptr<mapping::InstrumentMappingLoader> mapping)
+BinanceRefdataDecoder::BinanceRefdataDecoder(std::shared_ptr<mapping::InstrumentMappingLoader> mapping)
     : mapping_(std::move(mapping)) {}
 
-std::vector<refdata::Instrument> BinanceDecoder::parse_spot_exchange_info(const std::string& body,
+std::vector<refdata::Instrument> BinanceRefdataDecoder::parse_spot_exchange_info(const std::string& body,
                                                                          uint64_t collected_ts) const {
     auto j = json::parse(body);
     std::vector<refdata::Instrument> result;
@@ -87,11 +87,11 @@ std::vector<refdata::Instrument> BinanceDecoder::parse_spot_exchange_info(const 
         result.push_back(std::move(inst));
     }
 
-    bpt::common::log::info("[BinanceDecoder] Parsed {} spot instruments from exchangeInfo", result.size());
+    bpt::common::log::info("[BinanceRefdataDecoder] Parsed {} spot instruments from exchangeInfo", result.size());
     return result;
 }
 
-std::vector<refdata::Instrument> BinanceDecoder::parse_futures_exchange_info(const std::string& body,
+std::vector<refdata::Instrument> BinanceRefdataDecoder::parse_futures_exchange_info(const std::string& body,
                                                                             uint64_t collected_ts) const {
     auto j = json::parse(body);
     std::vector<refdata::Instrument> result;
@@ -131,11 +131,11 @@ std::vector<refdata::Instrument> BinanceDecoder::parse_futures_exchange_info(con
         result.push_back(std::move(inst));
     }
 
-    bpt::common::log::info("[BinanceDecoder] Parsed {} futures/perp instruments from fapi exchangeInfo", result.size());
+    bpt::common::log::info("[BinanceRefdataDecoder] Parsed {} futures/perp instruments from fapi exchangeInfo", result.size());
     return result;
 }
 
-std::vector<refdata::FeeScheduleState> BinanceDecoder::parse_trade_fee(const std::string& body,
+std::vector<refdata::FeeScheduleState> BinanceRefdataDecoder::parse_trade_fee(const std::string& body,
                                                                       uint64_t collected_ts) const {
     auto j = json::parse(body);
     std::vector<refdata::FeeScheduleState> result;

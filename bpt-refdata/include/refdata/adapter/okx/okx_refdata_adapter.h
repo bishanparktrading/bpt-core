@@ -2,7 +2,7 @@
 
 #include "refdata/adapter/common/i_exchange_refdata_adapter.h"
 #include "refdata/adapter/credentials.h"
-#include "refdata/adapter/okx/okx_decoder.h"
+#include "refdata/adapter/okx/okx_refdata_decoder.h"
 #include "refdata/config/settings.h"
 #include "refdata/http/rest_client.h"
 #include "refdata/mapping/instrument_mapping_loader.h"
@@ -52,7 +52,7 @@ private:
     std::string passphrase_;
 
     std::shared_ptr<http::RestClient> client_;
-    OKXDecoder decoder_;
+    OKXRefdataDecoder decoder_;
 };
 
 }  // namespace bpt::refdata::adapter

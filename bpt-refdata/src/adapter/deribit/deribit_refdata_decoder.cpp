@@ -1,4 +1,4 @@
-#include "refdata/adapter/deribit/deribit_decoder.h"
+#include "refdata/adapter/deribit/deribit_refdata_decoder.h"
 
 #include "refdata/refdata/types.h"
 

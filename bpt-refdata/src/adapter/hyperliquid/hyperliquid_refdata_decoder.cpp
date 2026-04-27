@@ -1,4 +1,4 @@
-#include "refdata/adapter/hyperliquid/hyperliquid_decoder.h"
+#include "refdata/adapter/hyperliquid/hyperliquid_refdata_decoder.h"
 
 #include <messages/ExchangeId.h>
 #include <messages/InstrumentType.h>
@@ -11,10 +11,10 @@ using json = nlohmann::json;
 
 namespace bpt::refdata::adapter {
 
-HyperliquidDecoder::HyperliquidDecoder(std::shared_ptr<mapping::InstrumentMappingLoader> mapping)
+HyperliquidRefdataDecoder::HyperliquidRefdataDecoder(std::shared_ptr<mapping::InstrumentMappingLoader> mapping)
     : mapping_(std::move(mapping)) {}
 
-std::vector<refdata::Instrument> HyperliquidDecoder::parse_meta(const std::string& body, uint64_t collected_ts) const {
+std::vector<refdata::Instrument> HyperliquidRefdataDecoder::parse_meta(const std::string& body, uint64_t collected_ts) const {
     auto j = json::parse(body);
     const auto& universe = j.value("universe", json::array());
 
@@ -55,16 +55,16 @@ std::vector<refdata::Instrument> HyperliquidDecoder::parse_meta(const std::strin
         result.push_back(std::move(inst));
     }
 
-    bpt::common::log::info("[HyperliquidDecoder] Parsed {} perpetual instruments from /info meta", result.size());
+    bpt::common::log::info("[HyperliquidRefdataDecoder] Parsed {} perpetual instruments from /info meta", result.size());
     return result;
 }
 
-std::vector<refdata::FeeScheduleState> HyperliquidDecoder::parse_user_fees(const std::string& body,
+std::vector<refdata::FeeScheduleState> HyperliquidRefdataDecoder::parse_user_fees(const std::string& body,
                                                                           uint64_t collected_ts) const {
     auto j = json::parse(body);
     const auto& sched = j.value("feeSchedule", json{});
     if (sched.is_null() || !sched.is_object()) {
-        bpt::common::log::warn("[HyperliquidDecoder] userFees response missing feeSchedule");
+        bpt::common::log::warn("[HyperliquidRefdataDecoder] userFees response missing feeSchedule");
         return {};
     }
 

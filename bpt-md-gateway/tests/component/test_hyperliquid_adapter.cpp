@@ -1,8 +1,8 @@
-// Component tests for HyperliquidDecoder.
+// Component tests for HyperliquidMdDecoder.
 
 #include "fake_md_publisher.h"
 #include "md_gateway/adapter/common/subscription_map.h"
-#include "md_gateway/adapter/hyperliquid/hyperliquid_decoder.h"
+#include "md_gateway/adapter/hyperliquid/hyperliquid_md_decoder.h"
 
 #include <gtest/gtest.h>
 
@@ -11,7 +11,7 @@ namespace {
 
 struct HyperliquidParserFixture {
     SubscriptionMap subs;
-    HyperliquidDecoder parser{subs};
+    HyperliquidMdDecoder parser{subs};
     test::FakeMdPublisher pub;
     messaging::FundingRateCallback fr_cb;
 

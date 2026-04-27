@@ -12,9 +12,9 @@ namespace bpt::refdata::adapter {
 
 // Pure JSON parser for Binance REST refdata responses.
 // No network I/O, no side effects — suitable for unit testing with fixture data.
-class BinanceDecoder {
+class BinanceRefdataDecoder {
 public:
-    explicit BinanceDecoder(std::shared_ptr<mapping::InstrumentMappingLoader> mapping);
+    explicit BinanceRefdataDecoder(std::shared_ptr<mapping::InstrumentMappingLoader> mapping);
 
     // GET /api/v3/exchangeInfo
     std::vector<refdata::Instrument> parse_spot_exchange_info(const std::string& body, uint64_t collected_ts) const;
