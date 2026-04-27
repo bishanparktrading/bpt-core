@@ -1,5 +1,8 @@
 #pragma once
 
+/// \file
+/// \brief Binance order adapter — REST place + user-data WS for execs.
+
 #include "order_gateway/adapter/binance/binance_exec_decoder.h"
 #include "order_gateway/adapter/binance/binance_https_client.h"
 #include "order_gateway/adapter/binance/binance_user_data_ws.h"
@@ -10,20 +13,21 @@
 
 namespace bpt::order_gateway::adapter {
 
-// BinanceOrderAdapter places orders via REST (POST /api/v3/order) and
-// subscribes to the user-data WebSocket (via listenKey) for exec
-// reports. Transport is split across four components:
-//
-//   - binance_https_client  — TLS REST client
-//   - binance_auth          — query-string HMAC-SHA256 signer
-//   - binance_action_encoder — pure query-param builders
-//   - binance_user_data_ws  — listenKey lifecycle + read loop
-//
-// The adapter itself is pure orchestration: ctor wiring, send_*
-// methods that compose codec + auth + https_client, and a user-data
-// dispatch callback into BinanceExecDecoder.
-//
-// Credentials are passed directly via ExchangeCredentials (api_key, secret_key).
+/// \brief Order adapter for Binance Spot.
+///
+/// Places orders via REST (POST /api/v3/order) and subscribes to the
+/// user-data WebSocket (via listenKey) for exec reports. Transport is
+/// split across four components:
+///   - binance_https_client   — TLS REST client
+///   - binance_auth           — query-string HMAC-SHA256 signer
+///   - binance_action_encoder — pure query-param builders
+///   - binance_user_data_ws   — listenKey lifecycle + read loop
+///
+/// The adapter itself is pure orchestration: ctor wiring, send_* methods
+/// that compose action_encoder + auth + https_client, and a user-data
+/// dispatch callback into BinanceExecDecoder.
+///
+/// Credentials are passed via ExchangeCredentials (api_key, secret_key).
 class BinanceOrderAdapter : public OrderAdapterBase {
 public:
     BinanceOrderAdapter(const config::AdapterConfig& cfg, const ExchangeCredentials& creds);

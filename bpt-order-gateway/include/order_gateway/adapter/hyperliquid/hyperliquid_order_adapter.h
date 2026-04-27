@@ -1,5 +1,8 @@
 #pragma once
 
+/// \file
+/// \brief Hyperliquid order adapter — signed REST + WS exec stream + reconciler.
+
 #include "order_gateway/adapter/common/credentials.h"
 #include "order_gateway/adapter/common/order_adapter_base.h"
 #include "order_gateway/adapter/hyperliquid/hyperliquid_action_encoder.h"
@@ -16,22 +19,17 @@
 
 namespace bpt::order_gateway::adapter {
 
-// HyperliquidOrderAdapter sends orders to the Hyperliquid L1 via signed REST
-// calls. Fill events are received from the Hyperliquid WebSocket
-// (wss://api.hyperliquid.xyz/ws).
-//
-// Private key is passed via ExchangeCredentials.private_key (64-char hex).
-// If the key is empty, the adapter starts in disabled mode — connect_and_run()
-// spins on stop_flag_ rather than attempting a connection.
-// Account abstraction modes returned by HL's `userAbstraction` info endpoint.
-// Determines how spot and perp balances interact:
-//   - kUnifiedAccount, kPortfolioMargin: spot USDC auto-collateralizes perp.
-//     spotClearinghouseState is the source of truth for total trading capacity.
-//   - kDisabled (a.k.a. "standard"): spot/perp are strictly segregated.
-//     clearinghouseState (perp-only) IS the trading capacity.
-//   - kDefault, kDexAbstraction: HL-internal modes; treated as kDisabled
-//     conservatively until we see one in practice.
-//   - kUnknown: query failed at startup; fall back to perp-only reporting.
+/// \brief Account-abstraction mode reported by HL's `userAbstraction` info endpoint.
+///
+/// Determines how spot and perp balances interact:
+///   - kUnifiedAccount / kPortfolioMargin: spot USDC auto-collateralizes
+///     perp; spotClearinghouseState is the source of truth for total
+///     trading capacity.
+///   - kDisabled ("standard"): spot/perp strictly segregated;
+///     clearinghouseState (perp-only) IS the trading capacity.
+///   - kDefault / kDexAbstraction: HL-internal modes; treated as
+///     kDisabled conservatively until we see one in practice.
+///   - kUnknown: startup query failed; fall back to perp-only reporting.
 enum class HyperliquidAccountMode {
     kUnknown,
     kDisabled,
@@ -41,6 +39,17 @@ enum class HyperliquidAccountMode {
     kDexAbstraction,
 };
 
+/// \brief Order adapter for Hyperliquid L1.
+///
+/// Sends orders via signed REST (HL's POST /exchange path) and receives
+/// fills from the public WS (wss://api.hyperliquid.xyz/ws userFills).
+/// Holds 6 collaborators — signer, ws_client, https_client, decoder,
+/// exec_emitter, reconciler — because HL's protocol is unusually stateful
+/// (EIP-712 signing + cloid/oid mapping + phantom-fill recovery).
+///
+/// Private key is passed via ExchangeCredentials.private_key (64-char hex).
+/// Empty key → adapter starts in disabled mode; connect_and_run() spins
+/// on stop_flag_ rather than attempting any connection.
 class HyperliquidOrderAdapter : public OrderAdapterBase {
 public:
     HyperliquidOrderAdapter(const config::AdapterConfig& cfg, const ExchangeCredentials& creds);
@@ -62,12 +71,15 @@ protected:
     void connect_and_run() override;
 
 private:
-    // Reconciler terminal callback — resolves a post_action-failure
-    // candidate into ACKED/FILLED/REJECTED. See hyperliquid_reconciler.h.
+    /// \brief Reconciler terminal callback.
+    ///
+    /// Resolves a post_action-failure candidate into ACKED / FILLED /
+    /// REJECTED based on what the reconciler found by polling /info
+    /// openOrders + /info userFills. See hyperliquid_reconciler.h.
     void on_reconcile_terminal(const hyperliquid::HyperliquidReconciler::Candidate& c,
                                const hyperliquid::HyperliquidReconciler::MatchResult& r);
 
-    bool enabled_{false};  // false if private_key credential is empty
+    bool enabled_{false};  ///< false if private_key credential is empty
     std::string wallet_address_;
     HyperliquidAccountMode account_mode_{HyperliquidAccountMode::kUnknown};
     std::unique_ptr<HyperliquidSigner> signer_;
@@ -75,50 +87,53 @@ private:
     hyperliquid::HyperliquidExecEmitter exec_emitter_{exec_queue_};
     std::unique_ptr<hyperliquid::HyperliquidWsClient> ws_client_;
 
-    // client_order_id → HL exchange oid (from the "resting" response).
-    // HL's cancel-by-oid wants the EXCHANGE oid, not our client id, so
-    // send_cancel looks up the mapping here. Single-threaded access from
-    // the OrderProcessor thread (send_new_order/send_cancel never overlap).
+    /// client_order_id → HL exchange oid (from the "resting" response).
+    /// HL's cancel-by-oid wants the EXCHANGE oid, not our client id, so
+    /// send_cancel looks up the mapping here. Single-threaded access from
+    /// the OrderProcessor thread (send_new_order / send_cancel never overlap).
     std::unordered_map<uint64_t, uint64_t> client_to_exch_oid_;
 
-    // Reverse map: HL exchange oid → client_order_id. Needed because HL
-    // doesn't echo a cloid in userFills (we don't send one). When a fill
-    // arrives on the WS, the parser uses this lookup to resolve the fill
-    // back to the internal order_id. Without it every userFills entry is
-    // silently dropped. Populated whenever a new order is acked or fills
-    // on placement.
+    /// Reverse map: HL exchange oid → client_order_id. Needed because HL
+    /// doesn't echo a cloid in userFills (we don't send one). When a fill
+    /// arrives on the WS, the decoder uses this lookup to resolve the fill
+    /// back to the internal order_id. Without it every userFills entry is
+    /// silently dropped. Populated whenever a new order is acked or fills
+    /// on placement.
     std::unordered_map<uint64_t, uint64_t> exch_oid_to_client_;
 
-    // REST client for /info queries (clearinghouseState, meta) and as
-    // a fallback for signed actions the WS post path can't handle (modify).
+    /// REST client for /info queries (clearinghouseState, meta) and as
+    /// a fallback for signed actions the WS post path can't handle (modify).
     std::unique_ptr<hyperliquid::HyperliquidHttpsClient> https_client_;
 
-    // Asset metadata table — coin symbol → AssetMeta. Populated once at
-    // adapter construction from HL's /info meta endpoint. Empty entries
-    // (never-loaded or unknown symbol) cause send_new_order/cancel/modify
-    // to emit REJECTED with an UNKNOWN_SYMBOL-class reason rather than
-    // stamping the wire with `a: -1` and getting HL to reject at JSON
-    // parse (which is opaque). Superseded the prior BTC/ETH hardcoded
-    // table.
+    /// Asset metadata table — coin symbol → AssetMeta. Populated once at
+    /// adapter construction from HL's /info meta endpoint. Empty entries
+    /// (never-loaded or unknown symbol) cause send_new_order / cancel /
+    /// modify to emit REJECTED with an UNKNOWN_SYMBOL-class reason rather
+    /// than stamping the wire with `a: -1` and getting HL to reject at
+    /// JSON parse (which is opaque). Superseded the prior BTC/ETH
+    /// hardcoded table.
     hyperliquid::AssetTable asset_meta_;
 
-    // Fetch /info meta via https_client_ and populate asset_meta_.
-    // Non-fatal on failure — logs WARN and leaves asset_meta_ empty, so
-    // orders reject cleanly until a manual restart retries the fetch.
+    /// \brief Fetch /info meta via https_client_ and populate asset_meta_.
+    ///
+    /// Non-fatal on failure — logs WARN and leaves asset_meta_ empty, so
+    /// orders reject cleanly until a manual restart retries the fetch.
     void load_asset_meta();
 
-    // Phantom-fill recovery. When post_action times out or the WS drops
-    // mid-flight, the adapter pushes the candidate here instead of
-    // emitting REJECTED. The reconciler's worker thread waits a grace
-    // period, then polls /info openOrders + /info userFills to find out
-    // whether HL actually accepted the action. See hyperliquid_reconciler.h.
+    /// \brief Phantom-fill recovery state machine.
+    ///
+    /// When post_action times out or the WS drops mid-flight, the adapter
+    /// pushes the candidate here instead of emitting REJECTED. The
+    /// reconciler's worker thread waits a grace period, then polls /info
+    /// openOrders + /info userFills to determine whether HL actually
+    /// accepted the action. See hyperliquid_reconciler.h.
     std::unique_ptr<hyperliquid::HyperliquidReconciler> reconciler_;
 
     // ── Crash safety: TODO ────────────────────────────────────────────
     // An earlier version of this adapter ran a dead-man-switch thread
     // that periodically posted HL's scheduleCancel action so the exchange
-    // would auto-cancel all orders if order-gateway died. That turned out to
-    // be unusable on this account: HL gates scheduleCancel behind
+    // would auto-cancel all orders if order-gateway died. That turned out
+    // to be unusable on this account: HL gates scheduleCancel behind
     // $1,000,000 of lifetime traded volume (error seen on testnet:
     // "Cannot set scheduled cancel time until enough volume traded.
     // Required: $1000000. Traded: $129582.4."). Until the wallet clears
@@ -127,8 +142,8 @@ private:
     // the common case, and scripts/flatten_hl_positions.py is the manual
     // kill switch. The correct long-term fix is a separate watchdog
     // process with independent exchange connectivity that monitors
-    // order-gateway health and fires cancellations via the same REST path the
-    // flatten script uses, bypassing the volume gate.
+    // order-gateway health and fires cancellations via the same REST path
+    // the flatten script uses, bypassing the volume gate.
 };
 
 }  // namespace bpt::order_gateway::adapter

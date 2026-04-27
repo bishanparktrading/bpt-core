@@ -1,5 +1,8 @@
 #pragma once
 
+/// \file
+/// \brief Deribit REST (JSON-RPC 2.0) reference-data adapter.
+
 #include "refdata/adapter/common/i_exchange_refdata_adapter.h"
 #include "refdata/adapter/credentials.h"
 #include "refdata/adapter/deribit/deribit_refdata_decoder.h"
@@ -15,16 +18,16 @@
 
 namespace bpt::refdata::adapter {
 
-// Deribit REST (JSON-RPC 2.0) reference data adapter.
-//
-// Snapshot (blocking, called on startup):
-//   POST /api/v2  method=public/get_instruments  — instruments per currency x kind
-//   Fees: maker_commission / taker_commission returned in instrument data
-//
-// Funding rates have moved to MdGateway.
-//
-// Hourly poll:
-//   Re-fetches instruments endpoints to detect listing changes.
+/// \brief Pulls Deribit instruments + per-instrument fees via JSON-RPC 2.0 REST.
+///
+/// Snapshot (blocking, called on startup):
+///   - `POST /api/v2 method=public/get_instruments` per (currency, kind)
+///   - Fees come back inside each instrument record as
+///     maker_commission / taker_commission, so a separate fee call is
+///     not needed.
+///
+/// Hourly poll re-fetches the same endpoints to detect listing changes.
+/// Funding rates flow on the MdGateway side — not this adapter.
 class DeribitRefDataAdapter : public IExchangeRefDataAdapter {
 public:
     DeribitRefDataAdapter(const config::AdapterConfig& cfg,
@@ -35,9 +38,9 @@ public:
     ~DeribitRefDataAdapter() override = default;
 
     void fetchSnapshot() override;
-    void subscribeDeltas() override {}  // no-op: funding rates in MdGateway
+    void subscribeDeltas() override {}  ///< no-op: funding rates flow via MdGateway
     void fetchInstrumentListing() override;
-    void stop() override {}  // no-op: no WS thread
+    void stop() override {}  ///< no-op: no WS thread
 
     bool isReady() const override { return ready_.load(std::memory_order_acquire); }
     const char* exchange_name() const override { return "DERIBIT"; }
@@ -51,16 +54,17 @@ private:
     std::string client_id_;
     std::string client_secret_;
 
-    // Shared HTTPS client — reuses SSL context across calls and retries
-    // on transient failures. Injected at construction; refdata_app picks
-    // the host (defaulting to test.deribit.com when cfg_.rest_host empty).
+    /// Shared HTTPS client — reuses SSL context across calls and retries
+    /// on transient failures. Injected at construction; refdata_app picks
+    /// the host (defaulting to test.deribit.com when cfg_.rest_host empty).
     std::shared_ptr<bpt::refdata::http::RestClient> rest_client_;
 
     DeribitRefdataDecoder decoder_;
 
-    // Fetch + ingest one (currency, kind) pair. Used by both the
-    // startup snapshot and the hourly listing refresh — the difference
-    // between those paths is only whether we notify on delta changes.
+    /// \brief Fetch + ingest one (currency, kind) pair.
+    ///
+    /// Shared by the startup snapshot and the hourly refresh; the only
+    /// difference between those paths is whether we notify on deltas.
     void ingest_instruments(const std::string& currency,
                             const std::string& kind,
                             uint64_t collected_ts,

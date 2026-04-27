@@ -1,5 +1,8 @@
 #pragma once
 
+/// \file
+/// \brief Binance REST reference-data adapter (spot + fapi + tradeFee).
+
 #include "refdata/adapter/binance/binance_refdata_decoder.h"
 #include "refdata/adapter/common/i_exchange_refdata_adapter.h"
 #include "refdata/adapter/credentials.h"
@@ -13,17 +16,19 @@
 
 namespace bpt::refdata::adapter {
 
-// Binance REST reference data adapter.
-//
-// Snapshot (blocking, called on startup):
-//   GET /api/v3/exchangeInfo      — spot instruments
-//   GET /fapi/v1/exchangeInfo     — futures/perp instruments
-//   GET /sapi/v1/asset/tradeFee   — fee schedules (requires API key)
-//
-// Funding rates have moved to MdGateway (Binance !markPrice@arr@1s WS stream).
-//
-// Hourly poll:
-//   Re-fetches /api/v3/exchangeInfo + /fapi/v1/exchangeInfo to detect listing changes.
+/// \brief Pulls Binance SPOT + FUTURES instruments and fee schedule from REST.
+///
+/// Holds two RestClients because Binance hosts SPOT and FUTURES on
+/// different domains (api.binance.com vs fapi.binance.com).
+///
+/// Snapshot (blocking, called on startup):
+///   - `GET /api/v3/exchangeInfo` (spot_client_) — spot instruments
+///   - `GET /fapi/v1/exchangeInfo` (fapi_client_) — futures / perp
+///   - `GET /sapi/v1/asset/tradeFee` (spot_client_) — fees (needs API key)
+///
+/// Hourly poll re-fetches both exchangeInfo endpoints to detect listing
+/// changes. Funding rates flow on the MdGateway side (Binance
+/// !markPrice@arr@1s WS) — not this adapter's concern.
 class BinanceRefDataAdapter : public IExchangeRefDataAdapter {
 public:
     BinanceRefDataAdapter(const config::AdapterConfig& cfg,

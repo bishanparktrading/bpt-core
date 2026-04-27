@@ -1,5 +1,8 @@
 #pragma once
 
+/// \file
+/// \brief Hyperliquid REST reference-data adapter.
+
 #include "refdata/adapter/common/i_exchange_refdata_adapter.h"
 #include "refdata/adapter/credentials.h"
 #include "refdata/adapter/hyperliquid/hyperliquid_refdata_decoder.h"
@@ -13,16 +16,15 @@
 
 namespace bpt::refdata::adapter {
 
-// Hyperliquid REST reference data adapter.
-//
-// Snapshot (blocking, called on startup):
-//   POST /info {"type":"meta"}             — all instrument metadata
-//   POST /info {"type":"userFees"}         — fee schedule (requires wallet address)
-//
-// Funding rates have moved to MdGateway (Hyperliquid activeAssetCtx WS channel).
-//
-// Hourly poll:
-//   Re-fetches /info meta to detect new/delisted instruments.
+/// \brief Pulls HL instrument metadata + fees from the /info REST endpoint.
+///
+/// Snapshot (blocking, called on startup):
+///   - `POST /info {"type":"meta"}` — all instrument metadata
+///   - `POST /info {"type":"userFees"}` — fee schedule (requires wallet)
+///
+/// Hourly poll re-fetches /info meta to detect new/delisted instruments.
+/// Funding rates live on the MdGateway side (HL activeAssetCtx WS channel)
+/// — this adapter does not stream them.
 class HyperliquidRefDataAdapter : public IExchangeRefDataAdapter {
 public:
     HyperliquidRefDataAdapter(const config::AdapterConfig& cfg,

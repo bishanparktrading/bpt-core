@@ -1,5 +1,8 @@
 #pragma once
 
+/// \file
+/// \brief OKX market-data adapter.
+
 #include "md_gateway/adapter/common/adapter_base.h"
 #include "md_gateway/adapter/okx/okx_md_decoder.h"
 
@@ -8,16 +11,16 @@
 
 namespace bpt::md_gateway::adapter {
 
-// OKX market-data adapter.
-//
-// Connects to wss://ws.okx.com:8443/ws/v5/public.
-// OKX requires text-frame "ping" keepalives every 25s — Beast's built-in
-// control-frame pings are disabled to prevent silent disconnects.
-// Runtime subscribe/unsubscribe take effect immediately via the pending queue.
-//
-// Delegates read-loop mechanics (read timeout, ping thread, liveness
-// watchdog) to bpt::common::ws::RunLoop — on_frame/on_tick/ping_config
-// hooks express the OKX-specific bits only.
+/// \brief Subscribes to OKX public WS, decodes frames, publishes SBE.
+///
+/// Connects to wss://ws.okx.com:8443/ws/v5/public. OKX requires
+/// text-frame "ping" keepalives every 25 s — Beast's built-in control-
+/// frame pings are disabled to prevent silent disconnects. Runtime
+/// subscribe/unsubscribe take effect immediately via the pending queue.
+///
+/// Delegates read-loop mechanics (read timeout, ping thread, liveness
+/// watchdog) to bpt::common::ws::RunLoop — on_frame / on_tick /
+/// ping_config hooks express the OKX-specific bits only.
 class OkxMdAdapter : public AdapterBase, private bpt::common::ws::RunLoop {
 public:
     explicit OkxMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub);
@@ -25,9 +28,11 @@ public:
     [[nodiscard]] const char* exchange_name() const override { return "OKX"; }
     [[nodiscard]] bpt::common::util::LatencyHistogram& decode_latency_hist() noexcept override { return decoder_.decode_lat_; }
 
-    // Override to push the subscribe frame immediately when connected,
-    // rather than waiting for on_tick (which in this Beast version may
-    // not fire while OKX is actively responding to our ping thread).
+    /// \brief Push the subscribe frame immediately when connected.
+    ///
+    /// Overrides AdapterBase to bypass on_tick — in this Beast version
+    /// on_tick may not fire while OKX is actively responding to our
+    /// ping thread, which would delay the subscribe past the timeout.
     void subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth = 0) override;
 
 protected:
@@ -35,17 +40,19 @@ protected:
     void read_loop(bpt::common::ws::AnyWsStream& ws) override;
     void parse_frame(std::string_view payload, uint64_t recv_ns) override;
 
-    // RunLoop hooks.
+    /// \name RunLoop hooks
+    /// \{
     void on_frame(std::string_view payload, uint64_t recv_ns) override;
     void on_tick() override;
     std::optional<bpt::common::ws::PingConfig> ping_config() const override;
+    /// \}
 
 private:
     OkxMdDecoder decoder_;
 
-    // RunLoop::run signature needs a 'connected' atomic; AdapterBase
-    // already tracks connection state via on_connect/on_disconnect
-    // callbacks, so the RunLoop flag is otherwise unused here.
+    /// RunLoop::run signature needs a 'connected' atomic; AdapterBase
+    /// already tracks connection state via on_connect/on_disconnect
+    /// callbacks, so this flag is otherwise unused here.
     std::atomic<bool> rl_connected_{false};
 };
 

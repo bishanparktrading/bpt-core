@@ -1,5 +1,8 @@
 #pragma once
 
+/// \file
+/// \brief OKX order adapter — private WS for both order flow and execs.
+
 #include "order_gateway/adapter/common/credentials.h"
 #include "order_gateway/adapter/common/order_adapter_base.h"
 #include "order_gateway/adapter/okx/okx_exec_decoder.h"
@@ -12,20 +15,24 @@
 
 namespace bpt::order_gateway::adapter {
 
-// OKXOrderAdapter connects to OKX private WebSocket endpoint for order flow.
-//
-// WS endpoint: wss://ws.okx.com:8443/ws/v5/private
-// Authentication: login message immediately after connect.
-// Order placement: {"op":"order","args":[{...}]} via WebSocket.
-// Execution reports: "order" and "fills" channel events.
-// Ping/pong every 15 seconds to keep connection alive.
-//
-// Credentials are passed directly via ExchangeCredentials (api_key, secret_key, passphrase).
+/// \brief Order adapter for OKX (single private WS for both order ops and exec reports).
+///
+/// Endpoint: wss://ws.okx.com:8443/ws/v5/private. Order placement and
+/// fill events both flow on this socket — login immediately after
+/// connect, then `{"op":"order","args":[{...}]}` for order ops,
+/// `"order"` and `"fills"` channel events for exec reports. Ping/pong
+/// every 15 s keeps the connection alive.
+///
+/// Holds an https_client_ for the startup REST calls (account config,
+/// instrument metadata) that don't have WS equivalents.
+///
+/// Credentials are passed via ExchangeCredentials (api_key, secret_key,
+/// passphrase).
 class OKXOrderAdapter : public OrderAdapterBase {
 public:
     OKXOrderAdapter(const config::AdapterConfig& cfg, const ExchangeCredentials& creds);
 
-    // Fetches instIdCodes from REST before spawning the IO thread.
+    /// \brief Fetch instIdCodes via REST, then spawn the IO thread.
     void start() override;
 
     void send_new_order(const bpt::messages::NewOrder& order) override;
@@ -47,11 +54,12 @@ protected:
 private:
     void handle_message(const std::string& payload, uint64_t recv_ns);
 
-    // Fetch /api/v5/account/config at startup and log acctLv + perm.
-    // Warns prominently if the account is Level 1 (spot-only) because
-    // any attempt to trade derivatives will fail with OKX sCode 51155
-    // ("local compliance requirements") — the account level is the
-    // real cause, not geo-compliance.
+    /// \brief Fetch /api/v5/account/config at startup and log acctLv + perm.
+    ///
+    /// Warns prominently if the account is Level 1 (spot-only) because
+    /// any attempt to trade derivatives will fail with OKX sCode 51155
+    /// ("local compliance requirements") — the account level is the real
+    /// cause, not geo-compliance, and the error message is misleading.
     void fetch_and_log_account_config();
 
     std::string api_key_;
@@ -60,12 +68,11 @@ private:
 
     std::atomic<bool> logged_in_{false};
 
-    // 8-char hex prefix unique to this process start — prevents cloid collisions
-    // with orders from previous sessions still live on OKX.
+    /// 8-char hex prefix unique to this process start — prevents cloid
+    /// collisions with orders from previous sessions still live on OKX.
     std::string session_prefix_;
 
-    // WS request id counter
-    std::atomic<uint64_t> ws_req_id_{1};
+    std::atomic<uint64_t> ws_req_id_{1};  ///< monotonic WS request id
 
     OKXExecDecoder decoder_;
     okx::OKXHttpsClient https_client_;

@@ -1,5 +1,8 @@
 #pragma once
 
+/// \file
+/// \brief OKX REST reference-data adapter.
+
 #include "refdata/adapter/common/i_exchange_refdata_adapter.h"
 #include "refdata/adapter/credentials.h"
 #include "refdata/adapter/okx/okx_refdata_decoder.h"
@@ -13,17 +16,16 @@
 
 namespace bpt::refdata::adapter {
 
-// OKX REST reference data adapter.
-//
-// Snapshot (blocking, called on startup):
-//   GET /api/v5/public/instruments?instType=SPOT  — spot instruments
-//   GET /api/v5/public/instruments?instType=SWAP  — perpetual swap instruments
-//   GET /api/v5/account/trade-fee                 — fee schedules (requires API key)
-//
-// Funding rates have moved to MdGateway (OKX funding-rate WS channel).
-//
-// Hourly poll:
-//   Re-fetches instruments endpoints to detect listing changes.
+/// \brief Pulls OKX SPOT + SWAP instruments and fee schedule from REST.
+///
+/// Snapshot (blocking, called on startup):
+///   - `GET /api/v5/public/instruments?instType=SPOT` — spot instruments
+///   - `GET /api/v5/public/instruments?instType=SWAP` — perpetual swaps
+///   - `GET /api/v5/account/trade-fee` — fee schedules (requires API key)
+///
+/// Hourly poll re-fetches the instruments endpoints to detect listing
+/// changes. Funding rates flow on the MdGateway side (OKX funding-rate
+/// WS channel) — this adapter does not stream them.
 class OKXRefDataAdapter : public IExchangeRefDataAdapter {
 public:
     OKXRefDataAdapter(const config::AdapterConfig& cfg,
