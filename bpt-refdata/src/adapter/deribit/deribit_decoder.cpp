@@ -1,4 +1,4 @@
-#include "refdata/adapter/deribit/deribit_parser.h"
+#include "refdata/adapter/deribit/deribit_decoder.h"
 
 #include "refdata/refdata/types.h"
 
@@ -50,11 +50,11 @@ refdata::InstrumentType deribit_to_inst_type(const std::string& kind, const std:
 
 }  // namespace
 
-DeribitRefdataParser::DeribitRefdataParser(std::shared_ptr<mapping::InstrumentMappingLoader> mapping)
+DeribitRefdataDecoder::DeribitRefdataDecoder(std::shared_ptr<mapping::InstrumentMappingLoader> mapping)
     : mapping_(std::move(mapping)) {}
 
-std::vector<DeribitRefdataParser::InstrumentWithFee>
-DeribitRefdataParser::parse_instruments(const std::string& body, uint64_t collected_ts) const {
+std::vector<DeribitRefdataDecoder::InstrumentWithFee>
+DeribitRefdataDecoder::parse_instruments(const std::string& body, uint64_t collected_ts) const {
     std::vector<InstrumentWithFee> out;
 
     auto j = json::parse(body, nullptr, /*allow_exceptions=*/false);

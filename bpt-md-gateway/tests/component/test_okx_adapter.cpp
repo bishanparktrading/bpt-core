@@ -1,8 +1,8 @@
-// Component tests for OkxParser.
+// Component tests for OkxDecoder.
 
 #include "fake_md_publisher.h"
 #include "md_gateway/adapter/common/subscription_map.h"
-#include "md_gateway/adapter/okx/okx_parser.h"
+#include "md_gateway/adapter/okx/okx_decoder.h"
 
 #include <gtest/gtest.h>
 
@@ -11,7 +11,7 @@ namespace {
 
 struct OkxParserFixture {
     SubscriptionMap subs;
-    OkxParser parser{subs};
+    OkxDecoder parser{subs};
     test::FakeMdPublisher pub;
     messaging::FundingRateCallback fr_cb;
 

@@ -1,4 +1,4 @@
-#include "refdata/adapter/okx/okx_parser.h"
+#include "refdata/adapter/okx/okx_decoder.h"
 
 #include "refdata/refdata/types.h"
 
@@ -53,14 +53,14 @@ bpt::messages::InstrumentType::Value to_sbe_inst_type(refdata::InstrumentType t)
 
 }  // namespace
 
-OKXParser::OKXParser(std::shared_ptr<mapping::InstrumentMappingLoader> mapping) : mapping_(std::move(mapping)) {}
+OKXDecoder::OKXDecoder(std::shared_ptr<mapping::InstrumentMappingLoader> mapping) : mapping_(std::move(mapping)) {}
 
-std::vector<refdata::Instrument> OKXParser::parse_instruments(const std::string& body,
+std::vector<refdata::Instrument> OKXDecoder::parse_instruments(const std::string& body,
                                                               const std::string& inst_type,
                                                               uint64_t collected_ts) const {
     auto j = json::parse(body);
     if (j.value("code", "") != "0") {
-        bpt::common::log::error("[OKXParser] instruments API error code={} msg={}", j.value("code", "?"), j.value("msg", "?"));
+        bpt::common::log::error("[OKXDecoder] instruments API error code={} msg={}", j.value("code", "?"), j.value("msg", "?"));
         return {};
     }
 
@@ -136,15 +136,15 @@ std::vector<refdata::Instrument> OKXParser::parse_instruments(const std::string&
         result.push_back(std::move(inst));
     }
 
-    bpt::common::log::info("[OKXParser] Parsed {} {} instruments", result.size(), inst_type);
+    bpt::common::log::info("[OKXDecoder] Parsed {} {} instruments", result.size(), inst_type);
     return result;
 }
 
-std::vector<refdata::FeeScheduleState> OKXParser::parse_trade_fee(const std::string& body,
+std::vector<refdata::FeeScheduleState> OKXDecoder::parse_trade_fee(const std::string& body,
                                                                   uint64_t collected_ts) const {
     auto j = json::parse(body);
     if (j.value("code", "") != "0") {
-        bpt::common::log::warn("[OKXParser] trade-fee API error code={}", j.value("code", "?"));
+        bpt::common::log::warn("[OKXDecoder] trade-fee API error code={}", j.value("code", "?"));
         return {};
     }
 

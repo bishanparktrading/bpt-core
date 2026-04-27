@@ -1,4 +1,4 @@
-#include "md_gateway/adapter/okx/okx_parser.h"
+#include "md_gateway/adapter/okx/okx_decoder.h"
 
 #include <messages/ExchangeId.h>
 #include <messages/TradeSide.h>
@@ -12,7 +12,7 @@ namespace bpt::md_gateway::adapter {
 
 // ── Top-level parse ───────────────────────────────────────────────────────────
 
-void OkxParser::parse(std::string_view payload,
+void OkxDecoder::parse(std::string_view payload,
                       uint64_t recv_ns,
                       messaging::IMdPublisher& pub,
                       messaging::FundingRateCallback& on_funding_rate) {
@@ -101,7 +101,7 @@ void OkxParser::parse(std::string_view payload,
 
 // ── Channel handlers ──────────────────────────────────────────────────────────
 
-void OkxParser::handle_bbo(simdjson::ondemand::object& entry,
+void OkxDecoder::handle_bbo(simdjson::ondemand::object& entry,
                            uint64_t instrument_id,
                            uint64_t recv_ns,
                            uint64_t parse_start_ns,
@@ -146,7 +146,7 @@ void OkxParser::handle_bbo(simdjson::ondemand::object& entry,
     pub.publish(bbo);
 }
 
-void OkxParser::handle_book(simdjson::ondemand::object& entry,
+void OkxDecoder::handle_book(simdjson::ondemand::object& entry,
                             uint64_t instrument_id,
                             uint64_t recv_ns,
                             uint64_t parse_start_ns,
@@ -230,7 +230,7 @@ void OkxParser::handle_book(simdjson::ondemand::object& entry,
     pub.publish(bbo);
 }
 
-void OkxParser::handle_trades(simdjson::ondemand::object& entry,
+void OkxDecoder::handle_trades(simdjson::ondemand::object& entry,
                               uint64_t instrument_id,
                               uint64_t recv_ns,
                               messaging::IMdPublisher& pub) {
@@ -250,7 +250,7 @@ void OkxParser::handle_trades(simdjson::ondemand::object& entry,
     pub.publish(trade);
 }
 
-void OkxParser::handle_funding_rate(simdjson::ondemand::object& entry,
+void OkxDecoder::handle_funding_rate(simdjson::ondemand::object& entry,
                                     uint64_t instrument_id,
                                     uint64_t recv_ns,
                                     messaging::FundingRateCallback& on_funding_rate) {

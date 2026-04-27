@@ -32,7 +32,7 @@ DeribitRefDataAdapter::DeribitRefDataAdapter(const config::AdapterConfig& cfg,
       client_id_(creds.client_id),
       client_secret_(creds.client_secret),
       rest_client_(std::move(rest_client)),
-      parser_(std::move(mapping)) {
+      decoder_(std::move(mapping)) {
     if (client_id_.empty() || client_secret_.empty()) {
         bpt::common::log::warn(
             "[DeribitRefData] Deribit credentials not set — "
@@ -61,7 +61,7 @@ void DeribitRefDataAdapter::ingest_instruments(const std::string& currency,
     }
 
     int loaded = 0;
-    for (auto& iwf : parser_.parse_instruments(response, collected_ts)) {
+    for (auto& iwf : decoder_.parse_instruments(response, collected_ts)) {
         const bool changed = registry_->update_if_changed(iwf.instrument);
         if (changed && notify_deltas && on_instrument_delta)
             on_instrument_delta(iwf.instrument, bpt::messages::DeltaUpdateType::MODIFY, collected_ts);

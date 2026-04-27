@@ -1,7 +1,7 @@
 #pragma once
 
 #include "md_gateway/adapter/common/adapter_base.h"
-#include "md_gateway/adapter/hyperliquid/hyperliquid_parser.h"
+#include "md_gateway/adapter/hyperliquid/hyperliquid_decoder.h"
 
 #include <atomic>
 #include <bpt_common/ws/run_loop.h>
@@ -21,7 +21,7 @@ public:
     explicit HyperliquidMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub);
 
     [[nodiscard]] const char* exchange_name() const override { return "HYPERLIQUID"; }
-    [[nodiscard]] bpt::common::util::LatencyHistogram& decode_latency_hist() noexcept override { return parser_.decode_lat_; }
+    [[nodiscard]] bpt::common::util::LatencyHistogram& decode_latency_hist() noexcept override { return decoder_.decode_lat_; }
 
     // Push subscribe frames to the WS immediately when connected —
     // on_tick can't be relied upon because RunLoop's sync ws.read()
@@ -39,7 +39,7 @@ protected:
     std::optional<bpt::common::ws::PingConfig> ping_config() const override;
 
 private:
-    HyperliquidParser parser_;
+    HyperliquidDecoder decoder_;
     std::atomic<bool> rl_connected_{false};
 };
 

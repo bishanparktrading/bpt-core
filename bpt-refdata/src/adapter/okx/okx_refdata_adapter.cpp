@@ -33,7 +33,7 @@ OKXRefDataAdapter::OKXRefDataAdapter(const config::AdapterConfig& cfg,
       secret_key_(creds.secret_key),
       passphrase_(creds.passphrase),
       client_(std::move(client)),
-      parser_(mapping) {}
+      decoder_(mapping) {}
 
 void OKXRefDataAdapter::fetchSnapshot() {
     bpt::common::log::info(kLog(), "Starting snapshot fetch...");
@@ -46,7 +46,7 @@ void OKXRefDataAdapter::fetchSnapshot() {
     // 1. Spot instruments
     try {
         auto body = client_->get("/api/v5/public/instruments?instType=SPOT", base_headers);
-        for (auto& inst : parser_.parse_instruments(body, "SPOT", ts))
+        for (auto& inst : decoder_.parse_instruments(body, "SPOT", ts))
             registry_->add(inst);
     } catch (const std::exception& e) {
         bpt::common::log::error(kLog(), "Failed to fetch SPOT instruments: {}", e.what());
@@ -56,7 +56,7 @@ void OKXRefDataAdapter::fetchSnapshot() {
     // 2. Perpetual swap instruments
     try {
         auto body = client_->get("/api/v5/public/instruments?instType=SWAP", base_headers);
-        for (auto& inst : parser_.parse_instruments(body, "SWAP", ts))
+        for (auto& inst : decoder_.parse_instruments(body, "SWAP", ts))
             registry_->add(inst);
     } catch (const std::exception& e) {
         bpt::common::log::error(kLog(), "Failed to fetch SWAP instruments: {}", e.what());
@@ -69,7 +69,7 @@ void OKXRefDataAdapter::fetchSnapshot() {
     try {
         auto headers = okx_auth_headers(api_key_, secret_key_, passphrase_, "GET", fee_spot_target, cfg_.simulated);
         auto body = client_->get(fee_spot_target, headers);
-        for (auto& fs : parser_.parse_trade_fee(body, ts))
+        for (auto& fs : decoder_.parse_trade_fee(body, ts))
             if (on_fee_schedule)
                 on_fee_schedule(fs);
     } catch (const std::exception& e) {
@@ -78,7 +78,7 @@ void OKXRefDataAdapter::fetchSnapshot() {
     try {
         auto headers = okx_auth_headers(api_key_, secret_key_, passphrase_, "GET", fee_swap_target, cfg_.simulated);
         auto body = client_->get(fee_swap_target, headers);
-        for (auto& fs : parser_.parse_trade_fee(body, ts))
+        for (auto& fs : decoder_.parse_trade_fee(body, ts))
             if (on_fee_schedule)
                 on_fee_schedule(fs);
     } catch (const std::exception& e) {
@@ -104,7 +104,7 @@ void OKXRefDataAdapter::fetchInstrumentListing() {
 
     try {
         auto body = client_->get("/api/v5/public/instruments?instType=SPOT", base_headers);
-        for (auto& inst : parser_.parse_instruments(body, "SPOT", ts))
+        for (auto& inst : decoder_.parse_instruments(body, "SPOT", ts))
             notify(inst);
     } catch (const std::exception& e) {
         bpt::common::log::error(kLog(), "Hourly SPOT refresh failed: {}", e.what());
@@ -112,7 +112,7 @@ void OKXRefDataAdapter::fetchInstrumentListing() {
 
     try {
         auto body = client_->get("/api/v5/public/instruments?instType=SWAP", base_headers);
-        for (auto& inst : parser_.parse_instruments(body, "SWAP", ts))
+        for (auto& inst : decoder_.parse_instruments(body, "SWAP", ts))
             notify(inst);
     } catch (const std::exception& e) {
         bpt::common::log::error(kLog(), "Hourly SWAP refresh failed: {}", e.what());

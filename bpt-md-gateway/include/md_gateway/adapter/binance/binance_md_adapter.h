@@ -1,7 +1,7 @@
 #pragma once
 
 #include "md_gateway/adapter/binance/binance_funding_rate_stream.h"
-#include "md_gateway/adapter/binance/binance_parser.h"
+#include "md_gateway/adapter/binance/binance_decoder.h"
 #include "md_gateway/adapter/common/adapter_base.h"
 
 #include <atomic>
@@ -34,7 +34,7 @@ public:
     void stop() override;
 
     [[nodiscard]] const char* exchange_name() const override { return "BINANCE"; }
-    [[nodiscard]] bpt::common::util::LatencyHistogram& decode_latency_hist() noexcept override { return parser_.decode_lat_; }
+    [[nodiscard]] bpt::common::util::LatencyHistogram& decode_latency_hist() noexcept override { return decoder_.decode_lat_; }
 
 protected:
     // Returns nullptr if there are no subscriptions yet (run() will retry).
@@ -45,7 +45,7 @@ protected:
     void on_frame(std::string_view payload, uint64_t recv_ns) override;
 
 private:
-    BinanceParser parser_;
+    BinanceDecoder decoder_;
     std::atomic<bool> rl_connected_{false};
     BinanceFundingRateStream fr_stream_;
 };

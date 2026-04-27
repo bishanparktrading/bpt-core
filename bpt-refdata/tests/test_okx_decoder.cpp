@@ -1,4 +1,4 @@
-#include "refdata/adapter/okx/okx_parser.h"
+#include "refdata/adapter/okx/okx_decoder.h"
 #include "refdata/adapter/okx/okx_refdata_auth.h"
 #include "refdata/mapping/instrument_mapping_loader.h"
 #include "refdata/refdata/types.h"
@@ -76,8 +76,8 @@ static const char* kSwapInstruments = R"({
   ]
 })";
 
-TEST(OKXParser, SwapParsesKnownInstruments) {
-    OKXParser parser(make_mapping());
+TEST(OKXDecoder, SwapParsesKnownInstruments) {
+    OKXDecoder parser(make_mapping());
     auto result = parser.parse_instruments(kSwapInstruments, "SWAP", 55u);
 
     // XYZ not in mapping; LTC suspended → 2 results
@@ -96,8 +96,8 @@ TEST(OKXParser, SwapParsesKnownInstruments) {
     EXPECT_EQ(btc.inst_uid, make_inst_uid(1001, EXCHANGE_ID_OKX));
 }
 
-TEST(OKXParser, SwapDerivesBaseQuoteFromInstId) {
-    OKXParser parser(make_mapping());
+TEST(OKXDecoder, SwapDerivesBaseQuoteFromInstId) {
+    OKXDecoder parser(make_mapping());
     auto result = parser.parse_instruments(kSwapInstruments, "SWAP", 0u);
     ASSERT_GE(result.size(), 1u);
 
@@ -106,15 +106,15 @@ TEST(OKXParser, SwapDerivesBaseQuoteFromInstId) {
     EXPECT_EQ(result[0].quote, "USDT");
 }
 
-TEST(OKXParser, SwapSkipsNonLiveState) {
-    OKXParser parser(make_mapping());
+TEST(OKXDecoder, SwapSkipsNonLiveState) {
+    OKXDecoder parser(make_mapping());
     auto result = parser.parse_instruments(kSwapInstruments, "SWAP", 0u);
     for (const auto& inst : result)
         EXPECT_NE(inst.venue_symbol, "LTC-USDT-SWAP");
 }
 
-TEST(OKXParser, SwapSkipsUnknownMappingSymbol) {
-    OKXParser parser(make_mapping());
+TEST(OKXDecoder, SwapSkipsUnknownMappingSymbol) {
+    OKXDecoder parser(make_mapping());
     auto result = parser.parse_instruments(kSwapInstruments, "SWAP", 0u);
     for (const auto& inst : result)
         EXPECT_NE(inst.venue_symbol, "XYZ-USDT-SWAP");
@@ -135,8 +135,8 @@ static const char* kSpotInstruments = R"({
   ]
 })";
 
-TEST(OKXParser, SpotParsedCorrectly) {
-    OKXParser parser(make_mapping());
+TEST(OKXDecoder, SpotParsedCorrectly) {
+    OKXDecoder parser(make_mapping());
     auto result = parser.parse_instruments(kSpotInstruments, "SPOT", 0u);
     ASSERT_EQ(result.size(), 1u);
 
@@ -153,15 +153,15 @@ TEST(OKXParser, SpotParsedCorrectly) {
 // parse_instruments — error response
 // ---------------------------------------------------------------------------
 
-TEST(OKXParser, ErrorCodeReturnsEmpty) {
-    OKXParser parser(make_mapping());
+TEST(OKXDecoder, ErrorCodeReturnsEmpty) {
+    OKXDecoder parser(make_mapping());
     auto result =
         parser.parse_instruments(R"({"code":"50001","msg":"Service temporarily unavailable","data":[]})", "SWAP", 0u);
     EXPECT_TRUE(result.empty());
 }
 
-TEST(OKXParser, EmptyDataReturnsEmpty) {
-    OKXParser parser(make_mapping());
+TEST(OKXDecoder, EmptyDataReturnsEmpty) {
+    OKXDecoder parser(make_mapping());
     auto result = parser.parse_instruments(R"({"code":"0","data":[]})", "SWAP", 0u);
     EXPECT_TRUE(result.empty());
 }
@@ -178,8 +178,8 @@ static const char* kTradeFee = R"({
   ]
 })";
 
-TEST(OKXParser, TradeFeeParsedAsBps) {
-    OKXParser parser(make_mapping());
+TEST(OKXDecoder, TradeFeeParsedAsBps) {
+    OKXDecoder parser(make_mapping());
     auto result = parser.parse_trade_fee(kTradeFee, 42u);
     ASSERT_EQ(result.size(), 2u);
 
@@ -197,8 +197,8 @@ TEST(OKXParser, TradeFeeParsedAsBps) {
     EXPECT_EQ(result[1].taker_fee_bps, 5);
 }
 
-TEST(OKXParser, TradeFeeErrorCodeReturnsEmpty) {
-    OKXParser parser(make_mapping());
+TEST(OKXDecoder, TradeFeeErrorCodeReturnsEmpty) {
+    OKXDecoder parser(make_mapping());
     auto result = parser.parse_trade_fee(R"({"code":"50013","msg":"Busy","data":[]})", 0u);
     EXPECT_TRUE(result.empty());
 }

@@ -31,7 +31,7 @@ BinanceRefDataAdapter::BinanceRefDataAdapter(const config::AdapterConfig& cfg,
       api_key_(creds.api_key),
       spot_client_(std::move(spot_client)),
       fapi_client_(std::move(fapi_client)),
-      parser_(mapping) {}
+      decoder_(mapping) {}
 
 void BinanceRefDataAdapter::fetchSnapshot() {
     bpt::common::log::info(kLog(), "Starting snapshot fetch...");
@@ -40,7 +40,7 @@ void BinanceRefDataAdapter::fetchSnapshot() {
     // 1. Spot instruments
     try {
         auto body = spot_client_->get("/api/v3/exchangeInfo");
-        for (auto& inst : parser_.parse_spot_exchange_info(body, ts))
+        for (auto& inst : decoder_.parse_spot_exchange_info(body, ts))
             registry_->add(inst);
     } catch (const std::exception& e) {
         bpt::common::log::error(kLog(), "Failed to fetch spot exchangeInfo: {}", e.what());
@@ -50,7 +50,7 @@ void BinanceRefDataAdapter::fetchSnapshot() {
     // 2. Futures / perp instruments
     try {
         auto body = fapi_client_->get("/fapi/v1/exchangeInfo");
-        for (auto& inst : parser_.parse_futures_exchange_info(body, ts))
+        for (auto& inst : decoder_.parse_futures_exchange_info(body, ts))
             registry_->add(inst);
     } catch (const std::exception& e) {
         bpt::common::log::error(kLog(), "Failed to fetch fapi exchangeInfo: {}", e.what());
@@ -61,7 +61,7 @@ void BinanceRefDataAdapter::fetchSnapshot() {
     if (!api_key_.empty()) {
         try {
             auto body = spot_client_->get("/sapi/v1/asset/tradeFee", {{"X-MBX-APIKEY", api_key_}});
-            for (auto& fs : parser_.parse_trade_fee(body, ts))
+            for (auto& fs : decoder_.parse_trade_fee(body, ts))
                 if (on_fee_schedule)
                     on_fee_schedule(fs);
         } catch (const std::exception& e) {
@@ -86,7 +86,7 @@ void BinanceRefDataAdapter::fetchInstrumentListing() {
 
     try {
         auto body = spot_client_->get("/api/v3/exchangeInfo");
-        for (auto& inst : parser_.parse_spot_exchange_info(body, ts))
+        for (auto& inst : decoder_.parse_spot_exchange_info(body, ts))
             notify(inst);
     } catch (const std::exception& e) {
         bpt::common::log::error(kLog(), "Hourly spot refresh failed: {}", e.what());
@@ -94,7 +94,7 @@ void BinanceRefDataAdapter::fetchInstrumentListing() {
 
     try {
         auto body = fapi_client_->get("/fapi/v1/exchangeInfo");
-        for (auto& inst : parser_.parse_futures_exchange_info(body, ts))
+        for (auto& inst : decoder_.parse_futures_exchange_info(body, ts))
             notify(inst);
     } catch (const std::exception& e) {
         bpt::common::log::error(kLog(), "Hourly futures refresh failed: {}", e.what());

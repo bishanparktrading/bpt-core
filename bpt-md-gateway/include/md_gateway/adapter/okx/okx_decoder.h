@@ -1,6 +1,6 @@
 #pragma once
 
-#include "md_gateway/adapter/common/i_exchange_parser.h"
+#include "md_gateway/adapter/common/i_exchange_decoder.h"
 #include "md_gateway/adapter/common/subscription_map.h"
 
 #include <map>
@@ -21,12 +21,12 @@ namespace bpt::md_gateway::adapter {
 // of a string if-else chain.  to_channel() maps the raw string to the enum once;
 // the main parse() path never compares strings against channel names.
 //
-// Uses simdjson on-demand API with pre-allocated padded buffer (IExchangeParser base)
+// Uses simdjson on-demand API with pre-allocated padded buffer (IExchangeDecoder base)
 // for zero-allocation hot-path JSON parsing.  Decode latency (JSON parse + field
 // extraction + Aeron offer) is recorded into decode_lat_ for Prometheus export.
-class OkxParser : public IExchangeParser {
+class OkxDecoder : public IExchangeDecoder {
 public:
-    explicit OkxParser(const SubscriptionMap& subs) : subs_(subs) {}
+    explicit OkxDecoder(const SubscriptionMap& subs) : subs_(subs) {}
 
     void parse(std::string_view payload,
                uint64_t recv_ns,

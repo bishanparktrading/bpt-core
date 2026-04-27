@@ -1,7 +1,7 @@
 #pragma once
 
 #include "md_gateway/adapter/common/adapter_base.h"
-#include "md_gateway/adapter/deribit/deribit_parser.h"
+#include "md_gateway/adapter/deribit/deribit_decoder.h"
 
 #include <atomic>
 #include <cstdint>
@@ -32,7 +32,7 @@ public:
     void subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth = 0) override;
 
     [[nodiscard]] const char* exchange_name() const override { return "DERIBIT"; }
-    [[nodiscard]] bpt::common::util::LatencyHistogram& decode_latency_hist() noexcept override { return parser_.decode_lat_; }
+    [[nodiscard]] bpt::common::util::LatencyHistogram& decode_latency_hist() noexcept override { return decoder_.decode_lat_; }
 
 protected:
     // 2 s back-off — Deribit is slower to recover than CEXs.
@@ -46,7 +46,7 @@ protected:
     void on_tick() override;
 
 private:
-    DeribitParser parser_;
+    DeribitDecoder decoder_;
     std::atomic<uint64_t> rpc_id_{1};
     std::atomic<bool> rl_connected_{false};
 

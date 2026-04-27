@@ -18,14 +18,14 @@ namespace bpt::refdata::adapter {
 // fees (unlike Binance/OKX, where fees come from a separate endpoint),
 // so parse returns both in a single pass — the adapter pushes each
 // half to its respective registry / callback.
-class DeribitRefdataParser {
+class DeribitRefdataDecoder {
 public:
     struct InstrumentWithFee {
         refdata::Instrument instrument;
         refdata::FeeScheduleState fee;
     };
 
-    explicit DeribitRefdataParser(std::shared_ptr<mapping::InstrumentMappingLoader> mapping);
+    explicit DeribitRefdataDecoder(std::shared_ptr<mapping::InstrumentMappingLoader> mapping);
 
     // POST /api/v2 with public/get_instruments — returns active
     // instruments whose canonical ID resolves via the mapping loader.

@@ -1,4 +1,4 @@
-#include "refdata/adapter/hyperliquid/hyperliquid_parser.h"
+#include "refdata/adapter/hyperliquid/hyperliquid_decoder.h"
 
 #include <messages/ExchangeId.h>
 #include <messages/InstrumentType.h>
@@ -11,10 +11,10 @@ using json = nlohmann::json;
 
 namespace bpt::refdata::adapter {
 
-HyperliquidParser::HyperliquidParser(std::shared_ptr<mapping::InstrumentMappingLoader> mapping)
+HyperliquidDecoder::HyperliquidDecoder(std::shared_ptr<mapping::InstrumentMappingLoader> mapping)
     : mapping_(std::move(mapping)) {}
 
-std::vector<refdata::Instrument> HyperliquidParser::parse_meta(const std::string& body, uint64_t collected_ts) const {
+std::vector<refdata::Instrument> HyperliquidDecoder::parse_meta(const std::string& body, uint64_t collected_ts) const {
     auto j = json::parse(body);
     const auto& universe = j.value("universe", json::array());
 
@@ -43,21 +43,28 @@ std::vector<refdata::Instrument> HyperliquidParser::parse_meta(const std::string
         // szDecimals defines the lot size precision: lot_size = 10^(-szDecimals)
         int sz_decimals = asset.value("szDecimals", 0);
         inst.lot_size = std::pow(10.0, -sz_decimals);
-        inst.tick_size = 0.0;  // not in meta; updated from assetCtxs
+
+        // HL price convention: prices may have ≤ MAX_DECIMALS - szDecimals
+        // decimal places (perps: MAX_DECIMALS=6, spot: 8). Tick = 10^-(that).
+        // /info doesn't report tick directly; derive it. Without this, AS
+        // quote rounding silently fails and the strategy posts zero orders.
+        constexpr int kPerpMaxDecimals = 6;
+        const int px_decimals = std::max(0, kPerpMaxDecimals - sz_decimals);
+        inst.tick_size = std::pow(10.0, -px_decimals);
 
         result.push_back(std::move(inst));
     }
 
-    bpt::common::log::info("[HyperliquidParser] Parsed {} perpetual instruments from /info meta", result.size());
+    bpt::common::log::info("[HyperliquidDecoder] Parsed {} perpetual instruments from /info meta", result.size());
     return result;
 }
 
-std::vector<refdata::FeeScheduleState> HyperliquidParser::parse_user_fees(const std::string& body,
+std::vector<refdata::FeeScheduleState> HyperliquidDecoder::parse_user_fees(const std::string& body,
                                                                           uint64_t collected_ts) const {
     auto j = json::parse(body);
     const auto& sched = j.value("feeSchedule", json{});
     if (sched.is_null() || !sched.is_object()) {
-        bpt::common::log::warn("[HyperliquidParser] userFees response missing feeSchedule");
+        bpt::common::log::warn("[HyperliquidDecoder] userFees response missing feeSchedule");
         return {};
     }
 

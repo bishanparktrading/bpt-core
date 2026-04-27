@@ -1,4 +1,4 @@
-#include "refdata/adapter/hyperliquid/hyperliquid_parser.h"
+#include "refdata/adapter/hyperliquid/hyperliquid_decoder.h"
 #include "refdata/mapping/instrument_mapping_loader.h"
 #include "refdata/refdata/types.h"
 
@@ -54,16 +54,16 @@ static const char* kMeta = R"({
   ]
 })";
 
-TEST(HyperliquidParser, MetaParsesKnownInstruments) {
-    HyperliquidParser parser(make_mapping());
+TEST(HyperliquidDecoder, MetaParsesKnownInstruments) {
+    HyperliquidDecoder parser(make_mapping());
     auto result = parser.parse_meta(kMeta, 99u);
 
     // XYZ not in mapping → skipped; 2 results
     ASSERT_EQ(result.size(), 2u);
 }
 
-TEST(HyperliquidParser, MetaFieldsCorrect) {
-    HyperliquidParser parser(make_mapping());
+TEST(HyperliquidDecoder, MetaFieldsCorrect) {
+    HyperliquidDecoder parser(make_mapping());
     auto result = parser.parse_meta(kMeta, 88u);
     ASSERT_GE(result.size(), 1u);
 
@@ -80,8 +80,8 @@ TEST(HyperliquidParser, MetaFieldsCorrect) {
     EXPECT_EQ(btc.inst_uid, make_inst_uid(1001, EXCHANGE_ID_HYPERLIQUID));
 }
 
-TEST(HyperliquidParser, MetaLotSizeFromSzDecimals) {
-    HyperliquidParser parser(make_mapping());
+TEST(HyperliquidDecoder, MetaLotSizeFromSzDecimals) {
+    HyperliquidDecoder parser(make_mapping());
     auto result = parser.parse_meta(kMeta, 0u);
     ASSERT_GE(result.size(), 2u);
 
@@ -91,21 +91,21 @@ TEST(HyperliquidParser, MetaLotSizeFromSzDecimals) {
     EXPECT_DOUBLE_EQ(result[1].lot_size, std::pow(10.0, -4));
 }
 
-TEST(HyperliquidParser, MetaSkipsUnknownSymbol) {
-    HyperliquidParser parser(make_mapping());
+TEST(HyperliquidDecoder, MetaSkipsUnknownSymbol) {
+    HyperliquidDecoder parser(make_mapping());
     auto result = parser.parse_meta(kMeta, 0u);
     for (const auto& inst : result)
         EXPECT_NE(inst.venue_symbol, "XYZ");
 }
 
-TEST(HyperliquidParser, MetaEmptyUniverseReturnsEmpty) {
-    HyperliquidParser parser(make_mapping());
+TEST(HyperliquidDecoder, MetaEmptyUniverseReturnsEmpty) {
+    HyperliquidDecoder parser(make_mapping());
     auto result = parser.parse_meta(R"({"universe":[]})", 0u);
     EXPECT_TRUE(result.empty());
 }
 
-TEST(HyperliquidParser, MetaMissingUniverseKeyReturnsEmpty) {
-    HyperliquidParser parser(make_mapping());
+TEST(HyperliquidDecoder, MetaMissingUniverseKeyReturnsEmpty) {
+    HyperliquidDecoder parser(make_mapping());
     auto result = parser.parse_meta(R"({})", 0u);
     EXPECT_TRUE(result.empty());
 }
@@ -121,8 +121,8 @@ static const char* kUserFees = R"({
   }
 })";
 
-TEST(HyperliquidParser, UserFeesParsedAsBps) {
-    HyperliquidParser parser(make_mapping());
+TEST(HyperliquidDecoder, UserFeesParsedAsBps) {
+    HyperliquidDecoder parser(make_mapping());
     auto result = parser.parse_user_fees(kUserFees, 77u);
     ASSERT_EQ(result.size(), 1u);
 
@@ -135,21 +135,21 @@ TEST(HyperliquidParser, UserFeesParsedAsBps) {
     EXPECT_EQ(fs.updated_ts, 77u);
 }
 
-TEST(HyperliquidParser, UserFeesMissingScheduleReturnsEmpty) {
-    HyperliquidParser parser(make_mapping());
+TEST(HyperliquidDecoder, UserFeesMissingScheduleReturnsEmpty) {
+    HyperliquidDecoder parser(make_mapping());
     auto result = parser.parse_user_fees(R"({"dailyUserVlm":[]})", 0u);
     EXPECT_TRUE(result.empty());
 }
 
-TEST(HyperliquidParser, UserFeesNullScheduleReturnsEmpty) {
-    HyperliquidParser parser(make_mapping());
+TEST(HyperliquidDecoder, UserFeesNullScheduleReturnsEmpty) {
+    HyperliquidDecoder parser(make_mapping());
     auto result = parser.parse_user_fees(R"({"feeSchedule": null})", 0u);
     EXPECT_TRUE(result.empty());
 }
 
-TEST(HyperliquidParser, UserFeesMakerRebateNegativeBps) {
+TEST(HyperliquidDecoder, UserFeesMakerRebateNegativeBps) {
     // Maker rebate should be negative bps
-    HyperliquidParser parser(make_mapping());
+    HyperliquidDecoder parser(make_mapping());
     auto result = parser.parse_user_fees(kUserFees, 0u);
     ASSERT_EQ(result.size(), 1u);
     EXPECT_LT(result[0].maker_fee_bps, 0);

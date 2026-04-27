@@ -1,7 +1,7 @@
 #pragma once
 
 #include "md_gateway/adapter/common/adapter_base.h"
-#include "md_gateway/adapter/okx/okx_parser.h"
+#include "md_gateway/adapter/okx/okx_decoder.h"
 
 #include <atomic>
 #include <bpt_common/ws/run_loop.h>
@@ -23,7 +23,7 @@ public:
     explicit OkxMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub);
 
     [[nodiscard]] const char* exchange_name() const override { return "OKX"; }
-    [[nodiscard]] bpt::common::util::LatencyHistogram& decode_latency_hist() noexcept override { return parser_.decode_lat_; }
+    [[nodiscard]] bpt::common::util::LatencyHistogram& decode_latency_hist() noexcept override { return decoder_.decode_lat_; }
 
     // Override to push the subscribe frame immediately when connected,
     // rather than waiting for on_tick (which in this Beast version may
@@ -41,7 +41,7 @@ protected:
     std::optional<bpt::common::ws::PingConfig> ping_config() const override;
 
 private:
-    OkxParser parser_;
+    OkxDecoder decoder_;
 
     // RunLoop::run signature needs a 'connected' atomic; AdapterBase
     // already tracks connection state via on_connect/on_disconnect

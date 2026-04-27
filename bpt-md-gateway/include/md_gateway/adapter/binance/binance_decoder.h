@@ -1,21 +1,23 @@
 #pragma once
 
-#include "md_gateway/adapter/common/i_exchange_parser.h"
+#include "md_gateway/adapter/common/i_exchange_decoder.h"
 #include "md_gateway/adapter/common/subscription_map.h"
 
 #include <bpt_common/util/latency_histogram.h>
 
 namespace bpt::md_gateway::adapter {
 
-// Parses Hyperliquid WebSocket frames.
+// Parses Binance combined-stream WebSocket frames.
 //
-// Handled channels:
-//   l2Book          → publish_bbo (top of book only)
-//   trades          → publish_trade (one publish per trade in the array)
-//   activeAssetCtx  → on_funding_rate callback (no nextFundingTime from HL)
-class HyperliquidParser : public IExchangeParser {
+// Handled message types:
+//   <sym>@bookTicker  → publish_bbo
+//   <sym>@aggTrade    → publish_trade
+//
+// Funding rates arrive on a separate BinanceMdAdapter thread
+// (fstream.binance.com) and are not handled here.
+class BinanceDecoder : public IExchangeDecoder {
 public:
-    explicit HyperliquidParser(const SubscriptionMap& subs) : subs_(subs) {}
+    explicit BinanceDecoder(const SubscriptionMap& subs) : subs_(subs) {}
 
     void parse(std::string_view payload,
                uint64_t recv_ns,

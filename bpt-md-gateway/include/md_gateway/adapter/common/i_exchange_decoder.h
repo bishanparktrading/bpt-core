@@ -25,9 +25,9 @@ namespace bpt::md_gateway::adapter {
 //   padded_buf_   — pre-allocated copy buffer satisfying simdjson's SIMDJSON_PADDING requirement.
 //   pad(payload)  — copies payload into padded_buf_ and zero-fills the trailing padding bytes.
 //                   Grows but never shrinks → amortised zero allocation after warmup.
-class IExchangeParser {
+class IExchangeDecoder {
 public:
-    virtual ~IExchangeParser() = default;
+    virtual ~IExchangeDecoder() = default;
 
     // Parse one WebSocket frame and publish normalised events.
     // Called from the adapter's IO thread on every received message.

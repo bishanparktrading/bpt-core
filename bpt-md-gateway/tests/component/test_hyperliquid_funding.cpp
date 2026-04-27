@@ -4,7 +4,7 @@
 
 #include "fake_md_publisher.h"
 #include "md_gateway/adapter/common/subscription_map.h"
-#include "md_gateway/adapter/hyperliquid/hyperliquid_parser.h"
+#include "md_gateway/adapter/hyperliquid/hyperliquid_decoder.h"
 #include "md_gateway/messaging/funding_rate_publisher.h"
 
 #include <messages/ExchangeId.h>
@@ -16,7 +16,7 @@ namespace {
 
 struct HLFundingFixture {
     SubscriptionMap subs;
-    HyperliquidParser parser{subs};
+    HyperliquidDecoder parser{subs};
     test::FakeMdPublisher pub;
     std::optional<messaging::FundingRateUpdate> last_fr;
     messaging::FundingRateCallback fr_cb;

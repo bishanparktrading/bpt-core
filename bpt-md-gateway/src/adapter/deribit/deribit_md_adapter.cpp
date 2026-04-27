@@ -16,12 +16,12 @@ namespace net = boost::asio;
 
 DeribitMdAdapter::DeribitMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub)
     : AdapterBase(cfg, std::move(md_pub)),
-      parser_(subs_) {}
+      decoder_(subs_) {}
 
 void DeribitMdAdapter::unsubscribe(uint64_t instrument_id) {
     std::string symbol = subs_.unsubscribe(instrument_id);
     if (!symbol.empty())
-        parser_.forget(symbol);
+        decoder_.forget(symbol);
 }
 
 std::chrono::milliseconds DeribitMdAdapter::reconnect_delay() const {
@@ -57,7 +57,7 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> DeribitMdAdapter::connect_and_subs
     bpt::common::log::info("DeribitMdAdapter: heartbeat enabled (interval=30s)");
 
     // Clear stale order book gap state before receiving new snapshots.
-    parser_.reset();
+    decoder_.reset();
 
     // Drain pending so the read loop does not re-send what we subscribe here.
     subs_.take_pending();
@@ -119,8 +119,8 @@ void DeribitMdAdapter::subscribe(uint64_t instrument_id, std::string symbol, uin
 }
 
 void DeribitMdAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {
-    parser_.parse(payload, recv_ns, validating_pub_, on_funding_rate);
-    if (parser_.take_test_request())
+    decoder_.parse(payload, recv_ns, validating_pub_, on_funding_rate);
+    if (decoder_.take_test_request())
         needs_test_response_.store(true, std::memory_order_release);
 }
 

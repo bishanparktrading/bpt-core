@@ -16,7 +16,7 @@ namespace net = boost::asio;
 
 OkxMdAdapter::OkxMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub)
     : AdapterBase(cfg, std::move(md_pub)),
-      parser_(subs_) {}
+      decoder_(subs_) {}
 
 std::unique_ptr<bpt::common::ws::AnyWsStream> OkxMdAdapter::connect_and_subscribe() {
     bpt::common::log::info("OkxMdAdapter connecting {}:{}{} (tls={})", cfg_.ws_host, cfg_.ws_port, cfg_.ws_path, cfg_.use_tls);
@@ -138,7 +138,7 @@ std::optional<bpt::common::ws::PingConfig> OkxMdAdapter::ping_config() const {
 }
 
 void OkxMdAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {
-    parser_.parse(payload, recv_ns, validating_pub_, on_funding_rate);
+    decoder_.parse(payload, recv_ns, validating_pub_, on_funding_rate);
 }
 
 }  // namespace bpt::md_gateway::adapter

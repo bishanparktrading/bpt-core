@@ -24,7 +24,7 @@ HyperliquidRefDataAdapter::HyperliquidRefDataAdapter(const config::AdapterConfig
       registry_(std::move(registry)),
       wallet_address_(creds.wallet_address),
       client_(std::move(client)),
-      parser_(mapping) {}
+      decoder_(mapping) {}
 
 void HyperliquidRefDataAdapter::fetchSnapshot() {
     bpt::common::log::info("[HyperliquidRefData] Starting snapshot fetch...");
@@ -33,7 +33,7 @@ void HyperliquidRefDataAdapter::fetchSnapshot() {
     // 1. Meta — instrument listing (all perps)
     try {
         auto body = client_->post("/info", R"({"type":"meta"})");
-        for (auto& inst : parser_.parse_meta(body, ts))
+        for (auto& inst : decoder_.parse_meta(body, ts))
             registry_->add(inst);
     } catch (const std::exception& e) {
         bpt::common::log::error("[HyperliquidRefData] Failed to fetch meta: {}", e.what());
@@ -45,7 +45,7 @@ void HyperliquidRefDataAdapter::fetchSnapshot() {
         try {
             nlohmann::json fee_req = {{"type", "userFees"}, {"user", wallet_address_}};
             auto body = client_->post("/info", fee_req.dump());
-            for (auto& fs : parser_.parse_user_fees(body, ts))
+            for (auto& fs : decoder_.parse_user_fees(body, ts))
                 if (on_fee_schedule)
                     on_fee_schedule(fs);
         } catch (const std::exception& e) {
@@ -65,7 +65,7 @@ void HyperliquidRefDataAdapter::fetchInstrumentListing() {
 
     try {
         auto body = client_->post("/info", R"({"type":"meta"})");
-        for (auto& inst : parser_.parse_meta(body, ts)) {
+        for (auto& inst : decoder_.parse_meta(body, ts)) {
             if (registry_->update_if_changed(inst) && on_instrument_delta)
                 on_instrument_delta(inst, bpt::messages::DeltaUpdateType::MODIFY, ts);
         }

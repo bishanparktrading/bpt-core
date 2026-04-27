@@ -1,4 +1,4 @@
-#include "md_gateway/adapter/binance/binance_parser.h"
+#include "md_gateway/adapter/binance/binance_decoder.h"
 
 #include <messages/TradeSide.h>
 
@@ -8,7 +8,7 @@
 
 namespace bpt::md_gateway::adapter {
 
-void BinanceParser::parse(std::string_view payload,
+void BinanceDecoder::parse(std::string_view payload,
                           uint64_t recv_ns,
                           messaging::IMdPublisher& pub,
                           messaging::FundingRateCallback& /*on_funding_rate*/) {

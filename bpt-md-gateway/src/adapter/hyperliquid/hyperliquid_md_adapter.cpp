@@ -17,7 +17,7 @@ namespace net = boost::asio;
 HyperliquidMdAdapter::HyperliquidMdAdapter(const config::AdapterConfig& cfg,
                                        std::shared_ptr<messaging::IMdPublisher> md_pub)
     : AdapterBase(cfg, std::move(md_pub)),
-      parser_(subs_) {}
+      decoder_(subs_) {}
 
 std::unique_ptr<bpt::common::ws::AnyWsStream> HyperliquidMdAdapter::connect_and_subscribe() {
     bpt::common::log::info("HyperliquidMdAdapter connecting {}:{}{} (tls={})",
@@ -115,7 +115,7 @@ std::optional<bpt::common::ws::PingConfig> HyperliquidMdAdapter::ping_config() c
 }
 
 void HyperliquidMdAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {
-    parser_.parse(payload, recv_ns, validating_pub_, on_funding_rate);
+    decoder_.parse(payload, recv_ns, validating_pub_, on_funding_rate);
 }
 
 }  // namespace bpt::md_gateway::adapter

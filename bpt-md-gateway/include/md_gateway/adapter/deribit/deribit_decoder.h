@@ -1,6 +1,6 @@
 #pragma once
 
-#include "md_gateway/adapter/common/i_exchange_parser.h"
+#include "md_gateway/adapter/common/i_exchange_decoder.h"
 #include "md_gateway/adapter/common/subscription_map.h"
 
 #include <atomic>
@@ -23,9 +23,9 @@ namespace bpt::md_gateway::adapter {
 // test_request_pending is set from parse() and consumed by the adapter read
 // loop via take_test_request(). Both are called sequentially on the IO thread
 // so no locking is needed.
-class DeribitParser : public IExchangeParser {
+class DeribitDecoder : public IExchangeDecoder {
 public:
-    explicit DeribitParser(SubscriptionMap& subs) : subs_(subs) {}
+    explicit DeribitDecoder(SubscriptionMap& subs) : subs_(subs) {}
 
     void parse(std::string_view payload,
                uint64_t recv_ns,

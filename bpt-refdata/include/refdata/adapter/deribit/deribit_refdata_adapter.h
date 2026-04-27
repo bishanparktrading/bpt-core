@@ -2,7 +2,7 @@
 
 #include "refdata/adapter/common/i_exchange_refdata_adapter.h"
 #include "refdata/adapter/credentials.h"
-#include "refdata/adapter/deribit/deribit_parser.h"
+#include "refdata/adapter/deribit/deribit_decoder.h"
 #include "refdata/config/settings.h"
 #include "refdata/http/rest_client.h"
 #include "refdata/mapping/instrument_mapping_loader.h"
@@ -56,7 +56,7 @@ private:
     // the host (defaulting to test.deribit.com when cfg_.rest_host empty).
     std::shared_ptr<bpt::refdata::http::RestClient> rest_client_;
 
-    DeribitRefdataParser parser_;
+    DeribitRefdataDecoder decoder_;
 
     // Fetch + ingest one (currency, kind) pair. Used by both the
     // startup snapshot and the hourly listing refresh — the difference

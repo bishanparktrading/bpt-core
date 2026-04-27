@@ -14,7 +14,7 @@ namespace websocket = beast::websocket;
 
 BinanceMdAdapter::BinanceMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub)
     : AdapterBase(cfg, std::move(md_pub)),
-      parser_(subs_),
+      decoder_(subs_),
       fr_stream_(cfg_, subs_, on_funding_rate, stop_flag_) {}
 
 void BinanceMdAdapter::subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth) {
@@ -78,7 +78,7 @@ void BinanceMdAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
 }
 
 void BinanceMdAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {
-    parser_.parse(payload, recv_ns, validating_pub_, on_funding_rate);
+    decoder_.parse(payload, recv_ns, validating_pub_, on_funding_rate);
 }
 
 }  // namespace bpt::md_gateway::adapter

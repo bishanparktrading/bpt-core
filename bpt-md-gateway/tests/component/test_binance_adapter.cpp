@@ -1,7 +1,7 @@
-// Component tests for BinanceParser.
+// Component tests for BinanceDecoder.
 
 #include "fake_md_publisher.h"
-#include "md_gateway/adapter/binance/binance_parser.h"
+#include "md_gateway/adapter/binance/binance_decoder.h"
 #include "md_gateway/adapter/common/subscription_map.h"
 
 #include <gtest/gtest.h>
@@ -11,7 +11,7 @@ namespace {
 
 struct BinanceParserFixture {
     SubscriptionMap subs;
-    BinanceParser parser{subs};
+    BinanceDecoder parser{subs};
     test::FakeMdPublisher pub;
     messaging::FundingRateCallback fr_cb;
 
