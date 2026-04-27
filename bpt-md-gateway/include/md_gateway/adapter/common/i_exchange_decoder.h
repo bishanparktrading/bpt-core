@@ -1,5 +1,8 @@
 #pragma once
 
+/// \file
+/// \brief Interface for venue-specific WS message decoders + shared simdjson state.
+
 #include "md_gateway/messaging/funding_rate_publisher.h"
 #include "md_gateway/messaging/i_md_publisher.h"
 
@@ -11,40 +14,42 @@
 
 namespace bpt::md_gateway::adapter {
 
-// Interface for exchange-specific WebSocket message parsers.
-//
-// Each implementation:
-//   - Holds a reference to the adapter's SubscriptionMap for symbol→id lookups.
-//   - Parses one raw WebSocket frame and dispatches normalised events to the publisher.
-//   - Must not allocate on the hot path except for multi-level order book vectors.
-//   - May hold per-session state (e.g. sequence numbers for gap detection).
-//     That state must be cleared in reset() before each (re)connect.
-//
-// Base provides:
-//   json_parser_  — simdjson ondemand parser, reused across calls (pre-allocated internal buffer).
-//   padded_buf_   — pre-allocated copy buffer satisfying simdjson's SIMDJSON_PADDING requirement.
-//   pad(payload)  — copies payload into padded_buf_ and zero-fills the trailing padding bytes.
-//                   Grows but never shrinks → amortised zero allocation after warmup.
+/// \brief Decode-time contract for venue-specific WS message handlers.
+///
+/// Each concrete decoder:
+///   - Holds a reference to the adapter's SubscriptionMap for symbol→id lookups.
+///   - Decodes one raw WS frame and dispatches normalised events to the publisher.
+///   - Does not allocate on the hot path except for multi-level book vectors.
+///   - May hold per-session state (e.g. sequence numbers for gap
+///     detection); that state must be cleared in reset() before each
+///     (re)connect.
+///
+/// Base provides shared simdjson buffer management — keep the parser
+/// instance + padded copy buffer next to each other so per-venue
+/// derived classes don't each reinvent them.
 class IExchangeDecoder {
 public:
     virtual ~IExchangeDecoder() = default;
 
-    // Parse one WebSocket frame and publish normalised events.
-    // Called from the adapter's IO thread on every received message.
+    /// \brief Decode one WS frame and publish normalised events.
+    ///
+    /// Called from the adapter's publisher thread on every dequeued frame.
     virtual void decode(std::string_view payload,
                        uint64_t recv_ns,
                        messaging::IMdPublisher& pub,
                        messaging::FundingRateCallback& on_funding_rate) = 0;
 
-    // Clear any per-session state. Called by the adapter before each (re)connect.
+    /// \brief Clear any per-session state. Called before each (re)connect.
     virtual void reset() {}
 
 protected:
-    simdjson::ondemand::parser json_parser_;
-    std::vector<char> padded_buf_;
+    simdjson::ondemand::parser json_parser_;  ///< simdjson ondemand parser, reused across calls
+    std::vector<char> padded_buf_;            ///< copy buffer satisfying simdjson's SIMDJSON_PADDING
 
-    // Copy payload into padded_buf_, then zero-fill SIMDJSON_PADDING trailing bytes.
-    // Must be called before each json_parser_.iterate() call.
+    /// \brief Copy payload into padded_buf_, zero-fill the SIMDJSON_PADDING trailing bytes.
+    ///
+    /// Must be called before each json_parser_.iterate() invocation.
+    /// Grows but never shrinks → amortised zero allocation after warmup.
     void pad(std::string_view payload) {
         const std::size_t needed = payload.size() + simdjson::SIMDJSON_PADDING;
         if (padded_buf_.size() < needed)

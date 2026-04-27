@@ -1,24 +1,30 @@
 #pragma once
 
+/// \file
+/// \brief Refdata exchange credentials — populated from systemd-creds at startup.
+
 #include <map>
 #include <string>
 
 namespace bpt::refdata::adapter {
 
-// Exchange credentials populated at startup from systemd-creds (or a local
-// JSON file).  Passed directly to adapter constructors — never retained beyond
-// adapter initialisation except inside the adapter itself.
+/// \brief Per-venue credential bundle.
+///
+/// Populated at startup from systemd-creds (or a local JSON file). Passed
+/// directly to adapter constructors — never retained beyond adapter
+/// initialisation except inside the adapter itself.
 struct ExchangeCredentials {
-    std::string api_key;         // BINANCE, OKX
-    std::string secret_key;      // BINANCE, OKX
-    std::string passphrase;      // OKX only
-    std::string wallet_address;  // HYPERLIQUID (public address for fee lookups)
-    std::string client_id;       // DERIBIT
-    std::string client_secret;   // DERIBIT
+    std::string api_key;         ///< BINANCE, OKX
+    std::string secret_key;      ///< BINANCE, OKX
+    std::string passphrase;      ///< OKX only
+    std::string wallet_address;  ///< HYPERLIQUID (public address for fee lookups)
+    std::string client_id;       ///< DERIBIT
+    std::string client_secret;   ///< DERIBIT
 };
 
-// Map the flat key-value pairs returned by bpt::common::secrets::fetch into the fields
-// relevant for the given exchange.  Unknown keys are silently ignored.
+/// \brief Map flat secret kv pairs into the fields relevant for the given exchange.
+///
+/// Unknown keys are silently ignored.
 inline ExchangeCredentials credentials_from_secret(const std::string& exchange,
                                                    const std::map<std::string, std::string>& kv) {
     const auto get = [&](const char* key) -> std::string {

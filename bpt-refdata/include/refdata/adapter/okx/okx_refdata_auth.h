@@ -1,12 +1,16 @@
 #pragma once
 
-// OKX refdata REST request signer — pure, stateless. The same HMAC-SHA256
-// recipe used by order-gw's OKX auth (bpt-order-gateway/adapter/okx/okx_auth),
-// but separate because refdata's RestClient + header type is a different
-// code path that doesn't depend on Beast.
-//
-//   prehash = timestamp_iso8601 + HTTP_METHOD + request_path (+ body for POSTs)
-//   sign    = base64(HMAC-SHA256(secret_key, prehash))
+/// \file
+/// \brief OKX refdata REST request signer — pure, stateless.
+///
+/// Uses the same HMAC-SHA256 recipe as order-gw's OKX auth, but separate
+/// because refdata's RestClient + header type is a different code path
+/// that doesn't depend on Beast.
+///
+/// \code
+///   prehash = timestamp_iso8601 + HTTP_METHOD + request_path (+ body for POSTs)
+///   sign    = base64(HMAC-SHA256(secret_key, prehash))
+/// \endcode
 
 #include "refdata/http/rest_client.h"
 
@@ -14,13 +18,14 @@
 
 namespace bpt::refdata::adapter {
 
-// Build the OK-ACCESS-{KEY,SIGN,TIMESTAMP,PASSPHRASE} header block for a
-// REST call. `method` is "GET" or "POST"; `target` is the request path
-// including any query string. When `simulated` is true, adds the
-// `x-simulated-trading: 1` header required by OKX demo-trading endpoints.
-//
-// No body-signing overload yet — refdata only issues GETs against OKX.
-// Extend if/when a POST is needed.
+/// \brief Build the OK-ACCESS-{KEY,SIGN,TIMESTAMP,PASSPHRASE} header block for a REST call.
+///
+/// \param method     "GET" or "POST".
+/// \param target     The request path including any query string.
+/// \param simulated  When true, adds `x-simulated-trading: 1` (required for OKX demo-trading).
+///
+/// No body-signing overload yet — refdata only issues GETs against OKX.
+/// Extend if/when a POST is needed.
 http::RestClient::Headers okx_auth_headers(const std::string& api_key,
                                            const std::string& secret_key,
                                            const std::string& passphrase,

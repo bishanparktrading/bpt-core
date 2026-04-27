@@ -1,12 +1,14 @@
 #pragma once
 
-// Synchronous HTTPS client for Binance's REST API. Opens a fresh TLS
-// connection per call — same rationale as OKX's https_client: order
-// placement is infrequent enough that pooling isn't load-bearing and
-// would only complicate failure handling.
-//
-// All methods return the raw response body. Parsing is the caller's
-// job — the client stays independent of Binance's envelope shapes.
+/// \file
+/// \brief Synchronous HTTPS client for Binance's REST API.
+///
+/// Opens a fresh TLS connection per call — same rationale as OKX's
+/// https_client: order placement is infrequent enough that pooling
+/// isn't load-bearing and would only complicate failure handling.
+///
+/// All methods return the raw response body. Parsing is the caller's
+/// job — the client stays independent of Binance's envelope shapes.
 
 #include "order_gateway/adapter/common/beast_https_client.h"
 #include "order_gateway/adapter/common/credentials.h"
@@ -20,10 +22,13 @@ class BinanceHttpsClient {
 public:
     BinanceHttpsClient(const config::AdapterConfig& cfg, const ExchangeCredentials& creds);
 
-    // Dispatch one request. `with_api_key` attaches the X-MBX-APIKEY
-    // header — required on all private endpoints, unused on public ones.
-    // `body` is only read for POST/PUT; Binance puts most params in the
-    // query string of `path` so the body is usually empty.
+    /// \brief Dispatch one request.
+    ///
+    /// \param with_api_key  Attaches the `X-MBX-APIKEY` header — required
+    ///                      on all private endpoints, unused on public.
+    /// \param body          Only read for POST/PUT; Binance puts most
+    ///                      params in the query string of `path`, so the
+    ///                      body is usually empty.
     std::string request(const std::string& method,
                          const std::string& path,
                          const std::string& body,

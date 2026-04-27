@@ -1,14 +1,15 @@
 #pragma once
 
-// Binance funding-rate WebSocket stream.
-//
-// Connects to fstream.binance.com/stream?streams=!markPrice@arr@1s —
-// a separate endpoint from the main MD stream, so it gets its own
-// io_context, SSL context, and thread. Parses the markPrice array and
-// emits a FundingRateUpdate per subscribed instrument via the callback.
-//
-// Owned by BinanceMdAdapter; start/stop are driven by the adapter's
-// lifecycle. Observes the adapter's stop_flag for shutdown.
+/// \file
+/// \brief Binance funding-rate WS stream — owned auxiliary thread on the futures endpoint.
+///
+/// Connects to `fstream.binance.com/stream?streams=!markPrice@arr@1s` —
+/// a separate endpoint from the main MD stream, so it gets its own
+/// io_context, SSL context, and thread. Parses the markPrice array and
+/// emits a FundingRateUpdate per subscribed instrument via the callback.
+///
+/// Owned by BinanceMdAdapter; start/stop are driven by the adapter's
+/// lifecycle. Observes the adapter's stop_flag for shutdown.
 
 #include "md_gateway/adapter/common/subscription_map.h"
 #include "md_gateway/config/settings.h"
@@ -34,13 +35,14 @@ public:
     BinanceFundingRateStream(const BinanceFundingRateStream&) = delete;
     BinanceFundingRateStream& operator=(const BinanceFundingRateStream&) = delete;
 
-    // Launches the IO thread. Idempotent-safe — the parent adapter
-    // gates start() behind its own lifecycle.
+    /// \brief Launch the IO thread.
+    ///
+    /// Idempotent-safe — the parent adapter gates start() behind its own lifecycle.
     void start();
 
-    // Stops the io_context (to unblock an in-flight ws.read) and joins
-    // the thread. Safe to call after the adapter's stop_flag has
-    // already been set.
+    /// \brief Stop the io_context (to unblock an in-flight ws.read) and join the thread.
+    ///
+    /// Safe to call after the adapter's stop_flag has already been set.
     void stop();
 
 private:
@@ -55,11 +57,13 @@ private:
     boost::asio::ssl::context ssl_ctx_;
     std::thread thread_;
 
-    // Reused simdjson parser + padded buffer — avoid per-message
-    // allocations on the ~1 Hz markPrice@arr feed.
+    /// \name Hot-path scratch
+    /// Reused across messages on the ~1 Hz markPrice@arr feed to avoid per-message allocs.
+    /// @{
     simdjson::ondemand::parser json_parser_;
     std::vector<char> padded_buf_;
     std::string lower_sym_;
+    /// @}
 };
 
 }  // namespace bpt::md_gateway::adapter

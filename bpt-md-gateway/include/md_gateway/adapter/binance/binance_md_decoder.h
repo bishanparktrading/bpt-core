@@ -1,5 +1,8 @@
 #pragma once
 
+/// \file
+/// \brief Binance MD frame decoder (JSON → SBE).
+
 #include "md_gateway/adapter/common/i_exchange_decoder.h"
 #include "md_gateway/adapter/common/subscription_map.h"
 
@@ -7,14 +10,14 @@
 
 namespace bpt::md_gateway::adapter {
 
-// Parses Binance combined-stream WebSocket frames.
-//
-// Handled message types:
-//   <sym>@bookTicker  → publish_bbo
-//   <sym>@aggTrade    → publish_trade
-//
-// Funding rates arrive on a separate BinanceMdAdapter thread
-// (fstream.binance.com) and are not handled here.
+/// \brief Decodes Binance combined-stream WS frames and publishes SBE.
+///
+/// Handled message types:
+///   - `<sym>@bookTicker` → publish_bbo
+///   - `<sym>@aggTrade`   → publish_trade
+///
+/// Funding rates arrive on a separate BinanceMdAdapter thread
+/// (fstream.binance.com) and are not handled here.
 class BinanceMdDecoder : public IExchangeDecoder {
 public:
     explicit BinanceMdDecoder(const SubscriptionMap& subs) : subs_(subs) {}

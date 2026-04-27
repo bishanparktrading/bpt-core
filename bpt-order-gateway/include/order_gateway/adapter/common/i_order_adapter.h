@@ -1,5 +1,8 @@
 #pragma once
 
+/// \file
+/// \brief IOrderAdapter — the per-venue order-routing interface used by order-gateway.
+
 #include "order_gateway/adapter/common/account_snapshot_data.h"
 #include "order_gateway/order/order_state_manager.h"
 #include "order_gateway/risk/disconnect_rate_breaker.h"
@@ -22,8 +25,10 @@
 
 namespace bpt::order_gateway::adapter {
 
-// Exec event fired by adapters on every exchange report (ack, fill, cancel, reject).
-// All fields use the same fixed-point scale as the SBE messages (1e8 for price/qty).
+/// \brief Exec event fired by adapters on every exchange report (ack, fill, cancel, reject).
+///
+/// All fields use the same fixed-point scale as the SBE messages
+/// (1e8 for price/qty).
 struct ExecEvent {
     uint64_t order_id{0};
     uint64_t exchange_order_id{0};
@@ -53,41 +58,52 @@ public:
     virtual void start() = 0;
     virtual void stop() = 0;
 
-    // Place, cancel, modify orders.  Thread-safe — called from the hot-path thread.
+    /// \name Order entry
+    /// Thread-safe — called from the hot-path thread.
+    /// @{
     virtual void send_new_order(const bpt::messages::NewOrder& order) = 0;
     virtual void send_cancel(const bpt::messages::CancelOrder& cancel, const std::string& native_symbol) = 0;
     virtual void send_cancel_all(uint64_t instrument_id) = 0;
     virtual void send_modify(const bpt::messages::ModifyOrder& modify, const std::string& native_symbol) = 0;
+    /// @}
 
     [[nodiscard]] virtual bpt::messages::ExchangeId::Value exchange_id() const = 0;
     [[nodiscard]] virtual const char* exchange_name() const = 0;
     [[nodiscard]] virtual bool is_connected() const = 0;
 
-    // Disconnect-rate circuit breaker. Latches true when the adapter
-    // has reconnected too many times in its rolling window — operator
-    // restart required to clear. Distinct from !is_connected() (which
-    // is a transient state during normal reconnect). Default false for
-    // adapters that don't implement it.
+    /// \brief Disconnect-rate circuit breaker.
+    ///
+    /// Latches true when the adapter has reconnected too many times in
+    /// its rolling window — operator restart required to clear.
+    /// Distinct from `!is_connected()` (which is a transient state
+    /// during normal reconnect). Default false for adapters that don't
+    /// implement it.
     [[nodiscard]] virtual bool is_halted() const { return false; }
 
-    // Set disconnect-breaker config before start(). Default no-op for
-    // adapters that don't implement it; OrderAdapterBase overrides.
+    /// \brief Set disconnect-breaker config before start().
+    ///
+    /// Default no-op; OrderAdapterBase overrides.
     virtual void set_disconnect_breaker_config(risk::DisconnectRateBreaker::Config) {}
 
-    // Bind the central CPU-affinity topology. Must be called before
-    // start() — the IO thread reads its role assignment at launch.
-    // Default no-op for adapters that don't implement it; OrderAdapterBase
-    // overrides.
+    /// \brief Bind the central CPU-affinity topology.
+    ///
+    /// Must be called before start() — the IO thread reads its role
+    /// assignment at launch. Default no-op; OrderAdapterBase overrides.
     virtual void set_topology(const bpt::common::util::Topology&) {}
 
-    // Drain all pending exec events from the adapter's IO thread into the
-    // caller's thread.  Call this from the main poll loop on every iteration.
-    // fn is invoked once per event; returns the number of events drained.
+    /// \brief Drain all pending exec events from the adapter's IO thread.
+    ///
+    /// Call this from the main poll loop on every iteration. `fn` is
+    /// invoked once per event.
+    /// \return The number of events drained.
     virtual int drain_exec_events(const std::function<void(const ExecEvent&)>& fn) = 0;
 
-    // Fetch current account positions and balance from the exchange REST API.
-    // Blocking — must be called from a dedicated thread, not the poll loop.
-    // Returns a populated AccountSnapshotData; throws std::exception on failure.
+    /// \brief Fetch current account positions and balance from the exchange REST API.
+    ///
+    /// Blocking — must be called from a dedicated thread, not the poll
+    /// loop.
+    /// \return A populated AccountSnapshotData.
+    /// \throws std::exception on failure.
     virtual AccountSnapshotData fetch_account_snapshot(uint64_t correlation_id) = 0;
 };
 

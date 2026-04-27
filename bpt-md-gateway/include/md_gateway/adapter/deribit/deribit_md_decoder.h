@@ -1,5 +1,8 @@
 #pragma once
 
+/// \file
+/// \brief Deribit MD frame decoder (JSON-RPC → SBE).
+
 #include "md_gateway/adapter/common/i_exchange_decoder.h"
 #include "md_gateway/adapter/common/subscription_map.h"
 
@@ -10,19 +13,19 @@
 
 namespace bpt::md_gateway::adapter {
 
-// Parses Deribit JSON-RPC 2.0 WebSocket frames.
-//
-// Handled methods:
-//   subscription → dispatches on channel prefix (quote / trades / book)
-//   heartbeat    → sets test_request_pending flag for the adapter read loop
-//
-// Per-session state (reset on each reconnect via reset()):
-//   last_change_id_ — tracks book change IDs for gap detection.
-//   On a gap, the affected instrument is re-queued via subs_.requeue().
-//
-// test_request_pending is set from parse() and consumed by the adapter read
-// loop via take_test_request(). Both are called sequentially on the IO thread
-// so no locking is needed.
+/// \brief Decodes Deribit JSON-RPC 2.0 WS frames and publishes SBE.
+///
+/// Handled methods:
+///   - `subscription` → dispatches on channel prefix (quote / trades / book)
+///   - `heartbeat`    → sets test_request_pending flag for the adapter read loop
+///
+/// Per-session state (reset on each reconnect via reset()):
+///   - last_change_id_ — tracks book change IDs for gap detection.
+///   - On a gap, the affected instrument is re-queued via subs_.requeue().
+///
+/// test_request_pending is set from decode() and consumed by the adapter
+/// read loop via take_test_request(). Both are called sequentially on the
+/// IO thread so no locking is needed.
 class DeribitMdDecoder : public IExchangeDecoder {
 public:
     explicit DeribitMdDecoder(SubscriptionMap& subs) : subs_(subs) {}
@@ -32,20 +35,21 @@ public:
                messaging::IMdPublisher& pub,
                messaging::FundingRateCallback& on_funding_rate) override;
 
-    // Clear per-session order book state. Called by the adapter before each (re)connect.
+    /// \brief Clear per-session order book state. Called by the adapter before each (re)connect.
     void reset() override;
 
-    // Returns true and clears the flag if parse() received a test_request heartbeat.
-    // The adapter read loop calls this to know when to send a public/test response.
+    /// \brief Returns true and clears the flag if decode() saw a test_request heartbeat.
+    ///
+    /// The adapter read loop calls this to know when to send a public/test response.
     [[nodiscard]] bool take_test_request() noexcept;
 
-    // Remove gap-detection state for an unsubscribed instrument.
+    /// \brief Remove gap-detection state for an unsubscribed instrument.
     void forget(const std::string& symbol);
 
     bpt::common::util::LatencyHistogram decode_lat_;
 
 private:
-    SubscriptionMap& subs_;  // non-const: requeue() is called on order book gaps
+    SubscriptionMap& subs_;  ///< non-const: requeue() is called on order book gaps
     std::unordered_map<std::string, uint64_t> last_change_id_;
     bool test_request_pending_{false};
     uint64_t tick_count_{0};

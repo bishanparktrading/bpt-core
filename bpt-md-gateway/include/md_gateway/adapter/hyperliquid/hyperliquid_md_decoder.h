@@ -1,5 +1,8 @@
 #pragma once
 
+/// \file
+/// \brief Hyperliquid MD frame decoder (JSON → SBE).
+
 #include "md_gateway/adapter/common/i_exchange_decoder.h"
 #include "md_gateway/adapter/common/subscription_map.h"
 
@@ -7,12 +10,12 @@
 
 namespace bpt::md_gateway::adapter {
 
-// Parses Hyperliquid WebSocket frames.
-//
-// Handled channels:
-//   l2Book          → publish_bbo (top of book only)
-//   trades          → publish_trade (one publish per trade in the array)
-//   activeAssetCtx  → on_funding_rate callback (no nextFundingTime from HL)
+/// \brief Decodes Hyperliquid WS frames and publishes SBE.
+///
+/// Handled channels:
+///   - l2Book         → publish_bbo (top of book only)
+///   - trades         → publish_trade (one publish per trade in the array)
+///   - activeAssetCtx → on_funding_rate callback (no nextFundingTime from HL)
 class HyperliquidMdDecoder : public IExchangeDecoder {
 public:
     explicit HyperliquidMdDecoder(const SubscriptionMap& subs) : subs_(subs) {}

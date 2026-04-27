@@ -1,5 +1,8 @@
 #pragma once
 
+/// \file
+/// \brief Deribit exec event decoder (WS subscription push + RPC result → ExecEvent).
+
 #include "order_gateway/adapter/common/i_order_adapter.h"
 
 #include <boost/json.hpp>
@@ -12,28 +15,31 @@
 
 namespace bpt::order_gateway::adapter {
 
-// Parses Deribit WebSocket execution events into ExecEvents.
-// Handles the user.orders.any.raw subscription channel and the inline order
-// result embedded in private/buy + private/sell JSON-RPC responses.
+/// \brief Decodes Deribit WS execution events into ExecEvents.
+///
+/// Handles the `user.orders.any.raw` subscription channel and the inline
+/// order result embedded in `private/buy` + `private/sell` JSON-RPC
+/// responses.
 class DeribitExecDecoder {
 public:
     std::function<void(const ExecEvent&)> on_exec_event;
 
-    // Register label→order_id before the order is sent.
+    /// \brief Register label→order_id before the order is sent.
     void register_order(const std::string& label, uint64_t order_id);
 
-    // Look up the Deribit exchange order_id string for a given internal order_id.
-    // Returns empty string if not yet received.
+    /// \brief Look up the Deribit exchange order_id string for a given internal order_id.
+    /// \return Empty string if not yet received.
     std::string get_exchange_order_id(uint64_t order_id) const;
 
-    // Clear duplicate-suppression sets and exchange-order-id maps on reconnect.
+    /// \brief Clear duplicate-suppression sets and exchange-order-id maps on reconnect.
     void reset();
 
-    // Called for the "data" object in a user.orders.any.raw subscription push.
+    /// \brief Called for the "data" object in a `user.orders.any.raw` subscription push.
     void handle_subscription_event(const boost::json::object& d, uint64_t recv_ns);
 
-    // Called for the "result.order" object in a private/buy or private/sell
-    // JSON-RPC response (only for terminal states: filled, cancelled, rejected).
+    /// \brief Called for the `result.order` object in a `private/buy` or `private/sell` RPC response.
+    ///
+    /// Only fires for terminal states: filled, cancelled, rejected.
     void handle_order_response(const boost::json::object& order_obj, uint64_t recv_ns);
 
 private:

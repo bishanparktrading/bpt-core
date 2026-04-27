@@ -1,21 +1,23 @@
 #pragma once
 
-// Persistent WebSocket client to the Hyperliquid endpoint. Inherits
-// the connect/read/send/ping scaffolding from bpt::common::ws::RunLoop and
-// layers HL-specific request/response plumbing on top:
-//
-//   - Subscribes to `userFills` on handshake so the adapter's exec
-//     parser sees every fill event.
-//   - Provides post_action() — the HL-style "send a signed envelope,
-//     block on the matching id, return the response body" pattern used
-//     by every order-entry call.
-//   - Forwards `channel:"error"` and stale-id responses by failing all
-//     pending posts so senders never hang on a dead session.
-//
-// post_action() is called from external threads (OrderProcessor +
-// detached account-snapshot fetcher). RunLoop::send() is thread-safe
-// (single-writer mutex + single-reader cursor), so Beast's concurrent
-// read/write invariant holds without any additional mutexes here.
+/// \file
+/// \brief Persistent WebSocket client to the Hyperliquid endpoint.
+///
+/// Inherits the connect/read/send/ping scaffolding from
+/// `bpt::common::ws::RunLoop` and layers HL-specific request/response
+/// plumbing on top:
+///   - Subscribes to `userFills` on handshake so the adapter's exec
+///     decoder sees every fill event.
+///   - Provides post_action() — the HL-style "send a signed envelope,
+///     block on the matching id, return the response body" pattern used
+///     by every order-entry call.
+///   - Forwards `channel:"error"` and stale-id responses by failing all
+///     pending posts so senders never hang on a dead session.
+///
+/// post_action() is called from external threads (OrderProcessor +
+/// detached account-snapshot fetcher). RunLoop::send() is thread-safe
+/// (single-writer mutex + single-reader cursor), so Beast's concurrent
+/// read/write invariant holds without any additional mutexes here.
 
 #include "order_gateway/adapter/hyperliquid/hyperliquid_signer.h"
 
@@ -52,14 +54,17 @@ public:
 
     void set_user_fills_handler(UserFillsHandler h);
 
-    // One connection session: connect, subscribe, drive the read loop
-    // until stop_flag or a WS error. Blocks on RunLoop::run internally.
+    /// \brief Run one connection session.
+    ///
+    /// Connects, subscribes, drives the read loop until `stop_flag` or
+    /// a WS error. Blocks on RunLoop::run internally.
     void run(std::atomic<bool>& stop_flag, std::atomic<bool>& connected);
 
-    // Send a signed action over the post channel and block until HL
-    // replies with the matching id (5 s timeout). Throws on timeout,
-    // write error, or disconnected WS. Thread-safe — called from the
-    // OrderProcessor thread and the detached account-snapshot fetcher.
+    /// \brief Send a signed action over the post channel and block until HL replies.
+    ///
+    /// 5 s timeout. Throws on timeout, write error, or disconnected WS.
+    /// Thread-safe — called from the OrderProcessor thread and the
+    /// detached account-snapshot fetcher.
     std::string post_action(const boost::json::value& action,
                             uint64_t nonce,
                             const SignedTransaction& sig);

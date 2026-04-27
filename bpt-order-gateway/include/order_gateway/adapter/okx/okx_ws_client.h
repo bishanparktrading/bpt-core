@@ -1,23 +1,25 @@
 #pragma once
 
-// Persistent WebSocket client for the OKX private endpoint. Owns one
-// connection session's read loop, ping cadence, and thread-safe send.
-//
-// Inherits the connect/read/send/ping scaffolding from bpt::common::ws::RunLoop;
-// this class only supplies the OKX-specific bits:
-//   - build & send the `{"op":"login",...}` envelope on handshake
-//   - intercept raw "ping"/"pong" text frames (OKX's application-level
-//     heartbeat) and auto-reply without waking the adapter's message
-//     handler
-//   - forward every other frame to the adapter's message_handler
-//   - emit a 10-second text-ping heartbeat so OKX doesn't close the
-//     connection at its 30s idle threshold
-//
-// Unlike Hyperliquid's ws_client, OKX's order API is fire-and-forget:
-// there's no request/response id matching at this layer. Order acks
-// arrive asynchronously via the `orders` channel push and are routed
-// through the adapter's message_handler, so this class carries no
-// pending-posts / promise-future plumbing.
+/// \file
+/// \brief Persistent WebSocket client for the OKX private endpoint.
+///
+/// Owns one connection session's read loop, ping cadence, and
+/// thread-safe send. Inherits the connect/read/send/ping scaffolding
+/// from `bpt::common::ws::RunLoop`; this class only supplies the
+/// OKX-specific bits:
+///   - build & send the `{"op":"login",...}` envelope on handshake.
+///   - intercept raw "ping"/"pong" text frames (OKX's
+///     application-level heartbeat) and auto-reply without waking the
+///     adapter's message handler.
+///   - forward every other frame to the adapter's message_handler.
+///   - emit a 10-second text-ping heartbeat so OKX doesn't close the
+///     connection at its 30 s idle threshold.
+///
+/// Unlike Hyperliquid's ws_client, OKX's order API is fire-and-forget:
+/// there's no request/response id matching at this layer. Order acks
+/// arrive asynchronously via the `orders` channel push and are routed
+/// through the adapter's message_handler, so this class carries no
+/// pending-posts / promise-future plumbing.
 
 #include "order_gateway/config/settings.h"
 
