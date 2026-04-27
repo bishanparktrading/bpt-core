@@ -10,7 +10,7 @@
 
 namespace bpt::md_gateway::adapter {
 
-void HyperliquidMdDecoder::parse(std::string_view payload,
+void HyperliquidMdDecoder::decode(std::string_view payload,
                               uint64_t recv_ns,
                               messaging::IMdPublisher& pub,
                               messaging::FundingRateCallback& on_funding_rate) {

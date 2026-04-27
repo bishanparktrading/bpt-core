@@ -31,7 +31,7 @@ public:
 
     // Parse one WebSocket frame and publish normalised events.
     // Called from the adapter's IO thread on every received message.
-    virtual void parse(std::string_view payload,
+    virtual void decode(std::string_view payload,
                        uint64_t recv_ns,
                        messaging::IMdPublisher& pub,
                        messaging::FundingRateCallback& on_funding_rate) = 0;

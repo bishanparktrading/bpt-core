@@ -36,7 +36,7 @@ TEST(AdapterSmokeTest, BinanceBookTicker) {
     CapturePub pub;
     messaging::FundingRateCallback fr;
 
-    parser.parse(R"({"stream":"btcusdt@bookTicker","data":{"b":"29990.50","B":"1.25","a":"29991.00","A":"0.75"}})",
+    parser.decode(R"({"stream":"btcusdt@bookTicker","data":{"b":"29990.50","B":"1.25","a":"29991.00","A":"0.75"}})",
                  0,
                  pub,
                  fr);
@@ -56,7 +56,7 @@ TEST(AdapterSmokeTest, OkxBooks5) {
     CapturePub pub;
     messaging::FundingRateCallback fr;
 
-    parser.parse(
+    parser.decode(
         R"({"arg":{"channel":"books5","instId":"BTC-USDT-SWAP"},"data":[{"bids":[["29990","1.5","0","1"]],"asks":[["29991","0.8","0","1"]]}]})",
         0,
         pub,
@@ -76,7 +76,7 @@ TEST(AdapterSmokeTest, HyperliquidL2Book) {
     CapturePub pub;
     messaging::FundingRateCallback fr;
 
-    parser.parse(
+    parser.decode(
         R"({"channel":"l2Book","data":{"coin":"BTC","levels":[[{"px":"29990","sz":"1.5"}],[{"px":"29991","sz":"0.8"}]]}})",
         0,
         pub,

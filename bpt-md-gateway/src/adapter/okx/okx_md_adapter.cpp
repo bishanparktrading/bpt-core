@@ -138,7 +138,7 @@ std::optional<bpt::common::ws::PingConfig> OkxMdAdapter::ping_config() const {
 }
 
 void OkxMdAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {
-    decoder_.parse(payload, recv_ns, validating_pub_, on_funding_rate);
+    decoder_.decode(payload, recv_ns, validating_pub_, on_funding_rate);
 }
 
 }  // namespace bpt::md_gateway::adapter

@@ -12,7 +12,7 @@ namespace bpt::md_gateway::adapter {
 
 // ── Top-level parse ───────────────────────────────────────────────────────────
 
-void OkxMdDecoder::parse(std::string_view payload,
+void OkxMdDecoder::decode(std::string_view payload,
                       uint64_t recv_ns,
                       messaging::IMdPublisher& pub,
                       messaging::FundingRateCallback& on_funding_rate) {

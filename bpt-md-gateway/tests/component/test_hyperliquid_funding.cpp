@@ -25,7 +25,7 @@ struct HLFundingFixture {
         fr_cb = [this](const messaging::FundingRateUpdate& fr) { last_fr = fr; };
     }
 
-    void inject(const char* msg, uint64_t recv_ns = 0) { parser.parse(msg, recv_ns, pub, fr_cb); }
+    void inject(const char* msg, uint64_t recv_ns = 0) { parser.decode(msg, recv_ns, pub, fr_cb); }
 };
 
 // ---------------------------------------------------------------------------

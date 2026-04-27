@@ -22,7 +22,7 @@ void DeribitMdDecoder::forget(const std::string& symbol) {
     last_change_id_.erase(symbol);
 }
 
-void DeribitMdDecoder::parse(std::string_view payload,
+void DeribitMdDecoder::decode(std::string_view payload,
                           uint64_t recv_ns,
                           messaging::IMdPublisher& pub,
                           messaging::FundingRateCallback& /*on_funding_rate*/) {

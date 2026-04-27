@@ -8,7 +8,7 @@
 
 namespace bpt::md_gateway::adapter {
 
-void BinanceMdDecoder::parse(std::string_view payload,
+void BinanceMdDecoder::decode(std::string_view payload,
                           uint64_t recv_ns,
                           messaging::IMdPublisher& pub,
                           messaging::FundingRateCallback& /*on_funding_rate*/) {

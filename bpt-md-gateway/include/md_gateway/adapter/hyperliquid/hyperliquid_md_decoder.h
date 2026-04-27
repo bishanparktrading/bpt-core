@@ -17,7 +17,7 @@ class HyperliquidMdDecoder : public IExchangeDecoder {
 public:
     explicit HyperliquidMdDecoder(const SubscriptionMap& subs) : subs_(subs) {}
 
-    void parse(std::string_view payload,
+    void decode(std::string_view payload,
                uint64_t recv_ns,
                messaging::IMdPublisher& pub,
                messaging::FundingRateCallback& on_funding_rate) override;

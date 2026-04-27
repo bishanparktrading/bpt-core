@@ -119,7 +119,7 @@ void DeribitMdAdapter::subscribe(uint64_t instrument_id, std::string symbol, uin
 }
 
 void DeribitMdAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {
-    decoder_.parse(payload, recv_ns, validating_pub_, on_funding_rate);
+    decoder_.decode(payload, recv_ns, validating_pub_, on_funding_rate);
     if (decoder_.take_test_request())
         needs_test_response_.store(true, std::memory_order_release);
 }
