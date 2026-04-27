@@ -1,12 +1,12 @@
 #pragma once
 
-/// @file
-/// Raw frame spool. Append-only file writer used by the recording host
-/// (md-recorder) to capture venue payloads — WS frames from md-gateway
-/// adapters and REST response bodies from refdata adapters — in their
-/// native bytes. Replay through the backtester / converter goes through
-/// the same parser code as live, so any parser drift surfaces in test
-/// rather than production.
+/// \file
+/// \brief Append-only raw-frame spool used by the recording host.
+///
+/// Captures venue payloads (WS frames from md-gateway adapters, REST
+/// response bodies from refdata adapters) in their native bytes. Replay
+/// through the backtester / converter goes through the same parser code
+/// as live, so any parser drift surfaces in test rather than production.
 ///
 /// File format (little-endian):
 ///
@@ -38,26 +38,32 @@
 
 namespace bpt::common::recorder {
 
+/// \brief Record-type tag stamped on every entry written to the spool.
 enum class RecordType : uint8_t {
-    WS_FRAME      = 0,  // raw venue frame (JSON / FIX / etc.)
-    SESSION_START = 1,  // recorder process started; payload = config snapshot JSON
-    SESSION_STOP  = 2,  // recorder process stopping cleanly; payload = exit reason JSON
-    CHECKPOINT    = 3,  // periodic heartbeat; payload = JSON {frames, bytes, uptime_s}
-    WS_DISCONNECT = 4,  // unexpected WS connection loss; payload = JSON {reason, attempt}
-    WS_RECONNECT  = 5,  // WS reconnect succeeded after a prior disconnect; payload = JSON {attempt}
+    WS_FRAME      = 0,  ///< raw venue frame (JSON / FIX / etc.)
+    SESSION_START = 1,  ///< recorder process started; payload = config snapshot JSON
+    SESSION_STOP  = 2,  ///< recorder process stopping cleanly; payload = exit reason JSON
+    CHECKPOINT    = 3,  ///< periodic heartbeat; payload = JSON {frames, bytes, uptime_s}
+    WS_DISCONNECT = 4,  ///< unexpected WS connection loss; payload = JSON {reason, attempt}
+    WS_RECONNECT  = 5,  ///< WS reconnect succeeded after a prior disconnect; payload = JSON {attempt}
 };
 
+/// \brief Single-writer append-only spool that emits the .wslog binary format.
+///
+/// Owned by the IO thread that produces bytes (one spool per writer). NOT
+/// thread-safe — counter accessors (frames_written / bytes_written) are
+/// the only methods that may be called from another thread.
 class RawSpool {
 public:
     struct Config {
-        std::string root_dir;        // e.g. /opt/bpt/data/raw
-        std::string venue_tag;       // e.g. "okx" — used for path + audit log
+        std::string root_dir;                  ///< e.g. "/opt/bpt/data/raw"
+        std::string venue_tag;                 ///< e.g. "okx" — used in path + audit log
         uint32_t rotate_interval_seconds{3600};
-        uint32_t buffer_bytes{1u << 20};  // 1 MiB userspace buffer
-        // Auto-flush cadence. write_record() flushes if more than this many
-        // wall-clock ns have elapsed since the last flush. Bounds replay-loss
-        // on crash to ≤ this interval, regardless of on_tick() availability.
-        uint64_t flush_interval_ns{1'000'000'000ULL};  // 1s default
+        uint32_t buffer_bytes{1u << 20};       ///< 1 MiB userspace buffer
+        /// Auto-flush cadence. write_record() flushes if more than this many
+        /// wall-clock ns have elapsed since the last flush — bounds replay-
+        /// loss on crash to this interval regardless of buffer fill rate.
+        uint64_t flush_interval_ns{1'000'000'000ULL};
     };
 
     explicit RawSpool(Config cfg);
@@ -66,21 +72,29 @@ public:
     RawSpool(const RawSpool&) = delete;
     RawSpool& operator=(const RawSpool&) = delete;
 
-    // Append a raw venue frame.
+    /// \brief Append a raw venue frame.
+    /// \return false on file open / rotation / write failure (rare; logs error).
     bool write_frame(uint64_t recv_ts_ns, std::string_view payload);
 
-    // Append a structured marker (SESSION_START / STOP / CHECKPOINT).
-    // The payload is opaque to the spool — caller passes JSON bytes.
+    /// \brief Append a structured marker (SESSION_START/STOP/CHECKPOINT/etc).
+    ///
+    /// The payload is opaque to the spool — caller is responsible for any
+    /// structure (typically JSON). Used for non-frame events recorded
+    /// alongside the data stream.
     bool write_marker(uint64_t recv_ts_ns, RecordType type, std::string_view payload);
 
-    // Force flush userspace buffer → stdio buffer → kernel.
+    /// \brief Force-flush userspace buffer → stdio buffer → kernel.
     void flush();
 
-    // Counters for metrics / log lines. Atomic so a heartbeat callback
-    // running on a different thread can read them safely.
+    /// \name Counters for metrics / log lines.
+    ///
+    /// Atomic so a heartbeat callback running on a different thread can
+    /// read them safely without the writer-side lock.
+    /// \{
     [[nodiscard]] uint64_t frames_written() const noexcept { return frames_written_.load(std::memory_order_relaxed); }
     [[nodiscard]] uint64_t bytes_written() const noexcept { return bytes_written_.load(std::memory_order_relaxed); }
     [[nodiscard]] const std::string& current_path() const noexcept { return current_path_; }
+    /// \}
 
 private:
     bool ensure_file_open(uint64_t recv_ts_ns);
