@@ -2,7 +2,6 @@
 
 #include <messages/ExchangeId.h>
 #include <messages/ExecStatus.h>
-#include <messages/FeeCurrency.h>
 #include <messages/OrderSide.h>
 #include <messages/OrderType.h>
 #include <messages/RejectReason.h>
@@ -18,12 +17,14 @@ namespace json = boost::json;
 
 static constexpr double kScale = 1e8;
 
-static bpt::messages::FeeCurrency::Value parse_fee_ccy(const std::string& instrument_name) {
-    if (instrument_name.find("BTC") == 0)
-        return bpt::messages::FeeCurrency::BTC;
-    if (instrument_name.find("ETH") == 0)
-        return bpt::messages::FeeCurrency::ETH;
-    return bpt::messages::FeeCurrency::USDT;
+// Deribit doesn't put fee_currency on the wire — fee is always denominated
+// in the instrument's settlement currency. Infer from the instrument name
+// prefix: BTC-PERPETUAL → "BTC", ETH-DEC25 → "ETH", everything else falls
+// back to "USDT".
+static std::string infer_fee_currency(const std::string& instrument_name) {
+    if (instrument_name.find("BTC") == 0) return "BTC";
+    if (instrument_name.find("ETH") == 0) return "ETH";
+    return "USDT";
 }
 
 void DeribitExecDecoder::register_order(const std::string& label, uint64_t order_id) {
@@ -115,7 +116,7 @@ void DeribitExecDecoder::handle_subscription_event(const json::object& d, uint64
     std::string instrument_name;
     if (auto init = d.find("instrument_name"); init != d.end() && init->value().is_string())
         instrument_name = std::string(init->value().as_string());
-    ev.fee_currency = parse_fee_ccy(instrument_name);
+    ev.fee_currency = infer_fee_currency(instrument_name);
 
     if (auto tsit = d.find("last_update_timestamp"); tsit != d.end() && tsit->value().is_number())
         ev.exchange_ts_ns = static_cast<uint64_t>(tsit->value().to_number<uint64_t>()) * 1000000ULL;

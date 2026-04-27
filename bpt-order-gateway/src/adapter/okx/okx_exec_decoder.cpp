@@ -2,7 +2,6 @@
 
 #include <messages/ExchangeId.h>
 #include <messages/ExecStatus.h>
-#include <messages/FeeCurrency.h>
 #include <messages/OrderSide.h>
 #include <messages/OrderType.h>
 #include <messages/RejectReason.h>
@@ -21,19 +20,6 @@ static constexpr double kPriceScale = 1e8;
 // Hyperliquid, Deribit, and the SBE protocol. Was 1e5 before the qty-
 // scale fix; see okx_action_encoder.cpp for the bug write-up.
 static constexpr double kQtyScale = 1e8;
-
-static bpt::messages::FeeCurrency::Value parse_fee_ccy(const std::string& ccy) {
-    using FC = bpt::messages::FeeCurrency;
-    if (ccy == "BTC")
-        return FC::BTC;
-    if (ccy == "ETH")
-        return FC::ETH;
-    if (ccy == "USDT")
-        return FC::USDT;
-    if (ccy == "USD")
-        return FC::USD;
-    return FC::USDT;
-}
 
 void OKXExecDecoder::register_order(const std::string& cloid, uint64_t order_id) {
     std::lock_guard<std::mutex> lk(mu_);
@@ -159,7 +145,7 @@ void OKXExecDecoder::handle_orders_channel_item(const json::object& d, uint64_t 
     }
 
     ev.fee = static_cast<int64_t>(std::stod(std::string(d.at("fee").as_string())) * kPriceScale);
-    ev.fee_currency = parse_fee_ccy(std::string(d.at("feeCcy").as_string()));
+    ev.fee_currency = std::string(d.at("feeCcy").as_string());
 
     if (auto tsit = d.find("uTime"); tsit != d.end())
         ev.exchange_ts_ns = static_cast<uint64_t>(std::stoull(std::string(tsit->value().as_string()))) * 1000000ULL;

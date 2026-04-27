@@ -7,12 +7,13 @@
 #include <messages/CancelOrder.h>
 #include <messages/ExchangeId.h>
 #include <messages/ExecStatus.h>
-#include <messages/FeeCurrency.h>
 #include <messages/ModifyOrder.h>
 #include <messages/NewOrder.h>
 #include <messages/OrderSide.h>
 #include <messages/OrderType.h>
 #include <messages/RejectReason.h>
+
+#include <string>
 
 #include <cstdint>
 #include <functional>
@@ -36,7 +37,11 @@ struct ExecEvent {
     uint64_t remaining_qty{0};
     bpt::messages::RejectReason::Value reject_reason;
     int64_t fee{0};
-    bpt::messages::FeeCurrency::Value fee_currency;
+    /// Currency the fee is charged in, as the venue reported it (e.g.
+    /// "USDT", "USDC", "BTC", "OKB"). Verbatim from the venue's wire
+    /// field; no enum mapping. Up to 8 chars (encoded into the SBE
+    /// ExecutionReport's Char8 feeCurrency slot, zero-padded).
+    std::string fee_currency;
     uint64_t exchange_ts_ns{0};
     uint64_t local_ts_ns{0};
 };

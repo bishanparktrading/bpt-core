@@ -1,7 +1,6 @@
 #include "order_gateway/order/order_processor.h"
 
 #include <messages/ExecStatus.h>
-#include <messages/FeeCurrency.h>
 #include <messages/OrderSide.h>
 #include <messages/RejectReason.h>
 
@@ -142,7 +141,6 @@ void OrderProcessor::on_exec_event(const adapter::ExecEvent& ev) {
 void OrderProcessor::on_new_order(const bpt::messages::NewOrder& order) {
     using ES = bpt::messages::ExecStatus;
     using RR = bpt::messages::RejectReason;
-    using FC = bpt::messages::FeeCurrency;
 
     bpt::common::log::debug("NewOrder: id={} exchange={} instrument_id={} qty={}",
                     order.orderId(),
@@ -171,7 +169,7 @@ void OrderProcessor::on_new_order(const bpt::messages::NewOrder& order) {
                           order.quantity(),
                           result.error(),
                           0,
-                          FC::USDT,
+                          "USDT",
                           ts,
                           ts);
         bpt::common::log::warn("Order {} rejected by risk: reason={}",
@@ -202,7 +200,7 @@ void OrderProcessor::on_new_order(const bpt::messages::NewOrder& order) {
             const uint64_t ts = now_ns();
             exec_pub_.publish(order.orderId(), 0, order.exchangeId(), order.instrumentId(),
                               ES::REJECTED, order.side(), order.orderType(), order.price(),
-                              0, order.quantity(), RR::RISK_REJECTED, 0, FC::USDT, ts, ts);
+                              0, order.quantity(), RR::RISK_REJECTED, 0, "USDT", ts, ts);
             bpt::common::log::warn("Order {} rejected by position cap: "
                            "projected=${:.2f} > limit=${:.2f}",
                            order.orderId(), projected_usd, max_position_usd_);
@@ -233,7 +231,7 @@ void OrderProcessor::on_new_order(const bpt::messages::NewOrder& order) {
                           order.quantity(),
                           RR::EXCHANGE_ERROR,
                           0,
-                          FC::USDT,
+                          "USDT",
                           ts,
                           ts);
         if (adapter && adapter->is_halted()) {
@@ -362,7 +360,7 @@ void OrderProcessor::check_stale_orders(uint64_t stale_timeout_ns) {
                           st.remaining_qty,
                           bpt::messages::RejectReason::OK,
                           0,
-                          bpt::messages::FeeCurrency::USDT,
+                          "USDT",
                           cur_ns,
                           cur_ns);
 

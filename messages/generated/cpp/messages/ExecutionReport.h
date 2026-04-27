@@ -97,7 +97,6 @@
 #include "ExchangeId.h"
 #include "DeltaUpdateType.h"
 #include "OrderSide.h"
-#include "FeeCurrency.h"
 
 namespace bpt {
 namespace messages {
@@ -118,7 +117,7 @@ private:
     }
 
 public:
-    static const std::uint16_t SBE_BLOCK_LENGTH = static_cast<std::uint16_t>(79);
+    static const std::uint16_t SBE_BLOCK_LENGTH = static_cast<std::uint16_t>(86);
     static const std::uint16_t SBE_TEMPLATE_ID = static_cast<std::uint16_t>(14);
     static const std::uint16_t SBE_SCHEMA_ID = static_cast<std::uint16_t>(1);
     static const std::uint16_t SBE_SCHEMA_VERSION = static_cast<std::uint16_t>(14);
@@ -176,7 +175,7 @@ public:
 
     SBE_NODISCARD static SBE_CONSTEXPR std::uint16_t sbeBlockLength() SBE_NOEXCEPT
     {
-        return static_cast<std::uint16_t>(79);
+        return static_cast<std::uint16_t>(86);
     }
 
     SBE_NODISCARD static SBE_CONSTEXPR std::uint64_t sbeBlockAndHeaderLength() SBE_NOEXCEPT
@@ -1062,31 +1061,174 @@ public:
         return 61;
     }
 
-    SBE_NODISCARD static SBE_CONSTEXPR std::size_t feeCurrencyEncodingLength() SBE_NOEXCEPT
+    static SBE_CONSTEXPR char feeCurrencyNullValue() SBE_NOEXCEPT
     {
-        return 1;
+        return static_cast<char>(0);
     }
 
-    SBE_NODISCARD std::uint8_t feeCurrencyRaw() const SBE_NOEXCEPT
+    static SBE_CONSTEXPR char feeCurrencyMinValue() SBE_NOEXCEPT
     {
-        std::uint8_t val;
-        std::memcpy(&val, m_buffer + m_offset + 61, sizeof(std::uint8_t));
+        return static_cast<char>(32);
+    }
+
+    static SBE_CONSTEXPR char feeCurrencyMaxValue() SBE_NOEXCEPT
+    {
+        return static_cast<char>(126);
+    }
+
+    static SBE_CONSTEXPR std::size_t feeCurrencyEncodingLength() SBE_NOEXCEPT
+    {
+        return 8;
+    }
+
+    static SBE_CONSTEXPR std::uint64_t feeCurrencyLength() SBE_NOEXCEPT
+    {
+        return 8;
+    }
+
+    SBE_NODISCARD const char *feeCurrency() const SBE_NOEXCEPT
+    {
+        return m_buffer + m_offset + 61;
+    }
+
+    SBE_NODISCARD char *feeCurrency() SBE_NOEXCEPT
+    {
+        return m_buffer + m_offset + 61;
+    }
+
+    SBE_NODISCARD char feeCurrency(const std::uint64_t index) const
+    {
+        if (index >= 8)
+        {
+            throw std::runtime_error("index out of range for feeCurrency [E104]");
+        }
+
+        char val;
+        std::memcpy(&val, m_buffer + m_offset + 61 + (index * 1), sizeof(char));
         return (val);
     }
 
-    SBE_NODISCARD FeeCurrency::Value feeCurrency() const
+    ExecutionReport &feeCurrency(const std::uint64_t index, const char value)
     {
-        std::uint8_t val;
-        std::memcpy(&val, m_buffer + m_offset + 61, sizeof(std::uint8_t));
-        return FeeCurrency::get((val));
-    }
+        if (index >= 8)
+        {
+            throw std::runtime_error("index out of range for feeCurrency [E105]");
+        }
 
-    ExecutionReport &feeCurrency(const FeeCurrency::Value value) SBE_NOEXCEPT
-    {
-        std::uint8_t val = (value);
-        std::memcpy(m_buffer + m_offset + 61, &val, sizeof(std::uint8_t));
+        char val = (value);
+        std::memcpy(m_buffer + m_offset + 61 + (index * 1), &val, sizeof(char));
         return *this;
     }
+
+    std::uint64_t getFeeCurrency(char *const dst, const std::uint64_t length) const
+    {
+        if (length > 8)
+        {
+            throw std::runtime_error("length too large for getFeeCurrency [E106]");
+        }
+
+        std::memcpy(dst, m_buffer + m_offset + 61, sizeof(char) * static_cast<std::size_t>(length));
+        return length;
+    }
+
+    ExecutionReport &putFeeCurrency(const char *const src) SBE_NOEXCEPT
+    {
+        std::memcpy(m_buffer + m_offset + 61, src, sizeof(char) * 8);
+        return *this;
+    }
+
+    SBE_NODISCARD std::string getFeeCurrencyAsString() const
+    {
+        const char *buffer = m_buffer + m_offset + 61;
+        std::size_t length = 0;
+
+        for (; length < 8 && *(buffer + length) != '\0'; ++length);
+        std::string result(buffer, length);
+
+        return result;
+    }
+
+    std::string getFeeCurrencyAsJsonEscapedString()
+    {
+        std::ostringstream oss;
+        std::string s = getFeeCurrencyAsString();
+
+        for (const auto c : s)
+        {
+            switch (c)
+            {
+                case '"': oss << "\\\""; break;
+                case '\\': oss << "\\\\"; break;
+                case '\b': oss << "\\b"; break;
+                case '\f': oss << "\\f"; break;
+                case '\n': oss << "\\n"; break;
+                case '\r': oss << "\\r"; break;
+                case '\t': oss << "\\t"; break;
+
+                default:
+                    if ('\x00' <= c && c <= '\x1f')
+                    {
+                        oss << "\\u" << std::hex << std::setw(4)
+                            << std::setfill('0') << (int)(c);
+                    }
+                    else
+                    {
+                        oss << c;
+                    }
+            }
+        }
+
+        return oss.str();
+    }
+
+    #if __cplusplus >= 201703L
+    SBE_NODISCARD std::string_view getFeeCurrencyAsStringView() const SBE_NOEXCEPT
+    {
+        const char *buffer = m_buffer + m_offset + 61;
+        std::size_t length = 0;
+
+        for (; length < 8 && *(buffer + length) != '\0'; ++length);
+        std::string_view result(buffer, length);
+
+        return result;
+    }
+    #endif
+
+    #if __cplusplus >= 201703L
+    ExecutionReport &putFeeCurrency(const std::string_view str)
+    {
+        const std::size_t srcLength = str.length();
+        if (srcLength > 8)
+        {
+            throw std::runtime_error("string too large for putFeeCurrency [E106]");
+        }
+
+        std::memcpy(m_buffer + m_offset + 61, str.data(), srcLength);
+        for (std::size_t start = srcLength; start < 8; ++start)
+        {
+            m_buffer[m_offset + 61 + start] = 0;
+        }
+
+        return *this;
+    }
+    #else
+    ExecutionReport &putFeeCurrency(const std::string &str)
+    {
+        const std::size_t srcLength = str.length();
+        if (srcLength > 8)
+        {
+            throw std::runtime_error("string too large for putFeeCurrency [E106]");
+        }
+
+        std::memcpy(m_buffer + m_offset + 61, str.c_str(), srcLength);
+        for (std::size_t start = srcLength; start < 8; ++start)
+        {
+            m_buffer[m_offset + 61 + start] = 0;
+        }
+
+        return *this;
+    }
+    #endif
 
     SBE_NODISCARD static const char *timestampNsMetaAttribute(const MetaAttribute metaAttribute) SBE_NOEXCEPT
     {
@@ -1114,7 +1256,7 @@ public:
 
     SBE_NODISCARD static SBE_CONSTEXPR std::size_t timestampNsEncodingOffset() SBE_NOEXCEPT
     {
-        return 62;
+        return 69;
     }
 
     static SBE_CONSTEXPR std::uint64_t timestampNsNullValue() SBE_NOEXCEPT
@@ -1140,14 +1282,14 @@ public:
     SBE_NODISCARD std::uint64_t timestampNs() const SBE_NOEXCEPT
     {
         std::uint64_t val;
-        std::memcpy(&val, m_buffer + m_offset + 62, sizeof(std::uint64_t));
+        std::memcpy(&val, m_buffer + m_offset + 69, sizeof(std::uint64_t));
         return SBE_LITTLE_ENDIAN_ENCODE_64(val);
     }
 
     ExecutionReport &timestampNs(const std::uint64_t value) SBE_NOEXCEPT
     {
         std::uint64_t val = SBE_LITTLE_ENDIAN_ENCODE_64(value);
-        std::memcpy(m_buffer + m_offset + 62, &val, sizeof(std::uint64_t));
+        std::memcpy(m_buffer + m_offset + 69, &val, sizeof(std::uint64_t));
         return *this;
     }
 
@@ -1177,7 +1319,7 @@ public:
 
     SBE_NODISCARD static SBE_CONSTEXPR std::size_t localTsNsEncodingOffset() SBE_NOEXCEPT
     {
-        return 70;
+        return 77;
     }
 
     static SBE_CONSTEXPR std::uint64_t localTsNsNullValue() SBE_NOEXCEPT
@@ -1203,14 +1345,14 @@ public:
     SBE_NODISCARD std::uint64_t localTsNs() const SBE_NOEXCEPT
     {
         std::uint64_t val;
-        std::memcpy(&val, m_buffer + m_offset + 70, sizeof(std::uint64_t));
+        std::memcpy(&val, m_buffer + m_offset + 77, sizeof(std::uint64_t));
         return SBE_LITTLE_ENDIAN_ENCODE_64(val);
     }
 
     ExecutionReport &localTsNs(const std::uint64_t value) SBE_NOEXCEPT
     {
         std::uint64_t val = SBE_LITTLE_ENDIAN_ENCODE_64(value);
-        std::memcpy(m_buffer + m_offset + 70, &val, sizeof(std::uint64_t));
+        std::memcpy(m_buffer + m_offset + 77, &val, sizeof(std::uint64_t));
         return *this;
     }
 
@@ -1240,7 +1382,7 @@ public:
 
     SBE_NODISCARD static SBE_CONSTEXPR std::size_t rejectSourceEncodingOffset() SBE_NOEXCEPT
     {
-        return 78;
+        return 85;
     }
 
     SBE_NODISCARD static SBE_CONSTEXPR std::size_t rejectSourceEncodingLength() SBE_NOEXCEPT
@@ -1251,21 +1393,21 @@ public:
     SBE_NODISCARD std::uint8_t rejectSourceRaw() const SBE_NOEXCEPT
     {
         std::uint8_t val;
-        std::memcpy(&val, m_buffer + m_offset + 78, sizeof(std::uint8_t));
+        std::memcpy(&val, m_buffer + m_offset + 85, sizeof(std::uint8_t));
         return (val);
     }
 
     SBE_NODISCARD RejectSource::Value rejectSource() const
     {
         std::uint8_t val;
-        std::memcpy(&val, m_buffer + m_offset + 78, sizeof(std::uint8_t));
+        std::memcpy(&val, m_buffer + m_offset + 85, sizeof(std::uint8_t));
         return RejectSource::get((val));
     }
 
     ExecutionReport &rejectSource(const RejectSource::Value value) SBE_NOEXCEPT
     {
         std::uint8_t val = (value);
-        std::memcpy(m_buffer + m_offset + 78, &val, sizeof(std::uint8_t));
+        std::memcpy(m_buffer + m_offset + 85, &val, sizeof(std::uint8_t));
         return *this;
     }
 
@@ -1335,7 +1477,8 @@ friend std::basic_ostream<CharT, Traits> & operator << (
 
     builder << ", ";
     builder << R"("feeCurrency": )";
-    builder << '"' << writer.feeCurrency() << '"';
+    builder << '"' <<
+        writer.getFeeCurrencyAsJsonEscapedString().c_str() << '"';
 
     builder << ", ";
     builder << R"("timestampNs": )";

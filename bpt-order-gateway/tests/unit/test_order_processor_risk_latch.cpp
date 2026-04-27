@@ -23,7 +23,6 @@
 #include <messages/AccountSnapshot.h>
 #include <messages/ExchangeId.h>
 #include <messages/ExecStatus.h>
-#include <messages/FeeCurrency.h>
 #include <messages/MessageHeader.h>
 #include <messages/NewOrder.h>
 #include <messages/OrderSide.h>
@@ -40,7 +39,6 @@ namespace {
 using namespace bpt::order_gateway;
 using bpt::messages::ExchangeId;
 using bpt::messages::ExecStatus;
-using bpt::messages::FeeCurrency;
 using bpt::messages::OrderSide;
 using bpt::messages::OrderType;
 using bpt::messages::RejectReason;
@@ -69,7 +67,7 @@ struct CapturingExecReportPublisher final : public messaging::IExecReportPublish
                  uint64_t /*remaining_qty*/,
                  RejectReason::Value reject_reason,
                  int64_t /*fee*/,
-                 FeeCurrency::Value /*fee_currency*/,
+                 std::string_view /*fee_currency*/,
                  uint64_t /*exchange_ts_ns*/,
                  uint64_t /*local_ts_ns*/) override {
         entries.push_back({order_id, status, reject_reason});
@@ -96,7 +94,7 @@ adapter::ExecEvent make_fill(uint64_t order_id,
     ev.remaining_qty = 0;
     ev.reject_reason = RejectReason::OK;
     ev.fee = 0;
-    ev.fee_currency = FeeCurrency::USDT;
+    ev.fee_currency = "USDT";
     // Use a stable "now" so the UTC-day rollover in PnlTracker can't
     // accidentally wipe P&L mid-test. 1e18 ns ≈ 2001-09-09.
     ev.exchange_ts_ns = 1'700'000'000'000'000'000ULL;
@@ -120,7 +118,7 @@ adapter::ExecEvent make_reject(uint64_t order_id, uint64_t local_ts_ns) {
     ev.remaining_qty = 0;
     ev.reject_reason = RejectReason::EXCHANGE_ERROR;
     ev.fee = 0;
-    ev.fee_currency = FeeCurrency::USDT;
+    ev.fee_currency = "USDT";
     ev.exchange_ts_ns = local_ts_ns;
     ev.local_ts_ns = local_ts_ns;
     return ev;
@@ -139,7 +137,7 @@ adapter::ExecEvent make_ack(uint64_t order_id, uint64_t local_ts_ns) {
     ev.remaining_qty = kScale;
     ev.reject_reason = RejectReason::OK;
     ev.fee = 0;
-    ev.fee_currency = FeeCurrency::USDT;
+    ev.fee_currency = "USDT";
     ev.exchange_ts_ns = local_ts_ns;
     ev.local_ts_ns = local_ts_ns;
     return ev;

@@ -2,7 +2,6 @@
 
 #include <messages/ExchangeId.h>
 #include <messages/ExecStatus.h>
-#include <messages/FeeCurrency.h>
 #include <messages/OrderSide.h>
 #include <messages/OrderType.h>
 #include <messages/RejectReason.h>
@@ -66,7 +65,7 @@ void HyperliquidExecDecoder::handle_fills(const json::array& fills, uint64_t rec
             fully_filled ? 0 : (po.original_qty_e8 - po.cumulative_filled_e8);
 
         ev.fee = static_cast<int64_t>(std::stod(std::string(fill.at("fee").as_string())) * kScale);
-        ev.fee_currency = bpt::messages::FeeCurrency::USDT;
+        ev.fee_currency = "USDT";
         ev.reject_reason = bpt::messages::RejectReason::OK;
         ev.status = fully_filled
                         ? bpt::messages::ExecStatus::FILLED

@@ -2,7 +2,6 @@
 
 #include <messages/ExchangeId.h>
 #include <messages/ExecStatus.h>
-#include <messages/FeeCurrency.h>
 #include <messages/RejectReason.h>
 
 #include <boost/json.hpp>
@@ -14,19 +13,6 @@ namespace bpt::order_gateway::adapter {
 namespace json = boost::json;
 
 static constexpr double kScale = 1e8;
-
-static bpt::messages::FeeCurrency::Value parse_fee_currency(const std::string& asset) {
-    using FC = bpt::messages::FeeCurrency;
-    if (asset == "BTC")
-        return FC::BTC;
-    if (asset == "ETH")
-        return FC::ETH;
-    if (asset == "BNB")
-        return FC::BNB;
-    if (asset == "USDT")
-        return FC::USDT;
-    return FC::USDT;
-}
 
 void BinanceExecDecoder::register_order(const std::string& cloid, uint64_t order_id) {
     std::lock_guard<std::mutex> lk(mu_);
@@ -84,7 +70,7 @@ void BinanceExecDecoder::handle_execution_report(const json::object& obj, uint64
     ev.remaining_qty = total_qty > ev.filled_qty ? total_qty - ev.filled_qty : 0;
 
     ev.fee = static_cast<int64_t>(std::stod(std::string(obj.at("n").as_string())) * kScale);
-    ev.fee_currency = parse_fee_currency(std::string(obj.at("N").as_string()));
+    ev.fee_currency = std::string(obj.at("N").as_string());
 
     ev.exchange_ts_ns = static_cast<uint64_t>(obj.at("T").as_int64()) * 1000000ULL;
     ev.reject_reason = RR::OK;
@@ -155,13 +141,13 @@ void BinanceExecDecoder::handle_order_response(const json::object& obj,
 
     // Fee: sum fills if present.
     ev.fee = 0;
-    ev.fee_currency = bpt::messages::FeeCurrency::USDT;
+    ev.fee_currency = "USDT";  // default; overridden below if any fill carries commissionAsset
     if (auto fit = obj.find("fills"); fit != obj.end() && fit->value().is_array()) {
         for (const auto& fill : fit->value().as_array()) {
             const auto& f = fill.as_object();
             ev.fee += static_cast<int64_t>(std::stod(std::string(f.at("commission").as_string())) * kScale);
             if (auto fcit = f.find("commissionAsset"); fcit != f.end())
-                ev.fee_currency = parse_fee_currency(std::string(fcit->value().as_string()));
+                ev.fee_currency = std::string(fcit->value().as_string());
         }
     }
 

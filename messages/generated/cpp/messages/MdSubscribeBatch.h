@@ -97,7 +97,6 @@
 #include "ExchangeId.h"
 #include "DeltaUpdateType.h"
 #include "OrderSide.h"
-#include "FeeCurrency.h"
 
 namespace bpt {
 namespace messages {

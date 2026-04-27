@@ -2,7 +2,6 @@
 
 #include <messages/ExchangeId.h>
 #include <messages/ExecStatus.h>
-#include <messages/FeeCurrency.h>
 #include <messages/RejectReason.h>
 
 #include <boost/json.hpp>
@@ -15,7 +14,6 @@ namespace bpt::order_gateway::adapter::hyperliquid {
 namespace json = boost::json;
 using ES = bpt::messages::ExecStatus;
 using RR = bpt::messages::RejectReason;
-using FC = bpt::messages::FeeCurrency;
 
 namespace {
 constexpr double kScale = 1e8;
@@ -32,7 +30,7 @@ ExecEvent make_skeleton(const OrderContext& ctx, uint64_t now_ns) {
     ev.order_type    = ctx.order_type;
     ev.price         = ctx.price_e8;
     ev.fee           = 0;
-    ev.fee_currency  = FC::USDT;
+    ev.fee_currency  = "USDT";
     ev.exchange_ts_ns = now_ns;
     ev.local_ts_ns    = now_ns;
     return ev;
@@ -190,7 +188,7 @@ bool HyperliquidExecEmitter::emit_cancel_response(const std::string& resp,
         ev.exchange_id = bpt::messages::ExchangeId::HYPERLIQUID;
         ev.status = ES::CANCELLED;
         ev.reject_reason = RR::NULL_VALUE;
-        ev.fee_currency = FC::USDT;
+        ev.fee_currency = "USDT";
         ev.exchange_ts_ns = now_ns;
         ev.local_ts_ns = now_ns;
         push_or_log(queue_, ev, "CANCELLED");

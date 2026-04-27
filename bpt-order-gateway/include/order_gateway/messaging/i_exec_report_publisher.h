@@ -12,12 +12,12 @@
 
 #include <messages/ExchangeId.h>
 #include <messages/ExecStatus.h>
-#include <messages/FeeCurrency.h>
 #include <messages/OrderSide.h>
 #include <messages/OrderType.h>
 #include <messages/RejectReason.h>
 
 #include <cstdint>
+#include <string_view>
 
 namespace bpt::order_gateway::messaging {
 
@@ -37,7 +37,7 @@ public:
                          uint64_t remaining_qty,
                          bpt::messages::RejectReason::Value reject_reason,
                          int64_t fee,
-                         bpt::messages::FeeCurrency::Value fee_currency,
+                         std::string_view fee_currency,
                          uint64_t exchange_ts_ns,
                          uint64_t local_ts_ns) = 0;
 };

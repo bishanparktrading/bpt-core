@@ -156,7 +156,7 @@ TEST_F(HLExecParserFixture, FeeParsed) {
 
     ASSERT_EQ(events.size(), 1u);
     EXPECT_EQ(events[0].fee, static_cast<int64_t>(0.05 * kScale));
-    EXPECT_EQ(events[0].fee_currency, FeeCurrency::USDT);
+    EXPECT_EQ(events[0].fee_currency, "USDT");
 }
 
 // ---------------------------------------------------------------------------

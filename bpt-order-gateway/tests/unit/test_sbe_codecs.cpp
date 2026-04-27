@@ -7,7 +7,6 @@
 #include <messages/ExchangeId.h>
 #include <messages/ExecStatus.h>
 #include <messages/ExecutionReport.h>
-#include <messages/FeeCurrency.h>
 #include <messages/MessageHeader.h>
 #include <messages/ModifyOrder.h>
 #include <messages/NewOrder.h>
@@ -242,7 +241,7 @@ TEST(ExecutionReportTest, EncodeDecodeFilledReport) {
         .remainingQty(0ULL)
         .rejectReason(RejectReason::OK)
         .fee(50000LL)
-        .feeCurrency(FeeCurrency::USDT)
+        .putFeeCurrency([]() { static const char b[8] = "USDT"; return b; }())
         .timestampNs(555555ULL)
         .localTsNs(555666ULL);
 
@@ -262,7 +261,7 @@ TEST(ExecutionReportTest, EncodeDecodeFilledReport) {
     EXPECT_EQ(dec.remainingQty(), 0ULL);
     EXPECT_EQ(dec.rejectReason(), RejectReason::OK);
     EXPECT_EQ(dec.fee(), 50000LL);
-    EXPECT_EQ(dec.feeCurrency(), FeeCurrency::USDT);
+    EXPECT_EQ(dec.getFeeCurrencyAsString(), "USDT");
     EXPECT_EQ(dec.timestampNs(), 555555ULL);
     EXPECT_EQ(dec.localTsNs(), 555666ULL);
 }
@@ -285,7 +284,7 @@ TEST(ExecutionReportTest, RejectedReport) {
         .remainingQty(50000000ULL)
         .rejectReason(RejectReason::RISK_REJECTED)
         .fee(0LL)
-        .feeCurrency(FeeCurrency::USDT)
+        .putFeeCurrency([]() { static const char b[8] = "USDT"; return b; }())
         .timestampNs(1ULL)
         .localTsNs(1ULL);
 
@@ -317,7 +316,7 @@ TEST(ExecutionReportTest, PartialFillReport) {
         .remainingQty(70000000ULL)
         .rejectReason(RejectReason::OK)
         .fee(-10000LL)  // negative fee = rebate
-        .feeCurrency(FeeCurrency::BTC)
+        .putFeeCurrency([]() { static const char b[8] = "BTC"; return b; }())
         .timestampNs(12345ULL)
         .localTsNs(12400ULL);
 
@@ -329,7 +328,7 @@ TEST(ExecutionReportTest, PartialFillReport) {
     EXPECT_EQ(dec.filledQty(), 30000000ULL);
     EXPECT_EQ(dec.remainingQty(), 70000000ULL);
     EXPECT_EQ(dec.fee(), -10000LL);
-    EXPECT_EQ(dec.feeCurrency(), FeeCurrency::BTC);
+    EXPECT_EQ(dec.getFeeCurrencyAsString(), "BTC");
     EXPECT_EQ(dec.exchangeId(), ExchangeId::HYPERLIQUID);
 }
 
@@ -458,12 +457,9 @@ TEST(TimeInForceTest, Values) {
     EXPECT_EQ(static_cast<uint8_t>(TimeInForce::FOK), 2u);
 }
 
-TEST(FeeCurrencyTest, Values) {
-    EXPECT_EQ(static_cast<uint8_t>(FeeCurrency::USDT), 0u);
-    EXPECT_EQ(static_cast<uint8_t>(FeeCurrency::BTC), 1u);
-    EXPECT_EQ(static_cast<uint8_t>(FeeCurrency::ETH), 2u);
-    EXPECT_EQ(static_cast<uint8_t>(FeeCurrency::BNB), 3u);
-    EXPECT_EQ(static_cast<uint8_t>(FeeCurrency::USD), 4u);
-}
+// Removed FeeCurrencyTest enum-value test — FeeCurrency was promoted from
+// uint8 enum to Char8 string field; there are no integer values to assert.
+// Round-trip coverage of the new string field is exercised by
+// ExecutionReportTest above via wrap-encode-decode.
 
 }  // namespace

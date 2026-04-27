@@ -3,6 +3,9 @@
 #include <messages/ExecutionReport.h>
 #include <messages/MessageHeader.h>
 
+#include <algorithm>
+#include <cstring>
+
 namespace bpt::order_gateway::messaging {
 
 using Policy = bpt::common::aeron::Publisher::Policy;
@@ -27,13 +30,20 @@ void ExecReportPublisher::publish(uint64_t order_id,
                                   uint64_t remaining_qty,
                                   bpt::messages::RejectReason::Value reject_reason,
                                   int64_t fee,
-                                  bpt::messages::FeeCurrency::Value fee_currency,
+                                  std::string_view fee_currency,
                                   uint64_t exchange_ts_ns,
                                   uint64_t local_ts_ns) {
     using namespace bpt::messages;
 
     constexpr std::size_t kBufSize = MessageHeader::encodedLength() + ExecutionReport::sbeBlockLength();
     char buf[kBufSize]{};
+
+    // SBE Char8 slot is fixed-width; zero-pad short ccy strings so the
+    // unused trailing bytes are deterministic. putFeeCurrency requires
+    // exactly 8 src bytes, no length prefix.
+    char ccy_pad[8] = {0};
+    const std::size_t ccy_len = std::min(fee_currency.size(), sizeof(ccy_pad));
+    std::memcpy(ccy_pad, fee_currency.data(), ccy_len);
 
     ExecutionReport msg;
     msg.wrapAndApplyHeader(buf, 0, kBufSize)
@@ -49,7 +59,7 @@ void ExecReportPublisher::publish(uint64_t order_id,
         .remainingQty(remaining_qty)
         .rejectReason(reject_reason)
         .fee(fee)
-        .feeCurrency(fee_currency)
+        .putFeeCurrency(ccy_pad)
         .timestampNs(exchange_ts_ns)
         .localTsNs(local_ts_ns);
 

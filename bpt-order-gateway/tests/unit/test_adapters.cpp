@@ -7,7 +7,6 @@
 
 #include <messages/ExchangeId.h>
 #include <messages/ExecStatus.h>
-#include <messages/FeeCurrency.h>
 #include <messages/OrderSide.h>
 #include <messages/OrderType.h>
 #include <messages/RejectReason.h>
@@ -41,7 +40,7 @@ struct CapturedExecEvent {
     uint64_t remaining_qty;
     RejectReason::Value reject_reason;
     int64_t fee;
-    FeeCurrency::Value fee_currency;
+    std::string fee_currency;
     uint64_t exchange_ts_ns;
     uint64_t local_ts_ns;
 };
@@ -51,16 +50,16 @@ struct CapturedExecEvent {
 // Mirrors the logic in BinanceOrderAdapter::handle_user_data_message().
 // Produces a CapturedExecEvent from a Binance executionReport WS message.
 
-static FeeCurrency::Value parse_fee_currency_binance(const std::string& asset) {
+static std::string parse_fee_currency_binance(const std::string& asset) {
     if (asset == "BTC")
-        return FeeCurrency::BTC;
+        return "BTC";
     if (asset == "ETH")
-        return FeeCurrency::ETH;
+        return "ETH";
     if (asset == "BNB")
-        return FeeCurrency::BNB;
+        return "BNB";
     if (asset == "USDT")
-        return FeeCurrency::USDT;
-    return FeeCurrency::USDT;
+        return "USDT";
+    return "USDT";
 }
 
 class BinanceExecNormaliser {
@@ -183,7 +182,7 @@ TEST(BinanceExecNormaliserTest, TradeFilled) {
     EXPECT_EQ(ev.side, OrderSide::SELL);
     EXPECT_EQ(ev.filled_qty, static_cast<uint64_t>(2.0 * kScale));
     EXPECT_EQ(ev.remaining_qty, 0ULL);
-    EXPECT_EQ(ev.fee_currency, FeeCurrency::BNB);
+    EXPECT_EQ(ev.fee_currency, "BNB");
     EXPECT_EQ(ev.fee, static_cast<int64_t>(0.05 * kScale));
 }
 
@@ -285,23 +284,23 @@ TEST(BinanceExecNormaliserTest, FeeCurrencyMapping) {
     n.process(payload, 7ULL);
 
     ASSERT_TRUE(n.last_event_.has_value());
-    EXPECT_EQ(n.last_event_->fee_currency, FeeCurrency::ETH);
+    EXPECT_EQ(n.last_event_->fee_currency, "ETH");
 }
 
 // ── OKX execution report normaliser ──────────────────────────────────────────
 //
 // Mirrors the logic in OKXOrderAdapter::handle_message() for "orders" channel.
 
-static FeeCurrency::Value parse_fee_ccy_okx(const std::string& ccy) {
+static std::string parse_fee_ccy_okx(const std::string& ccy) {
     if (ccy == "BTC")
-        return FeeCurrency::BTC;
+        return "BTC";
     if (ccy == "ETH")
-        return FeeCurrency::ETH;
+        return "ETH";
     if (ccy == "USDT")
-        return FeeCurrency::USDT;
+        return "USDT";
     if (ccy == "USD")
-        return FeeCurrency::USD;
-    return FeeCurrency::USDT;
+        return "USD";
+    return "USDT";
 }
 
 class OKXExecNormaliser {
@@ -530,7 +529,7 @@ TEST(OKXExecNormaliserTest, FeeCurrencyBTC) {
     n.process(payload, 5ULL);
 
     ASSERT_TRUE(n.last_event_.has_value());
-    EXPECT_EQ(n.last_event_->fee_currency, FeeCurrency::BTC);
+    EXPECT_EQ(n.last_event_->fee_currency, "BTC");
 }
 
 TEST(OKXExecNormaliserTest, RejectStateProducesRejected) {
