@@ -13,7 +13,7 @@ namespace bpt::md_gateway::adapter {
 //   <sym>@bookTicker  → publish_bbo
 //   <sym>@aggTrade    → publish_trade
 //
-// Funding rates arrive on a separate BinanceAdapter thread
+// Funding rates arrive on a separate BinanceMdAdapter thread
 // (fstream.binance.com) and are not handled here.
 class BinanceParser : public IExchangeParser {
 public:

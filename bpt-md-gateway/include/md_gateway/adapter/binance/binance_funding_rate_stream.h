@@ -7,7 +7,7 @@
 // io_context, SSL context, and thread. Parses the markPrice array and
 // emits a FundingRateUpdate per subscribed instrument via the callback.
 //
-// Owned by BinanceAdapter; start/stop are driven by the adapter's
+// Owned by BinanceMdAdapter; start/stop are driven by the adapter's
 // lifecycle. Observes the adapter's stop_flag for shutdown.
 
 #include "md_gateway/adapter/common/subscription_map.h"

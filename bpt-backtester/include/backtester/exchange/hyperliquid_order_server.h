@@ -19,7 +19,7 @@ class HyperliquidOrderSession;
 // Mock Hyperliquid order WebSocket server for backtesting.
 //
 // Implements the subset of HL's WS post-action protocol that
-// OrderGateway's HyperliquidAdapter uses:
+// OrderGateway's HyperliquidOrderAdapter uses:
 //
 //   {"method":"post","id":N,"request":{"type":"action",
 //    "payload":{"action":{...},"nonce":...,"signature":{...}}}}

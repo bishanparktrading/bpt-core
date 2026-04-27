@@ -1,4 +1,4 @@
-#include "md_gateway/adapter/okx/okx_adapter.h"
+#include "md_gateway/adapter/okx/okx_md_adapter.h"
 
 #include "md_gateway/adapter/okx/okx_md_encoder.h"
 
@@ -14,12 +14,12 @@ namespace beast = boost::beast;
 namespace websocket = beast::websocket;
 namespace net = boost::asio;
 
-OkxAdapter::OkxAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub)
+OkxMdAdapter::OkxMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub)
     : AdapterBase(cfg, std::move(md_pub)),
       parser_(subs_) {}
 
-std::unique_ptr<bpt::common::ws::AnyWsStream> OkxAdapter::connect_and_subscribe() {
-    bpt::common::log::info("OkxAdapter connecting {}:{}{} (tls={})", cfg_.ws_host, cfg_.ws_port, cfg_.ws_path, cfg_.use_tls);
+std::unique_ptr<bpt::common::ws::AnyWsStream> OkxMdAdapter::connect_and_subscribe() {
+    bpt::common::log::info("OkxMdAdapter connecting {}:{}{} (tls={})", cfg_.ws_host, cfg_.ws_port, cfg_.ws_path, cfg_.use_tls);
 
     std::unique_ptr<bpt::common::ws::AnyWsStream> any;
     if (cfg_.use_tls) {
@@ -62,7 +62,7 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> OkxAdapter::connect_and_subscribe(
         false                                     // no Beast keep-alive pings
     });
 
-    bpt::common::log::info("OkxAdapter connected, subscribing instruments");
+    bpt::common::log::info("OkxMdAdapter connected, subscribing instruments");
 
     // Drain pending so the read loop does not re-send what we subscribe here.
     subs_.take_pending();
@@ -72,7 +72,7 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> OkxAdapter::connect_and_subscribe(
     return any;
 }
 
-void OkxAdapter::read_loop(bpt::common::ws::AnyWsStream& ws) {
+void OkxMdAdapter::read_loop(bpt::common::ws::AnyWsStream& ws) {
     // Ownership of ws transfers to RunLoop for the duration of the session.
     // read_timeout controls on_tick cadence + shutdown responsiveness;
     // liveness_timeout escalates a silent connection to a reconnect.
@@ -83,7 +83,7 @@ void OkxAdapter::read_loop(bpt::common::ws::AnyWsStream& ws) {
                  std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms));
 }
 
-void OkxAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
+void OkxMdAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
     // OKX's app-level heartbeat is bidirectional: the exchange may send
     // "ping" expecting a "pong" reply, and we send "ping" via ping_config.
     // Don't push keepalive text frames onto the parser queue.
@@ -97,17 +97,17 @@ void OkxAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
     push_frame(payload, recv_ns);
 }
 
-void OkxAdapter::on_tick() {
+void OkxMdAdapter::on_tick() {
     // Fallback for subs added between connect and the first send below.
-    // Normal path: OkxAdapter::subscribe() sends immediately via RunLoop::send
+    // Normal path: OkxMdAdapter::subscribe() sends immediately via RunLoop::send
     // when connected, so this typically finds nothing pending.
     for (const auto& entry : subs_.take_pending()) {
         if (RunLoop::send(okx::build_subscribe_payload(entry.symbol, entry.depth)))
-            bpt::common::log::info("OkxAdapter: on_tick subscribe {} depth={}", entry.symbol, entry.depth);
+            bpt::common::log::info("OkxMdAdapter: on_tick subscribe {} depth={}", entry.symbol, entry.depth);
     }
 }
 
-void OkxAdapter::subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth) {
+void OkxMdAdapter::subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth) {
     // Push through the base class so subs_ tracks the state (connect-time
     // replay, requeue after disconnect, etc).
     AdapterBase::subscribe(instrument_id, symbol, depth);
@@ -124,20 +124,20 @@ void OkxAdapter::subscribe(uint64_t instrument_id, std::string symbol, uint8_t d
     // while OKX responds to our ping thread. Runtime subscribes would
     // otherwise never reach the wire.
     if (RunLoop::send(okx::build_subscribe_payload(symbol, depth))) {
-        bpt::common::log::info("OkxAdapter: runtime subscribe {} depth={}", symbol, depth);
+        bpt::common::log::info("OkxMdAdapter: runtime subscribe {} depth={}", symbol, depth);
         // Drain pending to avoid on_tick double-sending this entry.
         subs_.take_pending();
     }
 }
 
-std::optional<bpt::common::ws::PingConfig> OkxAdapter::ping_config() const {
+std::optional<bpt::common::ws::PingConfig> OkxMdAdapter::ping_config() const {
     return bpt::common::ws::PingConfig{
         std::chrono::milliseconds(cfg_.ws_ping_interval_ms),
         [] { return std::string("ping"); },
     };
 }
 
-void OkxAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {
+void OkxMdAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {
     parser_.parse(payload, recv_ns, validating_pub_, on_funding_rate);
 }
 

@@ -1,4 +1,4 @@
-#include "md_gateway/adapter/hyperliquid/hyperliquid_adapter.h"
+#include "md_gateway/adapter/hyperliquid/hyperliquid_md_adapter.h"
 
 #include "md_gateway/adapter/hyperliquid/hyperliquid_md_encoder.h"
 
@@ -14,13 +14,13 @@ namespace beast = boost::beast;
 namespace websocket = beast::websocket;
 namespace net = boost::asio;
 
-HyperliquidAdapter::HyperliquidAdapter(const config::AdapterConfig& cfg,
+HyperliquidMdAdapter::HyperliquidMdAdapter(const config::AdapterConfig& cfg,
                                        std::shared_ptr<messaging::IMdPublisher> md_pub)
     : AdapterBase(cfg, std::move(md_pub)),
       parser_(subs_) {}
 
-std::unique_ptr<bpt::common::ws::AnyWsStream> HyperliquidAdapter::connect_and_subscribe() {
-    bpt::common::log::info("HyperliquidAdapter connecting {}:{}{} (tls={})",
+std::unique_ptr<bpt::common::ws::AnyWsStream> HyperliquidMdAdapter::connect_and_subscribe() {
+    bpt::common::log::info("HyperliquidMdAdapter connecting {}:{}{} (tls={})",
                            cfg_.ws_host, cfg_.ws_port, cfg_.ws_path, cfg_.use_tls);
     std::unique_ptr<bpt::common::ws::AnyWsStream> ws;
     if (cfg_.use_tls) {
@@ -54,7 +54,7 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> HyperliquidAdapter::connect_and_su
         true                             // send keep-alive ping frames
     });
 
-    bpt::common::log::info("HyperliquidAdapter connected, subscribing instruments");
+    bpt::common::log::info("HyperliquidMdAdapter connected, subscribing instruments");
 
     // Drain pending so the read loop does not re-send what we subscribe here.
     subs_.take_pending();
@@ -66,7 +66,7 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> HyperliquidAdapter::connect_and_su
     return ws;
 }
 
-void HyperliquidAdapter::read_loop(bpt::common::ws::AnyWsStream& ws) {
+void HyperliquidMdAdapter::read_loop(bpt::common::ws::AnyWsStream& ws) {
     RunLoop::run(std::move(ws),
                  stop_flag_,
                  rl_connected_,
@@ -74,23 +74,23 @@ void HyperliquidAdapter::read_loop(bpt::common::ws::AnyWsStream& ws) {
                  std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms));
 }
 
-void HyperliquidAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
+void HyperliquidMdAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
     push_frame(payload, recv_ns);
 }
 
-void HyperliquidAdapter::on_tick() {
+void HyperliquidMdAdapter::on_tick() {
     // Fallback for subs added between connect_and_subscribe's take_pending
     // and the first read iteration. Primary path is subscribe() below.
     for (const auto& entry : subs_.take_pending()) {
         for (const char* type : {"l2Book", "trades", "activeAssetCtx"})
             RunLoop::send(hyperliquid::build_subscribe_payload(type, entry.symbol));
-        bpt::common::log::info("HyperliquidAdapter: on_tick subscribe {}", entry.symbol);
+        bpt::common::log::info("HyperliquidMdAdapter: on_tick subscribe {}", entry.symbol);
     }
 }
 
-void HyperliquidAdapter::subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth) {
+void HyperliquidMdAdapter::subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth) {
     AdapterBase::subscribe(instrument_id, symbol, depth);
-    // Push to the wire immediately when connected. See OkxAdapter::subscribe
+    // Push to the wire immediately when connected. See OkxMdAdapter::subscribe
     // for the underlying rationale — sync ws.read doesn't time out here, so
     // on_tick is unreliable for runtime subs.
     bool sent = false;
@@ -99,12 +99,12 @@ void HyperliquidAdapter::subscribe(uint64_t instrument_id, std::string symbol, u
             sent = true;
     }
     if (sent) {
-        bpt::common::log::info("HyperliquidAdapter: runtime subscribe {}", symbol);
+        bpt::common::log::info("HyperliquidMdAdapter: runtime subscribe {}", symbol);
         subs_.take_pending();  // don't double-send in on_tick
     }
 }
 
-std::optional<bpt::common::ws::PingConfig> HyperliquidAdapter::ping_config() const {
+std::optional<bpt::common::ws::PingConfig> HyperliquidMdAdapter::ping_config() const {
     // Hyperliquid closes idle WebSockets ~60s after the last client-sent
     // message, so a 20s application ping keeps the session alive even
     // when market data goes quiet.
@@ -114,7 +114,7 @@ std::optional<bpt::common::ws::PingConfig> HyperliquidAdapter::ping_config() con
     };
 }
 
-void HyperliquidAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {
+void HyperliquidMdAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {
     parser_.parse(payload, recv_ns, validating_pub_, on_funding_rate);
 }
 

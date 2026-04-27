@@ -1,9 +1,9 @@
 #include "md_gateway/app/md_gateway_app.h"
 
-#include "md_gateway/adapter/binance/binance_adapter.h"
-#include "md_gateway/adapter/deribit/deribit_adapter.h"
-#include "md_gateway/adapter/hyperliquid/hyperliquid_adapter.h"
-#include "md_gateway/adapter/okx/okx_adapter.h"
+#include "md_gateway/adapter/binance/binance_md_adapter.h"
+#include "md_gateway/adapter/deribit/deribit_md_adapter.h"
+#include "md_gateway/adapter/hyperliquid/hyperliquid_md_adapter.h"
+#include "md_gateway/adapter/okx/okx_md_adapter.h"
 
 #include <FragmentAssembler.h>
 
@@ -73,16 +73,16 @@ MdGatewayApp::MdGatewayApp(config::Settings cfg,
         std::shared_ptr<adapter::IAdapter> adapter;
         switch (*exch_id) {
             case bpt::messages::ExchangeId::BINANCE:
-                adapter = std::make_shared<adapter::BinanceAdapter>(a_cfg, md_pub_);
+                adapter = std::make_shared<adapter::BinanceMdAdapter>(a_cfg, md_pub_);
                 break;
             case bpt::messages::ExchangeId::OKX:
-                adapter = std::make_shared<adapter::OkxAdapter>(a_cfg, md_pub_);
+                adapter = std::make_shared<adapter::OkxMdAdapter>(a_cfg, md_pub_);
                 break;
             case bpt::messages::ExchangeId::HYPERLIQUID:
-                adapter = std::make_shared<adapter::HyperliquidAdapter>(a_cfg, md_pub_);
+                adapter = std::make_shared<adapter::HyperliquidMdAdapter>(a_cfg, md_pub_);
                 break;
             case bpt::messages::ExchangeId::DERIBIT:
-                adapter = std::make_shared<adapter::DeribitAdapter>(a_cfg, md_pub_);
+                adapter = std::make_shared<adapter::DeribitMdAdapter>(a_cfg, md_pub_);
                 break;
             default:
                 throw std::runtime_error(fmt::format(

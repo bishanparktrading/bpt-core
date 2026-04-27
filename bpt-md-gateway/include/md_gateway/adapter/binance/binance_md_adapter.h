@@ -20,9 +20,9 @@ namespace bpt::md_gateway::adapter {
 //
 // Binance uses Beast's WS-level control-frame pings (set in connect_and_subscribe),
 // so ping_config is left at the default nullopt — no application ping thread.
-class BinanceAdapter : public AdapterBase, private bpt::common::ws::RunLoop {
+class BinanceMdAdapter : public AdapterBase, private bpt::common::ws::RunLoop {
 public:
-    explicit BinanceAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub);
+    explicit BinanceMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub);
 
     // Lowercases the symbol before registering — Binance stream names are lowercase.
     void subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth = 0) override;

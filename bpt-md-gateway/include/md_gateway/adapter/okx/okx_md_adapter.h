@@ -18,9 +18,9 @@ namespace bpt::md_gateway::adapter {
 // Delegates read-loop mechanics (read timeout, ping thread, liveness
 // watchdog) to bpt::common::ws::RunLoop — on_frame/on_tick/ping_config
 // hooks express the OKX-specific bits only.
-class OkxAdapter : public AdapterBase, private bpt::common::ws::RunLoop {
+class OkxMdAdapter : public AdapterBase, private bpt::common::ws::RunLoop {
 public:
-    explicit OkxAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub);
+    explicit OkxMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub);
 
     [[nodiscard]] const char* exchange_name() const override { return "OKX"; }
     [[nodiscard]] bpt::common::util::LatencyHistogram& decode_latency_hist() noexcept override { return parser_.decode_lat_; }

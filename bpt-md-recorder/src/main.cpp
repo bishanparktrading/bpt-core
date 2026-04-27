@@ -16,8 +16,6 @@
 #include "refdata/mapping/instrument_mapping_loader.h"
 #include <messages/ExchangeRegistry.h>
 
-#include <algorithm>
-
 #include <CLI/CLI.hpp>
 
 #include <algorithm>
@@ -97,16 +95,16 @@ public:
             std::shared_ptr<bpt::md_gateway::adapter::IAdapter> adapter;
             switch (*exch_id) {
                 case bpt::messages::ExchangeId::BINANCE:
-                    adapter = std::make_shared<adapter::RecordingBinanceAdapter>(spool, a_cfg, pub);
+                    adapter = std::make_shared<adapter::RecordingBinanceMdAdapter>(spool, a_cfg, pub);
                     break;
                 case bpt::messages::ExchangeId::OKX:
-                    adapter = std::make_shared<adapter::RecordingOkxAdapter>(spool, a_cfg, pub);
+                    adapter = std::make_shared<adapter::RecordingOkxMdAdapter>(spool, a_cfg, pub);
                     break;
                 case bpt::messages::ExchangeId::HYPERLIQUID:
-                    adapter = std::make_shared<adapter::RecordingHyperliquidAdapter>(spool, a_cfg, pub);
+                    adapter = std::make_shared<adapter::RecordingHyperliquidMdAdapter>(spool, a_cfg, pub);
                     break;
                 case bpt::messages::ExchangeId::DERIBIT:
-                    adapter = std::make_shared<adapter::RecordingDeribitAdapter>(spool, a_cfg, pub);
+                    adapter = std::make_shared<adapter::RecordingDeribitMdAdapter>(spool, a_cfg, pub);
                     break;
                 default:
                     throw std::runtime_error(fmt::format(

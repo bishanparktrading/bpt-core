@@ -8,10 +8,10 @@
 /// untouched; recording is a md-recorder-only concern.
 
 #include "bpt_common/recorder/raw_spool.h"
-#include "md_gateway/adapter/binance/binance_adapter.h"
-#include "md_gateway/adapter/deribit/deribit_adapter.h"
-#include "md_gateway/adapter/hyperliquid/hyperliquid_adapter.h"
-#include "md_gateway/adapter/okx/okx_adapter.h"
+#include "md_gateway/adapter/binance/binance_md_adapter.h"
+#include "md_gateway/adapter/deribit/deribit_md_adapter.h"
+#include "md_gateway/adapter/hyperliquid/hyperliquid_md_adapter.h"
+#include "md_gateway/adapter/okx/okx_md_adapter.h"
 
 #include <memory>
 #include <string_view>
@@ -38,10 +38,10 @@ namespace bpt::md_recorder::adapter {
         std::shared_ptr<::bpt::common::recorder::RawSpool> spool_;                            \
     };
 
-BPT_DECLARE_RECORDING_ADAPTER(RecordingBinanceAdapter, BinanceAdapter)
-BPT_DECLARE_RECORDING_ADAPTER(RecordingOkxAdapter, OkxAdapter)
-BPT_DECLARE_RECORDING_ADAPTER(RecordingHyperliquidAdapter, HyperliquidAdapter)
-BPT_DECLARE_RECORDING_ADAPTER(RecordingDeribitAdapter, DeribitAdapter)
+BPT_DECLARE_RECORDING_ADAPTER(RecordingBinanceMdAdapter, BinanceMdAdapter)
+BPT_DECLARE_RECORDING_ADAPTER(RecordingOkxMdAdapter, OkxMdAdapter)
+BPT_DECLARE_RECORDING_ADAPTER(RecordingHyperliquidMdAdapter, HyperliquidMdAdapter)
+BPT_DECLARE_RECORDING_ADAPTER(RecordingDeribitMdAdapter, DeribitMdAdapter)
 
 #undef BPT_DECLARE_RECORDING_ADAPTER
 

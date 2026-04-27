@@ -56,7 +56,7 @@ void BinanceFundingRateStream::run() {
             auto ws = bpt::common::ws::ws_connect(ioc_, ssl_ctx_, fr_host, fr_port, fr_path,
                                                   cfg_.so_rcvbuf_bytes, /*connect_timeout_ms=*/30000,
                                                   "bpt-md-gateway/0.1", cfg_.pinned_tls_sha256);
-            bpt::common::log::info("BinanceAdapter funding-rate stream connected");
+            bpt::common::log::info("BinanceMdAdapter funding-rate stream connected");
 
             beast::flat_buffer buf;
             while (!stop_flag_.load(std::memory_order_relaxed)) {
@@ -122,7 +122,7 @@ void BinanceFundingRateStream::run() {
             ws->close(websocket::close_code::normal);
         } catch (const std::exception& e) {
             if (!stop_flag_.load(std::memory_order_relaxed)) {
-                bpt::common::log::error("BinanceAdapter funding-rate error: {}, reconnecting in 5s", e.what());
+                bpt::common::log::error("BinanceMdAdapter funding-rate error: {}, reconnecting in 5s", e.what());
                 std::this_thread::sleep_for(std::chrono::seconds(5));
             }
         }

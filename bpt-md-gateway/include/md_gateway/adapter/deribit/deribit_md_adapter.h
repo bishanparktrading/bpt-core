@@ -19,16 +19,16 @@ namespace bpt::md_gateway::adapter {
 //
 // Heartbeat: Deribit's set_heartbeat keeps the session alive, so
 // ping_config is left at nullopt (no application ping thread).
-class DeribitAdapter : public AdapterBase, private bpt::common::ws::RunLoop {
+class DeribitMdAdapter : public AdapterBase, private bpt::common::ws::RunLoop {
 public:
-    explicit DeribitAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub);
+    explicit DeribitMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub);
 
     // Also clears gap-detection state for the instrument in the parser.
     void unsubscribe(uint64_t instrument_id) override;
 
     // Push subscribe frames immediately when connected — on_tick can't
     // be relied upon because RunLoop's sync ws.read() doesn't honour
-    // expires_after in this Beast version (see OkxAdapter commit).
+    // expires_after in this Beast version (see OkxMdAdapter commit).
     void subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth = 0) override;
 
     [[nodiscard]] const char* exchange_name() const override { return "DERIBIT"; }
