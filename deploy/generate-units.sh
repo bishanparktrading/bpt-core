@@ -59,6 +59,7 @@ declare -A BIN
 if [ -n "${BPT_DEPLOY_ROOT:-}" ]; then
     BIN[bpt-refdata]="$BPT_BIN_ROOT/bpt-refdata"
     BIN[bpt-md-gateway]="$BPT_BIN_ROOT/bpt-md-gateway"
+    BIN[bpt-md-recorder]="$BPT_BIN_ROOT/bpt-md-recorder"
     BIN[bpt-order-gateway]="$BPT_BIN_ROOT/bpt-order-gateway"
     BIN[bpt-strategy]="$BPT_BIN_ROOT/bpt-strategy"
     BIN[bpt-analytics]="$BPT_BIN_ROOT/bpt-analytics"
@@ -67,6 +68,7 @@ if [ -n "${BPT_DEPLOY_ROOT:-}" ]; then
 else
     BIN[bpt-refdata]="$BPT_BIN_ROOT/bpt-refdata/bpt-refdata"
     BIN[bpt-md-gateway]="$BPT_BIN_ROOT/bpt-md-gateway/bpt-md-gateway"
+    BIN[bpt-md-recorder]="$BPT_BIN_ROOT/bpt-md-recorder/bpt-md-recorder"
     BIN[bpt-order-gateway]="$BPT_BIN_ROOT/bpt-order-gateway/bpt-order-gateway"
     BIN[bpt-strategy]="$BPT_BIN_ROOT/bpt-strategy/bpt-strategy"
     BIN[bpt-analytics]="$BPT_BIN_ROOT/bpt-analytics/bpt-analytics"
@@ -364,17 +366,17 @@ WantedBy=timers.target
 EOF
 
 # ── bpt-md-recorder.service + recording rotate timer ───────────────────────
-# Recorder = bpt-md-gateway running with [recording] enabled, deployed
-# to a dedicated VPS that just sits there capturing WS frames. Lives
-# in its own bpt-recording.target so a recording-only host doesn't
-# drag in the rest of the trading stack (no refdata, order-gateway,
-# strategy, etc. needed).
+# bpt-md-recorder is a dedicated binary that imports bpt-md-gateway's
+# adapter library and substitutes recording-aware subclasses (override
+# on_frame to tee raw WS bytes to disk via RawSpool). Trading-stack
+# mdgw + refdata services have no recording code — recording lives
+# entirely in this process. Designed for a recording-only VPS that
+# just sits there capturing.
 #
 # Config path comes from $BPT_MD_RECORDER_CONFIG in the active env
-# (typically points at bpt-md-gateway.recording-hl.toml). Output dir
-# is /opt/bpt/data/raw/<venue>/<date>/, set inside the TOML — same
-# layout the local record-stack.sh produces, so wslog_to_parquet.py
-# works unchanged.
+# (typically points at bpt-md-recorder.recording-hl.toml). Output
+# dir is /opt/bpt/data/raw/<venue>/<date>/, set inside the TOML —
+# same layout wslog_to_parquet.py expects.
 cat > "$UNIT_DIR/bpt-md-recorder.service" <<EOF
 [Unit]
 Description=BPT Market-Data Recorder (continuous WS capture)
@@ -385,8 +387,8 @@ PartOf=bpt-recording.target
 [Service]
 Type=simple
 EnvironmentFile=$ENV_FILE
-WorkingDirectory=$BPT_ROOT/bpt-md-gateway
-ExecStart=${BIN[bpt-md-gateway]} --config \${BPT_MD_RECORDER_CONFIG}
+WorkingDirectory=$BPT_ROOT/bpt-md-recorder
+ExecStart=${BIN[bpt-md-recorder]} --config \${BPT_MD_RECORDER_CONFIG}
 Restart=always
 RestartSec=5
 TimeoutStopSec=15
