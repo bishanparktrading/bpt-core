@@ -73,6 +73,17 @@ public:
     virtual void stop() {}
 };
 
+// Optional knobs for run(). Default-constructed RunOptions matches the
+// historical behavior — every existing caller keeps connecting to Aeron.
+// Opt out per-service when there's no Aeron consumer (e.g. bpt-md-recorder
+// captures venue WS frames to disk only; nothing publishes).
+struct RunOptions {
+    // Connect to the Aeron MediaDriver and populate AppContext::aeron.
+    // false → skip the connect; AppContext::aeron is nullptr; service
+    // must not dereference it.
+    bool connect_aeron{true};
+};
+
 // Run the shared lifecycle. Template parameters are deduced:
 //   Settings — the service's settings struct, must have `.base` member
 //   BuildFn  — callable taking (Settings&, AppContext&) -> unique_ptr<IService>
@@ -80,7 +91,8 @@ public:
 // Returns 0 on clean shutdown, non-zero if a startup step fails (exceptions
 // from build_fn propagate so the service can decide; bpt-app does not swallow).
 template <typename Settings, typename BuildFn>
-int run(const std::string& service_name, Settings settings, BuildFn build_fn) {
+int run(const std::string& service_name, Settings settings, BuildFn build_fn,
+        RunOptions opts = {}) {
     auto& base = settings.base;
 
     bpt::common::signal::install();
@@ -166,8 +178,13 @@ int run(const std::string& service_name, Settings settings, BuildFn build_fn) {
             bpt::common::log::error("  {}", syms ? syms[i] : "???");
         std::free(syms);
     };
-    auto aeron = bpt::common::aeron::connect(base.media_driver_dir, aeron_error_handler);
-    bpt::common::log::info("Connected to Aeron MediaDriver");
+    std::shared_ptr<::aeron::Aeron> aeron;
+    if (opts.connect_aeron) {
+        aeron = bpt::common::aeron::connect(base.media_driver_dir, aeron_error_handler);
+        bpt::common::log::info("Connected to Aeron MediaDriver");
+    } else {
+        bpt::common::log::info("Aeron MediaDriver connection skipped (connect_aeron=false)");
+    }
 
     auto topology = bpt::common::util::Topology::load(base.topology_path);
     if (topology.empty())

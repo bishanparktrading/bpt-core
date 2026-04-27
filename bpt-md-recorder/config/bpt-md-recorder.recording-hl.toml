@@ -26,11 +26,9 @@ recording_universe_venues = ["HYPERLIQUID"]
 # pull also refreshes the recording universe.
 instrument_mapping_path = "config/instruments/instrument_mapping.hyperliquid.json"
 
-# Recording host gets its own Aeron media driver dir so disk-IO stalls in
-# the recorder cannot backpressure the trading stack's IO thread (when both
-# stacks are running on the same machine, e.g. during local smoke).
-[aeron]
-media_driver_dir = "/dev/shm/aeron-bpt-record"
+# No [aeron] block — md-recorder passes connect_aeron=false to bpt::app::run
+# (see main.cpp). Venue WS frames go straight to disk via RawSpool; nothing
+# publishes SBE; the recording host runs zero Aeron infrastructure.
 
 # Inline adapter list (md-recorder accepts either [[adapters]] inline or
 # exchange_config indirection — same shape as bpt-md-gateway's loader).

@@ -257,11 +257,17 @@ int main(int argc, char* argv[]) {
     }
 
     try {
+        // Recording host runs no Aeron consumers — venue WS frames go
+        // straight to disk via RawSpool, no SBE published, no refdata
+        // catalog subscription (universe loaded directly from JSON).
+        // Skip the MediaDriver connect; the recording host needs zero
+        // Aeron infrastructure.
         return bpt::app::run("bpt-md-recorder", std::move(cfg),
             [](auto& settings, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
                 return std::make_unique<bpt::md_recorder::RecorderService>(
                     std::move(settings), ctx.topology);
-            });
+            },
+            bpt::app::RunOptions{.connect_aeron = false});
     } catch (const std::exception& e) {
         bpt::common::log::error("Fatal: {}", e.what());
         return 1;

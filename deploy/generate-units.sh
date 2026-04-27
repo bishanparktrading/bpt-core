@@ -380,8 +380,6 @@ EOF
 cat > "$UNIT_DIR/bpt-md-recorder.service" <<EOF
 [Unit]
 Description=BPT Market-Data Recorder (continuous WS capture)
-After=bpt-transport.service
-Requires=bpt-transport.service
 PartOf=bpt-recording.target
 
 [Service]
@@ -473,7 +471,7 @@ EOF
 cat > "$UNIT_DIR/bpt-recording.target" <<EOF
 [Unit]
 Description=BPT Recording Stack (md-recorder + daily Parquet rotate + heartbeat)
-Wants=bpt-transport.service bpt-md-recorder.service bpt-recording-rotate.timer bpt-recording-heartbeat.timer
+Wants=bpt-md-recorder.service bpt-recording-rotate.timer bpt-recording-heartbeat.timer
 
 [Install]
 WantedBy=default.target
