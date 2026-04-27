@@ -59,527 +59,534 @@
     "2_ATOM-USDT-SWAP": 1040,
     "2_AUCTION-USDT": 2038,
     "2_AUCTION-USDT-SWAP": 1041,
-    "2_AVAX-USDT": 2039,
+    "2_AUDF-USDT": 2040,
+    "2_AUDM-USDT": 2039,
+    "2_AVAX-USDT": 2041,
     "2_AVAX-USDT-SWAP": 1042,
-    "2_AVNT-USDT": 2040,
+    "2_AVNT-USDT": 2042,
     "2_AVNT-USDT-SWAP": 1043,
-    "2_AXS-USDT": 2041,
+    "2_AXS-USDT": 2043,
     "2_AXS-USDT-SWAP": 1044,
     "2_AZTEC-USDT-SWAP": 1045,
-    "2_BABY-USDT": 2043,
+    "2_BABY-USDT": 2045,
     "2_BABY-USDT-SWAP": 1046,
-    "2_BABYDOGE-USDT": 2042,
-    "2_BANANA-USDT": 2045,
-    "2_BAND-USDT": 2044,
+    "2_BABYDOGE-USDT": 2044,
+    "2_BANANA-USDT": 2047,
+    "2_BAND-USDT": 2046,
     "2_BAND-USDT-SWAP": 1047,
-    "2_BARD-USDT": 2046,
+    "2_BARD-USDT": 2048,
     "2_BARD-USDT-SWAP": 1048,
-    "2_BASED-USDT": 2047,
+    "2_BASED-USDT": 2049,
     "2_BASED-USDT-SWAP": 1049,
-    "2_BAT-USDT": 2048,
+    "2_BAT-USDT": 2050,
     "2_BAT-USDT-SWAP": 1050,
     "2_BCH-USDT": 2007,
     "2_BCH-USDT-SWAP": 1007,
     "2_BEAT-USDT-SWAP": 1051,
-    "2_BERA-USDT": 2049,
+    "2_BERA-USDT": 2051,
     "2_BERA-USDT-SWAP": 1052,
-    "2_BETH-USDT": 2050,
-    "2_BICO-USDT": 2051,
+    "2_BETH-USDT": 2052,
+    "2_BICO-USDT": 2053,
     "2_BICO-USDT-SWAP": 1053,
-    "2_BIGTIME-USDT": 2052,
+    "2_BIGTIME-USDT": 2054,
     "2_BIGTIME-USDT-SWAP": 1054,
-    "2_BIO-USDT": 2053,
+    "2_BIO-USDT": 2055,
     "2_BIO-USDT-SWAP": 1055,
-    "2_BLUR-USDT": 2054,
+    "2_BLUR-USDT": 2056,
     "2_BLUR-USDT-SWAP": 1056,
-    "2_BNB-USDT": 2055,
+    "2_BNB-USDT": 2057,
     "2_BNB-USDT-SWAP": 1057,
-    "2_BNT-USDT": 2056,
-    "2_BOME-USDT": 2057,
+    "2_BNT-USDT": 2058,
+    "2_BOME-USDT": 2059,
     "2_BOME-USDT-SWAP": 1058,
-    "2_BONK-USDT": 2058,
+    "2_BONK-USDT": 2060,
     "2_BONK-USDT-SWAP": 1059,
     "2_BRETT-USDT-SWAP": 1060,
-    "2_BREV-USDT": 2059,
+    "2_BREV-USDT": 2061,
     "2_BREV-USDT-SWAP": 1061,
-    "2_BRL1-USDT": 2060,
+    "2_BRL1-USDT": 2062,
     "2_BSB-USDT-SWAP": 1062,
     "2_BTC-USDT": 2001,
     "2_BTC-USDT-SWAP": 1001,
     "2_BZ-USDT-SWAP": 1063,
-    "2_CAT-USDT": 2062,
-    "2_CATI-USDT": 2061,
-    "2_CC-USDT": 2063,
+    "2_CAT-USDT": 2064,
+    "2_CATI-USDT": 2063,
+    "2_CC-USDT": 2065,
     "2_CC-USDT-SWAP": 1064,
-    "2_CELO-USDT": 2064,
+    "2_CELO-USDT": 2066,
     "2_CELO-USDT-SWAP": 1065,
-    "2_CELR-USDT": 2065,
-    "2_CETUS-USDT": 2066,
-    "2_CFG-USDT": 2067,
-    "2_CFX-USDT": 2068,
+    "2_CELR-USDT": 2067,
+    "2_CETUS-USDT": 2068,
+    "2_CFG-USDT": 2069,
+    "2_CFX-USDT": 2070,
     "2_CFX-USDT-SWAP": 1066,
-    "2_CHZ-USDT": 2069,
-    "2_CHZ-USDT-SWAP": 1067,
-    "2_CITY-USDT": 2070,
-    "2_CL-USDT-SWAP": 1068,
-    "2_COAI-USDT-SWAP": 1069,
-    "2_COIN-USDT-SWAP": 1070,
-    "2_COMP-USDT": 2071,
-    "2_COMP-USDT-SWAP": 1071,
-    "2_CORE-USDT": 2072,
-    "2_CORE-USDT-SWAP": 1072,
-    "2_CRCL-USDT-SWAP": 1073,
-    "2_CRO-USDT": 2073,
-    "2_CRO-USDT-SWAP": 1074,
-    "2_CRV-USDT": 2074,
-    "2_CRV-USDT-SWAP": 1075,
-    "2_CRWV-USDT-SWAP": 1076,
-    "2_CSPR-USDT": 2075,
-    "2_CTC-USDT": 2076,
-    "2_CVC-USDT": 2077,
-    "2_CVX-USDT": 2078,
-    "2_CVX-USDT-SWAP": 1077,
-    "2_DASH-USDT": 2079,
-    "2_DASH-USDT-SWAP": 1078,
-    "2_DEGEN-USDT": 2080,
-    "2_DGB-USDT": 2081,
+    "2_CHIP-USDT": 2071,
+    "2_CHIP-USDT-SWAP": 1067,
+    "2_CHZ-USDT": 2072,
+    "2_CHZ-USDT-SWAP": 1068,
+    "2_CITY-USDT": 2073,
+    "2_CL-USDT-SWAP": 1069,
+    "2_COAI-USDT-SWAP": 1070,
+    "2_COIN-USDT-SWAP": 1071,
+    "2_COMP-USDT": 2074,
+    "2_COMP-USDT-SWAP": 1072,
+    "2_CORE-USDT": 2075,
+    "2_CORE-USDT-SWAP": 1073,
+    "2_CRCL-USDT-SWAP": 1074,
+    "2_CRO-USDT": 2076,
+    "2_CRO-USDT-SWAP": 1075,
+    "2_CRV-USDT": 2077,
+    "2_CRV-USDT-SWAP": 1076,
+    "2_CRWV-USDT-SWAP": 1077,
+    "2_CSPR-USDT": 2078,
+    "2_CTC-USDT": 2079,
+    "2_CVC-USDT": 2080,
+    "2_CVX-USDT": 2081,
+    "2_CVX-USDT-SWAP": 1078,
+    "2_DASH-USDT": 2082,
+    "2_DASH-USDT-SWAP": 1079,
+    "2_DEGEN-USDT": 2083,
+    "2_DGB-USDT": 2084,
     "2_DOGE-USDT": 2005,
     "2_DOGE-USDT-SWAP": 1005,
-    "2_DOGS-USDT": 2082,
-    "2_DOOD-USDT": 2083,
-    "2_DOOD-USDT-SWAP": 1079,
-    "2_DORA-USDT": 2084,
-    "2_DOT-USDT": 2085,
-    "2_DOT-USDT-SWAP": 1080,
-    "2_DUCK-USDT": 2086,
-    "2_DYDX-USDT": 2087,
-    "2_DYDX-USDT-SWAP": 1081,
-    "2_EDEN-USDT-SWAP": 1082,
-    "2_EDGE-USDT-SWAP": 1083,
-    "2_EGLD-USDT": 2088,
-    "2_EGLD-USDT-SWAP": 1084,
-    "2_EIGEN-USDT": 2089,
-    "2_EIGEN-USDT-SWAP": 1085,
-    "2_ELF-USDT": 2090,
-    "2_ENA-USDT": 2091,
-    "2_ENA-USDT-SWAP": 1086,
-    "2_ENJ-USDT": 2092,
-    "2_ENJ-USDT-SWAP": 1087,
-    "2_ENS-USDT": 2093,
-    "2_ENS-USDT-SWAP": 1088,
-    "2_ENSO-USDT-SWAP": 1089,
-    "2_ESP-USDT-SWAP": 1090,
-    "2_ETC-USDT": 2094,
-    "2_ETC-USDT-SWAP": 1091,
+    "2_DOGS-USDT": 2085,
+    "2_DOOD-USDT": 2086,
+    "2_DOOD-USDT-SWAP": 1080,
+    "2_DORA-USDT": 2087,
+    "2_DOT-USDT": 2088,
+    "2_DOT-USDT-SWAP": 1081,
+    "2_DUCK-USDT": 2089,
+    "2_DYDX-USDT": 2090,
+    "2_DYDX-USDT-SWAP": 1082,
+    "2_EDEN-USDT-SWAP": 1083,
+    "2_EDGE-USDT-SWAP": 1084,
+    "2_EGLD-USDT": 2091,
+    "2_EGLD-USDT-SWAP": 1085,
+    "2_EIGEN-USDT": 2092,
+    "2_EIGEN-USDT-SWAP": 1086,
+    "2_ELF-USDT": 2093,
+    "2_ENA-USDT": 2094,
+    "2_ENA-USDT-SWAP": 1087,
+    "2_ENJ-USDT": 2095,
+    "2_ENJ-USDT-SWAP": 1088,
+    "2_ENS-USDT": 2096,
+    "2_ENS-USDT-SWAP": 1089,
+    "2_ENSO-USDT-SWAP": 1090,
+    "2_ESP-USDT-SWAP": 1091,
+    "2_ETC-USDT": 2097,
+    "2_ETC-USDT-SWAP": 1092,
     "2_ETH-USDT": 2002,
     "2_ETH-USDT-SWAP": 1002,
-    "2_ETHFI-USDT": 2096,
-    "2_ETHFI-USDT-SWAP": 1093,
-    "2_ETHW-USDT": 2095,
-    "2_ETHW-USDT-SWAP": 1092,
-    "2_EWJ-USDT-SWAP": 1094,
-    "2_EWY-USDT-SWAP": 1095,
-    "2_F-USDT-SWAP": 1096,
-    "2_FARTCOIN-USDT-SWAP": 1097,
-    "2_FET-USDT": 2097,
-    "2_FIL-USDT": 2098,
-    "2_FIL-USDT-SWAP": 1098,
-    "2_FLOKI-USDT": 2100,
-    "2_FLOKI-USDT-SWAP": 1099,
-    "2_FLOW-USDT": 2099,
-    "2_FLOW-USDT-SWAP": 1100,
-    "2_FLR-USDT": 2101,
-    "2_FLUID-USDT": 2102,
-    "2_FOGO-USDT": 2103,
-    "2_FOGO-USDT-SWAP": 1101,
-    "2_G-USDT": 2104,
-    "2_GALA-USDT": 2105,
-    "2_GALA-USDT-SWAP": 1102,
-    "2_GALFT-USDT": 2106,
-    "2_GAS-USDT": 2107,
-    "2_GAS-USDT-SWAP": 1103,
-    "2_GIGGLE-USDT-SWAP": 1104,
-    "2_GLM-USDT": 2108,
-    "2_GLM-USDT-SWAP": 1105,
-    "2_GMT-USDT": 2109,
-    "2_GMT-USDT-SWAP": 1106,
-    "2_GMX-USDT": 2110,
-    "2_GMX-USDT-SWAP": 1107,
-    "2_GOAT-USDT": 2111,
-    "2_GODS-USDT": 2112,
-    "2_GOOGL-USDT-SWAP": 1108,
-    "2_GPS-USDT-SWAP": 1109,
-    "2_GRASS-USDT-SWAP": 1110,
-    "2_GRT-USDT": 2113,
-    "2_GRT-USDT-SWAP": 1111,
-    "2_H-USDT-SWAP": 1112,
-    "2_HBAR-USDT": 2114,
-    "2_HBAR-USDT-SWAP": 1113,
-    "2_HMSTR-USDT": 2115,
-    "2_HMSTR-USDT-SWAP": 1114,
-    "2_HOME-USDT-SWAP": 1115,
-    "2_HOOD-USDT-SWAP": 1116,
-    "2_HUMA-USDT": 2116,
-    "2_HUMA-USDT-SWAP": 1117,
-    "2_HYPE-USDT": 2117,
-    "2_HYPE-USDT-SWAP": 1118,
-    "2_ICP-USDT": 2118,
-    "2_ICP-USDT-SWAP": 1119,
-    "2_ICX-USDT": 2119,
-    "2_ICX-USDT-SWAP": 1120,
-    "2_ID-USDT": 2120,
-    "2_ILV-USDT": 2121,
-    "2_IMX-USDT": 2122,
-    "2_IMX-USDT-SWAP": 1121,
-    "2_INIT-USDT-SWAP": 1122,
-    "2_INJ-USDT": 2123,
-    "2_INJ-USDT-SWAP": 1123,
-    "2_INTC-USDT-SWAP": 1124,
-    "2_IOST-USDT": 2124,
-    "2_IOST-USDT-SWAP": 1125,
-    "2_IOTA-USDT": 2125,
-    "2_IOTA-USDT-SWAP": 1126,
-    "2_IP-USDT": 2126,
-    "2_IP-USDT-SWAP": 1127,
-    "2_IWM-USDT-SWAP": 1128,
-    "2_J-USDT": 2127,
-    "2_JELLYJELLY-USDT-SWAP": 1129,
-    "2_JITOSOL-USDT": 2128,
-    "2_JOE-USDT": 2129,
-    "2_JTO-USDT": 2130,
-    "2_JTO-USDT-SWAP": 1130,
-    "2_JUP-USDT": 2131,
-    "2_JUP-USDT-SWAP": 1131,
-    "2_KAIA-USDT": 2132,
-    "2_KAITO-USDT": 2133,
-    "2_KAITO-USDT-SWAP": 1132,
-    "2_KAT-USDT": 2134,
-    "2_KAT-USDT-SWAP": 1133,
-    "2_KGEN-USDT-SWAP": 1134,
-    "2_KITE-USDT": 2135,
-    "2_KITE-USDT-SWAP": 1135,
-    "2_KMNO-USDT": 2136,
-    "2_KMNO-USDT-SWAP": 1136,
-    "2_KNC-USDT": 2137,
-    "2_KSM-USDT": 2138,
-    "2_KSM-USDT-SWAP": 1137,
-    "2_LA-USDT-SWAP": 1138,
-    "2_LAB-USDT-SWAP": 1139,
-    "2_LAT-USDT": 2139,
-    "2_LAYER-USDT": 2140,
-    "2_LAYER-USDT-SWAP": 1140,
-    "2_LDO-USDT": 2141,
-    "2_LDO-USDT-SWAP": 1141,
-    "2_LEO-USDT": 2142,
-    "2_LIGHT-USDT-SWAP": 1142,
+    "2_ETHFI-USDT": 2099,
+    "2_ETHFI-USDT-SWAP": 1094,
+    "2_ETHW-USDT": 2098,
+    "2_ETHW-USDT-SWAP": 1093,
+    "2_EWJ-USDT-SWAP": 1095,
+    "2_EWY-USDT-SWAP": 1096,
+    "2_F-USDT-SWAP": 1097,
+    "2_FARTCOIN-USDT-SWAP": 1098,
+    "2_FET-USDT": 2100,
+    "2_FIL-USDT": 2101,
+    "2_FIL-USDT-SWAP": 1099,
+    "2_FLOKI-USDT": 2103,
+    "2_FLOKI-USDT-SWAP": 1100,
+    "2_FLOW-USDT": 2102,
+    "2_FLOW-USDT-SWAP": 1101,
+    "2_FLR-USDT": 2104,
+    "2_FLUID-USDT": 2105,
+    "2_FOGO-USDT": 2106,
+    "2_FOGO-USDT-SWAP": 1102,
+    "2_G-USDT": 2107,
+    "2_GALA-USDT": 2108,
+    "2_GALA-USDT-SWAP": 1103,
+    "2_GALFT-USDT": 2109,
+    "2_GAS-USDT": 2110,
+    "2_GAS-USDT-SWAP": 1104,
+    "2_GIGGLE-USDT-SWAP": 1105,
+    "2_GLM-USDT": 2111,
+    "2_GLM-USDT-SWAP": 1106,
+    "2_GMT-USDT": 2112,
+    "2_GMT-USDT-SWAP": 1107,
+    "2_GMX-USDT": 2113,
+    "2_GMX-USDT-SWAP": 1108,
+    "2_GOAT-USDT": 2114,
+    "2_GODS-USDT": 2115,
+    "2_GOOGL-USDT-SWAP": 1109,
+    "2_GPS-USDT-SWAP": 1110,
+    "2_GRASS-USDT": 2116,
+    "2_GRASS-USDT-SWAP": 1111,
+    "2_GRT-USDT": 2117,
+    "2_GRT-USDT-SWAP": 1112,
+    "2_H-USDT-SWAP": 1113,
+    "2_HBAR-USDT": 2118,
+    "2_HBAR-USDT-SWAP": 1114,
+    "2_HMSTR-USDT": 2119,
+    "2_HMSTR-USDT-SWAP": 1115,
+    "2_HOME-USDT-SWAP": 1116,
+    "2_HOOD-USDT-SWAP": 1117,
+    "2_HUMA-USDT": 2120,
+    "2_HUMA-USDT-SWAP": 1118,
+    "2_HYPE-USDT": 2121,
+    "2_HYPE-USDT-SWAP": 1119,
+    "2_ICP-USDT": 2122,
+    "2_ICP-USDT-SWAP": 1120,
+    "2_ICX-USDT": 2123,
+    "2_ICX-USDT-SWAP": 1121,
+    "2_ID-USDT": 2124,
+    "2_ILV-USDT": 2125,
+    "2_IMX-USDT": 2126,
+    "2_IMX-USDT-SWAP": 1122,
+    "2_INIT-USDT-SWAP": 1123,
+    "2_INJ-USDT": 2127,
+    "2_INJ-USDT-SWAP": 1124,
+    "2_INTC-USDT-SWAP": 1125,
+    "2_IOST-USDT": 2128,
+    "2_IOST-USDT-SWAP": 1126,
+    "2_IOTA-USDT": 2129,
+    "2_IOTA-USDT-SWAP": 1127,
+    "2_IP-USDT": 2130,
+    "2_IP-USDT-SWAP": 1128,
+    "2_IWM-USDT-SWAP": 1129,
+    "2_J-USDT": 2131,
+    "2_JELLYJELLY-USDT-SWAP": 1130,
+    "2_JITOSOL-USDT": 2132,
+    "2_JOE-USDT": 2133,
+    "2_JTO-USDT": 2134,
+    "2_JTO-USDT-SWAP": 1131,
+    "2_JUP-USDT": 2135,
+    "2_JUP-USDT-SWAP": 1132,
+    "2_KAIA-USDT": 2136,
+    "2_KAITO-USDT": 2137,
+    "2_KAITO-USDT-SWAP": 1133,
+    "2_KAT-USDT": 2138,
+    "2_KAT-USDT-SWAP": 1134,
+    "2_KGEN-USDT-SWAP": 1135,
+    "2_KITE-USDT": 2139,
+    "2_KITE-USDT-SWAP": 1136,
+    "2_KMNO-USDT": 2140,
+    "2_KMNO-USDT-SWAP": 1137,
+    "2_KNC-USDT": 2141,
+    "2_KSM-USDT": 2142,
+    "2_KSM-USDT-SWAP": 1138,
+    "2_LA-USDT-SWAP": 1139,
+    "2_LAB-USDT-SWAP": 1140,
+    "2_LAT-USDT": 2143,
+    "2_LAYER-USDT": 2144,
+    "2_LAYER-USDT-SWAP": 1141,
+    "2_LDO-USDT": 2145,
+    "2_LDO-USDT-SWAP": 1142,
+    "2_LEO-USDT": 2146,
+    "2_LIGHT-USDT-SWAP": 1143,
     "2_LINEA-USDT": 2010,
     "2_LINEA-USDT-SWAP": 1010,
-    "2_LINK-USDT": 2143,
-    "2_LINK-USDT-SWAP": 1143,
-    "2_LIT-USDT": 2144,
-    "2_LIT-USDT-SWAP": 1144,
-    "2_LPT-USDT": 2145,
-    "2_LPT-USDT-SWAP": 1145,
-    "2_LQTY-USDT": 2146,
-    "2_LQTY-USDT-SWAP": 1146,
-    "2_LRC-USDT": 2147,
-    "2_LRC-USDT-SWAP": 1147,
-    "2_LSK-USDT": 2148,
-    "2_LTC-USDT": 2149,
-    "2_LTC-USDT-SWAP": 1148,
-    "2_LUNA-USDT": 2150,
-    "2_LUNA-USDT-SWAP": 1149,
-    "2_MAGIC-USDT": 2151,
-    "2_MAGIC-USDT-SWAP": 1150,
-    "2_MAJOR-USDT": 2152,
-    "2_MANA-USDT": 2153,
-    "2_MANA-USDT-SWAP": 1151,
-    "2_MASK-USDT": 2154,
-    "2_MASK-USDT-SWAP": 1152,
-    "2_ME-USDT": 2155,
-    "2_ME-USDT-SWAP": 1153,
-    "2_MEME-USDT": 2156,
-    "2_MEME-USDT-SWAP": 1154,
-    "2_MENGO-USDT": 2157,
-    "2_MERL-USDT": 2158,
-    "2_MERL-USDT-SWAP": 1155,
-    "2_MET-USDT": 2160,
-    "2_MET-USDT-SWAP": 1157,
-    "2_META-USDT-SWAP": 1158,
-    "2_METIS-USDT": 2159,
-    "2_METIS-USDT-SWAP": 1156,
-    "2_MEW-USDT": 2161,
-    "2_MEW-USDT-SWAP": 1159,
-    "2_MINA-USDT": 2162,
-    "2_MINA-USDT-SWAP": 1160,
-    "2_MMT-USDT": 2163,
-    "2_MMT-USDT-SWAP": 1161,
-    "2_MON-USDT": 2164,
-    "2_MON-USDT-SWAP": 1162,
-    "2_MOODENG-USDT": 2165,
-    "2_MOODENG-USDT-SWAP": 1163,
-    "2_MORPHO-USDT": 2166,
-    "2_MORPHO-USDT-SWAP": 1164,
-    "2_MOVE-USDT": 2167,
-    "2_MOVE-USDT-SWAP": 1165,
-    "2_MSFT-USDT-SWAP": 1166,
-    "2_MSTR-USDT-SWAP": 1167,
-    "2_MU-USDT-SWAP": 1168,
-    "2_MUBARAK-USDT-SWAP": 1169,
-    "2_NAVX-USDT": 2168,
-    "2_NEAR-USDT": 2169,
-    "2_NEAR-USDT-SWAP": 1170,
-    "2_NEIRO-USDT": 2170,
-    "2_NEIRO-USDT-SWAP": 1171,
-    "2_NEO-USDT": 2171,
-    "2_NEO-USDT-SWAP": 1172,
-    "2_NFLX-USDT-SWAP": 1173,
-    "2_NFT-USDT": 2172,
-    "2_NG-USDT-SWAP": 1174,
-    "2_NIGHT-USDT": 2173,
-    "2_NIGHT-USDT-SWAP": 1175,
-    "2_NMR-USDT": 2174,
-    "2_NMR-USDT-SWAP": 1176,
-    "2_NOT-USDT": 2175,
-    "2_NOT-USDT-SWAP": 1177,
-    "2_NVDA-USDT-SWAP": 1178,
-    "2_OFC-USDT": 2176,
-    "2_OFC-USDT-SWAP": 1179,
+    "2_LINK-USDT": 2147,
+    "2_LINK-USDT-SWAP": 1144,
+    "2_LIT-USDT": 2148,
+    "2_LIT-USDT-SWAP": 1145,
+    "2_LPT-USDT": 2149,
+    "2_LPT-USDT-SWAP": 1146,
+    "2_LQTY-USDT": 2150,
+    "2_LQTY-USDT-SWAP": 1147,
+    "2_LRC-USDT": 2151,
+    "2_LRC-USDT-SWAP": 1148,
+    "2_LSK-USDT": 2152,
+    "2_LTC-USDT": 2153,
+    "2_LTC-USDT-SWAP": 1149,
+    "2_LUNA-USDT": 2154,
+    "2_LUNA-USDT-SWAP": 1150,
+    "2_MAGIC-USDT": 2155,
+    "2_MAGIC-USDT-SWAP": 1151,
+    "2_MAJOR-USDT": 2156,
+    "2_MANA-USDT": 2157,
+    "2_MANA-USDT-SWAP": 1152,
+    "2_MASK-USDT": 2158,
+    "2_MASK-USDT-SWAP": 1153,
+    "2_ME-USDT": 2159,
+    "2_ME-USDT-SWAP": 1154,
+    "2_MEME-USDT": 2160,
+    "2_MEME-USDT-SWAP": 1155,
+    "2_MENGO-USDT": 2161,
+    "2_MERL-USDT": 2162,
+    "2_MERL-USDT-SWAP": 1156,
+    "2_MET-USDT": 2164,
+    "2_MET-USDT-SWAP": 1158,
+    "2_META-USDT-SWAP": 1159,
+    "2_METIS-USDT": 2163,
+    "2_METIS-USDT-SWAP": 1157,
+    "2_MEW-USDT": 2165,
+    "2_MEW-USDT-SWAP": 1160,
+    "2_MINA-USDT": 2166,
+    "2_MINA-USDT-SWAP": 1161,
+    "2_MMT-USDT": 2167,
+    "2_MMT-USDT-SWAP": 1162,
+    "2_MON-USDT": 2168,
+    "2_MON-USDT-SWAP": 1163,
+    "2_MOODENG-USDT": 2169,
+    "2_MOODENG-USDT-SWAP": 1164,
+    "2_MORPHO-USDT": 2170,
+    "2_MORPHO-USDT-SWAP": 1165,
+    "2_MOVE-USDT": 2171,
+    "2_MOVE-USDT-SWAP": 1166,
+    "2_MSFT-USDT-SWAP": 1167,
+    "2_MSTR-USDT-SWAP": 1168,
+    "2_MU-USDT-SWAP": 1169,
+    "2_MUBARAK-USDT-SWAP": 1170,
+    "2_NAVX-USDT": 2172,
+    "2_NEAR-USDT": 2173,
+    "2_NEAR-USDT-SWAP": 1171,
+    "2_NEIRO-USDT": 2174,
+    "2_NEIRO-USDT-SWAP": 1172,
+    "2_NEO-USDT": 2175,
+    "2_NEO-USDT-SWAP": 1173,
+    "2_NFLX-USDT-SWAP": 1174,
+    "2_NFT-USDT": 2176,
+    "2_NG-USDT-SWAP": 1175,
+    "2_NIGHT-USDT": 2177,
+    "2_NIGHT-USDT-SWAP": 1176,
+    "2_NMR-USDT": 2178,
+    "2_NMR-USDT-SWAP": 1177,
+    "2_NOT-USDT": 2179,
+    "2_NOT-USDT-SWAP": 1178,
+    "2_NVDA-USDT-SWAP": 1179,
+    "2_OFC-USDT": 2180,
+    "2_OFC-USDT-SWAP": 1180,
     "2_OKB-USDT": 2004,
     "2_OKB-USDT-SWAP": 1004,
-    "2_OKSOL-USDT": 2177,
-    "2_OL-USDT": 2178,
-    "2_OL-USDT-SWAP": 1180,
-    "2_OMI-USDT": 2179,
-    "2_ONDO-USDT": 2180,
-    "2_ONDO-USDT-SWAP": 1181,
-    "2_ONE-USDT": 2181,
-    "2_ONE-USDT-SWAP": 1182,
-    "2_ONT-USDT": 2182,
-    "2_ONT-USDT-SWAP": 1183,
-    "2_OP-USDT": 2183,
-    "2_OP-USDT-SWAP": 1184,
-    "2_OPN-USDT-SWAP": 1185,
-    "2_ORBS-USDT": 2184,
-    "2_ORCL-USDT-SWAP": 1186,
-    "2_ORDER-USDT-SWAP": 1188,
-    "2_ORDI-USDT": 2185,
-    "2_ORDI-USDT-SWAP": 1187,
-    "2_PARTI-USDT": 2186,
-    "2_PARTI-USDT-SWAP": 1189,
-    "2_PAXG-USDT": 2187,
-    "2_PENDLE-USDT": 2188,
-    "2_PENDLE-USDT-SWAP": 1191,
-    "2_PENGU-USDT": 2189,
-    "2_PENGU-USDT-SWAP": 1190,
-    "2_PEOPLE-USDT": 2190,
-    "2_PEOPLE-USDT-SWAP": 1192,
-    "2_PEPE-USDT": 2191,
-    "2_PEPE-USDT-SWAP": 1193,
-    "2_PHA-USDT": 2192,
-    "2_PI-USDT": 2193,
-    "2_PI-USDT-SWAP": 1194,
-    "2_PIEVERSE-USDT-SWAP": 1195,
-    "2_PIPPIN-USDT-SWAP": 1196,
-    "2_PIXEL-USDT": 2194,
-    "2_PLTR-USDT-SWAP": 1197,
-    "2_PLUME-USDT-SWAP": 1198,
-    "2_PNUT-USDT": 2195,
-    "2_PNUT-USDT-SWAP": 1199,
-    "2_POL-USDT": 2196,
-    "2_POL-USDT-SWAP": 1200,
-    "2_POPCAT-USDT-SWAP": 1201,
-    "2_POR-USDT": 2197,
-    "2_PRCL-USDT": 2198,
-    "2_PROMPT-USDT": 2199,
-    "2_PROVE-USDT": 2200,
-    "2_PROVE-USDT-SWAP": 1202,
+    "2_OKSOL-USDT": 2181,
+    "2_OL-USDT": 2182,
+    "2_OL-USDT-SWAP": 1181,
+    "2_OMI-USDT": 2183,
+    "2_ONDO-USDT": 2184,
+    "2_ONDO-USDT-SWAP": 1182,
+    "2_ONE-USDT": 2185,
+    "2_ONE-USDT-SWAP": 1183,
+    "2_ONT-USDT": 2186,
+    "2_ONT-USDT-SWAP": 1184,
+    "2_OP-USDT": 2187,
+    "2_OP-USDT-SWAP": 1185,
+    "2_OPG-USDT-SWAP": 1186,
+    "2_OPN-USDT-SWAP": 1187,
+    "2_ORBS-USDT": 2188,
+    "2_ORCL-USDT-SWAP": 1188,
+    "2_ORDER-USDT-SWAP": 1190,
+    "2_ORDI-USDT": 2189,
+    "2_ORDI-USDT-SWAP": 1189,
+    "2_PARTI-USDT": 2190,
+    "2_PARTI-USDT-SWAP": 1191,
+    "2_PAXG-USDT": 2191,
+    "2_PENDLE-USDT": 2192,
+    "2_PENDLE-USDT-SWAP": 1193,
+    "2_PENGU-USDT": 2193,
+    "2_PENGU-USDT-SWAP": 1192,
+    "2_PEOPLE-USDT": 2194,
+    "2_PEOPLE-USDT-SWAP": 1194,
+    "2_PEPE-USDT": 2195,
+    "2_PEPE-USDT-SWAP": 1195,
+    "2_PHA-USDT": 2196,
+    "2_PI-USDT": 2197,
+    "2_PI-USDT-SWAP": 1196,
+    "2_PIEVERSE-USDT-SWAP": 1197,
+    "2_PIPPIN-USDT-SWAP": 1198,
+    "2_PIXEL-USDT": 2198,
+    "2_PLTR-USDT-SWAP": 1199,
+    "2_PLUME-USDT-SWAP": 1200,
+    "2_PNUT-USDT": 2199,
+    "2_PNUT-USDT-SWAP": 1201,
+    "2_POL-USDT": 2200,
+    "2_POL-USDT-SWAP": 1202,
+    "2_POPCAT-USDT-SWAP": 1203,
+    "2_POR-USDT": 2201,
+    "2_PRCL-USDT": 2202,
+    "2_PROMPT-USDT": 2203,
+    "2_PROVE-USDT": 2204,
+    "2_PROVE-USDT-SWAP": 1204,
     "2_PUMP-USDT": 2008,
     "2_PUMP-USDT-SWAP": 1008,
-    "2_PYTH-USDT": 2201,
-    "2_PYTH-USDT-SWAP": 1203,
-    "2_PYUSD-USDT": 2202,
-    "2_QQQ-USDT-SWAP": 1204,
-    "2_QTUM-USDT": 2203,
-    "2_QTUM-USDT-SWAP": 1205,
-    "2_RAVE-USDT-SWAP": 1206,
-    "2_RAY-USDT": 2204,
-    "2_RAY-USDT-SWAP": 1207,
-    "2_RECALL-USDT-SWAP": 1208,
-    "2_RENDER-USDT": 2205,
-    "2_RENDER-USDT-SWAP": 1209,
-    "2_RESOLV-USDT": 2206,
-    "2_RESOLV-USDT-SWAP": 1210,
-    "2_RIVER-USDT-SWAP": 1211,
-    "2_RLS-USDT-SWAP": 1212,
-    "2_ROBO-USDT": 2207,
-    "2_ROBO-USDT-SWAP": 1213,
-    "2_RON-USDT": 2208,
-    "2_RPL-USDT": 2209,
-    "2_RSR-USDT": 2210,
-    "2_RSR-USDT-SWAP": 1214,
-    "2_RVN-USDT": 2211,
-    "2_RVN-USDT-SWAP": 1215,
-    "2_S-USDT": 2212,
-    "2_S-USDT-SWAP": 1216,
-    "2_SAFE-USDT": 2213,
-    "2_SAHARA-USDT": 2214,
-    "2_SAHARA-USDT-SWAP": 1217,
-    "2_SAND-USDT": 2215,
-    "2_SAND-USDT-SWAP": 1218,
-    "2_SAPIEN-USDT-SWAP": 1219,
-    "2_SATS-USDT": 2216,
-    "2_SATS-USDT-SWAP": 1220,
-    "2_SCR-USDT": 2217,
-    "2_SD-USDT": 2218,
-    "2_SEI-USDT": 2219,
-    "2_SEI-USDT-SWAP": 1221,
-    "2_SENT-USDT": 2220,
-    "2_SENT-USDT-SWAP": 1222,
-    "2_SHELL-USDT-SWAP": 1223,
-    "2_SHIB-USDT": 2221,
-    "2_SHIB-USDT-SWAP": 1224,
-    "2_SIGN-USDT-SWAP": 1225,
-    "2_SKL-USDT": 2222,
-    "2_SKY-USDT": 2223,
-    "2_SKY-USDT-SWAP": 1226,
-    "2_SLP-USDT": 2224,
-    "2_SNDK-USDT-SWAP": 1227,
-    "2_SNT-USDT": 2225,
-    "2_SNX-USDT": 2226,
-    "2_SNX-USDT-SWAP": 1228,
+    "2_PYTH-USDT": 2205,
+    "2_PYTH-USDT-SWAP": 1205,
+    "2_PYUSD-USDT": 2206,
+    "2_QQQ-USDT-SWAP": 1206,
+    "2_QTUM-USDT": 2207,
+    "2_QTUM-USDT-SWAP": 1207,
+    "2_RAVE-USDT-SWAP": 1208,
+    "2_RAY-USDT": 2208,
+    "2_RAY-USDT-SWAP": 1209,
+    "2_RECALL-USDT-SWAP": 1210,
+    "2_RENDER-USDT": 2209,
+    "2_RENDER-USDT-SWAP": 1211,
+    "2_RESOLV-USDT": 2210,
+    "2_RESOLV-USDT-SWAP": 1212,
+    "2_RIVER-USDT-SWAP": 1213,
+    "2_RLS-USDT-SWAP": 1214,
+    "2_ROBO-USDT": 2211,
+    "2_ROBO-USDT-SWAP": 1215,
+    "2_RON-USDT": 2212,
+    "2_RPL-USDT": 2213,
+    "2_RSR-USDT": 2214,
+    "2_RSR-USDT-SWAP": 1216,
+    "2_RVN-USDT": 2215,
+    "2_RVN-USDT-SWAP": 1217,
+    "2_S-USDT": 2216,
+    "2_S-USDT-SWAP": 1218,
+    "2_SAFE-USDT": 2217,
+    "2_SAHARA-USDT": 2218,
+    "2_SAHARA-USDT-SWAP": 1219,
+    "2_SAND-USDT": 2219,
+    "2_SAND-USDT-SWAP": 1220,
+    "2_SAPIEN-USDT-SWAP": 1221,
+    "2_SATS-USDT": 2220,
+    "2_SATS-USDT-SWAP": 1222,
+    "2_SCR-USDT": 2221,
+    "2_SD-USDT": 2222,
+    "2_SEI-USDT": 2223,
+    "2_SEI-USDT-SWAP": 1223,
+    "2_SENT-USDT": 2224,
+    "2_SENT-USDT-SWAP": 1224,
+    "2_SHELL-USDT-SWAP": 1225,
+    "2_SHIB-USDT": 2225,
+    "2_SHIB-USDT-SWAP": 1226,
+    "2_SIGN-USDT-SWAP": 1227,
+    "2_SKL-USDT": 2226,
+    "2_SKY-USDT": 2227,
+    "2_SKY-USDT-SWAP": 1228,
+    "2_SLP-USDT": 2228,
+    "2_SNDK-USDT-SWAP": 1229,
+    "2_SNT-USDT": 2229,
+    "2_SNX-USDT": 2230,
+    "2_SNX-USDT-SWAP": 1230,
     "2_SOL-USDT": 2003,
     "2_SOL-USDT-SWAP": 1003,
-    "2_SONIC-USDT": 2227,
-    "2_SOON-USDT-SWAP": 1229,
-    "2_SOPH-USDT": 2228,
-    "2_SOPH-USDT-SWAP": 1230,
-    "2_SPACE-USDT": 2229,
-    "2_SPACE-USDT-SWAP": 1231,
-    "2_SPK-USDT": 2230,
-    "2_SPK-USDT-SWAP": 1232,
-    "2_SPURS-USDT": 2231,
-    "2_SPX-USDT-SWAP": 1233,
-    "2_SPY-USDT-SWAP": 1234,
-    "2_SSV-USDT": 2232,
-    "2_SSV-USDT-SWAP": 1235,
-    "2_STABLE-USDT-SWAP": 1236,
-    "2_STETH-USDT": 2233,
-    "2_STORJ-USDT": 2234,
-    "2_STRK-USDT": 2235,
-    "2_STRK-USDT-SWAP": 1237,
-    "2_STX-USDT": 2236,
-    "2_STX-USDT-SWAP": 1238,
-    "2_SUI-USDT": 2237,
-    "2_SUI-USDT-SWAP": 1239,
-    "2_SUSHI-USDT": 2238,
-    "2_SUSHI-USDT-SWAP": 1240,
-    "2_SWFTC-USDT": 2239,
-    "2_SYRUP-USDT-SWAP": 1241,
-    "2_T-USDT": 2240,
-    "2_TAO-USDT-SWAP": 1242,
-    "2_THETA-USDT": 2241,
-    "2_THETA-USDT-SWAP": 1243,
-    "2_TIA-USDT": 2242,
-    "2_TIA-USDT-SWAP": 1244,
-    "2_TNSR-USDT": 2243,
-    "2_TON-USDT": 2244,
-    "2_TON-USDT-SWAP": 1245,
-    "2_TOSHI-USDT": 2245,
-    "2_TRA-USDT": 2246,
-    "2_TRB-USDT": 2247,
-    "2_TRB-USDT-SWAP": 1246,
-    "2_TRIA-USDT-SWAP": 1247,
-    "2_TRUMP-USDT": 2248,
-    "2_TRUMP-USDT-SWAP": 1248,
-    "2_TRUST-USDT-SWAP": 1249,
-    "2_TRUTH-USDT-SWAP": 1250,
-    "2_TRX-USDT": 2249,
-    "2_TRX-USDT-SWAP": 1251,
-    "2_TSLA-USDT-SWAP": 1252,
-    "2_TSM-USDT-SWAP": 1253,
-    "2_TURBO-USDT": 2250,
-    "2_TURBO-USDT-SWAP": 1254,
-    "2_UMA-USDT": 2251,
-    "2_UMA-USDT-SWAP": 1255,
-    "2_UNI-USDT": 2252,
-    "2_UNI-USDT-SWAP": 1256,
-    "2_UP-USDT-SWAP": 1257,
-    "2_USAT-USDT": 2253,
-    "2_USD1-USDT": 2256,
-    "2_USDC-USDT": 2254,
-    "2_USDC-USDT-SWAP": 1258,
-    "2_USDG-USDT": 2255,
-    "2_USDS-USDT": 2257,
-    "2_USELESS-USDT-SWAP": 1259,
-    "2_VANA-USDT-SWAP": 1260,
-    "2_VELO-USDT": 2258,
-    "2_VELODROME-USDT": 2259,
-    "2_VINE-USDT": 2260,
-    "2_VIRTUAL-USDT": 2261,
-    "2_VIRTUAL-USDT-SWAP": 1261,
-    "2_W-USDT": 2262,
-    "2_W-USDT-SWAP": 1262,
-    "2_WAL-USDT-SWAP": 1263,
-    "2_WAXP-USDT": 2263,
-    "2_WCT-USDT": 2264,
-    "2_WCT-USDT-SWAP": 1264,
-    "2_WET-USDT": 2265,
-    "2_WET-USDT-SWAP": 1265,
-    "2_WIF-USDT": 2266,
-    "2_WIF-USDT-SWAP": 1266,
-    "2_WIN-USDT": 2267,
-    "2_WLD-USDT": 2268,
-    "2_WLD-USDT-SWAP": 1267,
+    "2_SONIC-USDT": 2231,
+    "2_SOON-USDT-SWAP": 1231,
+    "2_SOPH-USDT": 2232,
+    "2_SOPH-USDT-SWAP": 1232,
+    "2_SPACE-USDT": 2233,
+    "2_SPACE-USDT-SWAP": 1233,
+    "2_SPK-USDT": 2234,
+    "2_SPK-USDT-SWAP": 1234,
+    "2_SPURS-USDT": 2235,
+    "2_SPX-USDT-SWAP": 1235,
+    "2_SPY-USDT-SWAP": 1236,
+    "2_SSV-USDT": 2236,
+    "2_SSV-USDT-SWAP": 1237,
+    "2_STABLE-USDT-SWAP": 1238,
+    "2_STETH-USDT": 2237,
+    "2_STORJ-USDT": 2238,
+    "2_STRK-USDT": 2239,
+    "2_STRK-USDT-SWAP": 1239,
+    "2_STX-USDT": 2240,
+    "2_STX-USDT-SWAP": 1240,
+    "2_SUI-USDT": 2241,
+    "2_SUI-USDT-SWAP": 1241,
+    "2_SUSHI-USDT": 2242,
+    "2_SUSHI-USDT-SWAP": 1242,
+    "2_SWFTC-USDT": 2243,
+    "2_SYRUP-USDT-SWAP": 1243,
+    "2_T-USDT": 2244,
+    "2_TAO-USDT-SWAP": 1244,
+    "2_TEST01-USDT-SWAP": 1245,
+    "2_THETA-USDT": 2245,
+    "2_THETA-USDT-SWAP": 1246,
+    "2_TIA-USDT": 2246,
+    "2_TIA-USDT-SWAP": 1247,
+    "2_TNSR-USDT": 2247,
+    "2_TON-USDT": 2248,
+    "2_TON-USDT-SWAP": 1248,
+    "2_TOSHI-USDT": 2249,
+    "2_TRA-USDT": 2250,
+    "2_TRB-USDT": 2251,
+    "2_TRB-USDT-SWAP": 1249,
+    "2_TRIA-USDT-SWAP": 1250,
+    "2_TRUMP-USDT": 2252,
+    "2_TRUMP-USDT-SWAP": 1251,
+    "2_TRUST-USDT-SWAP": 1252,
+    "2_TRUTH-USDT-SWAP": 1253,
+    "2_TRX-USDT": 2253,
+    "2_TRX-USDT-SWAP": 1254,
+    "2_TSLA-USDT-SWAP": 1255,
+    "2_TSM-USDT-SWAP": 1256,
+    "2_TURBO-USDT": 2254,
+    "2_TURBO-USDT-SWAP": 1257,
+    "2_UMA-USDT": 2255,
+    "2_UMA-USDT-SWAP": 1258,
+    "2_UNI-USDT": 2256,
+    "2_UNI-USDT-SWAP": 1259,
+    "2_UP-USDT-SWAP": 1260,
+    "2_USAT-USDT": 2257,
+    "2_USD1-USDT": 2260,
+    "2_USDC-USDT": 2258,
+    "2_USDC-USDT-SWAP": 1261,
+    "2_USDG-USDT": 2259,
+    "2_USDS-USDT": 2261,
+    "2_USELESS-USDT-SWAP": 1262,
+    "2_VANA-USDT-SWAP": 1263,
+    "2_VELO-USDT": 2262,
+    "2_VELODROME-USDT": 2263,
+    "2_VINE-USDT": 2264,
+    "2_VIRTUAL-USDT": 2265,
+    "2_VIRTUAL-USDT-SWAP": 1264,
+    "2_W-USDT": 2266,
+    "2_W-USDT-SWAP": 1265,
+    "2_WAL-USDT-SWAP": 1266,
+    "2_WAXP-USDT": 2267,
+    "2_WCT-USDT": 2268,
+    "2_WCT-USDT-SWAP": 1267,
+    "2_WET-USDT": 2269,
+    "2_WET-USDT-SWAP": 1268,
+    "2_WIF-USDT": 2270,
+    "2_WIF-USDT-SWAP": 1269,
+    "2_WIN-USDT": 2271,
+    "2_WLD-USDT": 2272,
+    "2_WLD-USDT-SWAP": 1270,
     "2_WLFI-USDT": 2009,
     "2_WLFI-USDT-SWAP": 1009,
-    "2_WOO-USDT": 2269,
-    "2_WOO-USDT-SWAP": 1268,
-    "2_XAG-USDT-SWAP": 1269,
-    "2_XAU-USDT-SWAP": 1270,
-    "2_XAUT-USDT": 2270,
-    "2_XCH-USDT": 2271,
-    "2_XCU-USDT-SWAP": 1271,
-    "2_XLM-USDT": 2272,
-    "2_XLM-USDT-SWAP": 1272,
-    "2_XPD-USDT-SWAP": 1290,
-    "2_XPL-USDT": 2273,
-    "2_XPL-USDT-SWAP": 1273,
-    "2_XPT-USDT-SWAP": 1274,
+    "2_WOO-USDT": 2273,
+    "2_WOO-USDT-SWAP": 1271,
+    "2_XAG-USDT-SWAP": 1272,
+    "2_XAU-USDT-SWAP": 1273,
+    "2_XAUT-USDT": 2274,
+    "2_XCH-USDT": 2275,
+    "2_XCU-USDT-SWAP": 1274,
+    "2_XLM-USDT": 2276,
+    "2_XLM-USDT-SWAP": 1275,
+    "2_XPD-USDT-SWAP": 1293,
+    "2_XPL-USDT": 2277,
+    "2_XPL-USDT-SWAP": 1276,
+    "2_XPT-USDT-SWAP": 1277,
     "2_XRP-USDT": 2006,
     "2_XRP-USDT-SWAP": 1006,
-    "2_XTZ-USDT": 2274,
-    "2_XTZ-USDT-SWAP": 1275,
-    "2_YB-USDT": 2275,
-    "2_YB-USDT-SWAP": 1276,
-    "2_YFI-USDT": 2276,
-    "2_YFI-USDT-SWAP": 1277,
-    "2_YGG-USDT": 2277,
-    "2_YGG-USDT-SWAP": 1278,
-    "2_ZAMA-USDT": 2278,
-    "2_ZAMA-USDT-SWAP": 1279,
-    "2_ZBCN-USDT": 2279,
-    "2_ZBT-USDT-SWAP": 1280,
-    "2_ZEC-USDT": 2280,
-    "2_ZEC-USDT-SWAP": 1281,
-    "2_ZEN-USDT": 2282,
-    "2_ZEN-USDT-SWAP": 1282,
-    "2_ZENT-USDT": 2281,
-    "2_ZETA-USDT": 2283,
-    "2_ZETA-USDT-SWAP": 1283,
-    "2_ZEUS-USDT": 2284,
-    "2_ZIL-USDT": 2285,
-    "2_ZIL-USDT-SWAP": 1284,
-    "2_ZK-USDT": 2286,
-    "2_ZK-USDT-SWAP": 1285,
-    "2_ZKJ-USDT": 2287,
-    "2_ZKP-USDT-SWAP": 1286,
-    "2_ZORA-USDT": 2288,
-    "2_ZORA-USDT-SWAP": 1287,
-    "2_ZRO-USDT": 2289,
-    "2_ZRO-USDT-SWAP": 1288,
-    "2_ZRX-USDT": 2290,
-    "2_ZRX-USDT-SWAP": 1289
+    "2_XTZ-USDT": 2278,
+    "2_XTZ-USDT-SWAP": 1278,
+    "2_YB-USDT": 2279,
+    "2_YB-USDT-SWAP": 1279,
+    "2_YFI-USDT": 2280,
+    "2_YFI-USDT-SWAP": 1280,
+    "2_YGG-USDT": 2281,
+    "2_YGG-USDT-SWAP": 1281,
+    "2_ZAMA-USDT": 2282,
+    "2_ZAMA-USDT-SWAP": 1282,
+    "2_ZBCN-USDT": 2283,
+    "2_ZBT-USDT-SWAP": 1283,
+    "2_ZEC-USDT": 2284,
+    "2_ZEC-USDT-SWAP": 1284,
+    "2_ZEN-USDT": 2286,
+    "2_ZEN-USDT-SWAP": 1285,
+    "2_ZENT-USDT": 2285,
+    "2_ZETA-USDT": 2287,
+    "2_ZETA-USDT-SWAP": 1286,
+    "2_ZEUS-USDT": 2288,
+    "2_ZIL-USDT": 2289,
+    "2_ZIL-USDT-SWAP": 1287,
+    "2_ZK-USDT": 2290,
+    "2_ZK-USDT-SWAP": 1288,
+    "2_ZKJ-USDT": 2291,
+    "2_ZKP-USDT-SWAP": 1289,
+    "2_ZORA-USDT": 2292,
+    "2_ZORA-USDT-SWAP": 1290,
+    "2_ZRO-USDT": 2293,
+    "2_ZRO-USDT-SWAP": 1291,
+    "2_ZRX-USDT": 2294,
+    "2_ZRX-USDT-SWAP": 1292
   },
   "reverse": {
     "1001": {
@@ -1111,6 +1118,14 @@
       }
     },
     "1067": {
+      "base": "CHIP",
+      "quote": "USDT",
+      "type": "PERP",
+      "exchanges": {
+        "2": "CHIP-USDT-SWAP"
+      }
+    },
+    "1068": {
       "base": "CHZ",
       "quote": "USDT",
       "type": "PERP",
@@ -1118,7 +1133,7 @@
         "2": "CHZ-USDT-SWAP"
       }
     },
-    "1068": {
+    "1069": {
       "base": "CL",
       "quote": "USDT",
       "type": "PERP",
@@ -1126,7 +1141,7 @@
         "2": "CL-USDT-SWAP"
       }
     },
-    "1069": {
+    "1070": {
       "base": "COAI",
       "quote": "USDT",
       "type": "PERP",
@@ -1134,7 +1149,7 @@
         "2": "COAI-USDT-SWAP"
       }
     },
-    "1070": {
+    "1071": {
       "base": "COIN",
       "quote": "USDT",
       "type": "PERP",
@@ -1142,7 +1157,7 @@
         "2": "COIN-USDT-SWAP"
       }
     },
-    "1071": {
+    "1072": {
       "base": "COMP",
       "quote": "USDT",
       "type": "PERP",
@@ -1150,7 +1165,7 @@
         "2": "COMP-USDT-SWAP"
       }
     },
-    "1072": {
+    "1073": {
       "base": "CORE",
       "quote": "USDT",
       "type": "PERP",
@@ -1158,7 +1173,7 @@
         "2": "CORE-USDT-SWAP"
       }
     },
-    "1073": {
+    "1074": {
       "base": "CRCL",
       "quote": "USDT",
       "type": "PERP",
@@ -1166,7 +1181,7 @@
         "2": "CRCL-USDT-SWAP"
       }
     },
-    "1074": {
+    "1075": {
       "base": "CRO",
       "quote": "USDT",
       "type": "PERP",
@@ -1174,7 +1189,7 @@
         "2": "CRO-USDT-SWAP"
       }
     },
-    "1075": {
+    "1076": {
       "base": "CRV",
       "quote": "USDT",
       "type": "PERP",
@@ -1182,7 +1197,7 @@
         "2": "CRV-USDT-SWAP"
       }
     },
-    "1076": {
+    "1077": {
       "base": "CRWV",
       "quote": "USDT",
       "type": "PERP",
@@ -1190,7 +1205,7 @@
         "2": "CRWV-USDT-SWAP"
       }
     },
-    "1077": {
+    "1078": {
       "base": "CVX",
       "quote": "USDT",
       "type": "PERP",
@@ -1198,7 +1213,7 @@
         "2": "CVX-USDT-SWAP"
       }
     },
-    "1078": {
+    "1079": {
       "base": "DASH",
       "quote": "USDT",
       "type": "PERP",
@@ -1206,7 +1221,7 @@
         "2": "DASH-USDT-SWAP"
       }
     },
-    "1079": {
+    "1080": {
       "base": "DOOD",
       "quote": "USDT",
       "type": "PERP",
@@ -1214,7 +1229,7 @@
         "2": "DOOD-USDT-SWAP"
       }
     },
-    "1080": {
+    "1081": {
       "base": "DOT",
       "quote": "USDT",
       "type": "PERP",
@@ -1222,7 +1237,7 @@
         "2": "DOT-USDT-SWAP"
       }
     },
-    "1081": {
+    "1082": {
       "base": "DYDX",
       "quote": "USDT",
       "type": "PERP",
@@ -1230,7 +1245,7 @@
         "2": "DYDX-USDT-SWAP"
       }
     },
-    "1082": {
+    "1083": {
       "base": "EDEN",
       "quote": "USDT",
       "type": "PERP",
@@ -1238,7 +1253,7 @@
         "2": "EDEN-USDT-SWAP"
       }
     },
-    "1083": {
+    "1084": {
       "base": "EDGE",
       "quote": "USDT",
       "type": "PERP",
@@ -1246,7 +1261,7 @@
         "2": "EDGE-USDT-SWAP"
       }
     },
-    "1084": {
+    "1085": {
       "base": "EGLD",
       "quote": "USDT",
       "type": "PERP",
@@ -1254,7 +1269,7 @@
         "2": "EGLD-USDT-SWAP"
       }
     },
-    "1085": {
+    "1086": {
       "base": "EIGEN",
       "quote": "USDT",
       "type": "PERP",
@@ -1262,7 +1277,7 @@
         "2": "EIGEN-USDT-SWAP"
       }
     },
-    "1086": {
+    "1087": {
       "base": "ENA",
       "quote": "USDT",
       "type": "PERP",
@@ -1270,7 +1285,7 @@
         "2": "ENA-USDT-SWAP"
       }
     },
-    "1087": {
+    "1088": {
       "base": "ENJ",
       "quote": "USDT",
       "type": "PERP",
@@ -1278,7 +1293,7 @@
         "2": "ENJ-USDT-SWAP"
       }
     },
-    "1088": {
+    "1089": {
       "base": "ENS",
       "quote": "USDT",
       "type": "PERP",
@@ -1286,7 +1301,7 @@
         "2": "ENS-USDT-SWAP"
       }
     },
-    "1089": {
+    "1090": {
       "base": "ENSO",
       "quote": "USDT",
       "type": "PERP",
@@ -1294,7 +1309,7 @@
         "2": "ENSO-USDT-SWAP"
       }
     },
-    "1090": {
+    "1091": {
       "base": "ESP",
       "quote": "USDT",
       "type": "PERP",
@@ -1302,7 +1317,7 @@
         "2": "ESP-USDT-SWAP"
       }
     },
-    "1091": {
+    "1092": {
       "base": "ETC",
       "quote": "USDT",
       "type": "PERP",
@@ -1310,7 +1325,7 @@
         "2": "ETC-USDT-SWAP"
       }
     },
-    "1092": {
+    "1093": {
       "base": "ETHW",
       "quote": "USDT",
       "type": "PERP",
@@ -1318,7 +1333,7 @@
         "2": "ETHW-USDT-SWAP"
       }
     },
-    "1093": {
+    "1094": {
       "base": "ETHFI",
       "quote": "USDT",
       "type": "PERP",
@@ -1326,7 +1341,7 @@
         "2": "ETHFI-USDT-SWAP"
       }
     },
-    "1094": {
+    "1095": {
       "base": "EWJ",
       "quote": "USDT",
       "type": "PERP",
@@ -1334,7 +1349,7 @@
         "2": "EWJ-USDT-SWAP"
       }
     },
-    "1095": {
+    "1096": {
       "base": "EWY",
       "quote": "USDT",
       "type": "PERP",
@@ -1342,7 +1357,7 @@
         "2": "EWY-USDT-SWAP"
       }
     },
-    "1096": {
+    "1097": {
       "base": "F",
       "quote": "USDT",
       "type": "PERP",
@@ -1350,7 +1365,7 @@
         "2": "F-USDT-SWAP"
       }
     },
-    "1097": {
+    "1098": {
       "base": "FARTCOIN",
       "quote": "USDT",
       "type": "PERP",
@@ -1358,7 +1373,7 @@
         "2": "FARTCOIN-USDT-SWAP"
       }
     },
-    "1098": {
+    "1099": {
       "base": "FIL",
       "quote": "USDT",
       "type": "PERP",
@@ -1366,7 +1381,7 @@
         "2": "FIL-USDT-SWAP"
       }
     },
-    "1099": {
+    "1100": {
       "base": "FLOKI",
       "quote": "USDT",
       "type": "PERP",
@@ -1374,7 +1389,7 @@
         "2": "FLOKI-USDT-SWAP"
       }
     },
-    "1100": {
+    "1101": {
       "base": "FLOW",
       "quote": "USDT",
       "type": "PERP",
@@ -1382,7 +1397,7 @@
         "2": "FLOW-USDT-SWAP"
       }
     },
-    "1101": {
+    "1102": {
       "base": "FOGO",
       "quote": "USDT",
       "type": "PERP",
@@ -1390,7 +1405,7 @@
         "2": "FOGO-USDT-SWAP"
       }
     },
-    "1102": {
+    "1103": {
       "base": "GALA",
       "quote": "USDT",
       "type": "PERP",
@@ -1398,7 +1413,7 @@
         "2": "GALA-USDT-SWAP"
       }
     },
-    "1103": {
+    "1104": {
       "base": "GAS",
       "quote": "USDT",
       "type": "PERP",
@@ -1406,7 +1421,7 @@
         "2": "GAS-USDT-SWAP"
       }
     },
-    "1104": {
+    "1105": {
       "base": "GIGGLE",
       "quote": "USDT",
       "type": "PERP",
@@ -1414,7 +1429,7 @@
         "2": "GIGGLE-USDT-SWAP"
       }
     },
-    "1105": {
+    "1106": {
       "base": "GLM",
       "quote": "USDT",
       "type": "PERP",
@@ -1422,7 +1437,7 @@
         "2": "GLM-USDT-SWAP"
       }
     },
-    "1106": {
+    "1107": {
       "base": "GMT",
       "quote": "USDT",
       "type": "PERP",
@@ -1430,7 +1445,7 @@
         "2": "GMT-USDT-SWAP"
       }
     },
-    "1107": {
+    "1108": {
       "base": "GMX",
       "quote": "USDT",
       "type": "PERP",
@@ -1438,7 +1453,7 @@
         "2": "GMX-USDT-SWAP"
       }
     },
-    "1108": {
+    "1109": {
       "base": "GOOGL",
       "quote": "USDT",
       "type": "PERP",
@@ -1446,7 +1461,7 @@
         "2": "GOOGL-USDT-SWAP"
       }
     },
-    "1109": {
+    "1110": {
       "base": "GPS",
       "quote": "USDT",
       "type": "PERP",
@@ -1454,7 +1469,7 @@
         "2": "GPS-USDT-SWAP"
       }
     },
-    "1110": {
+    "1111": {
       "base": "GRASS",
       "quote": "USDT",
       "type": "PERP",
@@ -1462,7 +1477,7 @@
         "2": "GRASS-USDT-SWAP"
       }
     },
-    "1111": {
+    "1112": {
       "base": "GRT",
       "quote": "USDT",
       "type": "PERP",
@@ -1470,7 +1485,7 @@
         "2": "GRT-USDT-SWAP"
       }
     },
-    "1112": {
+    "1113": {
       "base": "H",
       "quote": "USDT",
       "type": "PERP",
@@ -1478,7 +1493,7 @@
         "2": "H-USDT-SWAP"
       }
     },
-    "1113": {
+    "1114": {
       "base": "HBAR",
       "quote": "USDT",
       "type": "PERP",
@@ -1486,7 +1501,7 @@
         "2": "HBAR-USDT-SWAP"
       }
     },
-    "1114": {
+    "1115": {
       "base": "HMSTR",
       "quote": "USDT",
       "type": "PERP",
@@ -1494,7 +1509,7 @@
         "2": "HMSTR-USDT-SWAP"
       }
     },
-    "1115": {
+    "1116": {
       "base": "HOME",
       "quote": "USDT",
       "type": "PERP",
@@ -1502,7 +1517,7 @@
         "2": "HOME-USDT-SWAP"
       }
     },
-    "1116": {
+    "1117": {
       "base": "HOOD",
       "quote": "USDT",
       "type": "PERP",
@@ -1510,7 +1525,7 @@
         "2": "HOOD-USDT-SWAP"
       }
     },
-    "1117": {
+    "1118": {
       "base": "HUMA",
       "quote": "USDT",
       "type": "PERP",
@@ -1518,7 +1533,7 @@
         "2": "HUMA-USDT-SWAP"
       }
     },
-    "1118": {
+    "1119": {
       "base": "HYPE",
       "quote": "USDT",
       "type": "PERP",
@@ -1526,7 +1541,7 @@
         "2": "HYPE-USDT-SWAP"
       }
     },
-    "1119": {
+    "1120": {
       "base": "ICP",
       "quote": "USDT",
       "type": "PERP",
@@ -1534,7 +1549,7 @@
         "2": "ICP-USDT-SWAP"
       }
     },
-    "1120": {
+    "1121": {
       "base": "ICX",
       "quote": "USDT",
       "type": "PERP",
@@ -1542,7 +1557,7 @@
         "2": "ICX-USDT-SWAP"
       }
     },
-    "1121": {
+    "1122": {
       "base": "IMX",
       "quote": "USDT",
       "type": "PERP",
@@ -1550,7 +1565,7 @@
         "2": "IMX-USDT-SWAP"
       }
     },
-    "1122": {
+    "1123": {
       "base": "INIT",
       "quote": "USDT",
       "type": "PERP",
@@ -1558,7 +1573,7 @@
         "2": "INIT-USDT-SWAP"
       }
     },
-    "1123": {
+    "1124": {
       "base": "INJ",
       "quote": "USDT",
       "type": "PERP",
@@ -1566,7 +1581,7 @@
         "2": "INJ-USDT-SWAP"
       }
     },
-    "1124": {
+    "1125": {
       "base": "INTC",
       "quote": "USDT",
       "type": "PERP",
@@ -1574,7 +1589,7 @@
         "2": "INTC-USDT-SWAP"
       }
     },
-    "1125": {
+    "1126": {
       "base": "IOST",
       "quote": "USDT",
       "type": "PERP",
@@ -1582,7 +1597,7 @@
         "2": "IOST-USDT-SWAP"
       }
     },
-    "1126": {
+    "1127": {
       "base": "IOTA",
       "quote": "USDT",
       "type": "PERP",
@@ -1590,7 +1605,7 @@
         "2": "IOTA-USDT-SWAP"
       }
     },
-    "1127": {
+    "1128": {
       "base": "IP",
       "quote": "USDT",
       "type": "PERP",
@@ -1598,7 +1613,7 @@
         "2": "IP-USDT-SWAP"
       }
     },
-    "1128": {
+    "1129": {
       "base": "IWM",
       "quote": "USDT",
       "type": "PERP",
@@ -1606,7 +1621,7 @@
         "2": "IWM-USDT-SWAP"
       }
     },
-    "1129": {
+    "1130": {
       "base": "JELLYJELLY",
       "quote": "USDT",
       "type": "PERP",
@@ -1614,7 +1629,7 @@
         "2": "JELLYJELLY-USDT-SWAP"
       }
     },
-    "1130": {
+    "1131": {
       "base": "JTO",
       "quote": "USDT",
       "type": "PERP",
@@ -1622,7 +1637,7 @@
         "2": "JTO-USDT-SWAP"
       }
     },
-    "1131": {
+    "1132": {
       "base": "JUP",
       "quote": "USDT",
       "type": "PERP",
@@ -1630,7 +1645,7 @@
         "2": "JUP-USDT-SWAP"
       }
     },
-    "1132": {
+    "1133": {
       "base": "KAITO",
       "quote": "USDT",
       "type": "PERP",
@@ -1638,7 +1653,7 @@
         "2": "KAITO-USDT-SWAP"
       }
     },
-    "1133": {
+    "1134": {
       "base": "KAT",
       "quote": "USDT",
       "type": "PERP",
@@ -1646,7 +1661,7 @@
         "2": "KAT-USDT-SWAP"
       }
     },
-    "1134": {
+    "1135": {
       "base": "KGEN",
       "quote": "USDT",
       "type": "PERP",
@@ -1654,7 +1669,7 @@
         "2": "KGEN-USDT-SWAP"
       }
     },
-    "1135": {
+    "1136": {
       "base": "KITE",
       "quote": "USDT",
       "type": "PERP",
@@ -1662,7 +1677,7 @@
         "2": "KITE-USDT-SWAP"
       }
     },
-    "1136": {
+    "1137": {
       "base": "KMNO",
       "quote": "USDT",
       "type": "PERP",
@@ -1670,7 +1685,7 @@
         "2": "KMNO-USDT-SWAP"
       }
     },
-    "1137": {
+    "1138": {
       "base": "KSM",
       "quote": "USDT",
       "type": "PERP",
@@ -1678,7 +1693,7 @@
         "2": "KSM-USDT-SWAP"
       }
     },
-    "1138": {
+    "1139": {
       "base": "LA",
       "quote": "USDT",
       "type": "PERP",
@@ -1686,7 +1701,7 @@
         "2": "LA-USDT-SWAP"
       }
     },
-    "1139": {
+    "1140": {
       "base": "LAB",
       "quote": "USDT",
       "type": "PERP",
@@ -1694,7 +1709,7 @@
         "2": "LAB-USDT-SWAP"
       }
     },
-    "1140": {
+    "1141": {
       "base": "LAYER",
       "quote": "USDT",
       "type": "PERP",
@@ -1702,7 +1717,7 @@
         "2": "LAYER-USDT-SWAP"
       }
     },
-    "1141": {
+    "1142": {
       "base": "LDO",
       "quote": "USDT",
       "type": "PERP",
@@ -1710,7 +1725,7 @@
         "2": "LDO-USDT-SWAP"
       }
     },
-    "1142": {
+    "1143": {
       "base": "LIGHT",
       "quote": "USDT",
       "type": "PERP",
@@ -1718,7 +1733,7 @@
         "2": "LIGHT-USDT-SWAP"
       }
     },
-    "1143": {
+    "1144": {
       "base": "LINK",
       "quote": "USDT",
       "type": "PERP",
@@ -1726,7 +1741,7 @@
         "2": "LINK-USDT-SWAP"
       }
     },
-    "1144": {
+    "1145": {
       "base": "LIT",
       "quote": "USDT",
       "type": "PERP",
@@ -1734,7 +1749,7 @@
         "2": "LIT-USDT-SWAP"
       }
     },
-    "1145": {
+    "1146": {
       "base": "LPT",
       "quote": "USDT",
       "type": "PERP",
@@ -1742,7 +1757,7 @@
         "2": "LPT-USDT-SWAP"
       }
     },
-    "1146": {
+    "1147": {
       "base": "LQTY",
       "quote": "USDT",
       "type": "PERP",
@@ -1750,7 +1765,7 @@
         "2": "LQTY-USDT-SWAP"
       }
     },
-    "1147": {
+    "1148": {
       "base": "LRC",
       "quote": "USDT",
       "type": "PERP",
@@ -1758,7 +1773,7 @@
         "2": "LRC-USDT-SWAP"
       }
     },
-    "1148": {
+    "1149": {
       "base": "LTC",
       "quote": "USDT",
       "type": "PERP",
@@ -1766,7 +1781,7 @@
         "2": "LTC-USDT-SWAP"
       }
     },
-    "1149": {
+    "1150": {
       "base": "LUNA",
       "quote": "USDT",
       "type": "PERP",
@@ -1774,7 +1789,7 @@
         "2": "LUNA-USDT-SWAP"
       }
     },
-    "1150": {
+    "1151": {
       "base": "MAGIC",
       "quote": "USDT",
       "type": "PERP",
@@ -1782,7 +1797,7 @@
         "2": "MAGIC-USDT-SWAP"
       }
     },
-    "1151": {
+    "1152": {
       "base": "MANA",
       "quote": "USDT",
       "type": "PERP",
@@ -1790,7 +1805,7 @@
         "2": "MANA-USDT-SWAP"
       }
     },
-    "1152": {
+    "1153": {
       "base": "MASK",
       "quote": "USDT",
       "type": "PERP",
@@ -1798,7 +1813,7 @@
         "2": "MASK-USDT-SWAP"
       }
     },
-    "1153": {
+    "1154": {
       "base": "ME",
       "quote": "USDT",
       "type": "PERP",
@@ -1806,7 +1821,7 @@
         "2": "ME-USDT-SWAP"
       }
     },
-    "1154": {
+    "1155": {
       "base": "MEME",
       "quote": "USDT",
       "type": "PERP",
@@ -1814,7 +1829,7 @@
         "2": "MEME-USDT-SWAP"
       }
     },
-    "1155": {
+    "1156": {
       "base": "MERL",
       "quote": "USDT",
       "type": "PERP",
@@ -1822,7 +1837,7 @@
         "2": "MERL-USDT-SWAP"
       }
     },
-    "1156": {
+    "1157": {
       "base": "METIS",
       "quote": "USDT",
       "type": "PERP",
@@ -1830,7 +1845,7 @@
         "2": "METIS-USDT-SWAP"
       }
     },
-    "1157": {
+    "1158": {
       "base": "MET",
       "quote": "USDT",
       "type": "PERP",
@@ -1838,7 +1853,7 @@
         "2": "MET-USDT-SWAP"
       }
     },
-    "1158": {
+    "1159": {
       "base": "META",
       "quote": "USDT",
       "type": "PERP",
@@ -1846,7 +1861,7 @@
         "2": "META-USDT-SWAP"
       }
     },
-    "1159": {
+    "1160": {
       "base": "MEW",
       "quote": "USDT",
       "type": "PERP",
@@ -1854,7 +1869,7 @@
         "2": "MEW-USDT-SWAP"
       }
     },
-    "1160": {
+    "1161": {
       "base": "MINA",
       "quote": "USDT",
       "type": "PERP",
@@ -1862,7 +1877,7 @@
         "2": "MINA-USDT-SWAP"
       }
     },
-    "1161": {
+    "1162": {
       "base": "MMT",
       "quote": "USDT",
       "type": "PERP",
@@ -1870,7 +1885,7 @@
         "2": "MMT-USDT-SWAP"
       }
     },
-    "1162": {
+    "1163": {
       "base": "MON",
       "quote": "USDT",
       "type": "PERP",
@@ -1878,7 +1893,7 @@
         "2": "MON-USDT-SWAP"
       }
     },
-    "1163": {
+    "1164": {
       "base": "MOODENG",
       "quote": "USDT",
       "type": "PERP",
@@ -1886,7 +1901,7 @@
         "2": "MOODENG-USDT-SWAP"
       }
     },
-    "1164": {
+    "1165": {
       "base": "MORPHO",
       "quote": "USDT",
       "type": "PERP",
@@ -1894,7 +1909,7 @@
         "2": "MORPHO-USDT-SWAP"
       }
     },
-    "1165": {
+    "1166": {
       "base": "MOVE",
       "quote": "USDT",
       "type": "PERP",
@@ -1902,7 +1917,7 @@
         "2": "MOVE-USDT-SWAP"
       }
     },
-    "1166": {
+    "1167": {
       "base": "MSFT",
       "quote": "USDT",
       "type": "PERP",
@@ -1910,7 +1925,7 @@
         "2": "MSFT-USDT-SWAP"
       }
     },
-    "1167": {
+    "1168": {
       "base": "MSTR",
       "quote": "USDT",
       "type": "PERP",
@@ -1918,7 +1933,7 @@
         "2": "MSTR-USDT-SWAP"
       }
     },
-    "1168": {
+    "1169": {
       "base": "MU",
       "quote": "USDT",
       "type": "PERP",
@@ -1926,7 +1941,7 @@
         "2": "MU-USDT-SWAP"
       }
     },
-    "1169": {
+    "1170": {
       "base": "MUBARAK",
       "quote": "USDT",
       "type": "PERP",
@@ -1934,7 +1949,7 @@
         "2": "MUBARAK-USDT-SWAP"
       }
     },
-    "1170": {
+    "1171": {
       "base": "NEAR",
       "quote": "USDT",
       "type": "PERP",
@@ -1942,7 +1957,7 @@
         "2": "NEAR-USDT-SWAP"
       }
     },
-    "1171": {
+    "1172": {
       "base": "NEIRO",
       "quote": "USDT",
       "type": "PERP",
@@ -1950,7 +1965,7 @@
         "2": "NEIRO-USDT-SWAP"
       }
     },
-    "1172": {
+    "1173": {
       "base": "NEO",
       "quote": "USDT",
       "type": "PERP",
@@ -1958,7 +1973,7 @@
         "2": "NEO-USDT-SWAP"
       }
     },
-    "1173": {
+    "1174": {
       "base": "NFLX",
       "quote": "USDT",
       "type": "PERP",
@@ -1966,7 +1981,7 @@
         "2": "NFLX-USDT-SWAP"
       }
     },
-    "1174": {
+    "1175": {
       "base": "NG",
       "quote": "USDT",
       "type": "PERP",
@@ -1974,7 +1989,7 @@
         "2": "NG-USDT-SWAP"
       }
     },
-    "1175": {
+    "1176": {
       "base": "NIGHT",
       "quote": "USDT",
       "type": "PERP",
@@ -1982,7 +1997,7 @@
         "2": "NIGHT-USDT-SWAP"
       }
     },
-    "1176": {
+    "1177": {
       "base": "NMR",
       "quote": "USDT",
       "type": "PERP",
@@ -1990,7 +2005,7 @@
         "2": "NMR-USDT-SWAP"
       }
     },
-    "1177": {
+    "1178": {
       "base": "NOT",
       "quote": "USDT",
       "type": "PERP",
@@ -1998,7 +2013,7 @@
         "2": "NOT-USDT-SWAP"
       }
     },
-    "1178": {
+    "1179": {
       "base": "NVDA",
       "quote": "USDT",
       "type": "PERP",
@@ -2006,7 +2021,7 @@
         "2": "NVDA-USDT-SWAP"
       }
     },
-    "1179": {
+    "1180": {
       "base": "OFC",
       "quote": "USDT",
       "type": "PERP",
@@ -2014,7 +2029,7 @@
         "2": "OFC-USDT-SWAP"
       }
     },
-    "1180": {
+    "1181": {
       "base": "OL",
       "quote": "USDT",
       "type": "PERP",
@@ -2022,7 +2037,7 @@
         "2": "OL-USDT-SWAP"
       }
     },
-    "1181": {
+    "1182": {
       "base": "ONDO",
       "quote": "USDT",
       "type": "PERP",
@@ -2030,7 +2045,7 @@
         "2": "ONDO-USDT-SWAP"
       }
     },
-    "1182": {
+    "1183": {
       "base": "ONE",
       "quote": "USDT",
       "type": "PERP",
@@ -2038,7 +2053,7 @@
         "2": "ONE-USDT-SWAP"
       }
     },
-    "1183": {
+    "1184": {
       "base": "ONT",
       "quote": "USDT",
       "type": "PERP",
@@ -2046,7 +2061,7 @@
         "2": "ONT-USDT-SWAP"
       }
     },
-    "1184": {
+    "1185": {
       "base": "OP",
       "quote": "USDT",
       "type": "PERP",
@@ -2054,7 +2069,15 @@
         "2": "OP-USDT-SWAP"
       }
     },
-    "1185": {
+    "1186": {
+      "base": "OPG",
+      "quote": "USDT",
+      "type": "PERP",
+      "exchanges": {
+        "2": "OPG-USDT-SWAP"
+      }
+    },
+    "1187": {
       "base": "OPN",
       "quote": "USDT",
       "type": "PERP",
@@ -2062,7 +2085,7 @@
         "2": "OPN-USDT-SWAP"
       }
     },
-    "1186": {
+    "1188": {
       "base": "ORCL",
       "quote": "USDT",
       "type": "PERP",
@@ -2070,7 +2093,7 @@
         "2": "ORCL-USDT-SWAP"
       }
     },
-    "1187": {
+    "1189": {
       "base": "ORDI",
       "quote": "USDT",
       "type": "PERP",
@@ -2078,7 +2101,7 @@
         "2": "ORDI-USDT-SWAP"
       }
     },
-    "1188": {
+    "1190": {
       "base": "ORDER",
       "quote": "USDT",
       "type": "PERP",
@@ -2086,7 +2109,7 @@
         "2": "ORDER-USDT-SWAP"
       }
     },
-    "1189": {
+    "1191": {
       "base": "PARTI",
       "quote": "USDT",
       "type": "PERP",
@@ -2094,7 +2117,7 @@
         "2": "PARTI-USDT-SWAP"
       }
     },
-    "1190": {
+    "1192": {
       "base": "PENGU",
       "quote": "USDT",
       "type": "PERP",
@@ -2102,7 +2125,7 @@
         "2": "PENGU-USDT-SWAP"
       }
     },
-    "1191": {
+    "1193": {
       "base": "PENDLE",
       "quote": "USDT",
       "type": "PERP",
@@ -2110,7 +2133,7 @@
         "2": "PENDLE-USDT-SWAP"
       }
     },
-    "1192": {
+    "1194": {
       "base": "PEOPLE",
       "quote": "USDT",
       "type": "PERP",
@@ -2118,7 +2141,7 @@
         "2": "PEOPLE-USDT-SWAP"
       }
     },
-    "1193": {
+    "1195": {
       "base": "PEPE",
       "quote": "USDT",
       "type": "PERP",
@@ -2126,7 +2149,7 @@
         "2": "PEPE-USDT-SWAP"
       }
     },
-    "1194": {
+    "1196": {
       "base": "PI",
       "quote": "USDT",
       "type": "PERP",
@@ -2134,7 +2157,7 @@
         "2": "PI-USDT-SWAP"
       }
     },
-    "1195": {
+    "1197": {
       "base": "PIEVERSE",
       "quote": "USDT",
       "type": "PERP",
@@ -2142,7 +2165,7 @@
         "2": "PIEVERSE-USDT-SWAP"
       }
     },
-    "1196": {
+    "1198": {
       "base": "PIPPIN",
       "quote": "USDT",
       "type": "PERP",
@@ -2150,7 +2173,7 @@
         "2": "PIPPIN-USDT-SWAP"
       }
     },
-    "1197": {
+    "1199": {
       "base": "PLTR",
       "quote": "USDT",
       "type": "PERP",
@@ -2158,7 +2181,7 @@
         "2": "PLTR-USDT-SWAP"
       }
     },
-    "1198": {
+    "1200": {
       "base": "PLUME",
       "quote": "USDT",
       "type": "PERP",
@@ -2166,7 +2189,7 @@
         "2": "PLUME-USDT-SWAP"
       }
     },
-    "1199": {
+    "1201": {
       "base": "PNUT",
       "quote": "USDT",
       "type": "PERP",
@@ -2174,7 +2197,7 @@
         "2": "PNUT-USDT-SWAP"
       }
     },
-    "1200": {
+    "1202": {
       "base": "POL",
       "quote": "USDT",
       "type": "PERP",
@@ -2182,7 +2205,7 @@
         "2": "POL-USDT-SWAP"
       }
     },
-    "1201": {
+    "1203": {
       "base": "POPCAT",
       "quote": "USDT",
       "type": "PERP",
@@ -2190,7 +2213,7 @@
         "2": "POPCAT-USDT-SWAP"
       }
     },
-    "1202": {
+    "1204": {
       "base": "PROVE",
       "quote": "USDT",
       "type": "PERP",
@@ -2198,7 +2221,7 @@
         "2": "PROVE-USDT-SWAP"
       }
     },
-    "1203": {
+    "1205": {
       "base": "PYTH",
       "quote": "USDT",
       "type": "PERP",
@@ -2206,7 +2229,7 @@
         "2": "PYTH-USDT-SWAP"
       }
     },
-    "1204": {
+    "1206": {
       "base": "QQQ",
       "quote": "USDT",
       "type": "PERP",
@@ -2214,7 +2237,7 @@
         "2": "QQQ-USDT-SWAP"
       }
     },
-    "1205": {
+    "1207": {
       "base": "QTUM",
       "quote": "USDT",
       "type": "PERP",
@@ -2222,7 +2245,7 @@
         "2": "QTUM-USDT-SWAP"
       }
     },
-    "1206": {
+    "1208": {
       "base": "RAVE",
       "quote": "USDT",
       "type": "PERP",
@@ -2230,7 +2253,7 @@
         "2": "RAVE-USDT-SWAP"
       }
     },
-    "1207": {
+    "1209": {
       "base": "RAY",
       "quote": "USDT",
       "type": "PERP",
@@ -2238,7 +2261,7 @@
         "2": "RAY-USDT-SWAP"
       }
     },
-    "1208": {
+    "1210": {
       "base": "RECALL",
       "quote": "USDT",
       "type": "PERP",
@@ -2246,7 +2269,7 @@
         "2": "RECALL-USDT-SWAP"
       }
     },
-    "1209": {
+    "1211": {
       "base": "RENDER",
       "quote": "USDT",
       "type": "PERP",
@@ -2254,7 +2277,7 @@
         "2": "RENDER-USDT-SWAP"
       }
     },
-    "1210": {
+    "1212": {
       "base": "RESOLV",
       "quote": "USDT",
       "type": "PERP",
@@ -2262,7 +2285,7 @@
         "2": "RESOLV-USDT-SWAP"
       }
     },
-    "1211": {
+    "1213": {
       "base": "RIVER",
       "quote": "USDT",
       "type": "PERP",
@@ -2270,7 +2293,7 @@
         "2": "RIVER-USDT-SWAP"
       }
     },
-    "1212": {
+    "1214": {
       "base": "RLS",
       "quote": "USDT",
       "type": "PERP",
@@ -2278,7 +2301,7 @@
         "2": "RLS-USDT-SWAP"
       }
     },
-    "1213": {
+    "1215": {
       "base": "ROBO",
       "quote": "USDT",
       "type": "PERP",
@@ -2286,7 +2309,7 @@
         "2": "ROBO-USDT-SWAP"
       }
     },
-    "1214": {
+    "1216": {
       "base": "RSR",
       "quote": "USDT",
       "type": "PERP",
@@ -2294,7 +2317,7 @@
         "2": "RSR-USDT-SWAP"
       }
     },
-    "1215": {
+    "1217": {
       "base": "RVN",
       "quote": "USDT",
       "type": "PERP",
@@ -2302,7 +2325,7 @@
         "2": "RVN-USDT-SWAP"
       }
     },
-    "1216": {
+    "1218": {
       "base": "S",
       "quote": "USDT",
       "type": "PERP",
@@ -2310,7 +2333,7 @@
         "2": "S-USDT-SWAP"
       }
     },
-    "1217": {
+    "1219": {
       "base": "SAHARA",
       "quote": "USDT",
       "type": "PERP",
@@ -2318,7 +2341,7 @@
         "2": "SAHARA-USDT-SWAP"
       }
     },
-    "1218": {
+    "1220": {
       "base": "SAND",
       "quote": "USDT",
       "type": "PERP",
@@ -2326,7 +2349,7 @@
         "2": "SAND-USDT-SWAP"
       }
     },
-    "1219": {
+    "1221": {
       "base": "SAPIEN",
       "quote": "USDT",
       "type": "PERP",
@@ -2334,7 +2357,7 @@
         "2": "SAPIEN-USDT-SWAP"
       }
     },
-    "1220": {
+    "1222": {
       "base": "SATS",
       "quote": "USDT",
       "type": "PERP",
@@ -2342,7 +2365,7 @@
         "2": "SATS-USDT-SWAP"
       }
     },
-    "1221": {
+    "1223": {
       "base": "SEI",
       "quote": "USDT",
       "type": "PERP",
@@ -2350,7 +2373,7 @@
         "2": "SEI-USDT-SWAP"
       }
     },
-    "1222": {
+    "1224": {
       "base": "SENT",
       "quote": "USDT",
       "type": "PERP",
@@ -2358,7 +2381,7 @@
         "2": "SENT-USDT-SWAP"
       }
     },
-    "1223": {
+    "1225": {
       "base": "SHELL",
       "quote": "USDT",
       "type": "PERP",
@@ -2366,7 +2389,7 @@
         "2": "SHELL-USDT-SWAP"
       }
     },
-    "1224": {
+    "1226": {
       "base": "SHIB",
       "quote": "USDT",
       "type": "PERP",
@@ -2374,7 +2397,7 @@
         "2": "SHIB-USDT-SWAP"
       }
     },
-    "1225": {
+    "1227": {
       "base": "SIGN",
       "quote": "USDT",
       "type": "PERP",
@@ -2382,7 +2405,7 @@
         "2": "SIGN-USDT-SWAP"
       }
     },
-    "1226": {
+    "1228": {
       "base": "SKY",
       "quote": "USDT",
       "type": "PERP",
@@ -2390,7 +2413,7 @@
         "2": "SKY-USDT-SWAP"
       }
     },
-    "1227": {
+    "1229": {
       "base": "SNDK",
       "quote": "USDT",
       "type": "PERP",
@@ -2398,7 +2421,7 @@
         "2": "SNDK-USDT-SWAP"
       }
     },
-    "1228": {
+    "1230": {
       "base": "SNX",
       "quote": "USDT",
       "type": "PERP",
@@ -2406,7 +2429,7 @@
         "2": "SNX-USDT-SWAP"
       }
     },
-    "1229": {
+    "1231": {
       "base": "SOON",
       "quote": "USDT",
       "type": "PERP",
@@ -2414,7 +2437,7 @@
         "2": "SOON-USDT-SWAP"
       }
     },
-    "1230": {
+    "1232": {
       "base": "SOPH",
       "quote": "USDT",
       "type": "PERP",
@@ -2422,7 +2445,7 @@
         "2": "SOPH-USDT-SWAP"
       }
     },
-    "1231": {
+    "1233": {
       "base": "SPACE",
       "quote": "USDT",
       "type": "PERP",
@@ -2430,7 +2453,7 @@
         "2": "SPACE-USDT-SWAP"
       }
     },
-    "1232": {
+    "1234": {
       "base": "SPK",
       "quote": "USDT",
       "type": "PERP",
@@ -2438,7 +2461,7 @@
         "2": "SPK-USDT-SWAP"
       }
     },
-    "1233": {
+    "1235": {
       "base": "SPX",
       "quote": "USDT",
       "type": "PERP",
@@ -2446,7 +2469,7 @@
         "2": "SPX-USDT-SWAP"
       }
     },
-    "1234": {
+    "1236": {
       "base": "SPY",
       "quote": "USDT",
       "type": "PERP",
@@ -2454,7 +2477,7 @@
         "2": "SPY-USDT-SWAP"
       }
     },
-    "1235": {
+    "1237": {
       "base": "SSV",
       "quote": "USDT",
       "type": "PERP",
@@ -2462,7 +2485,7 @@
         "2": "SSV-USDT-SWAP"
       }
     },
-    "1236": {
+    "1238": {
       "base": "STABLE",
       "quote": "USDT",
       "type": "PERP",
@@ -2470,7 +2493,7 @@
         "2": "STABLE-USDT-SWAP"
       }
     },
-    "1237": {
+    "1239": {
       "base": "STRK",
       "quote": "USDT",
       "type": "PERP",
@@ -2478,7 +2501,7 @@
         "2": "STRK-USDT-SWAP"
       }
     },
-    "1238": {
+    "1240": {
       "base": "STX",
       "quote": "USDT",
       "type": "PERP",
@@ -2486,7 +2509,7 @@
         "2": "STX-USDT-SWAP"
       }
     },
-    "1239": {
+    "1241": {
       "base": "SUI",
       "quote": "USDT",
       "type": "PERP",
@@ -2494,7 +2517,7 @@
         "2": "SUI-USDT-SWAP"
       }
     },
-    "1240": {
+    "1242": {
       "base": "SUSHI",
       "quote": "USDT",
       "type": "PERP",
@@ -2502,7 +2525,7 @@
         "2": "SUSHI-USDT-SWAP"
       }
     },
-    "1241": {
+    "1243": {
       "base": "SYRUP",
       "quote": "USDT",
       "type": "PERP",
@@ -2510,7 +2533,7 @@
         "2": "SYRUP-USDT-SWAP"
       }
     },
-    "1242": {
+    "1244": {
       "base": "TAO",
       "quote": "USDT",
       "type": "PERP",
@@ -2518,7 +2541,15 @@
         "2": "TAO-USDT-SWAP"
       }
     },
-    "1243": {
+    "1245": {
+      "base": "TEST01",
+      "quote": "USDT",
+      "type": "PERP",
+      "exchanges": {
+        "2": "TEST01-USDT-SWAP"
+      }
+    },
+    "1246": {
       "base": "THETA",
       "quote": "USDT",
       "type": "PERP",
@@ -2526,7 +2557,7 @@
         "2": "THETA-USDT-SWAP"
       }
     },
-    "1244": {
+    "1247": {
       "base": "TIA",
       "quote": "USDT",
       "type": "PERP",
@@ -2534,7 +2565,7 @@
         "2": "TIA-USDT-SWAP"
       }
     },
-    "1245": {
+    "1248": {
       "base": "TON",
       "quote": "USDT",
       "type": "PERP",
@@ -2542,7 +2573,7 @@
         "2": "TON-USDT-SWAP"
       }
     },
-    "1246": {
+    "1249": {
       "base": "TRB",
       "quote": "USDT",
       "type": "PERP",
@@ -2550,7 +2581,7 @@
         "2": "TRB-USDT-SWAP"
       }
     },
-    "1247": {
+    "1250": {
       "base": "TRIA",
       "quote": "USDT",
       "type": "PERP",
@@ -2558,7 +2589,7 @@
         "2": "TRIA-USDT-SWAP"
       }
     },
-    "1248": {
+    "1251": {
       "base": "TRUMP",
       "quote": "USDT",
       "type": "PERP",
@@ -2566,7 +2597,7 @@
         "2": "TRUMP-USDT-SWAP"
       }
     },
-    "1249": {
+    "1252": {
       "base": "TRUST",
       "quote": "USDT",
       "type": "PERP",
@@ -2574,7 +2605,7 @@
         "2": "TRUST-USDT-SWAP"
       }
     },
-    "1250": {
+    "1253": {
       "base": "TRUTH",
       "quote": "USDT",
       "type": "PERP",
@@ -2582,7 +2613,7 @@
         "2": "TRUTH-USDT-SWAP"
       }
     },
-    "1251": {
+    "1254": {
       "base": "TRX",
       "quote": "USDT",
       "type": "PERP",
@@ -2590,7 +2621,7 @@
         "2": "TRX-USDT-SWAP"
       }
     },
-    "1252": {
+    "1255": {
       "base": "TSLA",
       "quote": "USDT",
       "type": "PERP",
@@ -2598,7 +2629,7 @@
         "2": "TSLA-USDT-SWAP"
       }
     },
-    "1253": {
+    "1256": {
       "base": "TSM",
       "quote": "USDT",
       "type": "PERP",
@@ -2606,7 +2637,7 @@
         "2": "TSM-USDT-SWAP"
       }
     },
-    "1254": {
+    "1257": {
       "base": "TURBO",
       "quote": "USDT",
       "type": "PERP",
@@ -2614,7 +2645,7 @@
         "2": "TURBO-USDT-SWAP"
       }
     },
-    "1255": {
+    "1258": {
       "base": "UMA",
       "quote": "USDT",
       "type": "PERP",
@@ -2622,7 +2653,7 @@
         "2": "UMA-USDT-SWAP"
       }
     },
-    "1256": {
+    "1259": {
       "base": "UNI",
       "quote": "USDT",
       "type": "PERP",
@@ -2630,7 +2661,7 @@
         "2": "UNI-USDT-SWAP"
       }
     },
-    "1257": {
+    "1260": {
       "base": "UP",
       "quote": "USDT",
       "type": "PERP",
@@ -2638,7 +2669,7 @@
         "2": "UP-USDT-SWAP"
       }
     },
-    "1258": {
+    "1261": {
       "base": "USDC",
       "quote": "USDT",
       "type": "PERP",
@@ -2646,7 +2677,7 @@
         "2": "USDC-USDT-SWAP"
       }
     },
-    "1259": {
+    "1262": {
       "base": "USELESS",
       "quote": "USDT",
       "type": "PERP",
@@ -2654,7 +2685,7 @@
         "2": "USELESS-USDT-SWAP"
       }
     },
-    "1260": {
+    "1263": {
       "base": "VANA",
       "quote": "USDT",
       "type": "PERP",
@@ -2662,7 +2693,7 @@
         "2": "VANA-USDT-SWAP"
       }
     },
-    "1261": {
+    "1264": {
       "base": "VIRTUAL",
       "quote": "USDT",
       "type": "PERP",
@@ -2670,7 +2701,7 @@
         "2": "VIRTUAL-USDT-SWAP"
       }
     },
-    "1262": {
+    "1265": {
       "base": "W",
       "quote": "USDT",
       "type": "PERP",
@@ -2678,7 +2709,7 @@
         "2": "W-USDT-SWAP"
       }
     },
-    "1263": {
+    "1266": {
       "base": "WAL",
       "quote": "USDT",
       "type": "PERP",
@@ -2686,7 +2717,7 @@
         "2": "WAL-USDT-SWAP"
       }
     },
-    "1264": {
+    "1267": {
       "base": "WCT",
       "quote": "USDT",
       "type": "PERP",
@@ -2694,7 +2725,7 @@
         "2": "WCT-USDT-SWAP"
       }
     },
-    "1265": {
+    "1268": {
       "base": "WET",
       "quote": "USDT",
       "type": "PERP",
@@ -2702,7 +2733,7 @@
         "2": "WET-USDT-SWAP"
       }
     },
-    "1266": {
+    "1269": {
       "base": "WIF",
       "quote": "USDT",
       "type": "PERP",
@@ -2710,7 +2741,7 @@
         "2": "WIF-USDT-SWAP"
       }
     },
-    "1267": {
+    "1270": {
       "base": "WLD",
       "quote": "USDT",
       "type": "PERP",
@@ -2718,7 +2749,7 @@
         "2": "WLD-USDT-SWAP"
       }
     },
-    "1268": {
+    "1271": {
       "base": "WOO",
       "quote": "USDT",
       "type": "PERP",
@@ -2726,7 +2757,7 @@
         "2": "WOO-USDT-SWAP"
       }
     },
-    "1269": {
+    "1272": {
       "base": "XAG",
       "quote": "USDT",
       "type": "PERP",
@@ -2734,7 +2765,7 @@
         "2": "XAG-USDT-SWAP"
       }
     },
-    "1270": {
+    "1273": {
       "base": "XAU",
       "quote": "USDT",
       "type": "PERP",
@@ -2742,7 +2773,7 @@
         "2": "XAU-USDT-SWAP"
       }
     },
-    "1271": {
+    "1274": {
       "base": "XCU",
       "quote": "USDT",
       "type": "PERP",
@@ -2750,7 +2781,7 @@
         "2": "XCU-USDT-SWAP"
       }
     },
-    "1272": {
+    "1275": {
       "base": "XLM",
       "quote": "USDT",
       "type": "PERP",
@@ -2758,7 +2789,7 @@
         "2": "XLM-USDT-SWAP"
       }
     },
-    "1273": {
+    "1276": {
       "base": "XPL",
       "quote": "USDT",
       "type": "PERP",
@@ -2766,7 +2797,7 @@
         "2": "XPL-USDT-SWAP"
       }
     },
-    "1274": {
+    "1277": {
       "base": "XPT",
       "quote": "USDT",
       "type": "PERP",
@@ -2774,7 +2805,7 @@
         "2": "XPT-USDT-SWAP"
       }
     },
-    "1275": {
+    "1278": {
       "base": "XTZ",
       "quote": "USDT",
       "type": "PERP",
@@ -2782,7 +2813,7 @@
         "2": "XTZ-USDT-SWAP"
       }
     },
-    "1276": {
+    "1279": {
       "base": "YB",
       "quote": "USDT",
       "type": "PERP",
@@ -2790,7 +2821,7 @@
         "2": "YB-USDT-SWAP"
       }
     },
-    "1277": {
+    "1280": {
       "base": "YFI",
       "quote": "USDT",
       "type": "PERP",
@@ -2798,7 +2829,7 @@
         "2": "YFI-USDT-SWAP"
       }
     },
-    "1278": {
+    "1281": {
       "base": "YGG",
       "quote": "USDT",
       "type": "PERP",
@@ -2806,7 +2837,7 @@
         "2": "YGG-USDT-SWAP"
       }
     },
-    "1279": {
+    "1282": {
       "base": "ZAMA",
       "quote": "USDT",
       "type": "PERP",
@@ -2814,7 +2845,7 @@
         "2": "ZAMA-USDT-SWAP"
       }
     },
-    "1280": {
+    "1283": {
       "base": "ZBT",
       "quote": "USDT",
       "type": "PERP",
@@ -2822,7 +2853,7 @@
         "2": "ZBT-USDT-SWAP"
       }
     },
-    "1281": {
+    "1284": {
       "base": "ZEC",
       "quote": "USDT",
       "type": "PERP",
@@ -2830,7 +2861,7 @@
         "2": "ZEC-USDT-SWAP"
       }
     },
-    "1282": {
+    "1285": {
       "base": "ZEN",
       "quote": "USDT",
       "type": "PERP",
@@ -2838,7 +2869,7 @@
         "2": "ZEN-USDT-SWAP"
       }
     },
-    "1283": {
+    "1286": {
       "base": "ZETA",
       "quote": "USDT",
       "type": "PERP",
@@ -2846,7 +2877,7 @@
         "2": "ZETA-USDT-SWAP"
       }
     },
-    "1284": {
+    "1287": {
       "base": "ZIL",
       "quote": "USDT",
       "type": "PERP",
@@ -2854,7 +2885,7 @@
         "2": "ZIL-USDT-SWAP"
       }
     },
-    "1285": {
+    "1288": {
       "base": "ZK",
       "quote": "USDT",
       "type": "PERP",
@@ -2862,7 +2893,7 @@
         "2": "ZK-USDT-SWAP"
       }
     },
-    "1286": {
+    "1289": {
       "base": "ZKP",
       "quote": "USDT",
       "type": "PERP",
@@ -2870,7 +2901,7 @@
         "2": "ZKP-USDT-SWAP"
       }
     },
-    "1287": {
+    "1290": {
       "base": "ZORA",
       "quote": "USDT",
       "type": "PERP",
@@ -2878,7 +2909,7 @@
         "2": "ZORA-USDT-SWAP"
       }
     },
-    "1288": {
+    "1291": {
       "base": "ZRO",
       "quote": "USDT",
       "type": "PERP",
@@ -2886,7 +2917,7 @@
         "2": "ZRO-USDT-SWAP"
       }
     },
-    "1289": {
+    "1292": {
       "base": "ZRX",
       "quote": "USDT",
       "type": "PERP",
@@ -2894,7 +2925,7 @@
         "2": "ZRX-USDT-SWAP"
       }
     },
-    "1290": {
+    "1293": {
       "base": "XPD",
       "quote": "USDT",
       "type": "PERP",
@@ -3207,6 +3238,22 @@
       }
     },
     "2039": {
+      "base": "AUDM",
+      "quote": "USDT",
+      "type": "SPOT",
+      "exchanges": {
+        "2": "AUDM-USDT"
+      }
+    },
+    "2040": {
+      "base": "AUDF",
+      "quote": "USDT",
+      "type": "SPOT",
+      "exchanges": {
+        "2": "AUDF-USDT"
+      }
+    },
+    "2041": {
       "base": "AVAX",
       "quote": "USDT",
       "type": "SPOT",
@@ -3214,7 +3261,7 @@
         "2": "AVAX-USDT"
       }
     },
-    "2040": {
+    "2042": {
       "base": "AVNT",
       "quote": "USDT",
       "type": "SPOT",
@@ -3222,7 +3269,7 @@
         "2": "AVNT-USDT"
       }
     },
-    "2041": {
+    "2043": {
       "base": "AXS",
       "quote": "USDT",
       "type": "SPOT",
@@ -3230,7 +3277,7 @@
         "2": "AXS-USDT"
       }
     },
-    "2042": {
+    "2044": {
       "base": "BABYDOGE",
       "quote": "USDT",
       "type": "SPOT",
@@ -3238,7 +3285,7 @@
         "2": "BABYDOGE-USDT"
       }
     },
-    "2043": {
+    "2045": {
       "base": "BABY",
       "quote": "USDT",
       "type": "SPOT",
@@ -3246,7 +3293,7 @@
         "2": "BABY-USDT"
       }
     },
-    "2044": {
+    "2046": {
       "base": "BAND",
       "quote": "USDT",
       "type": "SPOT",
@@ -3254,7 +3301,7 @@
         "2": "BAND-USDT"
       }
     },
-    "2045": {
+    "2047": {
       "base": "BANANA",
       "quote": "USDT",
       "type": "SPOT",
@@ -3262,7 +3309,7 @@
         "2": "BANANA-USDT"
       }
     },
-    "2046": {
+    "2048": {
       "base": "BARD",
       "quote": "USDT",
       "type": "SPOT",
@@ -3270,7 +3317,7 @@
         "2": "BARD-USDT"
       }
     },
-    "2047": {
+    "2049": {
       "base": "BASED",
       "quote": "USDT",
       "type": "SPOT",
@@ -3278,7 +3325,7 @@
         "2": "BASED-USDT"
       }
     },
-    "2048": {
+    "2050": {
       "base": "BAT",
       "quote": "USDT",
       "type": "SPOT",
@@ -3286,7 +3333,7 @@
         "2": "BAT-USDT"
       }
     },
-    "2049": {
+    "2051": {
       "base": "BERA",
       "quote": "USDT",
       "type": "SPOT",
@@ -3294,7 +3341,7 @@
         "2": "BERA-USDT"
       }
     },
-    "2050": {
+    "2052": {
       "base": "BETH",
       "quote": "USDT",
       "type": "SPOT",
@@ -3302,7 +3349,7 @@
         "2": "BETH-USDT"
       }
     },
-    "2051": {
+    "2053": {
       "base": "BICO",
       "quote": "USDT",
       "type": "SPOT",
@@ -3310,7 +3357,7 @@
         "2": "BICO-USDT"
       }
     },
-    "2052": {
+    "2054": {
       "base": "BIGTIME",
       "quote": "USDT",
       "type": "SPOT",
@@ -3318,7 +3365,7 @@
         "2": "BIGTIME-USDT"
       }
     },
-    "2053": {
+    "2055": {
       "base": "BIO",
       "quote": "USDT",
       "type": "SPOT",
@@ -3326,7 +3373,7 @@
         "2": "BIO-USDT"
       }
     },
-    "2054": {
+    "2056": {
       "base": "BLUR",
       "quote": "USDT",
       "type": "SPOT",
@@ -3334,7 +3381,7 @@
         "2": "BLUR-USDT"
       }
     },
-    "2055": {
+    "2057": {
       "base": "BNB",
       "quote": "USDT",
       "type": "SPOT",
@@ -3342,7 +3389,7 @@
         "2": "BNB-USDT"
       }
     },
-    "2056": {
+    "2058": {
       "base": "BNT",
       "quote": "USDT",
       "type": "SPOT",
@@ -3350,7 +3397,7 @@
         "2": "BNT-USDT"
       }
     },
-    "2057": {
+    "2059": {
       "base": "BOME",
       "quote": "USDT",
       "type": "SPOT",
@@ -3358,7 +3405,7 @@
         "2": "BOME-USDT"
       }
     },
-    "2058": {
+    "2060": {
       "base": "BONK",
       "quote": "USDT",
       "type": "SPOT",
@@ -3366,7 +3413,7 @@
         "2": "BONK-USDT"
       }
     },
-    "2059": {
+    "2061": {
       "base": "BREV",
       "quote": "USDT",
       "type": "SPOT",
@@ -3374,7 +3421,7 @@
         "2": "BREV-USDT"
       }
     },
-    "2060": {
+    "2062": {
       "base": "BRL1",
       "quote": "USDT",
       "type": "SPOT",
@@ -3382,7 +3429,7 @@
         "2": "BRL1-USDT"
       }
     },
-    "2061": {
+    "2063": {
       "base": "CATI",
       "quote": "USDT",
       "type": "SPOT",
@@ -3390,7 +3437,7 @@
         "2": "CATI-USDT"
       }
     },
-    "2062": {
+    "2064": {
       "base": "CAT",
       "quote": "USDT",
       "type": "SPOT",
@@ -3398,7 +3445,7 @@
         "2": "CAT-USDT"
       }
     },
-    "2063": {
+    "2065": {
       "base": "CC",
       "quote": "USDT",
       "type": "SPOT",
@@ -3406,7 +3453,7 @@
         "2": "CC-USDT"
       }
     },
-    "2064": {
+    "2066": {
       "base": "CELO",
       "quote": "USDT",
       "type": "SPOT",
@@ -3414,7 +3461,7 @@
         "2": "CELO-USDT"
       }
     },
-    "2065": {
+    "2067": {
       "base": "CELR",
       "quote": "USDT",
       "type": "SPOT",
@@ -3422,7 +3469,7 @@
         "2": "CELR-USDT"
       }
     },
-    "2066": {
+    "2068": {
       "base": "CETUS",
       "quote": "USDT",
       "type": "SPOT",
@@ -3430,7 +3477,7 @@
         "2": "CETUS-USDT"
       }
     },
-    "2067": {
+    "2069": {
       "base": "CFG",
       "quote": "USDT",
       "type": "SPOT",
@@ -3438,7 +3485,7 @@
         "2": "CFG-USDT"
       }
     },
-    "2068": {
+    "2070": {
       "base": "CFX",
       "quote": "USDT",
       "type": "SPOT",
@@ -3446,7 +3493,15 @@
         "2": "CFX-USDT"
       }
     },
-    "2069": {
+    "2071": {
+      "base": "CHIP",
+      "quote": "USDT",
+      "type": "SPOT",
+      "exchanges": {
+        "2": "CHIP-USDT"
+      }
+    },
+    "2072": {
       "base": "CHZ",
       "quote": "USDT",
       "type": "SPOT",
@@ -3454,7 +3509,7 @@
         "2": "CHZ-USDT"
       }
     },
-    "2070": {
+    "2073": {
       "base": "CITY",
       "quote": "USDT",
       "type": "SPOT",
@@ -3462,7 +3517,7 @@
         "2": "CITY-USDT"
       }
     },
-    "2071": {
+    "2074": {
       "base": "COMP",
       "quote": "USDT",
       "type": "SPOT",
@@ -3470,7 +3525,7 @@
         "2": "COMP-USDT"
       }
     },
-    "2072": {
+    "2075": {
       "base": "CORE",
       "quote": "USDT",
       "type": "SPOT",
@@ -3478,7 +3533,7 @@
         "2": "CORE-USDT"
       }
     },
-    "2073": {
+    "2076": {
       "base": "CRO",
       "quote": "USDT",
       "type": "SPOT",
@@ -3486,7 +3541,7 @@
         "2": "CRO-USDT"
       }
     },
-    "2074": {
+    "2077": {
       "base": "CRV",
       "quote": "USDT",
       "type": "SPOT",
@@ -3494,7 +3549,7 @@
         "2": "CRV-USDT"
       }
     },
-    "2075": {
+    "2078": {
       "base": "CSPR",
       "quote": "USDT",
       "type": "SPOT",
@@ -3502,7 +3557,7 @@
         "2": "CSPR-USDT"
       }
     },
-    "2076": {
+    "2079": {
       "base": "CTC",
       "quote": "USDT",
       "type": "SPOT",
@@ -3510,7 +3565,7 @@
         "2": "CTC-USDT"
       }
     },
-    "2077": {
+    "2080": {
       "base": "CVC",
       "quote": "USDT",
       "type": "SPOT",
@@ -3518,7 +3573,7 @@
         "2": "CVC-USDT"
       }
     },
-    "2078": {
+    "2081": {
       "base": "CVX",
       "quote": "USDT",
       "type": "SPOT",
@@ -3526,7 +3581,7 @@
         "2": "CVX-USDT"
       }
     },
-    "2079": {
+    "2082": {
       "base": "DASH",
       "quote": "USDT",
       "type": "SPOT",
@@ -3534,7 +3589,7 @@
         "2": "DASH-USDT"
       }
     },
-    "2080": {
+    "2083": {
       "base": "DEGEN",
       "quote": "USDT",
       "type": "SPOT",
@@ -3542,7 +3597,7 @@
         "2": "DEGEN-USDT"
       }
     },
-    "2081": {
+    "2084": {
       "base": "DGB",
       "quote": "USDT",
       "type": "SPOT",
@@ -3550,7 +3605,7 @@
         "2": "DGB-USDT"
       }
     },
-    "2082": {
+    "2085": {
       "base": "DOGS",
       "quote": "USDT",
       "type": "SPOT",
@@ -3558,7 +3613,7 @@
         "2": "DOGS-USDT"
       }
     },
-    "2083": {
+    "2086": {
       "base": "DOOD",
       "quote": "USDT",
       "type": "SPOT",
@@ -3566,7 +3621,7 @@
         "2": "DOOD-USDT"
       }
     },
-    "2084": {
+    "2087": {
       "base": "DORA",
       "quote": "USDT",
       "type": "SPOT",
@@ -3574,7 +3629,7 @@
         "2": "DORA-USDT"
       }
     },
-    "2085": {
+    "2088": {
       "base": "DOT",
       "quote": "USDT",
       "type": "SPOT",
@@ -3582,7 +3637,7 @@
         "2": "DOT-USDT"
       }
     },
-    "2086": {
+    "2089": {
       "base": "DUCK",
       "quote": "USDT",
       "type": "SPOT",
@@ -3590,7 +3645,7 @@
         "2": "DUCK-USDT"
       }
     },
-    "2087": {
+    "2090": {
       "base": "DYDX",
       "quote": "USDT",
       "type": "SPOT",
@@ -3598,7 +3653,7 @@
         "2": "DYDX-USDT"
       }
     },
-    "2088": {
+    "2091": {
       "base": "EGLD",
       "quote": "USDT",
       "type": "SPOT",
@@ -3606,7 +3661,7 @@
         "2": "EGLD-USDT"
       }
     },
-    "2089": {
+    "2092": {
       "base": "EIGEN",
       "quote": "USDT",
       "type": "SPOT",
@@ -3614,7 +3669,7 @@
         "2": "EIGEN-USDT"
       }
     },
-    "2090": {
+    "2093": {
       "base": "ELF",
       "quote": "USDT",
       "type": "SPOT",
@@ -3622,7 +3677,7 @@
         "2": "ELF-USDT"
       }
     },
-    "2091": {
+    "2094": {
       "base": "ENA",
       "quote": "USDT",
       "type": "SPOT",
@@ -3630,7 +3685,7 @@
         "2": "ENA-USDT"
       }
     },
-    "2092": {
+    "2095": {
       "base": "ENJ",
       "quote": "USDT",
       "type": "SPOT",
@@ -3638,7 +3693,7 @@
         "2": "ENJ-USDT"
       }
     },
-    "2093": {
+    "2096": {
       "base": "ENS",
       "quote": "USDT",
       "type": "SPOT",
@@ -3646,7 +3701,7 @@
         "2": "ENS-USDT"
       }
     },
-    "2094": {
+    "2097": {
       "base": "ETC",
       "quote": "USDT",
       "type": "SPOT",
@@ -3654,7 +3709,7 @@
         "2": "ETC-USDT"
       }
     },
-    "2095": {
+    "2098": {
       "base": "ETHW",
       "quote": "USDT",
       "type": "SPOT",
@@ -3662,7 +3717,7 @@
         "2": "ETHW-USDT"
       }
     },
-    "2096": {
+    "2099": {
       "base": "ETHFI",
       "quote": "USDT",
       "type": "SPOT",
@@ -3670,7 +3725,7 @@
         "2": "ETHFI-USDT"
       }
     },
-    "2097": {
+    "2100": {
       "base": "FET",
       "quote": "USDT",
       "type": "SPOT",
@@ -3678,7 +3733,7 @@
         "2": "FET-USDT"
       }
     },
-    "2098": {
+    "2101": {
       "base": "FIL",
       "quote": "USDT",
       "type": "SPOT",
@@ -3686,7 +3741,7 @@
         "2": "FIL-USDT"
       }
     },
-    "2099": {
+    "2102": {
       "base": "FLOW",
       "quote": "USDT",
       "type": "SPOT",
@@ -3694,7 +3749,7 @@
         "2": "FLOW-USDT"
       }
     },
-    "2100": {
+    "2103": {
       "base": "FLOKI",
       "quote": "USDT",
       "type": "SPOT",
@@ -3702,7 +3757,7 @@
         "2": "FLOKI-USDT"
       }
     },
-    "2101": {
+    "2104": {
       "base": "FLR",
       "quote": "USDT",
       "type": "SPOT",
@@ -3710,7 +3765,7 @@
         "2": "FLR-USDT"
       }
     },
-    "2102": {
+    "2105": {
       "base": "FLUID",
       "quote": "USDT",
       "type": "SPOT",
@@ -3718,7 +3773,7 @@
         "2": "FLUID-USDT"
       }
     },
-    "2103": {
+    "2106": {
       "base": "FOGO",
       "quote": "USDT",
       "type": "SPOT",
@@ -3726,7 +3781,7 @@
         "2": "FOGO-USDT"
       }
     },
-    "2104": {
+    "2107": {
       "base": "G",
       "quote": "USDT",
       "type": "SPOT",
@@ -3734,7 +3789,7 @@
         "2": "G-USDT"
       }
     },
-    "2105": {
+    "2108": {
       "base": "GALA",
       "quote": "USDT",
       "type": "SPOT",
@@ -3742,7 +3797,7 @@
         "2": "GALA-USDT"
       }
     },
-    "2106": {
+    "2109": {
       "base": "GALFT",
       "quote": "USDT",
       "type": "SPOT",
@@ -3750,7 +3805,7 @@
         "2": "GALFT-USDT"
       }
     },
-    "2107": {
+    "2110": {
       "base": "GAS",
       "quote": "USDT",
       "type": "SPOT",
@@ -3758,7 +3813,7 @@
         "2": "GAS-USDT"
       }
     },
-    "2108": {
+    "2111": {
       "base": "GLM",
       "quote": "USDT",
       "type": "SPOT",
@@ -3766,7 +3821,7 @@
         "2": "GLM-USDT"
       }
     },
-    "2109": {
+    "2112": {
       "base": "GMT",
       "quote": "USDT",
       "type": "SPOT",
@@ -3774,7 +3829,7 @@
         "2": "GMT-USDT"
       }
     },
-    "2110": {
+    "2113": {
       "base": "GMX",
       "quote": "USDT",
       "type": "SPOT",
@@ -3782,7 +3837,7 @@
         "2": "GMX-USDT"
       }
     },
-    "2111": {
+    "2114": {
       "base": "GOAT",
       "quote": "USDT",
       "type": "SPOT",
@@ -3790,7 +3845,7 @@
         "2": "GOAT-USDT"
       }
     },
-    "2112": {
+    "2115": {
       "base": "GODS",
       "quote": "USDT",
       "type": "SPOT",
@@ -3798,7 +3853,15 @@
         "2": "GODS-USDT"
       }
     },
-    "2113": {
+    "2116": {
+      "base": "GRASS",
+      "quote": "USDT",
+      "type": "SPOT",
+      "exchanges": {
+        "2": "GRASS-USDT"
+      }
+    },
+    "2117": {
       "base": "GRT",
       "quote": "USDT",
       "type": "SPOT",
@@ -3806,7 +3869,7 @@
         "2": "GRT-USDT"
       }
     },
-    "2114": {
+    "2118": {
       "base": "HBAR",
       "quote": "USDT",
       "type": "SPOT",
@@ -3814,7 +3877,7 @@
         "2": "HBAR-USDT"
       }
     },
-    "2115": {
+    "2119": {
       "base": "HMSTR",
       "quote": "USDT",
       "type": "SPOT",
@@ -3822,7 +3885,7 @@
         "2": "HMSTR-USDT"
       }
     },
-    "2116": {
+    "2120": {
       "base": "HUMA",
       "quote": "USDT",
       "type": "SPOT",
@@ -3830,7 +3893,7 @@
         "2": "HUMA-USDT"
       }
     },
-    "2117": {
+    "2121": {
       "base": "HYPE",
       "quote": "USDT",
       "type": "SPOT",
@@ -3838,7 +3901,7 @@
         "2": "HYPE-USDT"
       }
     },
-    "2118": {
+    "2122": {
       "base": "ICP",
       "quote": "USDT",
       "type": "SPOT",
@@ -3846,7 +3909,7 @@
         "2": "ICP-USDT"
       }
     },
-    "2119": {
+    "2123": {
       "base": "ICX",
       "quote": "USDT",
       "type": "SPOT",
@@ -3854,7 +3917,7 @@
         "2": "ICX-USDT"
       }
     },
-    "2120": {
+    "2124": {
       "base": "ID",
       "quote": "USDT",
       "type": "SPOT",
@@ -3862,7 +3925,7 @@
         "2": "ID-USDT"
       }
     },
-    "2121": {
+    "2125": {
       "base": "ILV",
       "quote": "USDT",
       "type": "SPOT",
@@ -3870,7 +3933,7 @@
         "2": "ILV-USDT"
       }
     },
-    "2122": {
+    "2126": {
       "base": "IMX",
       "quote": "USDT",
       "type": "SPOT",
@@ -3878,7 +3941,7 @@
         "2": "IMX-USDT"
       }
     },
-    "2123": {
+    "2127": {
       "base": "INJ",
       "quote": "USDT",
       "type": "SPOT",
@@ -3886,7 +3949,7 @@
         "2": "INJ-USDT"
       }
     },
-    "2124": {
+    "2128": {
       "base": "IOST",
       "quote": "USDT",
       "type": "SPOT",
@@ -3894,7 +3957,7 @@
         "2": "IOST-USDT"
       }
     },
-    "2125": {
+    "2129": {
       "base": "IOTA",
       "quote": "USDT",
       "type": "SPOT",
@@ -3902,7 +3965,7 @@
         "2": "IOTA-USDT"
       }
     },
-    "2126": {
+    "2130": {
       "base": "IP",
       "quote": "USDT",
       "type": "SPOT",
@@ -3910,7 +3973,7 @@
         "2": "IP-USDT"
       }
     },
-    "2127": {
+    "2131": {
       "base": "J",
       "quote": "USDT",
       "type": "SPOT",
@@ -3918,7 +3981,7 @@
         "2": "J-USDT"
       }
     },
-    "2128": {
+    "2132": {
       "base": "JITOSOL",
       "quote": "USDT",
       "type": "SPOT",
@@ -3926,7 +3989,7 @@
         "2": "JITOSOL-USDT"
       }
     },
-    "2129": {
+    "2133": {
       "base": "JOE",
       "quote": "USDT",
       "type": "SPOT",
@@ -3934,7 +3997,7 @@
         "2": "JOE-USDT"
       }
     },
-    "2130": {
+    "2134": {
       "base": "JTO",
       "quote": "USDT",
       "type": "SPOT",
@@ -3942,7 +4005,7 @@
         "2": "JTO-USDT"
       }
     },
-    "2131": {
+    "2135": {
       "base": "JUP",
       "quote": "USDT",
       "type": "SPOT",
@@ -3950,7 +4013,7 @@
         "2": "JUP-USDT"
       }
     },
-    "2132": {
+    "2136": {
       "base": "KAIA",
       "quote": "USDT",
       "type": "SPOT",
@@ -3958,7 +4021,7 @@
         "2": "KAIA-USDT"
       }
     },
-    "2133": {
+    "2137": {
       "base": "KAITO",
       "quote": "USDT",
       "type": "SPOT",
@@ -3966,7 +4029,7 @@
         "2": "KAITO-USDT"
       }
     },
-    "2134": {
+    "2138": {
       "base": "KAT",
       "quote": "USDT",
       "type": "SPOT",
@@ -3974,7 +4037,7 @@
         "2": "KAT-USDT"
       }
     },
-    "2135": {
+    "2139": {
       "base": "KITE",
       "quote": "USDT",
       "type": "SPOT",
@@ -3982,7 +4045,7 @@
         "2": "KITE-USDT"
       }
     },
-    "2136": {
+    "2140": {
       "base": "KMNO",
       "quote": "USDT",
       "type": "SPOT",
@@ -3990,7 +4053,7 @@
         "2": "KMNO-USDT"
       }
     },
-    "2137": {
+    "2141": {
       "base": "KNC",
       "quote": "USDT",
       "type": "SPOT",
@@ -3998,7 +4061,7 @@
         "2": "KNC-USDT"
       }
     },
-    "2138": {
+    "2142": {
       "base": "KSM",
       "quote": "USDT",
       "type": "SPOT",
@@ -4006,7 +4069,7 @@
         "2": "KSM-USDT"
       }
     },
-    "2139": {
+    "2143": {
       "base": "LAT",
       "quote": "USDT",
       "type": "SPOT",
@@ -4014,7 +4077,7 @@
         "2": "LAT-USDT"
       }
     },
-    "2140": {
+    "2144": {
       "base": "LAYER",
       "quote": "USDT",
       "type": "SPOT",
@@ -4022,7 +4085,7 @@
         "2": "LAYER-USDT"
       }
     },
-    "2141": {
+    "2145": {
       "base": "LDO",
       "quote": "USDT",
       "type": "SPOT",
@@ -4030,7 +4093,7 @@
         "2": "LDO-USDT"
       }
     },
-    "2142": {
+    "2146": {
       "base": "LEO",
       "quote": "USDT",
       "type": "SPOT",
@@ -4038,7 +4101,7 @@
         "2": "LEO-USDT"
       }
     },
-    "2143": {
+    "2147": {
       "base": "LINK",
       "quote": "USDT",
       "type": "SPOT",
@@ -4046,7 +4109,7 @@
         "2": "LINK-USDT"
       }
     },
-    "2144": {
+    "2148": {
       "base": "LIT",
       "quote": "USDT",
       "type": "SPOT",
@@ -4054,7 +4117,7 @@
         "2": "LIT-USDT"
       }
     },
-    "2145": {
+    "2149": {
       "base": "LPT",
       "quote": "USDT",
       "type": "SPOT",
@@ -4062,7 +4125,7 @@
         "2": "LPT-USDT"
       }
     },
-    "2146": {
+    "2150": {
       "base": "LQTY",
       "quote": "USDT",
       "type": "SPOT",
@@ -4070,7 +4133,7 @@
         "2": "LQTY-USDT"
       }
     },
-    "2147": {
+    "2151": {
       "base": "LRC",
       "quote": "USDT",
       "type": "SPOT",
@@ -4078,7 +4141,7 @@
         "2": "LRC-USDT"
       }
     },
-    "2148": {
+    "2152": {
       "base": "LSK",
       "quote": "USDT",
       "type": "SPOT",
@@ -4086,7 +4149,7 @@
         "2": "LSK-USDT"
       }
     },
-    "2149": {
+    "2153": {
       "base": "LTC",
       "quote": "USDT",
       "type": "SPOT",
@@ -4094,7 +4157,7 @@
         "2": "LTC-USDT"
       }
     },
-    "2150": {
+    "2154": {
       "base": "LUNA",
       "quote": "USDT",
       "type": "SPOT",
@@ -4102,7 +4165,7 @@
         "2": "LUNA-USDT"
       }
     },
-    "2151": {
+    "2155": {
       "base": "MAGIC",
       "quote": "USDT",
       "type": "SPOT",
@@ -4110,7 +4173,7 @@
         "2": "MAGIC-USDT"
       }
     },
-    "2152": {
+    "2156": {
       "base": "MAJOR",
       "quote": "USDT",
       "type": "SPOT",
@@ -4118,7 +4181,7 @@
         "2": "MAJOR-USDT"
       }
     },
-    "2153": {
+    "2157": {
       "base": "MANA",
       "quote": "USDT",
       "type": "SPOT",
@@ -4126,7 +4189,7 @@
         "2": "MANA-USDT"
       }
     },
-    "2154": {
+    "2158": {
       "base": "MASK",
       "quote": "USDT",
       "type": "SPOT",
@@ -4134,7 +4197,7 @@
         "2": "MASK-USDT"
       }
     },
-    "2155": {
+    "2159": {
       "base": "ME",
       "quote": "USDT",
       "type": "SPOT",
@@ -4142,7 +4205,7 @@
         "2": "ME-USDT"
       }
     },
-    "2156": {
+    "2160": {
       "base": "MEME",
       "quote": "USDT",
       "type": "SPOT",
@@ -4150,7 +4213,7 @@
         "2": "MEME-USDT"
       }
     },
-    "2157": {
+    "2161": {
       "base": "MENGO",
       "quote": "USDT",
       "type": "SPOT",
@@ -4158,7 +4221,7 @@
         "2": "MENGO-USDT"
       }
     },
-    "2158": {
+    "2162": {
       "base": "MERL",
       "quote": "USDT",
       "type": "SPOT",
@@ -4166,7 +4229,7 @@
         "2": "MERL-USDT"
       }
     },
-    "2159": {
+    "2163": {
       "base": "METIS",
       "quote": "USDT",
       "type": "SPOT",
@@ -4174,7 +4237,7 @@
         "2": "METIS-USDT"
       }
     },
-    "2160": {
+    "2164": {
       "base": "MET",
       "quote": "USDT",
       "type": "SPOT",
@@ -4182,7 +4245,7 @@
         "2": "MET-USDT"
       }
     },
-    "2161": {
+    "2165": {
       "base": "MEW",
       "quote": "USDT",
       "type": "SPOT",
@@ -4190,7 +4253,7 @@
         "2": "MEW-USDT"
       }
     },
-    "2162": {
+    "2166": {
       "base": "MINA",
       "quote": "USDT",
       "type": "SPOT",
@@ -4198,7 +4261,7 @@
         "2": "MINA-USDT"
       }
     },
-    "2163": {
+    "2167": {
       "base": "MMT",
       "quote": "USDT",
       "type": "SPOT",
@@ -4206,7 +4269,7 @@
         "2": "MMT-USDT"
       }
     },
-    "2164": {
+    "2168": {
       "base": "MON",
       "quote": "USDT",
       "type": "SPOT",
@@ -4214,7 +4277,7 @@
         "2": "MON-USDT"
       }
     },
-    "2165": {
+    "2169": {
       "base": "MOODENG",
       "quote": "USDT",
       "type": "SPOT",
@@ -4222,7 +4285,7 @@
         "2": "MOODENG-USDT"
       }
     },
-    "2166": {
+    "2170": {
       "base": "MORPHO",
       "quote": "USDT",
       "type": "SPOT",
@@ -4230,7 +4293,7 @@
         "2": "MORPHO-USDT"
       }
     },
-    "2167": {
+    "2171": {
       "base": "MOVE",
       "quote": "USDT",
       "type": "SPOT",
@@ -4238,7 +4301,7 @@
         "2": "MOVE-USDT"
       }
     },
-    "2168": {
+    "2172": {
       "base": "NAVX",
       "quote": "USDT",
       "type": "SPOT",
@@ -4246,7 +4309,7 @@
         "2": "NAVX-USDT"
       }
     },
-    "2169": {
+    "2173": {
       "base": "NEAR",
       "quote": "USDT",
       "type": "SPOT",
@@ -4254,7 +4317,7 @@
         "2": "NEAR-USDT"
       }
     },
-    "2170": {
+    "2174": {
       "base": "NEIRO",
       "quote": "USDT",
       "type": "SPOT",
@@ -4262,7 +4325,7 @@
         "2": "NEIRO-USDT"
       }
     },
-    "2171": {
+    "2175": {
       "base": "NEO",
       "quote": "USDT",
       "type": "SPOT",
@@ -4270,7 +4333,7 @@
         "2": "NEO-USDT"
       }
     },
-    "2172": {
+    "2176": {
       "base": "NFT",
       "quote": "USDT",
       "type": "SPOT",
@@ -4278,7 +4341,7 @@
         "2": "NFT-USDT"
       }
     },
-    "2173": {
+    "2177": {
       "base": "NIGHT",
       "quote": "USDT",
       "type": "SPOT",
@@ -4286,7 +4349,7 @@
         "2": "NIGHT-USDT"
       }
     },
-    "2174": {
+    "2178": {
       "base": "NMR",
       "quote": "USDT",
       "type": "SPOT",
@@ -4294,7 +4357,7 @@
         "2": "NMR-USDT"
       }
     },
-    "2175": {
+    "2179": {
       "base": "NOT",
       "quote": "USDT",
       "type": "SPOT",
@@ -4302,7 +4365,7 @@
         "2": "NOT-USDT"
       }
     },
-    "2176": {
+    "2180": {
       "base": "OFC",
       "quote": "USDT",
       "type": "SPOT",
@@ -4310,7 +4373,7 @@
         "2": "OFC-USDT"
       }
     },
-    "2177": {
+    "2181": {
       "base": "OKSOL",
       "quote": "USDT",
       "type": "SPOT",
@@ -4318,7 +4381,7 @@
         "2": "OKSOL-USDT"
       }
     },
-    "2178": {
+    "2182": {
       "base": "OL",
       "quote": "USDT",
       "type": "SPOT",
@@ -4326,7 +4389,7 @@
         "2": "OL-USDT"
       }
     },
-    "2179": {
+    "2183": {
       "base": "OMI",
       "quote": "USDT",
       "type": "SPOT",
@@ -4334,7 +4397,7 @@
         "2": "OMI-USDT"
       }
     },
-    "2180": {
+    "2184": {
       "base": "ONDO",
       "quote": "USDT",
       "type": "SPOT",
@@ -4342,7 +4405,7 @@
         "2": "ONDO-USDT"
       }
     },
-    "2181": {
+    "2185": {
       "base": "ONE",
       "quote": "USDT",
       "type": "SPOT",
@@ -4350,7 +4413,7 @@
         "2": "ONE-USDT"
       }
     },
-    "2182": {
+    "2186": {
       "base": "ONT",
       "quote": "USDT",
       "type": "SPOT",
@@ -4358,7 +4421,7 @@
         "2": "ONT-USDT"
       }
     },
-    "2183": {
+    "2187": {
       "base": "OP",
       "quote": "USDT",
       "type": "SPOT",
@@ -4366,7 +4429,7 @@
         "2": "OP-USDT"
       }
     },
-    "2184": {
+    "2188": {
       "base": "ORBS",
       "quote": "USDT",
       "type": "SPOT",
@@ -4374,7 +4437,7 @@
         "2": "ORBS-USDT"
       }
     },
-    "2185": {
+    "2189": {
       "base": "ORDI",
       "quote": "USDT",
       "type": "SPOT",
@@ -4382,7 +4445,7 @@
         "2": "ORDI-USDT"
       }
     },
-    "2186": {
+    "2190": {
       "base": "PARTI",
       "quote": "USDT",
       "type": "SPOT",
@@ -4390,7 +4453,7 @@
         "2": "PARTI-USDT"
       }
     },
-    "2187": {
+    "2191": {
       "base": "PAXG",
       "quote": "USDT",
       "type": "SPOT",
@@ -4398,7 +4461,7 @@
         "2": "PAXG-USDT"
       }
     },
-    "2188": {
+    "2192": {
       "base": "PENDLE",
       "quote": "USDT",
       "type": "SPOT",
@@ -4406,7 +4469,7 @@
         "2": "PENDLE-USDT"
       }
     },
-    "2189": {
+    "2193": {
       "base": "PENGU",
       "quote": "USDT",
       "type": "SPOT",
@@ -4414,7 +4477,7 @@
         "2": "PENGU-USDT"
       }
     },
-    "2190": {
+    "2194": {
       "base": "PEOPLE",
       "quote": "USDT",
       "type": "SPOT",
@@ -4422,7 +4485,7 @@
         "2": "PEOPLE-USDT"
       }
     },
-    "2191": {
+    "2195": {
       "base": "PEPE",
       "quote": "USDT",
       "type": "SPOT",
@@ -4430,7 +4493,7 @@
         "2": "PEPE-USDT"
       }
     },
-    "2192": {
+    "2196": {
       "base": "PHA",
       "quote": "USDT",
       "type": "SPOT",
@@ -4438,7 +4501,7 @@
         "2": "PHA-USDT"
       }
     },
-    "2193": {
+    "2197": {
       "base": "PI",
       "quote": "USDT",
       "type": "SPOT",
@@ -4446,7 +4509,7 @@
         "2": "PI-USDT"
       }
     },
-    "2194": {
+    "2198": {
       "base": "PIXEL",
       "quote": "USDT",
       "type": "SPOT",
@@ -4454,7 +4517,7 @@
         "2": "PIXEL-USDT"
       }
     },
-    "2195": {
+    "2199": {
       "base": "PNUT",
       "quote": "USDT",
       "type": "SPOT",
@@ -4462,7 +4525,7 @@
         "2": "PNUT-USDT"
       }
     },
-    "2196": {
+    "2200": {
       "base": "POL",
       "quote": "USDT",
       "type": "SPOT",
@@ -4470,7 +4533,7 @@
         "2": "POL-USDT"
       }
     },
-    "2197": {
+    "2201": {
       "base": "POR",
       "quote": "USDT",
       "type": "SPOT",
@@ -4478,7 +4541,7 @@
         "2": "POR-USDT"
       }
     },
-    "2198": {
+    "2202": {
       "base": "PRCL",
       "quote": "USDT",
       "type": "SPOT",
@@ -4486,7 +4549,7 @@
         "2": "PRCL-USDT"
       }
     },
-    "2199": {
+    "2203": {
       "base": "PROMPT",
       "quote": "USDT",
       "type": "SPOT",
@@ -4494,7 +4557,7 @@
         "2": "PROMPT-USDT"
       }
     },
-    "2200": {
+    "2204": {
       "base": "PROVE",
       "quote": "USDT",
       "type": "SPOT",
@@ -4502,7 +4565,7 @@
         "2": "PROVE-USDT"
       }
     },
-    "2201": {
+    "2205": {
       "base": "PYTH",
       "quote": "USDT",
       "type": "SPOT",
@@ -4510,7 +4573,7 @@
         "2": "PYTH-USDT"
       }
     },
-    "2202": {
+    "2206": {
       "base": "PYUSD",
       "quote": "USDT",
       "type": "SPOT",
@@ -4518,7 +4581,7 @@
         "2": "PYUSD-USDT"
       }
     },
-    "2203": {
+    "2207": {
       "base": "QTUM",
       "quote": "USDT",
       "type": "SPOT",
@@ -4526,7 +4589,7 @@
         "2": "QTUM-USDT"
       }
     },
-    "2204": {
+    "2208": {
       "base": "RAY",
       "quote": "USDT",
       "type": "SPOT",
@@ -4534,7 +4597,7 @@
         "2": "RAY-USDT"
       }
     },
-    "2205": {
+    "2209": {
       "base": "RENDER",
       "quote": "USDT",
       "type": "SPOT",
@@ -4542,7 +4605,7 @@
         "2": "RENDER-USDT"
       }
     },
-    "2206": {
+    "2210": {
       "base": "RESOLV",
       "quote": "USDT",
       "type": "SPOT",
@@ -4550,7 +4613,7 @@
         "2": "RESOLV-USDT"
       }
     },
-    "2207": {
+    "2211": {
       "base": "ROBO",
       "quote": "USDT",
       "type": "SPOT",
@@ -4558,7 +4621,7 @@
         "2": "ROBO-USDT"
       }
     },
-    "2208": {
+    "2212": {
       "base": "RON",
       "quote": "USDT",
       "type": "SPOT",
@@ -4566,7 +4629,7 @@
         "2": "RON-USDT"
       }
     },
-    "2209": {
+    "2213": {
       "base": "RPL",
       "quote": "USDT",
       "type": "SPOT",
@@ -4574,7 +4637,7 @@
         "2": "RPL-USDT"
       }
     },
-    "2210": {
+    "2214": {
       "base": "RSR",
       "quote": "USDT",
       "type": "SPOT",
@@ -4582,7 +4645,7 @@
         "2": "RSR-USDT"
       }
     },
-    "2211": {
+    "2215": {
       "base": "RVN",
       "quote": "USDT",
       "type": "SPOT",
@@ -4590,7 +4653,7 @@
         "2": "RVN-USDT"
       }
     },
-    "2212": {
+    "2216": {
       "base": "S",
       "quote": "USDT",
       "type": "SPOT",
@@ -4598,7 +4661,7 @@
         "2": "S-USDT"
       }
     },
-    "2213": {
+    "2217": {
       "base": "SAFE",
       "quote": "USDT",
       "type": "SPOT",
@@ -4606,7 +4669,7 @@
         "2": "SAFE-USDT"
       }
     },
-    "2214": {
+    "2218": {
       "base": "SAHARA",
       "quote": "USDT",
       "type": "SPOT",
@@ -4614,7 +4677,7 @@
         "2": "SAHARA-USDT"
       }
     },
-    "2215": {
+    "2219": {
       "base": "SAND",
       "quote": "USDT",
       "type": "SPOT",
@@ -4622,7 +4685,7 @@
         "2": "SAND-USDT"
       }
     },
-    "2216": {
+    "2220": {
       "base": "SATS",
       "quote": "USDT",
       "type": "SPOT",
@@ -4630,7 +4693,7 @@
         "2": "SATS-USDT"
       }
     },
-    "2217": {
+    "2221": {
       "base": "SCR",
       "quote": "USDT",
       "type": "SPOT",
@@ -4638,7 +4701,7 @@
         "2": "SCR-USDT"
       }
     },
-    "2218": {
+    "2222": {
       "base": "SD",
       "quote": "USDT",
       "type": "SPOT",
@@ -4646,7 +4709,7 @@
         "2": "SD-USDT"
       }
     },
-    "2219": {
+    "2223": {
       "base": "SEI",
       "quote": "USDT",
       "type": "SPOT",
@@ -4654,7 +4717,7 @@
         "2": "SEI-USDT"
       }
     },
-    "2220": {
+    "2224": {
       "base": "SENT",
       "quote": "USDT",
       "type": "SPOT",
@@ -4662,7 +4725,7 @@
         "2": "SENT-USDT"
       }
     },
-    "2221": {
+    "2225": {
       "base": "SHIB",
       "quote": "USDT",
       "type": "SPOT",
@@ -4670,7 +4733,7 @@
         "2": "SHIB-USDT"
       }
     },
-    "2222": {
+    "2226": {
       "base": "SKL",
       "quote": "USDT",
       "type": "SPOT",
@@ -4678,7 +4741,7 @@
         "2": "SKL-USDT"
       }
     },
-    "2223": {
+    "2227": {
       "base": "SKY",
       "quote": "USDT",
       "type": "SPOT",
@@ -4686,7 +4749,7 @@
         "2": "SKY-USDT"
       }
     },
-    "2224": {
+    "2228": {
       "base": "SLP",
       "quote": "USDT",
       "type": "SPOT",
@@ -4694,7 +4757,7 @@
         "2": "SLP-USDT"
       }
     },
-    "2225": {
+    "2229": {
       "base": "SNT",
       "quote": "USDT",
       "type": "SPOT",
@@ -4702,7 +4765,7 @@
         "2": "SNT-USDT"
       }
     },
-    "2226": {
+    "2230": {
       "base": "SNX",
       "quote": "USDT",
       "type": "SPOT",
@@ -4710,7 +4773,7 @@
         "2": "SNX-USDT"
       }
     },
-    "2227": {
+    "2231": {
       "base": "SONIC",
       "quote": "USDT",
       "type": "SPOT",
@@ -4718,7 +4781,7 @@
         "2": "SONIC-USDT"
       }
     },
-    "2228": {
+    "2232": {
       "base": "SOPH",
       "quote": "USDT",
       "type": "SPOT",
@@ -4726,7 +4789,7 @@
         "2": "SOPH-USDT"
       }
     },
-    "2229": {
+    "2233": {
       "base": "SPACE",
       "quote": "USDT",
       "type": "SPOT",
@@ -4734,7 +4797,7 @@
         "2": "SPACE-USDT"
       }
     },
-    "2230": {
+    "2234": {
       "base": "SPK",
       "quote": "USDT",
       "type": "SPOT",
@@ -4742,7 +4805,7 @@
         "2": "SPK-USDT"
       }
     },
-    "2231": {
+    "2235": {
       "base": "SPURS",
       "quote": "USDT",
       "type": "SPOT",
@@ -4750,7 +4813,7 @@
         "2": "SPURS-USDT"
       }
     },
-    "2232": {
+    "2236": {
       "base": "SSV",
       "quote": "USDT",
       "type": "SPOT",
@@ -4758,7 +4821,7 @@
         "2": "SSV-USDT"
       }
     },
-    "2233": {
+    "2237": {
       "base": "STETH",
       "quote": "USDT",
       "type": "SPOT",
@@ -4766,7 +4829,7 @@
         "2": "STETH-USDT"
       }
     },
-    "2234": {
+    "2238": {
       "base": "STORJ",
       "quote": "USDT",
       "type": "SPOT",
@@ -4774,7 +4837,7 @@
         "2": "STORJ-USDT"
       }
     },
-    "2235": {
+    "2239": {
       "base": "STRK",
       "quote": "USDT",
       "type": "SPOT",
@@ -4782,7 +4845,7 @@
         "2": "STRK-USDT"
       }
     },
-    "2236": {
+    "2240": {
       "base": "STX",
       "quote": "USDT",
       "type": "SPOT",
@@ -4790,7 +4853,7 @@
         "2": "STX-USDT"
       }
     },
-    "2237": {
+    "2241": {
       "base": "SUI",
       "quote": "USDT",
       "type": "SPOT",
@@ -4798,7 +4861,7 @@
         "2": "SUI-USDT"
       }
     },
-    "2238": {
+    "2242": {
       "base": "SUSHI",
       "quote": "USDT",
       "type": "SPOT",
@@ -4806,7 +4869,7 @@
         "2": "SUSHI-USDT"
       }
     },
-    "2239": {
+    "2243": {
       "base": "SWFTC",
       "quote": "USDT",
       "type": "SPOT",
@@ -4814,7 +4877,7 @@
         "2": "SWFTC-USDT"
       }
     },
-    "2240": {
+    "2244": {
       "base": "T",
       "quote": "USDT",
       "type": "SPOT",
@@ -4822,7 +4885,7 @@
         "2": "T-USDT"
       }
     },
-    "2241": {
+    "2245": {
       "base": "THETA",
       "quote": "USDT",
       "type": "SPOT",
@@ -4830,7 +4893,7 @@
         "2": "THETA-USDT"
       }
     },
-    "2242": {
+    "2246": {
       "base": "TIA",
       "quote": "USDT",
       "type": "SPOT",
@@ -4838,7 +4901,7 @@
         "2": "TIA-USDT"
       }
     },
-    "2243": {
+    "2247": {
       "base": "TNSR",
       "quote": "USDT",
       "type": "SPOT",
@@ -4846,7 +4909,7 @@
         "2": "TNSR-USDT"
       }
     },
-    "2244": {
+    "2248": {
       "base": "TON",
       "quote": "USDT",
       "type": "SPOT",
@@ -4854,7 +4917,7 @@
         "2": "TON-USDT"
       }
     },
-    "2245": {
+    "2249": {
       "base": "TOSHI",
       "quote": "USDT",
       "type": "SPOT",
@@ -4862,7 +4925,7 @@
         "2": "TOSHI-USDT"
       }
     },
-    "2246": {
+    "2250": {
       "base": "TRA",
       "quote": "USDT",
       "type": "SPOT",
@@ -4870,7 +4933,7 @@
         "2": "TRA-USDT"
       }
     },
-    "2247": {
+    "2251": {
       "base": "TRB",
       "quote": "USDT",
       "type": "SPOT",
@@ -4878,7 +4941,7 @@
         "2": "TRB-USDT"
       }
     },
-    "2248": {
+    "2252": {
       "base": "TRUMP",
       "quote": "USDT",
       "type": "SPOT",
@@ -4886,7 +4949,7 @@
         "2": "TRUMP-USDT"
       }
     },
-    "2249": {
+    "2253": {
       "base": "TRX",
       "quote": "USDT",
       "type": "SPOT",
@@ -4894,7 +4957,7 @@
         "2": "TRX-USDT"
       }
     },
-    "2250": {
+    "2254": {
       "base": "TURBO",
       "quote": "USDT",
       "type": "SPOT",
@@ -4902,7 +4965,7 @@
         "2": "TURBO-USDT"
       }
     },
-    "2251": {
+    "2255": {
       "base": "UMA",
       "quote": "USDT",
       "type": "SPOT",
@@ -4910,7 +4973,7 @@
         "2": "UMA-USDT"
       }
     },
-    "2252": {
+    "2256": {
       "base": "UNI",
       "quote": "USDT",
       "type": "SPOT",
@@ -4918,7 +4981,7 @@
         "2": "UNI-USDT"
       }
     },
-    "2253": {
+    "2257": {
       "base": "USAT",
       "quote": "USDT",
       "type": "SPOT",
@@ -4926,7 +4989,7 @@
         "2": "USAT-USDT"
       }
     },
-    "2254": {
+    "2258": {
       "base": "USDC",
       "quote": "USDT",
       "type": "SPOT",
@@ -4934,7 +4997,7 @@
         "2": "USDC-USDT"
       }
     },
-    "2255": {
+    "2259": {
       "base": "USDG",
       "quote": "USDT",
       "type": "SPOT",
@@ -4942,7 +5005,7 @@
         "2": "USDG-USDT"
       }
     },
-    "2256": {
+    "2260": {
       "base": "USD1",
       "quote": "USDT",
       "type": "SPOT",
@@ -4950,7 +5013,7 @@
         "2": "USD1-USDT"
       }
     },
-    "2257": {
+    "2261": {
       "base": "USDS",
       "quote": "USDT",
       "type": "SPOT",
@@ -4958,7 +5021,7 @@
         "2": "USDS-USDT"
       }
     },
-    "2258": {
+    "2262": {
       "base": "VELO",
       "quote": "USDT",
       "type": "SPOT",
@@ -4966,7 +5029,7 @@
         "2": "VELO-USDT"
       }
     },
-    "2259": {
+    "2263": {
       "base": "VELODROME",
       "quote": "USDT",
       "type": "SPOT",
@@ -4974,7 +5037,7 @@
         "2": "VELODROME-USDT"
       }
     },
-    "2260": {
+    "2264": {
       "base": "VINE",
       "quote": "USDT",
       "type": "SPOT",
@@ -4982,7 +5045,7 @@
         "2": "VINE-USDT"
       }
     },
-    "2261": {
+    "2265": {
       "base": "VIRTUAL",
       "quote": "USDT",
       "type": "SPOT",
@@ -4990,7 +5053,7 @@
         "2": "VIRTUAL-USDT"
       }
     },
-    "2262": {
+    "2266": {
       "base": "W",
       "quote": "USDT",
       "type": "SPOT",
@@ -4998,7 +5061,7 @@
         "2": "W-USDT"
       }
     },
-    "2263": {
+    "2267": {
       "base": "WAXP",
       "quote": "USDT",
       "type": "SPOT",
@@ -5006,7 +5069,7 @@
         "2": "WAXP-USDT"
       }
     },
-    "2264": {
+    "2268": {
       "base": "WCT",
       "quote": "USDT",
       "type": "SPOT",
@@ -5014,7 +5077,7 @@
         "2": "WCT-USDT"
       }
     },
-    "2265": {
+    "2269": {
       "base": "WET",
       "quote": "USDT",
       "type": "SPOT",
@@ -5022,7 +5085,7 @@
         "2": "WET-USDT"
       }
     },
-    "2266": {
+    "2270": {
       "base": "WIF",
       "quote": "USDT",
       "type": "SPOT",
@@ -5030,7 +5093,7 @@
         "2": "WIF-USDT"
       }
     },
-    "2267": {
+    "2271": {
       "base": "WIN",
       "quote": "USDT",
       "type": "SPOT",
@@ -5038,7 +5101,7 @@
         "2": "WIN-USDT"
       }
     },
-    "2268": {
+    "2272": {
       "base": "WLD",
       "quote": "USDT",
       "type": "SPOT",
@@ -5046,7 +5109,7 @@
         "2": "WLD-USDT"
       }
     },
-    "2269": {
+    "2273": {
       "base": "WOO",
       "quote": "USDT",
       "type": "SPOT",
@@ -5054,7 +5117,7 @@
         "2": "WOO-USDT"
       }
     },
-    "2270": {
+    "2274": {
       "base": "XAUT",
       "quote": "USDT",
       "type": "SPOT",
@@ -5062,7 +5125,7 @@
         "2": "XAUT-USDT"
       }
     },
-    "2271": {
+    "2275": {
       "base": "XCH",
       "quote": "USDT",
       "type": "SPOT",
@@ -5070,7 +5133,7 @@
         "2": "XCH-USDT"
       }
     },
-    "2272": {
+    "2276": {
       "base": "XLM",
       "quote": "USDT",
       "type": "SPOT",
@@ -5078,7 +5141,7 @@
         "2": "XLM-USDT"
       }
     },
-    "2273": {
+    "2277": {
       "base": "XPL",
       "quote": "USDT",
       "type": "SPOT",
@@ -5086,7 +5149,7 @@
         "2": "XPL-USDT"
       }
     },
-    "2274": {
+    "2278": {
       "base": "XTZ",
       "quote": "USDT",
       "type": "SPOT",
@@ -5094,7 +5157,7 @@
         "2": "XTZ-USDT"
       }
     },
-    "2275": {
+    "2279": {
       "base": "YB",
       "quote": "USDT",
       "type": "SPOT",
@@ -5102,7 +5165,7 @@
         "2": "YB-USDT"
       }
     },
-    "2276": {
+    "2280": {
       "base": "YFI",
       "quote": "USDT",
       "type": "SPOT",
@@ -5110,7 +5173,7 @@
         "2": "YFI-USDT"
       }
     },
-    "2277": {
+    "2281": {
       "base": "YGG",
       "quote": "USDT",
       "type": "SPOT",
@@ -5118,7 +5181,7 @@
         "2": "YGG-USDT"
       }
     },
-    "2278": {
+    "2282": {
       "base": "ZAMA",
       "quote": "USDT",
       "type": "SPOT",
@@ -5126,7 +5189,7 @@
         "2": "ZAMA-USDT"
       }
     },
-    "2279": {
+    "2283": {
       "base": "ZBCN",
       "quote": "USDT",
       "type": "SPOT",
@@ -5134,7 +5197,7 @@
         "2": "ZBCN-USDT"
       }
     },
-    "2280": {
+    "2284": {
       "base": "ZEC",
       "quote": "USDT",
       "type": "SPOT",
@@ -5142,7 +5205,7 @@
         "2": "ZEC-USDT"
       }
     },
-    "2281": {
+    "2285": {
       "base": "ZENT",
       "quote": "USDT",
       "type": "SPOT",
@@ -5150,7 +5213,7 @@
         "2": "ZENT-USDT"
       }
     },
-    "2282": {
+    "2286": {
       "base": "ZEN",
       "quote": "USDT",
       "type": "SPOT",
@@ -5158,7 +5221,7 @@
         "2": "ZEN-USDT"
       }
     },
-    "2283": {
+    "2287": {
       "base": "ZETA",
       "quote": "USDT",
       "type": "SPOT",
@@ -5166,7 +5229,7 @@
         "2": "ZETA-USDT"
       }
     },
-    "2284": {
+    "2288": {
       "base": "ZEUS",
       "quote": "USDT",
       "type": "SPOT",
@@ -5174,7 +5237,7 @@
         "2": "ZEUS-USDT"
       }
     },
-    "2285": {
+    "2289": {
       "base": "ZIL",
       "quote": "USDT",
       "type": "SPOT",
@@ -5182,7 +5245,7 @@
         "2": "ZIL-USDT"
       }
     },
-    "2286": {
+    "2290": {
       "base": "ZK",
       "quote": "USDT",
       "type": "SPOT",
@@ -5190,7 +5253,7 @@
         "2": "ZK-USDT"
       }
     },
-    "2287": {
+    "2291": {
       "base": "ZKJ",
       "quote": "USDT",
       "type": "SPOT",
@@ -5198,7 +5261,7 @@
         "2": "ZKJ-USDT"
       }
     },
-    "2288": {
+    "2292": {
       "base": "ZORA",
       "quote": "USDT",
       "type": "SPOT",
@@ -5206,7 +5269,7 @@
         "2": "ZORA-USDT"
       }
     },
-    "2289": {
+    "2293": {
       "base": "ZRO",
       "quote": "USDT",
       "type": "SPOT",
@@ -5214,7 +5277,7 @@
         "2": "ZRO-USDT"
       }
     },
-    "2290": {
+    "2294": {
       "base": "ZRX",
       "quote": "USDT",
       "type": "SPOT",
@@ -5223,6 +5286,6 @@
       }
     }
   },
-  "exported_at": 1776450537661,
-  "instrument_count": 580
+  "exported_at": 1777270986960,
+  "instrument_count": 587
 }
