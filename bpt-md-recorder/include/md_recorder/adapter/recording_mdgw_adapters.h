@@ -2,10 +2,14 @@
 
 /// @file
 /// Recording subclasses of the bpt-md-gateway venue adapters. Each overrides
-/// on_frame() to tee the raw WS payload to a shared RawSpool BEFORE calling
-/// the parent's on_frame() — preserves the existing frame-queue + parser
-/// pipeline while adding the recording tap. The mdgw adapter source is
-/// untouched; recording is a md-recorder-only concern.
+/// handle_frame() to tee the raw WS payload to a shared RawSpool BEFORE
+/// calling the parent's handle_frame() — preserves the existing frame-queue
+/// + parser pipeline while adding the recording tap. The mdgw adapter
+/// source is untouched; recording is a md-recorder-only concern.
+///
+/// handle_frame is the IO-thread seam invoked by the venue's MdWsClient
+/// for each application frame (post protocol-level filtering — no
+/// keepalive noise reaches the spool).
 
 #include "bpt_common/recorder/raw_spool.h"
 #include "md_gateway/adapter/binance/binance_md_adapter.h"
@@ -29,9 +33,9 @@ namespace bpt::md_recorder::adapter {
               spool_(std::move(spool)) {}                                                     \
                                                                                               \
     protected:                                                                                \
-        void on_frame(std::string_view payload, uint64_t recv_ns) override {                  \
+        void handle_frame(std::string_view payload, uint64_t recv_ns) noexcept override {    \
             if (spool_) spool_->write_frame(recv_ns, payload);                                \
-            ::bpt::md_gateway::adapter::BaseClass::on_frame(payload, recv_ns);                \
+            ::bpt::md_gateway::adapter::BaseClass::handle_frame(payload, recv_ns);            \
         }                                                                                     \
                                                                                               \
     private:                                                                                  \

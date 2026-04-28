@@ -17,7 +17,11 @@ namespace net = boost::asio;
 HyperliquidMdAdapter::HyperliquidMdAdapter(const config::AdapterConfig& cfg,
                                        std::shared_ptr<messaging::IMdPublisher> md_pub)
     : AdapterBase(cfg, std::move(md_pub)),
-      decoder_(subs_) {}
+      decoder_(subs_),
+      ws_client_(cfg_, subs_) {
+    ws_client_.set_frame_handler(
+        [this](std::string_view p, uint64_t t) { handle_frame(p, t); });
+}
 
 std::unique_ptr<bpt::common::ws::AnyWsStream> HyperliquidMdAdapter::connect_and_subscribe() {
     bpt::common::log::info("HyperliquidMdAdapter connecting {}:{}{} (tls={})",
@@ -67,25 +71,11 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> HyperliquidMdAdapter::connect_and_
 }
 
 void HyperliquidMdAdapter::read_loop(bpt::common::ws::AnyWsStream& ws) {
-    RunLoop::run(std::move(ws),
-                 stop_flag_,
-                 rl_connected_,
-                 std::chrono::milliseconds(cfg_.ws_read_timeout_ms),
-                 std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms));
-}
-
-void HyperliquidMdAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
-    push_frame(payload, recv_ns);
-}
-
-void HyperliquidMdAdapter::on_tick() {
-    // Fallback for subs added between connect_and_subscribe's take_pending
-    // and the first read iteration. Primary path is subscribe() below.
-    for (const auto& entry : subs_.take_pending()) {
-        for (const char* type : {"l2Book", "trades", "activeAssetCtx"})
-            RunLoop::send(hyperliquid::build_subscribe_payload(type, entry.symbol));
-        bpt::common::log::info("HyperliquidMdAdapter: on_tick subscribe {}", entry.symbol);
-    }
+    ws_client_.run(std::move(ws),
+                   stop_flag_,
+                   rl_connected_,
+                   std::chrono::milliseconds(cfg_.ws_read_timeout_ms),
+                   std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms));
 }
 
 void HyperliquidMdAdapter::subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth) {
@@ -95,23 +85,13 @@ void HyperliquidMdAdapter::subscribe(uint64_t instrument_id, std::string symbol,
     // on_tick is unreliable for runtime subs.
     bool sent = false;
     for (const char* type : {"l2Book", "trades", "activeAssetCtx"}) {
-        if (RunLoop::send(hyperliquid::build_subscribe_payload(type, symbol)))
+        if (ws_client_.send(hyperliquid::build_subscribe_payload(type, symbol)))
             sent = true;
     }
     if (sent) {
         bpt::common::log::info("HyperliquidMdAdapter: runtime subscribe {}", symbol);
         subs_.take_pending();  // don't double-send in on_tick
     }
-}
-
-std::optional<bpt::common::ws::PingConfig> HyperliquidMdAdapter::ping_config() const {
-    // Hyperliquid closes idle WebSockets ~60s after the last client-sent
-    // message, so a 20s application ping keeps the session alive even
-    // when market data goes quiet.
-    return bpt::common::ws::PingConfig{
-        std::chrono::seconds(20),
-        [] { return hyperliquid::build_ping_payload(); },
-    };
 }
 
 void HyperliquidMdAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {

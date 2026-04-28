@@ -87,6 +87,16 @@ protected:
     /// Implementations run the venue parser then call md_pub_ publish methods.
     virtual void parse_frame(std::string_view payload, uint64_t recv_ns) = 0;
 
+    /// \brief IO-thread seam invoked by the venue ws-client for each application frame.
+    ///
+    /// Default implementation enqueues onto the SPSC frame queue for the
+    /// publisher thread (push_frame). md-recorder overrides this to tee
+    /// the raw bytes into a RawSpool before enqueueing — keeps the
+    /// recording tap out of the main mdgw source.
+    virtual void handle_frame(std::string_view payload, uint64_t recv_ns) noexcept {
+        push_frame(payload, recv_ns);
+    }
+
     /// \brief Push a raw WS frame onto the SPSC queue. IO-thread only.
     ///
     /// Logs a throttled warning when the queue is full or the frame is

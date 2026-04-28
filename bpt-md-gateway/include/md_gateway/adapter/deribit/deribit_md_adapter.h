@@ -5,10 +5,10 @@
 
 #include "md_gateway/adapter/common/adapter_base.h"
 #include "md_gateway/adapter/deribit/deribit_md_decoder.h"
+#include "md_gateway/adapter/deribit/deribit_md_ws_client.h"
 
 #include <atomic>
 #include <cstdint>
-#include <bpt_common/ws/run_loop.h>
 
 namespace bpt::md_gateway::adapter {
 
@@ -20,9 +20,9 @@ namespace bpt::md_gateway::adapter {
 /// Detects order-book gaps via prev_change_id; affected instruments are
 /// automatically resubscribed.
 ///
-/// Deribit's set_heartbeat keeps the session alive, so ping_config is
-/// left at nullopt — no application ping thread.
-class DeribitMdAdapter : public AdapterBase, private bpt::common::ws::RunLoop {
+/// Deribit's set_heartbeat keeps the session alive, so the WS client's
+/// ping_config is left at nullopt — no application ping thread.
+class DeribitMdAdapter : public AdapterBase {
 public:
     explicit DeribitMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub);
 
@@ -47,19 +47,10 @@ protected:
     void read_loop(bpt::common::ws::AnyWsStream& ws) override;
     void parse_frame(std::string_view payload, uint64_t recv_ns) override;
 
-    void on_frame(std::string_view payload, uint64_t recv_ns) override;
-    void on_tick() override;
-
 private:
     DeribitMdDecoder decoder_;
-    std::atomic<uint64_t> rpc_id_{1};
+    DeribitMdWsClient ws_client_;
     std::atomic<bool> rl_connected_{false};
-
-    /// Set by the publisher thread when the decoder detects a Deribit
-    /// test_request heartbeat. The IO thread (via on_tick) reads this
-    /// and sends the WS response — writes must happen on the stream's
-    /// owner thread, hence the cross-thread flag.
-    std::atomic<bool> needs_test_response_{false};
 };
 
 }  // namespace bpt::md_gateway::adapter

@@ -16,7 +16,11 @@ namespace net = boost::asio;
 
 DeribitMdAdapter::DeribitMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub)
     : AdapterBase(cfg, std::move(md_pub)),
-      decoder_(subs_) {}
+      decoder_(subs_),
+      ws_client_(cfg_, subs_) {
+    ws_client_.set_frame_handler(
+        [this](std::string_view p, uint64_t t) { handle_frame(p, t); });
+}
 
 void DeribitMdAdapter::unsubscribe(uint64_t instrument_id) {
     std::string symbol = subs_.unsubscribe(instrument_id);
@@ -53,7 +57,7 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> DeribitMdAdapter::connect_and_subs
     // Enable Deribit heartbeat — CRITICAL: Deribit disconnects within 30s if
     // test_request is not answered with public/test.
     ws->write(net::buffer(deribit::build_set_heartbeat_rpc(
-        rpc_id_.fetch_add(1, std::memory_order_relaxed), /*interval_s=*/30)));
+        ws_client_.next_rpc_id(), /*interval_s=*/30)));
     bpt::common::log::info("DeribitMdAdapter: heartbeat enabled (interval=30s)");
 
     // Clear stale order book gap state before receiving new snapshots.
@@ -63,56 +67,25 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> DeribitMdAdapter::connect_and_subs
     subs_.take_pending();
     for (const auto& [id, entry] : subs_.snapshot())
         ws->write(net::buffer(deribit::build_subscribe_rpc(
-            rpc_id_.fetch_add(1, std::memory_order_relaxed), entry.symbol, entry.depth)));
+            ws_client_.next_rpc_id(), entry.symbol, entry.depth)));
 
     return ws;
 }
 
 void DeribitMdAdapter::read_loop(bpt::common::ws::AnyWsStream& ws) {
-    RunLoop::run(std::move(ws),
-                 stop_flag_,
-                 rl_connected_,
-                 std::chrono::milliseconds(cfg_.ws_read_timeout_ms),
-                 std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms));
-}
-
-void DeribitMdAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
-    push_frame(payload, recv_ns);
-
-    // Also check here so test_request gets answered at the cadence of the
-    // incoming frames instead of waiting for the next read_timeout tick —
-    // preserves the previous pre-RunLoop latency on active connections.
-    if (needs_test_response_.load(std::memory_order_acquire)) {
-        needs_test_response_.store(false, std::memory_order_relaxed);
-        if (RunLoop::send(deribit::build_test_response_rpc(rpc_id_.fetch_add(1, std::memory_order_relaxed))))
-            bpt::common::log::debug("DeribitMdAdapter: responded to test_request");
-    }
-}
-
-void DeribitMdAdapter::on_tick() {
-    // Answer a test_request from the parser thread before sending any
-    // subscribes — Deribit tears down the session if test goes unanswered
-    // past ~30s, and subscribes could race ahead of the reply. Also runs
-    // on_frame's identical check so the response fires whichever path
-    // observes the flag first.
-    if (needs_test_response_.load(std::memory_order_acquire)) {
-        needs_test_response_.store(false, std::memory_order_relaxed);
-        if (RunLoop::send(deribit::build_test_response_rpc(rpc_id_.fetch_add(1, std::memory_order_relaxed))))
-            bpt::common::log::debug("DeribitMdAdapter: responded to test_request");
-    }
-
-    // Fallback drain — primary subscribe path is the subscribe() override below.
-    for (const auto& entry : subs_.take_pending())
-        RunLoop::send(deribit::build_subscribe_rpc(
-            rpc_id_.fetch_add(1, std::memory_order_relaxed), entry.symbol, entry.depth));
+    ws_client_.run(std::move(ws),
+                   stop_flag_,
+                   rl_connected_,
+                   std::chrono::milliseconds(cfg_.ws_read_timeout_ms),
+                   std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms));
 }
 
 void DeribitMdAdapter::subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth) {
     AdapterBase::subscribe(instrument_id, symbol, depth);
     // Push to the wire immediately when connected. See OkxMdAdapter::subscribe
     // for the underlying rationale.
-    if (RunLoop::send(deribit::build_subscribe_rpc(
-            rpc_id_.fetch_add(1, std::memory_order_relaxed), symbol, depth))) {
+    if (ws_client_.send(deribit::build_subscribe_rpc(
+            ws_client_.next_rpc_id(), symbol, depth))) {
         bpt::common::log::info("DeribitMdAdapter: runtime subscribe {} depth={}", symbol, depth);
         subs_.take_pending();
     }
@@ -121,7 +94,7 @@ void DeribitMdAdapter::subscribe(uint64_t instrument_id, std::string symbol, uin
 void DeribitMdAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {
     decoder_.decode(payload, recv_ns, validating_pub_, on_funding_rate);
     if (decoder_.take_test_request())
-        needs_test_response_.store(true, std::memory_order_release);
+        ws_client_.signal_test_request();
 }
 
 }  // namespace bpt::md_gateway::adapter

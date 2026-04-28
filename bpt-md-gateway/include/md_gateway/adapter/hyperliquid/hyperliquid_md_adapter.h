@@ -5,9 +5,9 @@
 
 #include "md_gateway/adapter/common/adapter_base.h"
 #include "md_gateway/adapter/hyperliquid/hyperliquid_md_decoder.h"
+#include "md_gateway/adapter/hyperliquid/hyperliquid_md_ws_client.h"
 
 #include <atomic>
-#include <bpt_common/ws/run_loop.h>
 
 namespace bpt::md_gateway::adapter {
 
@@ -18,9 +18,10 @@ namespace bpt::md_gateway::adapter {
 /// unsubscribe take effect immediately via the pending queue.
 ///
 /// HL closes idle WebSockets ~60 s after the last client-sent message,
-/// so ping_config emits a JSON `{"method":"ping"}` payload on a 20 s
-/// cadence (control-frame pings don't reset HL's idle timer).
-class HyperliquidMdAdapter : public AdapterBase, private bpt::common::ws::RunLoop {
+/// so the WS client's ping_config emits a JSON `{"method":"ping"}`
+/// payload on a 20 s cadence (control-frame pings don't reset HL's
+/// idle timer).
+class HyperliquidMdAdapter : public AdapterBase {
 public:
     explicit HyperliquidMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub);
 
@@ -39,15 +40,9 @@ protected:
     void read_loop(bpt::common::ws::AnyWsStream& ws) override;
     void parse_frame(std::string_view payload, uint64_t recv_ns) override;
 
-    /// \name RunLoop hooks
-    /// \{
-    void on_frame(std::string_view payload, uint64_t recv_ns) override;
-    void on_tick() override;
-    std::optional<bpt::common::ws::PingConfig> ping_config() const override;
-    /// \}
-
 private:
     HyperliquidMdDecoder decoder_;
+    HyperliquidMdWsClient ws_client_;
     std::atomic<bool> rl_connected_{false};
 };
 

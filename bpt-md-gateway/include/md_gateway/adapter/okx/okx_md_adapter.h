@@ -5,9 +5,9 @@
 
 #include "md_gateway/adapter/common/adapter_base.h"
 #include "md_gateway/adapter/okx/okx_md_decoder.h"
+#include "md_gateway/adapter/okx/okx_md_ws_client.h"
 
 #include <atomic>
-#include <bpt_common/ws/run_loop.h>
 
 namespace bpt::md_gateway::adapter {
 
@@ -19,9 +19,10 @@ namespace bpt::md_gateway::adapter {
 /// subscribe/unsubscribe take effect immediately via the pending queue.
 ///
 /// Delegates read-loop mechanics (read timeout, ping thread, liveness
-/// watchdog) to bpt::common::ws::RunLoop — on_frame / on_tick /
-/// ping_config hooks express the OKX-specific bits only.
-class OkxMdAdapter : public AdapterBase, private bpt::common::ws::RunLoop {
+/// watchdog) to bpt::common::ws::RunLoop via OkxMdWsClient — the WS
+/// client owns the venue protocol bits (ping/pong filter, on_tick
+/// drain, ping_config) and forwards real frames here via handle_frame.
+class OkxMdAdapter : public AdapterBase {
 public:
     explicit OkxMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub);
 
@@ -30,9 +31,9 @@ public:
 
     /// \brief Push the subscribe frame immediately when connected.
     ///
-    /// Overrides AdapterBase to bypass on_tick — in this Beast version
-    /// on_tick may not fire while OKX is actively responding to our
-    /// ping thread, which would delay the subscribe past the timeout.
+    /// Bypasses on_tick — in this Beast version on_tick may not fire
+    /// while OKX is actively responding to our ping thread, which would
+    /// delay the subscribe past the timeout.
     void subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth = 0) override;
 
 protected:
@@ -40,15 +41,9 @@ protected:
     void read_loop(bpt::common::ws::AnyWsStream& ws) override;
     void parse_frame(std::string_view payload, uint64_t recv_ns) override;
 
-    /// \name RunLoop hooks
-    /// \{
-    void on_frame(std::string_view payload, uint64_t recv_ns) override;
-    void on_tick() override;
-    std::optional<bpt::common::ws::PingConfig> ping_config() const override;
-    /// \}
-
 private:
     OkxMdDecoder decoder_;
+    OkxMdWsClient ws_client_;
 
     /// RunLoop::run signature needs a 'connected' atomic; AdapterBase
     /// already tracks connection state via on_connect/on_disconnect

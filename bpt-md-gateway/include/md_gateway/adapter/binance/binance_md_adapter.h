@@ -5,10 +5,10 @@
 
 #include "md_gateway/adapter/binance/binance_funding_rate_stream.h"
 #include "md_gateway/adapter/binance/binance_md_decoder.h"
+#include "md_gateway/adapter/binance/binance_md_ws_client.h"
 #include "md_gateway/adapter/common/adapter_base.h"
 
 #include <atomic>
-#include <bpt_common/ws/run_loop.h>
 
 namespace bpt::md_gateway::adapter {
 
@@ -25,9 +25,9 @@ namespace bpt::md_gateway::adapter {
 ///     it can't ride on the per-symbol main WS.
 ///
 /// Uses Beast's WS-level control-frame pings (configured in
-/// connect_and_subscribe) — ping_config is left at default nullopt; no
-/// application ping thread.
-class BinanceMdAdapter : public AdapterBase, private bpt::common::ws::RunLoop {
+/// connect_and_subscribe) — the ws-client's ping_config is left at
+/// nullopt; no application ping thread.
+class BinanceMdAdapter : public AdapterBase {
 public:
     explicit BinanceMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub);
 
@@ -50,10 +50,12 @@ protected:
     void read_loop(bpt::common::ws::AnyWsStream& ws) override;
     void parse_frame(std::string_view payload, uint64_t recv_ns) override;
 
-    void on_frame(std::string_view payload, uint64_t recv_ns) override;
-
 private:
     BinanceMdDecoder decoder_;
+    BinanceMdWsClient ws_client_;
+    /// RunLoop::run signature needs a 'connected' atomic; AdapterBase
+    /// already tracks connection state via on_connect/on_disconnect
+    /// callbacks, so this flag is otherwise unused here.
     std::atomic<bool> rl_connected_{false};
     BinanceFundingRateStream fr_stream_;
 };

@@ -16,7 +16,11 @@ namespace net = boost::asio;
 
 OkxMdAdapter::OkxMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub)
     : AdapterBase(cfg, std::move(md_pub)),
-      decoder_(subs_) {}
+      decoder_(subs_),
+      ws_client_(cfg_, subs_) {
+    ws_client_.set_frame_handler(
+        [this](std::string_view p, uint64_t t) { handle_frame(p, t); });
+}
 
 std::unique_ptr<bpt::common::ws::AnyWsStream> OkxMdAdapter::connect_and_subscribe() {
     bpt::common::log::info("OkxMdAdapter connecting {}:{}{} (tls={})", cfg_.ws_host, cfg_.ws_port, cfg_.ws_path, cfg_.use_tls);
@@ -49,7 +53,7 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> OkxMdAdapter::connect_and_subscrib
 
     // OKX keepalive must use text-frame "ping" messages, not WebSocket control
     // pings — disable Beast's built-in pings to prevent silent disconnects.
-    // The RunLoop ping thread (see ping_config) sends the text pings.
+    // The ws-client's ping thread (see ping_config) sends the text pings.
     //
     // idle_timeout left at a positive value because setting it to none()
     // appears to also nullify RunLoop's per-read `expires_after(read_timeout)`
@@ -73,38 +77,14 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> OkxMdAdapter::connect_and_subscrib
 }
 
 void OkxMdAdapter::read_loop(bpt::common::ws::AnyWsStream& ws) {
-    // Ownership of ws transfers to RunLoop for the duration of the session.
-    // read_timeout controls on_tick cadence + shutdown responsiveness;
-    // liveness_timeout escalates a silent connection to a reconnect.
-    RunLoop::run(std::move(ws),
-                 stop_flag_,
-                 rl_connected_,
-                 std::chrono::milliseconds(cfg_.ws_read_timeout_ms),
-                 std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms));
-}
-
-void OkxMdAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
-    // OKX's app-level heartbeat is bidirectional: the exchange may send
-    // "ping" expecting a "pong" reply, and we send "ping" via ping_config.
-    // Don't push keepalive text frames onto the parser queue.
-    if (payload == "ping") {
-        RunLoop::send("pong");
-        return;
-    }
-    if (payload == "pong")
-        return;
-
-    push_frame(payload, recv_ns);
-}
-
-void OkxMdAdapter::on_tick() {
-    // Fallback for subs added between connect and the first send below.
-    // Normal path: OkxMdAdapter::subscribe() sends immediately via RunLoop::send
-    // when connected, so this typically finds nothing pending.
-    for (const auto& entry : subs_.take_pending()) {
-        if (RunLoop::send(okx::build_subscribe_payload(entry.symbol, entry.depth)))
-            bpt::common::log::info("OkxMdAdapter: on_tick subscribe {} depth={}", entry.symbol, entry.depth);
-    }
+    // Ownership of ws transfers to the ws-client for the duration of the
+    // session. read_timeout controls on_tick cadence + shutdown
+    // responsiveness; liveness_timeout escalates a silent connection.
+    ws_client_.run(std::move(ws),
+                   stop_flag_,
+                   rl_connected_,
+                   std::chrono::milliseconds(cfg_.ws_read_timeout_ms),
+                   std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms));
 }
 
 void OkxMdAdapter::subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth) {
@@ -113,9 +93,9 @@ void OkxMdAdapter::subscribe(uint64_t instrument_id, std::string symbol, uint8_t
     AdapterBase::subscribe(instrument_id, symbol, depth);
 
     // Flush the new subscription to the OKX WS immediately if we're
-    // connected. RunLoop::send returns false when ws_ is null (between
-    // reconnects); the frame will be picked up by connect_and_subscribe
-    // at the next reconnect via subs_.snapshot().
+    // connected. ws_client_.send returns false when the stream is null
+    // (between reconnects); the frame will be picked up by
+    // connect_and_subscribe at the next reconnect via subs_.snapshot().
     //
     // This bypasses the on_tick fallback, which in this Beast version
     // can sit in ws.read() indefinitely — ws.expires_after() doesn't
@@ -123,18 +103,11 @@ void OkxMdAdapter::subscribe(uint64_t instrument_id, std::string symbol, uint8_t
     // literally silent for the full read_timeout, which doesn't happen
     // while OKX responds to our ping thread. Runtime subscribes would
     // otherwise never reach the wire.
-    if (RunLoop::send(okx::build_subscribe_payload(symbol, depth))) {
+    if (ws_client_.send(okx::build_subscribe_payload(symbol, depth))) {
         bpt::common::log::info("OkxMdAdapter: runtime subscribe {} depth={}", symbol, depth);
         // Drain pending to avoid on_tick double-sending this entry.
         subs_.take_pending();
     }
-}
-
-std::optional<bpt::common::ws::PingConfig> OkxMdAdapter::ping_config() const {
-    return bpt::common::ws::PingConfig{
-        std::chrono::milliseconds(cfg_.ws_ping_interval_ms),
-        [] { return std::string("ping"); },
-    };
 }
 
 void OkxMdAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {

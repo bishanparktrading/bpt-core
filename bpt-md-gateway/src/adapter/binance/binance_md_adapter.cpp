@@ -15,7 +15,10 @@ namespace websocket = beast::websocket;
 BinanceMdAdapter::BinanceMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<messaging::IMdPublisher> md_pub)
     : AdapterBase(cfg, std::move(md_pub)),
       decoder_(subs_),
-      fr_stream_(cfg_, subs_, on_funding_rate, stop_flag_) {}
+      fr_stream_(cfg_, subs_, on_funding_rate, stop_flag_) {
+    ws_client_.set_frame_handler(
+        [this](std::string_view p, uint64_t t) { handle_frame(p, t); });
+}
 
 void BinanceMdAdapter::subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth) {
     // Binance stream names are lowercase
@@ -66,15 +69,11 @@ std::unique_ptr<bpt::common::ws::AnyWsStream> BinanceMdAdapter::connect_and_subs
 }
 
 void BinanceMdAdapter::read_loop(bpt::common::ws::AnyWsStream& ws) {
-    RunLoop::run(std::move(ws),
-                 stop_flag_,
-                 rl_connected_,
-                 std::chrono::milliseconds(cfg_.ws_read_timeout_ms),
-                 std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms));
-}
-
-void BinanceMdAdapter::on_frame(std::string_view payload, uint64_t recv_ns) {
-    push_frame(payload, recv_ns);
+    ws_client_.run(std::move(ws),
+                   stop_flag_,
+                   rl_connected_,
+                   std::chrono::milliseconds(cfg_.ws_read_timeout_ms),
+                   std::chrono::milliseconds(cfg_.ws_liveness_timeout_ms));
 }
 
 void BinanceMdAdapter::parse_frame(std::string_view payload, uint64_t recv_ns) {
