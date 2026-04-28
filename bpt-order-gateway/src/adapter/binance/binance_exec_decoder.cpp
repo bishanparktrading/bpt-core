@@ -21,9 +21,9 @@ void BinanceExecDecoder::register_order(const std::string& cloid, uint64_t order
 
 void BinanceExecDecoder::handle_execution_report(const json::object& obj, uint64_t recv_ns) {
     auto eit = obj.find("e");
-    if (eit == obj.end())
+    if (eit == obj.end()) [[unlikely]]
         return;
-    if (std::string(eit->value().as_string()) != "executionReport")
+    if (std::string(eit->value().as_string()) != "executionReport") [[unlikely]]
         return;
 
     std::string exec_type = std::string(obj.at("X").as_string());
@@ -36,7 +36,7 @@ void BinanceExecDecoder::handle_execution_report(const json::object& obj, uint64
         if (it != cloid_to_order_id_.end())
             order_id = it->second;
     }
-    if (order_id == 0) {
+    if (order_id == 0) [[unlikely]] {
         bpt::common::log::warn("BinanceExecDecoder: unknown cloid={}", cloid);
         return;
     }

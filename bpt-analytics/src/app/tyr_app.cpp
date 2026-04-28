@@ -244,12 +244,24 @@ void AnalyticsApp::run() {
                    settings_.scorer_min_samples);
 
     while (bpt::common::signal::is_running()) {
-        if (exec_sub_) exec_sub_->poll(10);
-        if (md_sub_)   md_sub_->poll(10);
+        int frags = 0;
+        if (exec_sub_) frags += exec_sub_->poll(10);
+        if (md_sub_)   frags += md_sub_->poll(10);
 
         const uint64_t now_ns = static_cast<uint64_t>(
             std::chrono::steady_clock::now().time_since_epoch().count());
         maybe_publish(now_ns);
+
+        // Pause hint when idle — relinquishes pipeline resources to the SMT
+        // sibling and avoids a hot busy-spin. Matches strategy_app.cpp's
+        // pattern; analytics is downstream so a tighter spin here brings no
+        // latency benefit.
+        if (frags == 0)
+#if defined(__x86_64__) || defined(__i386__)
+            __builtin_ia32_pause();
+#elif defined(__aarch64__)
+            asm volatile("yield" ::: "memory");
+#endif
     }
 
     bpt::common::log::info("Shutting down");

@@ -52,7 +52,7 @@ void OKXExecDecoder::handle_order_ack(const json::object& d, uint64_t recv_ns) {
         if (it != cloid_to_order_id_.end())
             order_id = it->second;
     }
-    if (order_id == 0) {
+    if (order_id == 0) [[unlikely]] {
         bpt::common::log::warn("OKXExecDecoder: op=order response unknown cloid={}", cloid);
         return;
     }
@@ -103,7 +103,7 @@ void OKXExecDecoder::handle_orders_channel_item(const json::object& d, uint64_t 
         if (it != cloid_to_order_id_.end())
             order_id = it->second;
     }
-    if (order_id == 0) {
+    if (order_id == 0) [[unlikely]] {
         bpt::common::log::warn("OKXExecDecoder: unknown cloid={}", cloid);
         return;
     }

@@ -37,7 +37,7 @@ void HyperliquidExecDecoder::handle_fills(const json::array& fills, uint64_t rec
         // cloid in userFills (we don't send one), so this lookup is the only
         // way to route a fill back to the originating strategy order.
         auto it = pending_.find(ev.exchange_order_id);
-        if (it == pending_.end()) {
+        if (it == pending_.end()) [[unlikely]] {
             // Unknown oid. Possible reasons: fill arrived before the order
             // ack response (rare, same WS channel so ordering should hold);
             // fill for an order from a previous order-gateway session; or a fill

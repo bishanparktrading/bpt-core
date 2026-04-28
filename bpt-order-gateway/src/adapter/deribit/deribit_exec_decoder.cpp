@@ -61,7 +61,7 @@ void DeribitExecDecoder::handle_subscription_event(const json::object& d, uint64
         if (it != label_to_order_id_.end())
             order_id = it->second;
     }
-    if (order_id == 0) {
+    if (order_id == 0) [[unlikely]] {
         bpt::common::log::debug("DeribitExecDecoder: subscription unknown label={}", label);
         return;
     }
