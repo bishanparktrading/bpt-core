@@ -6,6 +6,7 @@
 #include "md_gateway/adapter/common/json_decoder_base.h"
 #include "md_gateway/adapter/common/subscription_map.h"
 #include "md_gateway/md/md_types.h"
+#include "md_gateway/md/sorted_ladder.h"
 #include "md_gateway/messaging/funding_rate_publisher.h"
 
 #include <messages/ExchangeId.h>
@@ -13,7 +14,7 @@
 
 #include <cmath>
 #include <cstdint>
-#include <map>
+#include <functional>
 #include <string_view>
 #include <unordered_map>
 #include <bpt_common/logging.h>
@@ -206,10 +207,7 @@ private:
                 if ((++it).error()) [[unlikely]]
                     continue;
                 (void)bpt::common::util::ff_double(*it, qty);
-                if (qty == 0.0)
-                    side.erase(px);
-                else
-                    side[px] = qty;
+                side.apply(px, qty);
             }
         };
 
@@ -255,9 +253,14 @@ private:
     }
 
     /// \brief Per-instrument local book state for delta accumulation.
+    ///
+    /// Bids: descending order so begin() is the best bid.
+    /// Asks: ascending order so begin() is the best ask.
+    /// Each side is a contiguous SortedLadder (vector-backed, no per-level
+    /// heap allocations after warmup) — see md/sorted_ladder.h.
     struct BookState {
-        std::map<double, double, std::greater<>> bids;
-        std::map<double, double, std::less<>>    asks;
+        md::SortedLadder<std::greater<double>> bids;
+        md::SortedLadder<std::less<double>>    asks;
     };
     std::unordered_map<uint64_t, BookState> book_state_;
 
