@@ -11,7 +11,7 @@ namespace {
 
 struct DeribitParserFixture {
     SubscriptionMap subs;
-    DeribitMdDecoder parser{subs};
+    DeribitMdDecoder<test::FakeMdPublisher> parser{subs};
     test::FakeMdPublisher pub;
     messaging::FundingRateCallback fr_cb;
 

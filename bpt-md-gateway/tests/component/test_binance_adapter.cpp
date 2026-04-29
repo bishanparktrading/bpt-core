@@ -11,7 +11,7 @@ namespace {
 
 struct BinanceParserFixture {
     SubscriptionMap subs;
-    BinanceMdDecoder parser{subs};
+    BinanceMdDecoder<test::FakeMdPublisher> parser{subs};
     test::FakeMdPublisher pub;
     messaging::FundingRateCallback fr_cb;
 

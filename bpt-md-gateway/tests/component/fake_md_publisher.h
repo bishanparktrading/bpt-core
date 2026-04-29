@@ -1,28 +1,33 @@
 #pragma once
 
 #include "md_gateway/md/md_types.h"
-#include "md_gateway/messaging/i_md_publisher.h"
 
+#include <cstdint>
 #include <optional>
 
 namespace bpt::md_gateway::test {
 
-class FakeMdPublisher : public messaging::IMdPublisher {
+// Concrete test publisher — no virtual interface. Decoders/adapters are
+// templated on the publisher type so the test instantiates them with
+// FakeMdPublisher directly (same shape the prod path uses with MdPublisher).
+class FakeMdPublisher {
 public:
-    void publish(const md::MdBbo& bbo) override {
+    void publish(const md::MdBbo& bbo) {
         last_bbo = bbo;
         ++bbo_count;
     }
 
-    void publish(const md::MdTrade& trade) override {
+    void publish(const md::MdTrade& trade) {
         last_trade = trade;
         ++trade_count;
     }
 
-    void publish(const md::MdOrderBook& book) override {
+    void publish(const md::MdOrderBook& book) {
         last_order_book = book;
         ++order_book_count;
     }
+
+    uint64_t drop_count() const { return 0; }
 
     void reset() {
         last_bbo.reset();

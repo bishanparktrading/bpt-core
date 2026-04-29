@@ -16,7 +16,7 @@ namespace {
 
 struct HLFundingFixture {
     SubscriptionMap subs;
-    HyperliquidMdDecoder parser{subs};
+    HyperliquidMdDecoder<test::FakeMdPublisher> parser{subs};
     test::FakeMdPublisher pub;
     std::optional<messaging::FundingRateUpdate> last_fr;
     messaging::FundingRateCallback fr_cb;

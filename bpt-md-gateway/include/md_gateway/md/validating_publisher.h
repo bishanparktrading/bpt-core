@@ -2,7 +2,6 @@
 
 #include "md_gateway/md/md_validator.h"
 #include "md_gateway/md/validation_drop_breaker.h"
-#include "md_gateway/messaging/i_md_publisher.h"
 
 #include <atomic>
 #include <cstdint>
@@ -12,8 +11,9 @@
 namespace bpt::md_gateway::md {
 
 // Decorator that validates normalised market-data structs before forwarding
-// them to an inner IMdPublisher.  Invalid structs are silently dropped (the
-// validator logs a warning).
+// them to a concrete inner publisher. Templated on Inner so the chain
+// decoder → ValidatingPublisher<Inner> → Inner is fully vtable-free —
+// every publish() is a direct, inlinable call.
 //
 // Maintains monotonic published_ and drops_ counters (relaxed atomics) so the
 // app can poll them and push deltas to Prometheus without adding per-message
@@ -28,9 +28,16 @@ namespace bpt::md_gateway::md {
 //
 // Not thread-safe for the validator state — one instance per adapter
 // (publisher) thread, matching the single-writer guarantee of MdValidator.
-class ValidatingPublisher final : public messaging::IMdPublisher {
+//
+// Inner must expose:
+//   void publish(const MdBbo&);
+//   void publish(const MdTrade&);
+//   void publish(const MdOrderBook&);
+//   uint64_t drop_count() const;
+template <class Inner>
+class ValidatingPublisher {
 public:
-    ValidatingPublisher(messaging::IMdPublisher& inner, MdValidator& validator,
+    ValidatingPublisher(Inner& inner, MdValidator& validator,
                         const char* adapter_name = "unknown")
         : inner_(inner),
           validator_(validator),
@@ -43,23 +50,25 @@ public:
         breaker_ = ValidationDropBreaker(cfg);
     }
 
-    void publish(const MdBbo& bbo) override { forward(bbo); }
-    void publish(const MdTrade& trade) override { forward(trade); }
-    void publish(const MdOrderBook& book) override { forward(book); }
+    void publish(const MdBbo& bbo) { forward(bbo); }
+    void publish(const MdTrade& trade) { forward(trade); }
+    void publish(const MdOrderBook& book) { forward(book); }
+
+    // Drops at this layer (validation rejections + breaker latch) plus drops
+    // downstream. Layered semantic: a subscriber reading this port sees every
+    // message that failed to reach the wire, regardless of which layer rejected it.
+    [[nodiscard]] uint64_t drop_count() const {
+        return inner_.drop_count() + drops_.load(std::memory_order_relaxed);
+    }
 
     [[nodiscard]] uint64_t published() const noexcept { return published_.load(std::memory_order_relaxed); }
     [[nodiscard]] uint64_t drops() const noexcept { return drops_.load(std::memory_order_relaxed); }
     [[nodiscard]] bool breaker_tripped() const noexcept { return breaker_.tripped(); }
 
 private:
-    // Shared forwarding path — templated on the md struct type so we
-    // don't triplicate the breaker-gate / logging logic.
     template <typename T>
     void forward(const T& msg) {
         if (breaker_.tripped()) {
-            // Already latched — skip both validation and forward. Still
-            // counts toward drops_ so the Prometheus counter reflects
-            // everything the adapter tried to publish post-trip.
             drops_.fetch_add(1, std::memory_order_relaxed);
             return;
         }
@@ -88,7 +97,7 @@ private:
         }
     }
 
-    messaging::IMdPublisher& inner_;
+    Inner& inner_;
     MdValidator& validator_;
     const char* adapter_name_;
     ValidationDropBreaker breaker_;

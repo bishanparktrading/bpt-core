@@ -11,7 +11,7 @@ namespace {
 
 struct HyperliquidParserFixture {
     SubscriptionMap subs;
-    HyperliquidMdDecoder parser{subs};
+    HyperliquidMdDecoder<test::FakeMdPublisher> parser{subs};
     test::FakeMdPublisher pub;
     messaging::FundingRateCallback fr_cb;
 

@@ -4,14 +4,14 @@
 ///
 /// mdgw and refdata service binaries are unchanged; this process owns the
 /// recording feature in full. No Aeron data publication; a no-op publisher
-/// satisfies the adapter's IMdPublisher dependency so parsing still runs
+/// satisfies the adapter's Pub template parameter so parsing still runs
 /// (cheap on the recording host) and the wire pipeline behaves identically
 /// to live trading at every layer except the disk tap.
 
 #include "md_recorder/adapter/recording_mdgw_adapters.h"
 #include "md_recorder/config/settings.h"
 #include "bpt_common/recorder/raw_spool.h"
-#include "md_gateway/messaging/i_md_publisher.h"
+#include "md_gateway/md/md_types.h"
 #include "md_gateway/adapter/common/i_adapter.h"
 #include "refdata/mapping/instrument_mapping_loader.h"
 #include <messages/ExchangeRegistry.h>
@@ -49,11 +49,14 @@ uint64_t wall_now_ns() {
 
 // Drops every published message. Recording host has no downstream consumers
 // of the parsed SBE — the disk tap on raw WS frames is the only output.
-class NoopMdPublisher : public bpt::md_gateway::messaging::IMdPublisher {
+// Concrete (non-virtual) — venue adapters are templated on Pub so the
+// publish() chain compiles down to dead branches the optimizer drops.
+class NoopMdPublisher {
 public:
-    void publish(const bpt::md_gateway::md::MdBbo&) override {}
-    void publish(const bpt::md_gateway::md::MdTrade&) override {}
-    void publish(const bpt::md_gateway::md::MdOrderBook&) override {}
+    void publish(const bpt::md_gateway::md::MdBbo&) {}
+    void publish(const bpt::md_gateway::md::MdTrade&) {}
+    void publish(const bpt::md_gateway::md::MdOrderBook&) {}
+    uint64_t drop_count() const { return 0; }
 };
 
 class RecorderService : public bpt::app::IService {
@@ -95,16 +98,16 @@ public:
             std::shared_ptr<bpt::md_gateway::adapter::IAdapter> adapter;
             switch (*exch_id) {
                 case bpt::messages::ExchangeId::BINANCE:
-                    adapter = std::make_shared<adapter::RecordingBinanceMdAdapter>(spool, a_cfg, pub);
+                    adapter = std::make_shared<adapter::RecordingBinanceMdAdapter<NoopMdPublisher>>(spool, a_cfg, pub);
                     break;
                 case bpt::messages::ExchangeId::OKX:
-                    adapter = std::make_shared<adapter::RecordingOkxMdAdapter>(spool, a_cfg, pub);
+                    adapter = std::make_shared<adapter::RecordingOkxMdAdapter<NoopMdPublisher>>(spool, a_cfg, pub);
                     break;
                 case bpt::messages::ExchangeId::HYPERLIQUID:
-                    adapter = std::make_shared<adapter::RecordingHyperliquidMdAdapter>(spool, a_cfg, pub);
+                    adapter = std::make_shared<adapter::RecordingHyperliquidMdAdapter<NoopMdPublisher>>(spool, a_cfg, pub);
                     break;
                 case bpt::messages::ExchangeId::DERIBIT:
-                    adapter = std::make_shared<adapter::RecordingDeribitMdAdapter>(spool, a_cfg, pub);
+                    adapter = std::make_shared<adapter::RecordingDeribitMdAdapter<NoopMdPublisher>>(spool, a_cfg, pub);
                     break;
                 default:
                     throw std::runtime_error(fmt::format(

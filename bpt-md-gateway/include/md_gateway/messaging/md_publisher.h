@@ -1,7 +1,7 @@
 #pragma once
 
 #include "md_gateway/md/md_encoder.h"
-#include "md_gateway/messaging/i_md_publisher.h"
+#include "md_gateway/md/md_types.h"
 
 #include <Aeron.h>
 
@@ -22,13 +22,16 @@ namespace bpt::md_gateway::messaging {
 /// Thread-safe: multiple adapter threads may call publish() concurrently.
 /// Publisher's internal mutex serialises tryClaim/offer; seq_ uses relaxed
 /// fetch_add — each message carries its own sequence number.
-class MdPublisher : public IMdPublisher {
+///
+/// No virtual interface — venue decoders are templated on the inner pub
+/// type so the publish() chain inlines all the way down.
+class MdPublisher {
 public:
     MdPublisher(std::shared_ptr<::aeron::Aeron> aeron, const std::string& channel, int stream_id);
 
-    void publish(const md::MdBbo& bbo) override;
-    void publish(const md::MdTrade& trade) override;
-    void publish(const md::MdOrderBook& book) override;
+    void publish(const md::MdBbo& bbo);
+    void publish(const md::MdTrade& trade);
+    void publish(const md::MdOrderBook& book);
 
     [[nodiscard]] uint64_t current_seq() const { return seq_.load(std::memory_order_relaxed); }
     [[nodiscard]] uint64_t drop_count() const { return drops_.load(std::memory_order_relaxed); }

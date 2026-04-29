@@ -6,8 +6,9 @@
 #include "md_gateway/adapter/hyperliquid/hyperliquid_md_decoder.h"
 #include "md_gateway/adapter/okx/okx_md_decoder.h"
 #include "md_gateway/md/md_types.h"
-#include "md_gateway/messaging/i_md_publisher.h"
+#include "md_gateway/messaging/funding_rate_publisher.h"
 
+#include <cstdint>
 #include <gtest/gtest.h>
 #include <optional>
 
@@ -17,11 +18,13 @@ namespace adapter = bpt::md_gateway::adapter;
 namespace messaging = bpt::md_gateway::messaging;
 namespace md = bpt::md_gateway::md;
 
-// Minimal publisher that captures the last published BBO and trade.
-struct CapturePub : messaging::IMdPublisher {
-    void publish(const md::MdBbo& bbo) override { last_bbo = bbo; }
-    void publish(const md::MdTrade& trade) override { last_trade = trade; }
-    void publish(const md::MdOrderBook&) override {}
+// Minimal publisher that captures the last published BBO and trade. No
+// virtual interface — decoders are templated on the publisher type.
+struct CapturePub {
+    void publish(const md::MdBbo& bbo) { last_bbo = bbo; }
+    void publish(const md::MdTrade& trade) { last_trade = trade; }
+    void publish(const md::MdOrderBook&) {}
+    uint64_t drop_count() const { return 0; }
 
     std::optional<md::MdBbo> last_bbo;
     std::optional<md::MdTrade> last_trade;
@@ -32,7 +35,7 @@ struct CapturePub : messaging::IMdPublisher {
 TEST(AdapterSmokeTest, BinanceBookTicker) {
     adapter::SubscriptionMap subs;
     subs.subscribe(100, "btcusdt");
-    adapter::BinanceMdDecoder parser(subs);
+    adapter::BinanceMdDecoder<CapturePub> parser(subs);
     CapturePub pub;
     messaging::FundingRateCallback fr;
 
@@ -52,7 +55,7 @@ TEST(AdapterSmokeTest, BinanceBookTicker) {
 TEST(AdapterSmokeTest, OkxBooks5) {
     adapter::SubscriptionMap subs;
     subs.subscribe(200, "BTC-USDT-SWAP", 5);
-    adapter::OkxMdDecoder parser(subs);
+    adapter::OkxMdDecoder<CapturePub> parser(subs);
     CapturePub pub;
     messaging::FundingRateCallback fr;
 
@@ -72,7 +75,7 @@ TEST(AdapterSmokeTest, OkxBooks5) {
 TEST(AdapterSmokeTest, HyperliquidL2Book) {
     adapter::SubscriptionMap subs;
     subs.subscribe(300, "BTC");
-    adapter::HyperliquidMdDecoder parser(subs);
+    adapter::HyperliquidMdDecoder<CapturePub> parser(subs);
     CapturePub pub;
     messaging::FundingRateCallback fr;
 

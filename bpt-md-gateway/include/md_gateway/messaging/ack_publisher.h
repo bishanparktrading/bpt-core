@@ -23,7 +23,7 @@ namespace bpt::md_gateway::messaging {
 // Called from both the main poll thread (acks after subscription processing)
 // and the service heartbeat timer.  Uses the same aeron::Publication thread-safety
 // guarantee as MdPublisher.
-class AckPublisher : public IAckPublisher {
+class AckPublisher final : public IAckPublisher {
 public:
     AckPublisher(std::shared_ptr<::aeron::Aeron> aeron, const std::string& channel, int stream_id);
 

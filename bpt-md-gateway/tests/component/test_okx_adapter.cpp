@@ -11,7 +11,7 @@ namespace {
 
 struct OkxParserFixture {
     SubscriptionMap subs;
-    OkxMdDecoder parser{subs};
+    OkxMdDecoder<test::FakeMdPublisher> parser{subs};
     test::FakeMdPublisher pub;
     messaging::FundingRateCallback fr_cb;
 

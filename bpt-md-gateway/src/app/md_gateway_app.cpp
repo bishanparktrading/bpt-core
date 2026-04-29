@@ -5,15 +5,11 @@
 #include "md_gateway/adapter/hyperliquid/hyperliquid_md_adapter.h"
 #include "md_gateway/adapter/okx/okx_md_adapter.h"
 
-#include <FragmentAssembler.h>
-
 #include <messages/ExchangeRegistry.h>
 #include <messages/MdSubscribeBatch.h>
-#include <messages/MessageHeader.h>
 
 #include <chrono>
 #include <thread>
-#include <bpt_common/aeron/aeron_utils.h>
 #include <bpt_common/signal.h>
 
 using namespace std::chrono_literals;
@@ -21,44 +17,17 @@ using namespace std::chrono_literals;
 namespace bpt::md_gateway {
 
 MdGatewayApp::MdGatewayApp(config::Settings cfg,
-                           std::shared_ptr<aeron::Aeron> aeron,
+                           std::unique_ptr<messaging::IMdControlSource> control_source,
+                           std::shared_ptr<messaging::MdPublisher> md_sink,
+                           std::unique_ptr<messaging::IAckPublisher> ack_sink,
+                           std::shared_ptr<messaging::IFundingRatePublisher> funding_sink,
                            const bpt::common::util::Topology& topology)
     : cfg_(std::move(cfg)),
-      aeron_(aeron),
       metrics_(cfg_.metrics_host, cfg_.base.metrics_port),
-      ack_pub_(aeron, cfg_.aeron.ack_hb.channel, cfg_.aeron.ack_hb.stream_id) {
-    md_pub_ = std::make_shared<messaging::MdPublisher>(aeron, cfg_.aeron.data.channel, cfg_.aeron.data.stream_id);
-    funding_pub_ = std::make_shared<messaging::FundingRatePublisher>(aeron,
-                                                                     cfg_.aeron.funding_rate.channel,
-                                                                     cfg_.aeron.funding_rate.stream_id);
-
-    ctrl_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
-        aeron, cfg_.aeron.control.channel, cfg_.aeron.control.stream_id,
-        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset,
-               aeron::util::index_t length, aeron::Header& /*hdr*/) {
-            using namespace bpt::messages;
-
-            if (static_cast<std::size_t>(length) < MessageHeader::encodedLength())
-                return;
-
-            char* data = reinterpret_cast<char*>(buf.buffer()) + offset;
-            MessageHeader hdr(data, static_cast<std::size_t>(length));
-
-            if (hdr.templateId() != MdSubscribeBatch::sbeTemplateId())
-                return;
-
-            MdSubscribeBatch msg;
-            msg.wrapForDecode(data,
-                              MessageHeader::encodedLength(),
-                              hdr.blockLength(),
-                              hdr.version(),
-                              static_cast<std::size_t>(length));
-
-            bpt::common::log::info("Received MdSubscribeBatch correlation_id={}", msg.correlationId());
-            sub_mgr_.apply_batch(msg, ack_pub_);
-            metrics_.subscription_batches_total->Increment();
-        });
-
+      md_pub_(std::move(md_sink)),
+      funding_pub_(std::move(funding_sink)),
+      ack_pub_(std::move(ack_sink)),
+      ctrl_sub_(std::move(control_source)) {
     for (const auto& a_cfg : cfg_.adapters) {
         // Validate against ExchangeRegistry at the boundary so a typo in
         // the TOML fails immediately rather than skipping silently with a
@@ -73,16 +42,16 @@ MdGatewayApp::MdGatewayApp(config::Settings cfg,
         std::shared_ptr<adapter::IAdapter> adapter;
         switch (*exch_id) {
             case bpt::messages::ExchangeId::BINANCE:
-                adapter = std::make_shared<adapter::BinanceMdAdapter>(a_cfg, md_pub_);
+                adapter = std::make_shared<adapter::BinanceMdAdapter<messaging::MdPublisher>>(a_cfg, md_pub_);
                 break;
             case bpt::messages::ExchangeId::OKX:
-                adapter = std::make_shared<adapter::OkxMdAdapter>(a_cfg, md_pub_);
+                adapter = std::make_shared<adapter::OkxMdAdapter<messaging::MdPublisher>>(a_cfg, md_pub_);
                 break;
             case bpt::messages::ExchangeId::HYPERLIQUID:
-                adapter = std::make_shared<adapter::HyperliquidMdAdapter>(a_cfg, md_pub_);
+                adapter = std::make_shared<adapter::HyperliquidMdAdapter<messaging::MdPublisher>>(a_cfg, md_pub_);
                 break;
             case bpt::messages::ExchangeId::DERIBIT:
-                adapter = std::make_shared<adapter::DeribitMdAdapter>(a_cfg, md_pub_);
+                adapter = std::make_shared<adapter::DeribitMdAdapter<messaging::MdPublisher>>(a_cfg, md_pub_);
                 break;
             default:
                 throw std::runtime_error(fmt::format(
@@ -130,18 +99,22 @@ void MdGatewayApp::run() {
     auto last_lat_report = std::chrono::steady_clock::now();
 
     while (bpt::common::signal::is_running()) {
-        int fragments = ctrl_sub_->poll(10);
+        int fragments = ctrl_sub_->poll([this](bpt::messages::MdSubscribeBatch& msg) {
+            bpt::common::log::info("Received MdSubscribeBatch correlation_id={}", msg.correlationId());
+            sub_mgr_.apply_batch(msg, *ack_pub_);
+            metrics_.subscription_batches_total->Increment();
+        });
 
         auto now = std::chrono::steady_clock::now();
 
         if (now - last_svc_hb >= svc_hb_interval) {
-            ack_pub_.publish_service_heartbeat();
+            ack_pub_->publish_service_heartbeat();
             metrics_.service_heartbeats_total->Increment();
             last_svc_hb = now;
         }
 
         if (now - last_sub_hb >= sub_hb_interval) {
-            sub_mgr_.publish_subscription_heartbeats(ack_pub_);
+            sub_mgr_.publish_subscription_heartbeats(*ack_pub_);
             last_sub_hb = now;
         }
 
