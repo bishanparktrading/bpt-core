@@ -1,5 +1,6 @@
 #include "strategy/app/strategy_app.h"
 #include "strategy/config/config.h"
+#include "strategy/messaging/aeron_bus.h"
 
 #include <CLI/CLI.hpp>
 #include <memory>
@@ -56,8 +57,9 @@ int main(int argc, char* argv[]) {
     try {
         return bpt::app::run(service_name, std::move(app_cfg),
             [](auto& cfg, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
+                auto bus = bpt::strategy::messaging::StrategyAeronBus::build(ctx.aeron, cfg);
                 return std::make_unique<bpt::strategy::StrategyApp>(
-                    std::move(cfg), ctx.aeron, ctx.topology);
+                    std::move(cfg), std::move(bus), ctx.topology);
             });
     } catch (const std::exception& e) {
         bpt::common::log::error("Fatal: {}", e.what());

@@ -24,10 +24,9 @@ RefdataClient::RefdataClient(std::shared_ptr<aeron::Aeron> aeron,
                              int fee_schedule_stream,
                              int funding_rate_stream,
                              int status_stream,
-                             FeeCache& fee_cache,
-                             FundingRateCache& funding_rate_cache)
-    : fee_cache_(fee_cache),
-      funding_rate_cache_(funding_rate_cache) {
+                             uint64_t max_staleness_ns)
+    : fee_cache_(max_staleness_ns),
+      funding_rate_cache_(max_staleness_ns) {
     ctrl_pub_ = std::make_unique<bpt::common::aeron::Publisher>(
         aeron, channel, control_stream,
         bpt::common::aeron::Publisher::Policy::kRetryOnBackpressure);

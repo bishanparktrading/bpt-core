@@ -21,7 +21,7 @@ namespace bpt::strategy::order {
 // Aeron-backed IOrderGatewayClient — publishes order actions to
 // bpt-order-gateway and polls the exec-report / heartbeat /
 // account-snapshot streams it publishes back. Production path.
-class AeronOrderGatewayClient : public IOrderGatewayClient {
+class AeronOrderGatewayClient final : public IOrderGatewayClient {
 public:
     AeronOrderGatewayClient(std::shared_ptr<aeron::Aeron> aeron,
                             const std::string& channel,

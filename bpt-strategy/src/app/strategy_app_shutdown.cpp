@@ -25,11 +25,11 @@ void StrategyApp::shutdown_flatten() {
     // A short pre-drain lets PositionTracker catch up to reality. Only
     // poll the order gateway — fresh MD ticks would re-invoke strategy
     // handlers and could fire new entries.
-    if (order_gw_) {
+    if (bus_.order_gw) {
         const uint64_t pre_drain_start = bpt::common::util::TscClock::now_epoch_ns();
         constexpr uint64_t kPreDrainBudgetNs = 1'000'000'000ULL;
         while (bpt::common::util::TscClock::now_epoch_ns() - pre_drain_start < kPreDrainBudgetNs) {
-            const int frags = order_gw_->poll();
+            const int frags = bus_.order_gw->poll();
             if (frags == 0)
                 __builtin_ia32_pause();
         }
@@ -62,7 +62,7 @@ void StrategyApp::shutdown_flatten() {
     constexpr uint64_t kMinDrainNs = 2ULL * 1'000'000'000ULL;
     constexpr uint64_t kDrainBudgetNs = 5ULL * 1'000'000'000ULL;
     bool drained_cleanly = true;
-    if (order_gw_) {
+    if (bus_.order_gw) {
         while (true) {
             const uint64_t elapsed = bpt::common::util::TscClock::now_epoch_ns() - drain_start_ns;
             if (elapsed >= kDrainBudgetNs) {
@@ -84,7 +84,7 @@ void StrategyApp::shutdown_flatten() {
                                elapsed / 1'000'000ULL);
                 break;
             }
-            const int frags = order_gw_->poll();
+            const int frags = bus_.order_gw->poll();
             if (frags == 0)
                 __builtin_ia32_pause();
         }
@@ -104,11 +104,11 @@ void StrategyApp::shutdown_flatten() {
 
     // Brief secondary drain so the refresh snapshot propagates through
     // the bus before we exit.
-    if (order_gw_) {
+    if (bus_.order_gw) {
         const uint64_t t1 = bpt::common::util::TscClock::now_epoch_ns();
         constexpr uint64_t kSnapDrainBudgetNs = 1'000'000'000ULL;
         while (bpt::common::util::TscClock::now_epoch_ns() - t1 < kSnapDrainBudgetNs) {
-            int frags = order_gw_->poll();
+            int frags = bus_.order_gw->poll();
             if (frags == 0)
                 __builtin_ia32_pause();
         }

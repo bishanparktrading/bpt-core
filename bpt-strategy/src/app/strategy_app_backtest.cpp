@@ -21,7 +21,7 @@ void StrategyApp::run_backtest_loop() {
 
     bool stop_received = false;
 
-    backtest_client_->on_control =
+    bus_.backtest->on_control =
         [this, &stop_received](bpt::messages::BacktestCommand::Value cmd, uint64_t seq, uint64_t sim_ts) {
             using bpt::messages::BacktestCommand;
 
@@ -29,7 +29,7 @@ void StrategyApp::run_backtest_loop() {
                 if (seq == 0) {
                     // Initial handshake — Backtester is ready to start ticking.
                     bpt::common::log::info("Backtest handshake received, acking");
-                    backtest_client_->send_ack(0, 0);
+                    bus_.backtest->send_ack(0, 0);
                 } else {
                     // Normal tick — drain MD and execution reports for up to 10 ms,
                     // then signal Backtester to advance to the next tick.
@@ -37,17 +37,17 @@ void StrategyApp::run_backtest_loop() {
                     int drained = 0;
                     while (std::chrono::steady_clock::now() < deadline) {
                         int f = 0;
-                        if (md_client_)
-                            f += md_client_->poll();
-                        if (order_gw_)
-                            f += order_gw_->poll();
+                        if (bus_.md)
+                            f += bus_.md->poll();
+                        if (bus_.order_gw)
+                            f += bus_.order_gw->poll();
                         drained += f;
                         if (f == 0 && drained > 0)
                             break;  // drained everything, stop early
                         if (f == 0)
                             std::this_thread::sleep_for(100us);
                     }
-                    backtest_client_->send_ack(seq, sim_ts);
+                    bus_.backtest->send_ack(seq, sim_ts);
                 }
             } else if (cmd == BacktestCommand::STOP) {
                 bpt::common::log::info("Backtest STOP received — halting");
@@ -56,7 +56,7 @@ void StrategyApp::run_backtest_loop() {
         };
 
     while (!stop_received && bpt::common::signal::is_running()) {
-        int frags = backtest_client_->poll();
+        int frags = bus_.backtest->poll();
         if (frags == 0)
             std::this_thread::sleep_for(10us);
     }

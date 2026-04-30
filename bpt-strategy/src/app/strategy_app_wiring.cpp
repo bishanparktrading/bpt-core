@@ -23,7 +23,7 @@ using namespace std::chrono_literals;
 namespace bpt::strategy {
 
 void StrategyApp::wire_refdata_callbacks() {
-    refdata_->on_ready = [this](uint8_t exchanges_loaded,
+    bus_.refdata->on_ready = [this](uint8_t exchanges_loaded,
                                 uint16_t instrument_count,
                                 bool fee_schedules_loaded,
                                 bool funding_rates_loaded) {
@@ -31,14 +31,14 @@ void StrategyApp::wire_refdata_callbacks() {
                                         fee_schedules_loaded, funding_rates_loaded);
     };
 
-    refdata_->on_error = [](RefDataErrorType::Value error_type, ExchangeId::Value exchange_id, uint64_t instrument_id) {
+    bus_.refdata->on_error = [](RefDataErrorType::Value error_type, ExchangeId::Value exchange_id, uint64_t instrument_id) {
         bpt::common::log::error("RefDataError: type={} exchange={} instrument={}",
                         RefDataErrorType::c_str(error_type),
                         ExchangeId::c_str(exchange_id),
                         instrument_id);
     };
 
-    refdata_->on_snapshot_complete = [this](const refdata::InstrumentCache& cache) {
+    bus_.refdata->on_snapshot_complete = [this](const refdata::InstrumentCache& cache) {
         strategy_->on_snapshot(cache);
 
         // Warm-start load: instruments are resolved and state_ entries
@@ -54,22 +54,22 @@ void StrategyApp::wire_refdata_callbacks() {
         startup_gate_->on_refdata_snapshot_complete();
     };
 
-    refdata_->on_delta = [this](const refdata::Instrument& inst,
+    bus_.refdata->on_delta = [this](const refdata::Instrument& inst,
                                 bpt::messages::DeltaUpdateType::Value update_type) {
         strategy_->on_delta(inst, update_type);
     };
 }
 
 void StrategyApp::wire_md_callbacks() {
-    if (!md_client_) return;
+    if (!bus_.md) return;
 
-    md_client_->on_service_heartbeat = [this]() {
+    bus_.md->on_service_heartbeat = [this]() {
         last_md_hb_recv_ns_ = static_cast<uint64_t>(
             std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now().time_since_epoch()).count());
     };
 
-    md_client_->on_bbo = [this](const bpt::messages::MdMarketData& tick) {
+    bus_.md->on_bbo = [this](const bpt::messages::MdMarketData& tick) {
         static uint64_t bbo_count = 0;
         if (++bbo_count <= 10 || bbo_count % 1000 == 0) {
             bpt::common::log::info("BBO tick #{}: id={} bid={:.4f} ask={:.4f}",
@@ -96,7 +96,7 @@ void StrategyApp::wire_md_callbacks() {
         }
     };
 
-    md_client_->on_trade = [this](const bpt::messages::MdTrade& tick) {
+    bus_.md->on_trade = [this](const bpt::messages::MdTrade& tick) {
         metrics_.md_ticks_total->Increment();
         if (trading_paused_ || trading_halted_) return;
 
@@ -111,7 +111,7 @@ void StrategyApp::wire_md_callbacks() {
         }
     };
 
-    md_client_->on_order_book = [this](const bpt::messages::MdOrderBook& book) {
+    bus_.md->on_order_book = [this](const bpt::messages::MdOrderBook& book) {
         if (!trading_paused_ && !trading_halted_) {
             curr_tick_ts_ns_ = book.timestampNs();
             strategy_->on_order_book(book);
@@ -126,16 +126,16 @@ void StrategyApp::wire_md_callbacks() {
 }
 
 void StrategyApp::wire_vol_callbacks() {
-    if (!vol_client_) return;
+    if (!bus_.vol) return;
 
-    vol_client_->on_vol_surface = [this](bpt::messages::VolSurface& surface) {
+    bus_.vol->on_vol_surface = [this](bpt::messages::VolSurface& surface) {
         bpt::common::log::info("VolSurface received: exchange={} underlying={}",
                        ExchangeId::c_str(surface.exchangeId()),
                        surface.getUnderlyingAsString());
         strategy_->on_vol_surface(surface);
     };
 
-    vol_client_->on_ready = [this](uint8_t exchanges_loaded, uint16_t underlying_count, uint32_t point_count) {
+    bus_.vol->on_ready = [this](uint8_t exchanges_loaded, uint16_t underlying_count, uint32_t point_count) {
         bpt::common::log::info("PricerReady: exchanges=0x{:02x} underlyings={} points={}",
                        exchanges_loaded, underlying_count, point_count);
         pricer_ready_ = true;
@@ -155,9 +155,9 @@ void StrategyApp::wire_order_callbacks() {
         };
     }
 
-    if (!order_gw_) return;
+    if (!bus_.order_gw) return;
 
-    order_gw_->on_exec_report = [this](const bpt::messages::ExecutionReport& rpt) {
+    bus_.order_gw->on_exec_report = [this](const bpt::messages::ExecutionReport& rpt) {
         const auto status = rpt.status();
         const double price_d = static_cast<double>(rpt.price()) / 1e8;
         if (status == ExecStatus::ACKED) {
@@ -175,7 +175,7 @@ void StrategyApp::wire_order_callbacks() {
         strategy_->on_exec_report(rpt);
     };
 
-    order_gw_->on_heartbeat = [this](const bpt::messages::OrderGatewayHeartbeat&) {
+    bus_.order_gw->on_heartbeat = [this](const bpt::messages::OrderGatewayHeartbeat&) {
         last_gw_hb_recv_ns_ = static_cast<uint64_t>(
             std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now().time_since_epoch()).count());
@@ -209,7 +209,7 @@ void StrategyApp::wire_order_callbacks() {
             metrics_.reconciliation_divergences_total->Increment();
         }
     };
-    order_gw_->on_account_snapshot = on_snap;
+    bus_.order_gw->on_account_snapshot = on_snap;
 }
 
 }  // namespace bpt::strategy

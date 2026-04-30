@@ -1,21 +1,11 @@
 #pragma once
 
 #include "strategy/app/startup_gate.h"
-#include "strategy/backtest/backtest_client.h"
 #include "strategy/config/config.h"
-#include "strategy/dashboard/portfolio_snapshot_publisher.h"
-#include "strategy/md/md_client.h"
+#include "strategy/messaging/aeron_bus.h"
 #include "strategy/metrics/metrics.h"
-#include "strategy/order/i_order_gateway_client.h"
 #include "strategy/order/order_manager.h"
-#include "strategy/refdata/fee_cache.h"
-#include "strategy/refdata/funding_rate_cache.h"
-#include "strategy/refdata/refdata_client.h"
 #include "strategy/strategy/i_strategy.h"
-#include "strategy/vol/vol_surface_client.h"
-
-#include <Aeron.h>
-#include <Subscription.h>
 
 #include <cstdint>
 #include <memory>
@@ -29,7 +19,7 @@ namespace bpt::strategy {
 class StrategyApp : public bpt::app::IService {
 public:
     StrategyApp(config::AppConfig cfg,
-                std::shared_ptr<aeron::Aeron> aeron,
+                messaging::StrategyBus bus,
                 const bpt::common::util::Topology& topology);
     void run() override;
     void stop() override;
@@ -45,20 +35,10 @@ private:
     void shutdown_flatten();
 
     config::AppConfig cfg_;
-    std::shared_ptr<aeron::Aeron> aeron_;
     metrics::StrategyMetrics metrics_;
-    refdata::FeeCache fee_cache_;
-    refdata::FundingRateCache funding_rate_cache_;
-    std::unique_ptr<refdata::RefdataClient> refdata_;
-    std::unique_ptr<md::MdClient> md_client_;
-    std::unique_ptr<order::IOrderGatewayClient> order_gw_;
-    std::unique_ptr<vol::VolSurfaceClient> vol_client_;
+    messaging::StrategyBus bus_;
     std::unique_ptr<order::OrderManager> order_mgr_;
     std::unique_ptr<strategy::IStrategy> strategy_;
-    std::unique_ptr<backtest::BacktestClient> backtest_client_;
-    std::shared_ptr<aeron::Subscription> tyr_sub_;          // optional: Analytics toxicity stream
-    std::shared_ptr<aeron::Subscription> dashboard_ctrl_sub_;
-    std::unique_ptr<dashboard::PortfolioSnapshotPublisher> portfolio_snap_pub_;
 
     // Drives the refdata→accounts→subscribe→snapshot startup sequence.
     // Constructed after strategy_/order_gw_/refdata_ exist.

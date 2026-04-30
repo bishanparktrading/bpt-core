@@ -30,6 +30,7 @@ cc_library(
 cc_test(
     name = "strategy_unit_tests",
     srcs = [
+        "tests/unit/test_fair_value_estimator.cpp",
         "tests/unit/test_instrument_cache.cpp",
         "tests/unit/test_ofi_calculator.cpp",
         "tests/unit/test_order_book_state.cpp",
@@ -57,6 +58,9 @@ cc_binary(
         "src/backtest/backtest_client.cpp",
         "src/config/config.cpp",
         "src/dashboard/portfolio_snapshot_publisher.cpp",
+        "src/messaging/aeron_bus.cpp",
+        "src/messaging/dashboard_control_subscriber.cpp",
+        "src/messaging/toxicity_subscriber.cpp",
         "src/metrics/metrics.cpp",
         "src/refdata/refdata_client.cpp",
         "src/refdata/fee_cache.cpp",

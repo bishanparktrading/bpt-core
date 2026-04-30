@@ -44,8 +44,7 @@ public:
                   int fee_schedule_stream,  // 1004 — fee schedule updates
                   int funding_rate_stream,  // 1005 — funding rate updates
                   int status_stream,        // 1006 — ready + error signals
-                  FeeCache& fee_cache,
-                  FundingRateCache& funding_rate_cache);
+                  uint64_t max_staleness_ns);
 
     // Send a subscription request with canonical filters so the server pre-filters the snapshot.
     // An empty filters vector means subscribe-all (receive the full universe).
@@ -122,8 +121,8 @@ private:
     std::unique_ptr<bpt::common::aeron::Subscriber> funding_sub_;
     std::unique_ptr<bpt::common::aeron::Subscriber> status_sub_;
 
-    FeeCache& fee_cache_;
-    FundingRateCache& funding_rate_cache_;
+    FeeCache fee_cache_;
+    FundingRateCache funding_rate_cache_;
 
     InstrumentCache cache_;
     uint64_t correlation_id_{0};
