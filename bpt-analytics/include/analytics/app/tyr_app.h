@@ -4,40 +4,27 @@
 #include "analytics/analysis/markout_tracker.h"
 #include "analytics/analysis/toxicity_scorer.h"
 #include "analytics/config/settings.h"
-
-#include <Aeron.h>
+#include "analytics/messaging/aeron_bus.h"
 
 #include <cstdint>
-#include <memory>
 #include <unordered_map>
 #include <bpt_app/app.h>
-#include <bpt_common/aeron/publisher.h>
-#include <bpt_common/aeron/subscriber.h>
 
 namespace bpt::analytics {
 
 class AnalyticsApp : public bpt::app::IService {
 public:
-    AnalyticsApp(config::Settings settings, std::shared_ptr<aeron::Aeron> aeron);
+    AnalyticsApp(config::Settings settings, messaging::AnalyticsBus bus);
     void run() override;
 
 private:
     void on_bbo(uint64_t instrument_id, double bid, double ask, uint64_t timestamp_ns);
     void on_exec_fill(uint64_t instrument_id, int side_sign, double fill_price, uint64_t timestamp_ns);
+    void on_exec_report(const bpt::messages::ExecutionReport& rpt);
     void maybe_publish(uint64_t now_ns);
 
-    void handle_exec_report(aeron::AtomicBuffer& buf, aeron::util::index_t offset,
-                            aeron::util::index_t length, aeron::Header& hdr);
-    void handle_md(aeron::AtomicBuffer& buf, aeron::util::index_t offset,
-                   aeron::util::index_t length, aeron::Header& hdr);
-
     config::Settings settings_;
-    std::shared_ptr<aeron::Aeron> aeron_;
-
-    // Aeron I/O
-    std::unique_ptr<bpt::common::aeron::Subscriber> exec_sub_;
-    std::unique_ptr<bpt::common::aeron::Subscriber> md_sub_;
-    std::unique_ptr<bpt::common::aeron::Publisher> toxicity_pub_;
+    messaging::AnalyticsBus bus_;
 
     // Per-instrument state
     struct InstrumentState {

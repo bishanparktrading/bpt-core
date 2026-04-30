@@ -1,5 +1,6 @@
 #include "analytics/app/tyr_app.h"
 #include "analytics/config/settings.h"
+#include "analytics/messaging/aeron_bus.h"
 
 #include <CLI/CLI.hpp>
 #include <memory>
@@ -27,8 +28,9 @@ int main(int argc, char** argv) {
     try {
         return bpt::app::run("bpt-analytics", std::move(settings),
             [](auto& cfg, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
+                auto bus = bpt::analytics::messaging::AnalyticsAeronBus::build(ctx.aeron, cfg);
                 return std::make_unique<bpt::analytics::AnalyticsApp>(
-                    std::move(cfg), ctx.aeron);
+                    std::move(cfg), std::move(bus));
             });
     } catch (const std::exception& e) {
         bpt::common::log::error("Fatal: {}", e.what());

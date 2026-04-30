@@ -39,6 +39,10 @@ cc_binary(
         "src/main.cpp",
         "src/app/tyr_app.cpp",
         "src/config/config.cpp",
+        "src/messaging/aeron_bus.cpp",
+        "src/messaging/exec_report_subscriber.cpp",
+        "src/messaging/md_bbo_subscriber.cpp",
+        "src/messaging/toxicity_publisher.cpp",
     ],
     deps = [
         ":analytics_core",

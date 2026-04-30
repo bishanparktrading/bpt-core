@@ -3,14 +3,9 @@
 
 #include <messages/ExecStatus.h>
 #include <messages/ExecutionReport.h>
-#include <messages/MdMarketData.h>
-#include <messages/MessageHeader.h>
 #include <messages/OrderSide.h>
 
 #include <chrono>
-#include <cstring>
-#include <thread>
-#include <bpt_common/aeron/aeron_utils.h>
 #include <bpt_common/logging.h>
 #include <bpt_common/signal.h>
 
@@ -18,8 +13,8 @@ namespace bpt::analytics {
 
 using namespace bpt::messages;
 
-AnalyticsApp::AnalyticsApp(config::Settings settings, std::shared_ptr<aeron::Aeron> aeron)
-    : settings_(std::move(settings)), aeron_(std::move(aeron)) {
+AnalyticsApp::AnalyticsApp(config::Settings settings, messaging::AnalyticsBus bus)
+    : settings_(std::move(settings)), bus_(std::move(bus)) {
     // Configure analysis components
     mt_cfg_ = {
         .horizon_1_ns = 1'000'000'000ULL,
@@ -36,31 +31,15 @@ AnalyticsApp::AnalyticsApp(config::Settings settings, std::shared_ptr<aeron::Aer
         .window_size = settings_.scorer_window_size,  // same window as scorer
     };
 
-    // Subscribe to exec reports (stream 3002)
-    exec_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
-        aeron_, settings_.exec_report.channel, settings_.exec_report.stream_id,
-        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset,
-               aeron::util::index_t length, aeron::Header& hdr) {
-            handle_exec_report(buf, offset, length, hdr);
-        });
+    bus_.exec_sub->on_report = [this](const ExecutionReport& rpt) { on_exec_report(rpt); };
+    bus_.md_sub->on_bbo = [this](uint64_t instrument_id, double bid, double ask, uint64_t ts_ns) {
+        on_bbo(instrument_id, bid, ask, ts_ns);
+    };
+
     bpt::common::log::info("Exec report subscription ready: {} stream {}",
                    settings_.exec_report.channel, settings_.exec_report.stream_id);
-
-    // Subscribe to MD (stream 2002)
-    md_sub_ = std::make_unique<bpt::common::aeron::Subscriber>(
-        aeron_, settings_.md_data.channel, settings_.md_data.stream_id,
-        [this](aeron::AtomicBuffer& buf, aeron::util::index_t offset,
-               aeron::util::index_t length, aeron::Header& hdr) {
-            handle_md(buf, offset, length, hdr);
-        });
     bpt::common::log::info("MD subscription ready: {} stream {}",
                    settings_.md_data.channel, settings_.md_data.stream_id);
-
-    // Publisher for toxicity updates (stream 5001). Idempotent/periodic
-    // — next tick replaces — so drop on no-subscriber is fine.
-    toxicity_pub_ = std::make_unique<bpt::common::aeron::Publisher>(
-        aeron_, settings_.toxicity.channel, settings_.toxicity.stream_id,
-        bpt::common::aeron::Publisher::Policy::kBoundedRetry);
     bpt::common::log::info("Toxicity publication ready: {} stream {}",
                    settings_.toxicity.channel, settings_.toxicity.stream_id);
 }
@@ -118,80 +97,7 @@ void AnalyticsApp::on_exec_fill(uint64_t instrument_id, int side_sign, double fi
                     st.last_mid);
 }
 
-void AnalyticsApp::maybe_publish(uint64_t now_ns) {
-    const uint64_t interval_ns = static_cast<uint64_t>(settings_.publish_interval_ms) * 1'000'000ULL;
-    if (now_ns - last_publish_ns_ < interval_ns)
-        return;
-    last_publish_ns_ = now_ns;
-
-    if (!toxicity_pub_)
-        return;
-
-    for (const auto& [instrument_id, st] : state_) {
-        // Pass 0 as instrument filter so observations with instrument_id=0
-        // (from exchanges that don't carry canonical IDs in exec reports)
-        // are included in the computation.
-        auto update = st.scorer.compute(0, now_ns);
-        update.instrument_id = instrument_id;
-
-        // Add fill rate stats
-        auto bid_fr = st.fill_rate.stats(+1);
-        auto ask_fr = st.fill_rate.stats(-1);
-        update.bid_fill_rate = bid_fr.fill_rate;
-        update.ask_fill_rate = ask_fr.fill_rate;
-        update.bid_ttf_ms = bid_fr.mean_ttf_ms;
-        update.ask_ttf_ms = ask_fr.mean_ttf_ms;
-
-        // Only publish if we have data on at least one side
-        if (update.bid_sample_count == 0 && update.ask_sample_count == 0
-            && bid_fr.total == 0 && ask_fr.total == 0)
-            continue;
-
-        // Publish as raw bytes — fenrir reads the same POD struct
-        aeron::concurrent::AtomicBuffer ab(
-            reinterpret_cast<uint8_t*>(const_cast<messaging::ToxicityUpdate*>(&update)),
-            sizeof(update));
-        const bool sent = toxicity_pub_->offer(ab, 0, static_cast<int32_t>(sizeof(update)));
-
-        if (sent) {
-            // Copy packed fields to locals for fmt (can't bind references to packed members)
-            double bid_m = update.bid_markout_5s_bps;
-            uint32_t bid_n = update.bid_sample_count;
-            double ask_m = update.ask_markout_5s_bps;
-            uint32_t ask_n = update.ask_sample_count;
-            double bid_t = update.bid_toxicity_score;
-            double ask_t = update.ask_toxicity_score;
-            double b_fr = update.bid_fill_rate;
-            double a_fr = update.ask_fill_rate;
-            double b_ttf = update.bid_ttf_ms;
-            double a_ttf = update.ask_ttf_ms;
-            bpt::common::log::info("Published inst={} bid={:.1f}bps(n={}) ask={:.1f}bps(n={}) "
-                           "tox={:.2f}/{:.2f} fill_rate={:.0f}%/{:.0f}% ttf={:.0f}/{:.0f}ms",
-                           instrument_id, bid_m, bid_n, ask_m, ask_n,
-                           bid_t, ask_t, b_fr * 100, a_fr * 100, b_ttf, a_ttf);
-        }
-    }
-}
-
-void AnalyticsApp::handle_exec_report(aeron::AtomicBuffer& buffer,
-                                      aeron::util::index_t offset,
-                                      aeron::util::index_t length,
-                                      aeron::Header& /*hdr_header*/) {
-    if (length < static_cast<aeron::util::index_t>(MessageHeader::encodedLength()))
-        return;
-
-    auto* data = reinterpret_cast<char*>(buffer.buffer() + offset);
-    MessageHeader hdr;
-    hdr.wrap(data, 0, MessageHeader::sbeSchemaVersion(), static_cast<uint64_t>(length));
-
-    if (hdr.templateId() != ExecutionReport::sbeTemplateId())
-        return;
-
-    ExecutionReport rpt;
-    rpt.wrapForDecode(data, MessageHeader::encodedLength(),
-                      hdr.blockLength(), hdr.version(),
-                      static_cast<uint64_t>(length));
-
+void AnalyticsApp::on_exec_report(const ExecutionReport& rpt) {
     const auto status = rpt.status();
     const int side_sign = (rpt.side() == OrderSide::BUY) ? +1 : -1;
     const uint64_t now_ns = static_cast<uint64_t>(
@@ -215,26 +121,55 @@ void AnalyticsApp::handle_exec_report(aeron::AtomicBuffer& buffer,
     }
 }
 
-void AnalyticsApp::handle_md(aeron::AtomicBuffer& buffer,
-                             aeron::util::index_t offset,
-                             aeron::util::index_t length,
-                             aeron::Header& /*hdr_header*/) {
-    if (length < static_cast<aeron::util::index_t>(MessageHeader::encodedLength()))
+void AnalyticsApp::maybe_publish(uint64_t now_ns) {
+    const uint64_t interval_ns = static_cast<uint64_t>(settings_.publish_interval_ms) * 1'000'000ULL;
+    if (now_ns - last_publish_ns_ < interval_ns)
+        return;
+    last_publish_ns_ = now_ns;
+
+    if (!bus_.tox_pub)
         return;
 
-    auto* data = reinterpret_cast<char*>(buffer.buffer() + offset);
-    MessageHeader hdr;
-    hdr.wrap(data, 0, MessageHeader::sbeSchemaVersion(), static_cast<uint64_t>(length));
+    for (const auto& [instrument_id, st] : state_) {
+        // Pass 0 as instrument filter so observations with instrument_id=0
+        // (from exchanges that don't carry canonical IDs in exec reports)
+        // are included in the computation.
+        auto update = st.scorer.compute(0, now_ns);
+        update.instrument_id = instrument_id;
 
-    if (hdr.templateId() != MdMarketData::sbeTemplateId())
-        return;
+        // Add fill rate stats
+        auto bid_fr = st.fill_rate.stats(+1);
+        auto ask_fr = st.fill_rate.stats(-1);
+        update.bid_fill_rate = bid_fr.fill_rate;
+        update.ask_fill_rate = ask_fr.fill_rate;
+        update.bid_ttf_ms = bid_fr.mean_ttf_ms;
+        update.ask_ttf_ms = ask_fr.mean_ttf_ms;
 
-    MdMarketData md;
-    md.wrapForDecode(data, MessageHeader::encodedLength(),
-                     hdr.blockLength(), hdr.version(),
-                     static_cast<uint64_t>(length));
+        // Only publish if we have data on at least one side
+        if (update.bid_sample_count == 0 && update.ask_sample_count == 0
+            && bid_fr.total == 0 && ask_fr.total == 0)
+            continue;
 
-    on_bbo(md.instrumentId(), md.bidPrice(), md.askPrice(), md.timestampNs());
+        const bool sent = bus_.tox_pub->publish(update);
+
+        if (sent) {
+            // Copy packed fields to locals for fmt (can't bind references to packed members)
+            double bid_m = update.bid_markout_5s_bps;
+            uint32_t bid_n = update.bid_sample_count;
+            double ask_m = update.ask_markout_5s_bps;
+            uint32_t ask_n = update.ask_sample_count;
+            double bid_t = update.bid_toxicity_score;
+            double ask_t = update.ask_toxicity_score;
+            double b_fr = update.bid_fill_rate;
+            double a_fr = update.ask_fill_rate;
+            double b_ttf = update.bid_ttf_ms;
+            double a_ttf = update.ask_ttf_ms;
+            bpt::common::log::info("Published inst={} bid={:.1f}bps(n={}) ask={:.1f}bps(n={}) "
+                           "tox={:.2f}/{:.2f} fill_rate={:.0f}%/{:.0f}% ttf={:.0f}/{:.0f}ms",
+                           instrument_id, bid_m, bid_n, ask_m, ask_n,
+                           bid_t, ask_t, b_fr * 100, a_fr * 100, b_ttf, a_ttf);
+        }
+    }
 }
 
 void AnalyticsApp::run() {
@@ -245,8 +180,8 @@ void AnalyticsApp::run() {
 
     while (bpt::common::signal::is_running()) {
         int frags = 0;
-        if (exec_sub_) frags += exec_sub_->poll(10);
-        if (md_sub_)   frags += md_sub_->poll(10);
+        if (bus_.exec_sub) frags += bus_.exec_sub->poll(10);
+        if (bus_.md_sub)   frags += bus_.md_sub->poll(10);
 
         const uint64_t now_ns = static_cast<uint64_t>(
             std::chrono::steady_clock::now().time_since_epoch().count());
