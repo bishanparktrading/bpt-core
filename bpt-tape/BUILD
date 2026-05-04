@@ -1,17 +1,18 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 
-# bpt-md-recorder — venue WS-frame recorder. Imports bpt-md-gateway's adapter
-# library and substitutes recording subclasses that tee raw bytes to disk via
-# bpt::common::recorder::RawSpool. mdgw + refdata service binaries are
-# untouched; recording lives entirely in this process.
+# bpt-tape — venue WS-frame recorder ("the tape"). Imports bpt-md-gateway's
+# adapter library and substitutes recording subclasses that tee raw bytes
+# to disk via bpt::common::recorder::RawSpool. mdgw + refdata service
+# binaries are untouched; recording lives entirely in this process.
+# Refdata REST snapshot capture is a planned extension via the same RawSpool.
 
 cc_library(
-    name = "md_recorder_lib",
+    name = "tape_lib",
     srcs = [
         "src/config/loader.cpp",
     ],
-    hdrs = glob(["include/md_recorder/**/*.h"]),
+    hdrs = glob(["include/tape/**/*.h"]),
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
@@ -25,12 +26,12 @@ cc_library(
 )
 
 cc_binary(
-    name = "bpt-md-recorder",
+    name = "bpt-tape",
     srcs = [
         "src/main.cpp",
     ],
     deps = [
-        ":md_recorder_lib",
+        ":tape_lib",
         "//bpt-app",
         "//bpt-common",
         "//bpt-md-gateway:md_gateway_lib",

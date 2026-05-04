@@ -15,7 +15,7 @@ namespace bpt::refdata::http {
 // All methods throw std::runtime_error on non-2xx responses or connection failure.
 //
 // Methods are virtual to support recording-aware subclasses (used by
-// bpt-md-recorder which wraps each instance with a tee that captures
+// bpt-tape which wraps each instance with a tee that captures
 // response bodies to disk). Adapters hold this via shared_ptr so a
 // recorder process can substitute a subclass without recompiling refdata.
 class RestClient {

@@ -74,7 +74,7 @@ mkdir -p "$STAGE"/{bin/transport,share/schema,share/config-templates,share/instr
 # so deploy.sh can seed $BPT_DEPLOY_ROOT/<svc>/config/ on first install —
 # that layout is what the generated systemd units expect at runtime
 # (WorkingDirectory=$BPT_ROOT/$svc). See deploy/generate-units.sh.
-mkdir -p "$STAGE"/share/service-configs/{refdata,md-gateway,md-recorder,order-gateway,strategy,analytics,bridge}
+mkdir -p "$STAGE"/share/service-configs/{refdata,md-gateway,tape,order-gateway,strategy,analytics,bridge}
 
 echo "--- Copying C++ binaries..."
 # Map: source binary path → destination name under bin/
@@ -85,7 +85,7 @@ declare -A SERVICES=(
     ["bpt-strategy/bpt-strategy"]="bpt-strategy"
     ["bpt-order-gateway/bpt-order-gateway"]="bpt-order-gateway"
     ["bpt-md-gateway/bpt-md-gateway"]="bpt-md-gateway"
-    ["bpt-md-recorder/bpt-md-recorder"]="bpt-md-recorder"
+    ["bpt-tape/bpt-tape"]="bpt-tape"
     ["bpt-refdata/bpt-refdata"]="bpt-refdata"
     ["bpt-analytics/bpt-analytics"]="bpt-analytics"
     ["bpt-pricer/bpt-pricer"]="bpt-pricer"
@@ -145,7 +145,7 @@ copy_service_configs() {
 }
 copy_service_configs bpt-refdata/config         "$STAGE/share/service-configs/refdata"
 copy_service_configs bpt-md-gateway/config      "$STAGE/share/service-configs/md-gateway"
-copy_service_configs bpt-md-recorder/config     "$STAGE/share/service-configs/md-recorder"
+copy_service_configs bpt-tape/config            "$STAGE/share/service-configs/tape"
 copy_service_configs bpt-order-gateway/config   "$STAGE/share/service-configs/order-gateway"
 copy_service_configs bpt-strategy/config        "$STAGE/share/service-configs/strategy"
 copy_service_configs bpt-analytics/config       "$STAGE/share/service-configs/analytics"

@@ -7,10 +7,10 @@
 #include <bpt_common/aeron/stream_config.h>
 #include <md_gateway/config/settings.h>
 
-namespace bpt::md_recorder::config {
+namespace bpt::tape::config {
 
 // Universe filter — what to record from the instrument-mapping JSON.
-// Operator declares high-level criteria; md-recorder iterates the loaded
+// Operator declares high-level criteria; bpt-tape iterates the loaded
 // mapping for each venue, applies these filters, and calls subscribe()
 // per surviving entry. Replaces the per-symbol [[universe]] hand-curation.
 struct UniverseFilter {
@@ -44,7 +44,7 @@ struct Settings {
     std::vector<bpt::md_gateway::config::AdapterConfig> mdgw_adapters;
 
     // Path to the canonical instrument_mapping.json (the same file
-    // bpt-refdata reads on the trading host). md-recorder loads this
+    // bpt-refdata reads on the trading host). bpt-tape loads this
     // at boot, iterates by venue, applies UniverseFilter, calls
     // subscribe() per surviving entry. Hot-reloadable on a periodic
     // tick if the operator wants new listings to land mid-session.
@@ -65,4 +65,4 @@ struct Settings {
 
 Settings load(const std::string& path);
 
-}  // namespace bpt::md_recorder::config
+}  // namespace bpt::tape::config

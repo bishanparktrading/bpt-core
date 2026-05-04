@@ -59,7 +59,7 @@ declare -A BIN
 if [ -n "${BPT_DEPLOY_ROOT:-}" ]; then
     BIN[bpt-refdata]="$BPT_BIN_ROOT/bpt-refdata"
     BIN[bpt-md-gateway]="$BPT_BIN_ROOT/bpt-md-gateway"
-    BIN[bpt-md-recorder]="$BPT_BIN_ROOT/bpt-md-recorder"
+    BIN[bpt-tape]="$BPT_BIN_ROOT/bpt-tape"
     BIN[bpt-order-gateway]="$BPT_BIN_ROOT/bpt-order-gateway"
     BIN[bpt-strategy]="$BPT_BIN_ROOT/bpt-strategy"
     BIN[bpt-analytics]="$BPT_BIN_ROOT/bpt-analytics"
@@ -68,13 +68,55 @@ if [ -n "${BPT_DEPLOY_ROOT:-}" ]; then
 else
     BIN[bpt-refdata]="$BPT_BIN_ROOT/bpt-refdata/bpt-refdata"
     BIN[bpt-md-gateway]="$BPT_BIN_ROOT/bpt-md-gateway/bpt-md-gateway"
-    BIN[bpt-md-recorder]="$BPT_BIN_ROOT/bpt-md-recorder/bpt-md-recorder"
+    BIN[bpt-tape]="$BPT_BIN_ROOT/bpt-tape/bpt-tape"
     BIN[bpt-order-gateway]="$BPT_BIN_ROOT/bpt-order-gateway/bpt-order-gateway"
     BIN[bpt-strategy]="$BPT_BIN_ROOT/bpt-strategy/bpt-strategy"
     BIN[bpt-analytics]="$BPT_BIN_ROOT/bpt-analytics/bpt-analytics"
     BIN[bpt-book]="$BPT_BIN_ROOT/bpt-book/bpt-book"
     BIN[bpt-bridge]="$BPT_BIN_ROOT/dashboard/bridge/bridge"
 fi
+
+# ── Resource limits (per-service, tiered by trading criticality) ────────────
+# Three tiers:
+#   hotpath  — must survive memory pressure (transport, md-gw, ogw, strategy).
+#              OOMScoreAdjust=-100 means kernel kills these last.
+#   support  — required for trading but off the order/MD path (refdata).
+#              OOMScoreAdjust=-50.
+#   aux      — observability/recording, kill first (analytics, book, bridge,
+#              tape). OOMScoreAdjust=0 (default).
+#
+# MemoryMax caps are deliberately generous (~3-5x measured steady-state on
+# OKX demo) — the goal is "stop a runaway" not "shrink-wrap normal use".
+# TasksMax catches thread-leak fork bombs. LimitNOFILE budgets fds for WS
+# fanout (each adapter holds REST + WS sockets per venue + Aeron pubs/subs).
+declare -A MEM TASKS NOFILE OOMADJ
+MEM[bpt-transport]=4G;       TASKS[bpt-transport]=512;       NOFILE[bpt-transport]=65536; OOMADJ[bpt-transport]=-100
+MEM[bpt-md-gateway]=1G;      TASKS[bpt-md-gateway]=256;      NOFILE[bpt-md-gateway]=16384; OOMADJ[bpt-md-gateway]=-100
+MEM[bpt-order-gateway]=1G;   TASKS[bpt-order-gateway]=256;   NOFILE[bpt-order-gateway]=8192; OOMADJ[bpt-order-gateway]=-100
+MEM[bpt-strategy]=1G;        TASKS[bpt-strategy]=128;        NOFILE[bpt-strategy]=4096; OOMADJ[bpt-strategy]=-100
+MEM[bpt-refdata]=512M;       TASKS[bpt-refdata]=128;         NOFILE[bpt-refdata]=4096; OOMADJ[bpt-refdata]=-50
+MEM[bpt-book]=256M;          TASKS[bpt-book]=64;             NOFILE[bpt-book]=4096; OOMADJ[bpt-book]=0
+MEM[bpt-analytics]=512M;     TASKS[bpt-analytics]=128;       NOFILE[bpt-analytics]=4096; OOMADJ[bpt-analytics]=0
+MEM[bpt-bridge]=256M;        TASKS[bpt-bridge]=64;           NOFILE[bpt-bridge]=4096; OOMADJ[bpt-bridge]=0
+MEM[bpt-tape]=2G;            TASKS[bpt-tape]=128;            NOFILE[bpt-tape]=8192; OOMADJ[bpt-tape]=0
+
+# Restart-loop guard: 5 failed starts inside 300s → systemd gives up instead
+# of looping forever. Pairs with the existing Restart=on-failure RestartSec=3.
+START_LIMIT_INTERVAL=300
+START_LIMIT_BURST=5
+
+# Emit the per-service [Service] resource block. Caller passes the service
+# name; the function looks up the tier values and prints them. Trailing
+# newline is intentional — caller embeds the result mid-heredoc.
+emit_limits() {
+    local svc=$1
+    cat <<EOF
+MemoryMax=${MEM[$svc]}
+TasksMax=${TASKS[$svc]}
+LimitNOFILE=${NOFILE[$svc]}
+OOMScoreAdjust=${OOMADJ[$svc]}
+EOF
+}
 
 # Java jar — different filename convention between the two modes
 # (laptop: unversioned name from gradle, deploy: version-suffixed).
@@ -100,6 +142,8 @@ cat > "$UNIT_DIR/bpt-transport.service" <<EOF
 [Unit]
 Description=BPT Transport (Aeron MediaDriver)
 PartOf=bpt-stack.target
+StartLimitIntervalSec=$START_LIMIT_INTERVAL
+StartLimitBurst=$START_LIMIT_BURST
 
 [Service]
 Type=simple
@@ -108,7 +152,7 @@ ExecStart=/usr/bin/java --add-opens java.base/sun.nio.ch=ALL-UNNAMED --add-opens
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=10
-
+$(emit_limits bpt-transport)
 [Install]
 WantedBy=bpt-stack.target
 EOF
@@ -149,6 +193,8 @@ Description=BPT $svc_desc
 After=$after
 Requires=bpt-transport.service
 PartOf=bpt-stack.target bpt-transport.service
+StartLimitIntervalSec=$START_LIMIT_INTERVAL
+StartLimitBurst=$START_LIMIT_BURST
 
 [Service]
 Type=simple
@@ -158,7 +204,7 @@ ExecStart=${BIN[$svc]} --config \${$cfg_var}
 ${creds_lines}Restart=on-failure
 RestartSec=3
 TimeoutStopSec=15
-
+$(emit_limits "$svc")
 [Install]
 WantedBy=bpt-stack.target
 EOF
@@ -171,6 +217,8 @@ Description=BPT Strategy Engine
 After=bpt-md-gateway.service bpt-order-gateway.service
 Requires=bpt-transport.service
 PartOf=bpt-stack.target bpt-transport.service
+StartLimitIntervalSec=$START_LIMIT_INTERVAL
+StartLimitBurst=$START_LIMIT_BURST
 
 [Service]
 Type=simple
@@ -180,7 +228,7 @@ ExecStart=${BIN[bpt-strategy]} --config \${BPT_STRATEGY_CONFIG}
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=30
-
+$(emit_limits bpt-strategy)
 [Install]
 WantedBy=bpt-stack.target
 EOF
@@ -194,6 +242,8 @@ Description=BPT Book Service (multi-venue balance + position aggregator)
 After=bpt-refdata.service
 Requires=bpt-transport.service
 PartOf=bpt-stack.target bpt-transport.service
+StartLimitIntervalSec=$START_LIMIT_INTERVAL
+StartLimitBurst=$START_LIMIT_BURST
 
 [Service]
 Type=simple
@@ -203,7 +253,7 @@ ExecStart=${BIN[bpt-book]} --config \${BPT_BOOK_CONFIG}
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=10
-
+$(emit_limits bpt-book)
 [Install]
 WantedBy=bpt-stack.target
 EOF
@@ -215,6 +265,8 @@ Description=BPT Analytics (markouts, toxicity, fill rate)
 After=bpt-strategy.service
 Requires=bpt-transport.service
 PartOf=bpt-stack.target bpt-transport.service
+StartLimitIntervalSec=$START_LIMIT_INTERVAL
+StartLimitBurst=$START_LIMIT_BURST
 
 [Service]
 Type=simple
@@ -224,7 +276,7 @@ ExecStart=${BIN[bpt-analytics]} --config \${BPT_ANALYTICS_CONFIG}
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=10
-
+$(emit_limits bpt-analytics)
 [Install]
 WantedBy=bpt-stack.target
 EOF
@@ -236,6 +288,8 @@ Description=BPT Dashboard Bridge
 After=bpt-strategy.service
 Requires=bpt-transport.service
 PartOf=bpt-stack.target bpt-transport.service
+StartLimitIntervalSec=$START_LIMIT_INTERVAL
+StartLimitBurst=$START_LIMIT_BURST
 
 [Service]
 Type=simple
@@ -245,7 +299,7 @@ ExecStart=${BIN[bpt-bridge]} --config \${BPT_BRIDGE_CONFIG} --mode \${BPT_BRIDGE
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=10
-
+$(emit_limits bpt-bridge)
 [Install]
 WantedBy=bpt-stack.target
 EOF
@@ -365,32 +419,34 @@ RandomizedDelaySec=15min
 WantedBy=timers.target
 EOF
 
-# ── bpt-md-recorder.service + recording rotate timer ───────────────────────
-# bpt-md-recorder is a dedicated binary that imports bpt-md-gateway's
+# ── bpt-tape.service + recording rotate timer ──────────────────────────────
+# bpt-tape ("the tape") is a dedicated binary that imports bpt-md-gateway's
 # adapter library and substitutes recording-aware subclasses (override
 # on_frame to tee raw WS bytes to disk via RawSpool). Trading-stack
 # mdgw + refdata services have no recording code — recording lives
 # entirely in this process. Designed for a recording-only VPS that
 # just sits there capturing.
 #
-# Config path comes from $BPT_MD_RECORDER_CONFIG in the active env
-# (typically points at bpt-md-recorder.recording-hl.toml). Output
-# dir is /opt/bpt/data/raw/<venue>/<date>/, set inside the TOML —
-# same layout wslog_to_parquet.py expects.
-cat > "$UNIT_DIR/bpt-md-recorder.service" <<EOF
+# Config path comes from $BPT_TAPE_CONFIG in the active env
+# (typically points at bpt-tape.hl.toml). Output dir is
+# /opt/bpt/data/raw/<venue>/<date>/, set inside the TOML — same layout
+# mdlog_to_parquet.py expects.
+cat > "$UNIT_DIR/bpt-tape.service" <<EOF
 [Unit]
-Description=BPT Market-Data Recorder (continuous WS capture)
+Description=BPT Tape (continuous WS capture)
 PartOf=bpt-recording.target
+StartLimitIntervalSec=$START_LIMIT_INTERVAL
+StartLimitBurst=$START_LIMIT_BURST
 
 [Service]
 Type=simple
 EnvironmentFile=$ENV_FILE
-WorkingDirectory=$BPT_ROOT/bpt-md-recorder
-ExecStart=${BIN[bpt-md-recorder]} --config \${BPT_MD_RECORDER_CONFIG}
+WorkingDirectory=$BPT_ROOT/bpt-tape
+ExecStart=${BIN[bpt-tape]} --config \${BPT_TAPE_CONFIG}
 Restart=always
 RestartSec=5
 TimeoutStopSec=15
-
+$(emit_limits bpt-tape)
 [Install]
 WantedBy=bpt-recording.target
 EOF
@@ -468,10 +524,44 @@ AccuracySec=30s
 WantedBy=bpt-recording.target
 EOF
 
+# Hourly tape sync: pushes raw .wslog + parquet to S3 archive bucket.
+# Closes the durability hole between the daily rotate (Parquet conversion)
+# and the worst-case window where the recording host disk dies before
+# yesterday's data has been replicated off-host. See scripts/sync_tape_to_s3.sh.
+if [ -n "${BPT_DEPLOY_ROOT:-}" ]; then
+    sync_exec="$BPT_DEPLOY_ROOT/current/scripts/sync_tape_to_s3.sh"
+else
+    sync_exec="$BPT_ROOT/scripts/sync_tape_to_s3.sh"
+fi
+
+cat > "$UNIT_DIR/bpt-tape-sync.service" <<EOF
+[Unit]
+Description=BPT tape → S3 archive sync (hourly)
+
+[Service]
+Type=oneshot
+EnvironmentFile=$ENV_FILE
+ExecStart=$sync_exec
+EOF
+
+cat > "$UNIT_DIR/bpt-tape-sync.timer" <<EOF
+[Unit]
+Description=BPT tape sync every hour
+PartOf=bpt-recording.target
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=1h
+AccuracySec=5min
+
+[Install]
+WantedBy=bpt-recording.target
+EOF
+
 cat > "$UNIT_DIR/bpt-recording.target" <<EOF
 [Unit]
-Description=BPT Recording Stack (md-recorder + daily Parquet rotate + heartbeat)
-Wants=bpt-md-recorder.service bpt-recording-rotate.timer bpt-recording-heartbeat.timer
+Description=BPT Recording Stack (tape + daily Parquet rotate + S3 sync + heartbeat)
+Wants=bpt-tape.service bpt-recording-rotate.timer bpt-recording-heartbeat.timer bpt-tape-sync.timer
 
 [Install]
 WantedBy=default.target
@@ -504,6 +594,28 @@ fi
 
 echo "Generated $(ls "$UNIT_DIR"/bpt-*.service "$UNIT_DIR"/bpt-*.timer "$UNIT_DIR"/bpt-*.target 2>/dev/null | wc -l) units in $UNIT_DIR"
 echo "Active env: $(readlink -f "$ENV_FILE" 2>/dev/null || echo "$ENV_FILE")"
+
+# Resource-limit cgroup delegation check — MemoryMax/TasksMax/etc on user
+# units are silent no-ops unless the system instance has delegated the
+# memory + pids controllers down. Confirm by checking the property on the
+# user manager; if the controllers aren't delegated, point the operator at
+# the one-time fix.
+if [ "$UNIT_DIR" = "$HOME/.config/systemd/user" ] && command -v systemctl >/dev/null; then
+    delegate_controllers=$(systemctl --user show -p DelegateControllers --value 2>/dev/null || echo "")
+    if [[ "$delegate_controllers" != *memory* ]] || [[ "$delegate_controllers" != *pids* ]]; then
+        echo
+        echo "WARNING: user-instance cgroup delegation is missing memory and/or pids controllers."
+        echo "         MemoryMax / TasksMax in these units will be silent no-ops until you run"
+        echo "         (one-time, requires root):"
+        echo "             sudo mkdir -p /etc/systemd/system/user@.service.d"
+        echo "             sudo tee /etc/systemd/system/user@.service.d/delegate.conf <<'C'"
+        echo "             [Service]"
+        echo "             Delegate=memory pids cpu io"
+        echo "             C"
+        echo "             sudo systemctl daemon-reload"
+        echo "             sudo systemctl restart user@\$(id -u).service   # logs you out of the user scope"
+    fi
+fi
 echo
 echo "Enable + start:"
 echo "  systemctl --user enable --now bpt-config-sync.timer   # daily config pull"

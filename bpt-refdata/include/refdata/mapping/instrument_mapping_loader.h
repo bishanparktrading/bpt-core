@@ -97,7 +97,7 @@ public:
     // Snapshot view: every instrument in the mapping that has a listing
     // for the requested exchange_id. Returned by value (small per-process
     // catalog, hundreds-of-KB at most) so callers can iterate without
-    // holding the read lock. md-recorder uses this to build its universe
+    // holding the read lock. bpt-tape uses this to build its universe
     // from the JSON without needing a running refdata service.
     [[nodiscard]] std::vector<InstrumentEntry> instruments_for_venue(uint8_t exchange_id) const;
 

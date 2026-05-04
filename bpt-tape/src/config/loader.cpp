@@ -1,4 +1,4 @@
-#include "md_recorder/config/settings.h"
+#include "tape/config/settings.h"
 
 #include <fmt/format.h>
 #include <fmt/ranges.h>
@@ -8,7 +8,7 @@
 #include <bpt_app/base_settings.h>
 #include <bpt_common/logging.h>
 
-namespace bpt::md_recorder::config {
+namespace bpt::tape::config {
 
 namespace {
 
@@ -60,7 +60,7 @@ Settings load(const std::string& path) {
     } else if (auto* arr = root["adapters"].as_array()) {
         adapters_arr = *arr;
     } else {
-        throw std::runtime_error("md-recorder config: missing [adapters] or exchange_config");
+        throw std::runtime_error("bpt-tape config: missing [adapters] or exchange_config");
     }
 
     // Filter by recording_universe_venues if non-empty.
@@ -80,7 +80,7 @@ Settings load(const std::string& path) {
             continue;
         s.mdgw_adapters.push_back(std::move(ac));
     }
-    bpt::common::log::info("md-recorder adapters: {} venues",
+    bpt::common::log::info("bpt-tape adapters: {} venues",
                            s.mdgw_adapters.size());
 
     if (auto v = root["instrument_mapping_path"].value<std::string>())
@@ -100,7 +100,7 @@ Settings load(const std::string& path) {
         if (auto v = (*uf)["default_depth"].value<int64_t>())
             s.universe_filter.default_depth = static_cast<uint8_t>(*v);
     }
-    bpt::common::log::info("md-recorder universe filter: types=[{}] exclude=[{}] depth={}",
+    bpt::common::log::info("bpt-tape universe filter: types=[{}] exclude=[{}] depth={}",
                            fmt::join(s.universe_filter.inst_types, ","),
                            fmt::join(s.universe_filter.exclude_bases, ","),
                            s.universe_filter.default_depth);
@@ -124,4 +124,4 @@ Settings load(const std::string& path) {
     return s;
 }
 
-}  // namespace bpt::md_recorder::config
+}  // namespace bpt::tape::config

@@ -1,11 +1,11 @@
-# bpt-md-recorder — HL MAINNET RECORDING config.
+# bpt-tape — HL MAINNET RECORDING config.
 #
 # Records real Hyperliquid mainnet ticks to /opt/bpt/data/raw/hyperliquid/.
 # Read-only (passive subscriber, no orders) so it's safe to point at
 # mainnet even when the trading stack is on testnet.
 #
 # Universe selection: derived dynamically from the canonical
-# instrument_mapping.json. md-recorder loads the file at boot, walks it
+# instrument_mapping.json. bpt-tape loads the file at boot, walks it
 # per venue, filters by inst_types + exclude_bases, and subscribes to
 # every survivor. Adding/removing recording symbols becomes an edit to
 # the mapping JSON (which bpt-ops fetchers maintain), not this TOML.
@@ -21,16 +21,16 @@ recording_universe_venues = ["HYPERLIQUID"]
 
 # Path to the canonical instrument_mapping.json. Same file bpt-refdata
 # reads on the trading host; here it's the source of truth for what
-# md-recorder subscribes to. bpt-ops fetchers update this file on
+# bpt-tape subscribes to. bpt-ops fetchers update this file on
 # schedule — point at a path under config/instruments/ so a config-sync
 # pull also refreshes the recording universe.
 instrument_mapping_path = "config/instruments/instrument_mapping.hyperliquid.json"
 
-# No [aeron] block — md-recorder passes connect_aeron=false to bpt::app::run
+# No [aeron] block — bpt-tape passes connect_aeron=false to bpt::app::run
 # (see main.cpp). Venue WS frames go straight to disk via RawSpool; nothing
 # publishes SBE; the recording host runs zero Aeron infrastructure.
 
-# Inline adapter list (md-recorder accepts either [[adapters]] inline or
+# Inline adapter list (bpt-tape accepts either [[adapters]] inline or
 # exchange_config indirection — same shape as bpt-md-gateway's loader).
 [[adapters]]
 exchange = "HYPERLIQUID"

@@ -81,7 +81,7 @@ public:
 ///
 /// Default-constructed RunOptions matches the historical behavior — every
 /// existing caller keeps connecting to Aeron. Opt out per-service when
-/// there's no Aeron consumer (e.g. bpt-md-recorder captures WS frames to
+/// there's no Aeron consumer (e.g. bpt-tape captures WS frames to
 /// disk only; nothing publishes).
 struct RunOptions {
     /// Connect to the Aeron MediaDriver and populate AppContext::aeron.

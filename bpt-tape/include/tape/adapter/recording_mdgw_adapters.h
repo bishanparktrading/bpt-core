@@ -5,13 +5,13 @@
 /// handle_frame() to tee the raw WS payload to a shared RawSpool BEFORE
 /// calling the parent's handle_frame() — preserves the existing frame-queue
 /// + parser pipeline while adding the recording tap. The mdgw adapter
-/// source is untouched; recording is a md-recorder-only concern.
+/// source is untouched; recording is a bpt-tape-only concern.
 ///
 /// handle_frame is the IO-thread seam invoked by the venue's MdWsClient
 /// for each application frame (post protocol-level filtering — no
 /// keepalive noise reaches the spool).
 ///
-/// Templated on Pub (the inner publisher type) — md-recorder instantiates
+/// Templated on Pub (the inner publisher type) — bpt-tape instantiates
 /// each adapter with NoopMdPublisher so the publish() chain compiles down
 /// to dead branches the optimizer can drop.
 
@@ -25,7 +25,7 @@
 #include <string_view>
 #include <utility>
 
-namespace bpt::md_recorder::adapter {
+namespace bpt::tape::adapter {
 
 #define BPT_DECLARE_RECORDING_ADAPTER(Class, BaseClass)                                       \
     template <class Pub>                                                                      \
@@ -54,4 +54,4 @@ BPT_DECLARE_RECORDING_ADAPTER(RecordingDeribitMdAdapter, DeribitMdAdapter)
 
 #undef BPT_DECLARE_RECORDING_ADAPTER
 
-}  // namespace bpt::md_recorder::adapter
+}  // namespace bpt::tape::adapter

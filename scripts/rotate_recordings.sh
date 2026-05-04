@@ -4,7 +4,7 @@
 # /opt/bpt/data/backtest-cache/ layout that wslog_to_parquet.py writes.
 #
 # Triggered by the bpt-recording-rotate.timer (see generate-units.sh).
-# Designed for a continuous-recording host: bpt-md-recorder.service
+# Designed for a continuous-recording host: bpt-tape.service
 # writes /opt/bpt/data/raw/<venue>/<UTC-date>/<venue>-HHMMSS.wslog all
 # day, this script wakes up shortly after UTC midnight and converts the
 # previous day's files for every venue + symbol mapping the host had
@@ -14,7 +14,7 @@
 # Parquet outputs. Skips days that don't have a corresponding raw dir.
 #
 # Required env (from $BPT_DEPLOY_ROOT/config/active/env or laptop env):
-#   BPT_MD_RECORDER_CONFIG   path to the recording TOML — used to
+#   BPT_TAPE_CONFIG          path to the recording TOML — used to
 #                            extract the (exchange, symbol) pairs to
 #                            convert. Optional: if unset we walk the
 #                            raw dir and convert every venue we find.
@@ -62,16 +62,32 @@ for venue_dir in "$RAW_ROOT"/*/; do
     fi
 
     log "rotating $venue_upper for $DATE_TAG (${#wslogs[@]} wslog file(s))"
-    if python3 "$REPO_ROOT/scripts/wslog_to_parquet.py" \
+    parquet_ok=0
+    if python3 "$REPO_ROOT/scripts/mdlog_to_parquet.py" \
         --input "$day_dir/*.wslog" \
         --exchange "$venue_upper" \
         --output "$PARQUET_ROOT" 2>&1 | sed "s/^/[rotate $venue_upper] /"; then
-        log "ok: $venue_upper $DATE_TAG"
+        log "parquet ok: $venue_upper $DATE_TAG"
+        parquet_ok=1
     else
-        log "FAILED: $venue_upper $DATE_TAG (wslog_to_parquet.py exit non-zero)"
+        log "parquet FAILED: $venue_upper $DATE_TAG (mdlog_to_parquet.py exit non-zero)"
         # Don't bail — keep going for the remaining venues. A failed
         # day won't auto-retry tomorrow but operator can run this
         # script manually with DATE_TAG override (set the env first).
+    fi
+
+    # Compress raw wslog after a successful parquet conversion. zstd -19
+    # gives ~7-10x ratio on JSON for ~50-100 MB/s CPU; --rm deletes the
+    # source after compression. Skipped on failure so the operator can
+    # still re-run mdlog_to_parquet.py manually against uncompressed
+    # input if they need to.
+    if [ "$parquet_ok" = "1" ]; then
+        log "compressing wslogs in $day_dir"
+        if nice -n 19 zstd -q -19 --rm "$day_dir"/*.wslog 2>&1 | sed "s/^/[zstd $venue_upper] /"; then
+            log "compress ok: $venue_upper $DATE_TAG"
+        else
+            log "compress FAILED: $venue_upper $DATE_TAG (zstd exit non-zero)"
+        fi
     fi
 done
 

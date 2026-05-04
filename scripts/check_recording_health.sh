@@ -3,7 +3,7 @@
 #
 # Pings Healthchecks.io ($HC_URL) only when ALL of these are true:
 #
-#   1. bpt-md-recorder.service is active.
+#   1. bpt-tape.service is active.
 #   2. The latest .wslog file under $BPT_RAW_ROOT was written within
 #      $STALE_THRESHOLD_SECONDS. A WS disconnect storm where the
 #      recorder process stays up but writes nothing is the failure
@@ -32,8 +32,8 @@ STALE_THRESHOLD_SECONDS="${STALE_THRESHOLD_SECONDS:-600}"
 log() { echo "[healthcheck $(date -u +%H:%M:%SZ)] $*" >&2; }
 
 # 1. Service must be running.
-if ! systemctl --user is-active --quiet bpt-md-recorder.service; then
-    log "FAIL: bpt-md-recorder.service is not active"
+if ! systemctl --user is-active --quiet bpt-tape.service; then
+    log "FAIL: bpt-tape.service is not active"
     exit 1
 fi
 

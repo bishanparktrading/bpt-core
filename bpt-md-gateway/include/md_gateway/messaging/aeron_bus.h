@@ -9,7 +9,7 @@
 /// place that constructs the Aeron-backed concrete classes and bundles
 /// them into a struct the app accepts in its constructor — swap this
 /// factory for a different one (e.g. an in-memory bus for seam tests,
-/// a NoopMdPublisher for md-recorder) and the app code is unchanged.
+/// a NoopMdPublisher for bpt-tape) and the app code is unchanged.
 ///
 /// The MD sink is exposed by concrete type rather than via an
 /// `IMdPublisher` interface: venue adapters are templated on the
@@ -56,7 +56,7 @@ struct AeronBus {
     /// templated on `Pub`, so the decoder→ValidatingPublisher→MdPublisher
     /// chain is fully devirtualised. Swap by instantiating the templated
     /// adapters with a different concrete type at the composition root
-    /// (e.g. md-recorder uses NoopMdPublisher to drop without writing).
+    /// (e.g. bpt-tape uses NoopMdPublisher to drop without writing).
     std::shared_ptr<MdPublisher> md_sink;
 
     /// \brief Outbound: subscription ACKs + service heartbeats to strategy.

@@ -1,4 +1,4 @@
-/// bpt-md-recorder — captures venue WS frames to disk by importing
+/// bpt-tape — "the tape": captures venue WS frames to disk by importing
 /// bpt-md-gateway's adapter library and substituting a recording subclass
 /// that tees raw bytes via bpt::common::recorder::RawSpool.
 ///
@@ -7,9 +7,13 @@
 /// satisfies the adapter's Pub template parameter so parsing still runs
 /// (cheap on the recording host) and the wire pipeline behaves identically
 /// to live trading at every layer except the disk tap.
+///
+/// Refdata REST snapshot capture (instrument list, fee schedule, listing
+/// events) is a planned extension along the same RawSpool path — RawSpool
+/// is already designed to accept REST response bodies as well as WS frames.
 
-#include "md_recorder/adapter/recording_mdgw_adapters.h"
-#include "md_recorder/config/settings.h"
+#include "tape/adapter/recording_mdgw_adapters.h"
+#include "tape/config/settings.h"
 #include "bpt_common/recorder/raw_spool.h"
 #include "md_gateway/md/md_types.h"
 #include "md_gateway/adapter/common/i_adapter.h"
@@ -30,7 +34,7 @@
 #include <bpt_common/logging.h>
 #include <bpt_common/signal.h>
 
-namespace bpt::md_recorder {
+namespace bpt::tape {
 
 namespace {
 
@@ -92,7 +96,7 @@ public:
             const auto exch_id = bpt::messages::ExchangeRegistry::from_name(a_cfg.exchange);
             if (!exch_id) {
                 throw std::runtime_error(fmt::format(
-                    "Unknown exchange '{}' in md-recorder config — not in messages/exchanges.yaml",
+                    "Unknown exchange '{}' in bpt-tape config — not in messages/exchanges.yaml",
                     a_cfg.exchange));
             }
             std::shared_ptr<bpt::md_gateway::adapter::IAdapter> adapter;
@@ -111,7 +115,7 @@ public:
                     break;
                 default:
                     throw std::runtime_error(fmt::format(
-                        "Exchange '{}' is in the registry but md-recorder has no recording adapter for it",
+                        "Exchange '{}' is in the registry but bpt-tape has no recording adapter for it",
                         a_cfg.exchange));
             }
 
@@ -143,7 +147,7 @@ public:
             spools_.push_back(spool);
             adapters_per_venue_[a_cfg.exchange] = adapter;
             adapters_.push_back(std::move(adapter));
-            bpt::common::log::info("md-recorder: started recording adapter for {} → {}",
+            bpt::common::log::info("bpt-tape: started recording adapter for {} → {}",
                                    a_cfg.exchange, spool->current_path());
         }
 
@@ -160,7 +164,7 @@ public:
         // (//bpt-refdata:mapping_lib).
         bpt::refdata::mapping::InstrumentMappingLoader mapping;
         mapping.load(settings_.instrument_mapping_path);
-        bpt::common::log::info("md-recorder: loaded instrument mapping from {} ({} instruments)",
+        bpt::common::log::info("bpt-tape: loaded instrument mapping from {} ({} instruments)",
                                settings_.instrument_mapping_path,
                                mapping.instrument_count());
 
@@ -188,7 +192,7 @@ public:
                 ++n_subscribed;
             }
         }
-        bpt::common::log::info("md-recorder: subscribed {} symbols across {} adapters",
+        bpt::common::log::info("bpt-tape: subscribed {} symbols across {} adapters",
                                n_subscribed, adapters_.size());
         } catch (...) {
             // Reraise after stopping so adapter threads join cleanly —
@@ -199,13 +203,13 @@ public:
     }
 
     void run() override {
-        bpt::common::log::info("md-recorder running — Ctrl-C to stop");
+        bpt::common::log::info("bpt-tape running — Ctrl-C to stop");
         // Block until a signal flips the running flag. Adapter threads do
         // the actual capture work; this thread just waits.
         while (bpt::common::signal::is_running()) {
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
         }
-        bpt::common::log::info("md-recorder: signal received, stopping");
+        bpt::common::log::info("bpt-tape: signal received, stopping");
     }
 
     void stop() override {
@@ -238,21 +242,21 @@ private:
 
 }  // namespace
 
-}  // namespace bpt::md_recorder
+}  // namespace bpt::tape
 
 int main(int argc, char* argv[]) {
-    CLI::App cli{"bpt-md-recorder — venue WS-frame recorder"};
+    CLI::App cli{"bpt-tape — venue WS-frame recorder"};
     std::string config_path;
     cli.add_option("-c,--config", config_path, "Path to TOML config file")
         ->required()
         ->check(CLI::ExistingFile);
     CLI11_PARSE(cli, argc, argv);
 
-    bpt::md_recorder::config::Settings cfg;
+    bpt::tape::config::Settings cfg;
     try {
-        cfg = bpt::md_recorder::config::load(config_path);
+        cfg = bpt::tape::config::load(config_path);
     } catch (const std::exception& e) {
-        bpt::common::logging::init("bpt-md-recorder");
+        bpt::common::logging::init("bpt-tape");
         bpt::common::log::error("Failed to load config: {}", e.what());
         return 1;
     }
@@ -263,9 +267,9 @@ int main(int argc, char* argv[]) {
         // catalog subscription (universe loaded directly from JSON).
         // Skip the MediaDriver connect; the recording host needs zero
         // Aeron infrastructure.
-        return bpt::app::run("bpt-md-recorder", std::move(cfg),
+        return bpt::app::run("bpt-tape", std::move(cfg),
             [](auto& settings, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
-                return std::make_unique<bpt::md_recorder::RecorderService>(
+                return std::make_unique<bpt::tape::RecorderService>(
                     std::move(settings), ctx.topology);
             },
             bpt::app::RunOptions{.connect_aeron = false});

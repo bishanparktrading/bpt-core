@@ -56,3 +56,14 @@ dist/
 transport/aeron/.gradle/
 transport/aeron/build/
 messages/generated/
+
+# Terraform (infra/)
+# State backend lives in S3 + DynamoDB lock table; never commit local state.
+infra/terraform/**/.terraform/
+infra/terraform/**/.terraform.lock.hcl
+infra/terraform/**/terraform.tfstate
+infra/terraform/**/terraform.tfstate.backup
+infra/terraform/**/*.tfvars
+infra/terraform/**/*.tfvars.json
+# Plan output files (may contain credential outputs)
+infra/terraform/**/*.tfplan

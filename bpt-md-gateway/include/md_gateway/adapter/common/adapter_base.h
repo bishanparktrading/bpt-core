@@ -5,12 +5,12 @@
 ///
 /// AdapterBase owns the IO + publisher threads and the WS reconnect loop.
 /// Each venue subclass plugs in connect/read/parse via the protected
-/// virtual hooks. md-recorder reuses the same adapter library by
+/// virtual hooks. bpt-tape reuses the same adapter library by
 /// substituting recording-aware on_frame() overrides on derived classes.
 ///
 /// Templated on Pub (the concrete inner publisher type) so the
 /// hot path decoder → ValidatingPublisher<Pub> → Pub is vtable-free.
-/// Prod md-gateway instantiates AdapterBase<MdPublisher>; md-recorder
+/// Prod md-gateway instantiates AdapterBase<MdPublisher>; bpt-tape
 /// instantiates AdapterBase<NoopMdPublisher>; tests can use any concrete
 /// type satisfying the publisher signature.
 
@@ -173,7 +173,7 @@ protected:
     /// \brief IO-thread seam invoked by the venue ws-client for each application frame.
     ///
     /// Default implementation enqueues onto the SPSC frame queue for the
-    /// publisher thread (push_frame). md-recorder overrides this to tee
+    /// publisher thread (push_frame). bpt-tape overrides this to tee
     /// the raw bytes into a RawSpool before enqueueing — keeps the
     /// recording tap out of the main mdgw source.
     virtual void handle_frame(std::string_view payload, uint64_t recv_ns) noexcept {

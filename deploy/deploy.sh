@@ -141,7 +141,7 @@ fi
 
 if [ "$FIRST_INSTALL" = "1" ]; then
     log "Seeding per-service config dirs from release share/service-configs/"
-    for svc in refdata md-gateway md-recorder order-gateway strategy analytics; do
+    for svc in refdata md-gateway tape order-gateway strategy analytics; do
         src="$RELEASE_DIR/share/service-configs/$svc"
         dst="$BPT_DEPLOY_ROOT/bpt-$svc/config"
         if [ ! -d "$dst" ]; then
