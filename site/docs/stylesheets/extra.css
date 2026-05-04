@@ -23,8 +23,21 @@
     background-color: var(--md-default-fg-color--lightest);
 }
 
-/* Mermaid diagrams: center + cap width on big screens */
+/* Mermaid diagrams: fill content width, breathing room around.
+   Override Mermaid's auto-shrink behaviour so diagrams use the full
+   column width rather than rendering at minimum content size. */
 .mermaid {
     text-align: center;
-    margin: 1.5rem auto;
+    margin: 2rem auto;
+}
+
+.mermaid svg {
+    max-width: 100% !important;
+    width: 100%;
+    height: auto;
+}
+
+.mermaid .nodeLabel,
+.mermaid .edgeLabel {
+    font-size: 0.95rem !important;
 }

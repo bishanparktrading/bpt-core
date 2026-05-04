@@ -8,58 +8,47 @@ messages on named Aeron streams.
 ## Service topology
 
 ```mermaid
-flowchart LR
-    subgraph venues["Venues<br/>(WS + REST)"]
-        HL[Hyperliquid]
-        OKX
-        BINANCE
-        DERIBIT
-    end
+flowchart TB
+    V([Venues — HL · OKX · Binance · Deribit]):::venue
 
-    subgraph trading["Trading host"]
-        REFDATA[bpt-refdata<br/>instrument catalog<br/>fee schedules<br/>funding rates]
-        MDGW[bpt-md-gateway<br/>WS decode<br/>SBE publish<br/>validation breakers]
-        OGW[bpt-order-gateway<br/>risk module<br/>idempotent send<br/>exec parse]
-        STRAT[bpt-strategy<br/>AS / OFI / momentum<br/>vol / funding gates]
-        ANALYTICS[bpt-analytics<br/>markouts<br/>toxicity<br/>fill rate]
-        PRICER[bpt-pricer<br/>vol surface<br/>options Greeks]
-        BOOK[bpt-book<br/>multi-venue<br/>balances + positions]
-        BRIDGE[bpt-bridge<br/>dashboard WS]
-    end
+    V ===>|MD WS| MDGW
+    V <===>|orders / execs| OGW
+    V -->|REST + WS| REFDATA
 
-    subgraph recording["Recording host (Tokyo)"]
-        TAPE[bpt-tape<br/>WS capture<br/>→ disk → S3]
-    end
+    MDGW[bpt-md-gateway]:::hot ===>|ticks| STRAT
+    STRAT[bpt-strategy]:::hot ===>|orders| OGW[bpt-order-gateway]:::hot
+    OGW ===>|exec reports| STRAT
 
-    venues -->|WS frames| MDGW
-    venues -->|REST + WS| REFDATA
-    venues -.->|orders / fills| OGW
-    venues -->|raw WS| TAPE
+    REFDATA[bpt-refdata]:::aux -.->|catalog| MDGW
+    REFDATA -.->|catalog| STRAT
+    REFDATA -.->|catalog| OGW
+    REFDATA -.->|catalog| BOOK
 
-    REFDATA -->|snapshot + delta| MDGW
-    REFDATA -->|snapshot + delta| OGW
-    REFDATA -->|snapshot + delta| STRAT
-    REFDATA -->|snapshot + delta| BOOK
+    MDGW -->|ticks| ANALYTICS[bpt-analytics]:::aux
+    MDGW -->|ticks| PRICER[bpt-pricer]:::aux
+    MDGW -->|ticks| BOOK[bpt-book]:::aux
 
-    MDGW -->|MD ticks| STRAT
-    MDGW -->|MD ticks| ANALYTICS
-    MDGW -->|MD ticks| PRICER
-    MDGW -->|MD ticks| BOOK
-
-    STRAT -->|orders| OGW
-    OGW -->|exec reports| STRAT
+    OGW -->|account snap| BOOK
     OGW -->|exec reports| ANALYTICS
 
-    PRICER -->|vol surface| STRAT
-    ANALYTICS -->|toxicity| STRAT
+    ANALYTICS -.->|toxicity| STRAT
+    PRICER -.->|vol surface| STRAT
 
-    STRAT -->|portfolio snap| BRIDGE
-    OGW -->|account snap| BOOK
+    STRAT -->|portfolio| BRIDGE[bpt-bridge → dashboard]:::aux
 
-    TAPE -.->|hourly rclone| S3[(S3 archive<br/>ap-northeast-1)]
+    classDef venue fill:#0d1117,stroke:#7c8794,stroke-width:2px,color:#fff
+    classDef hot fill:#312e81,stroke:#a78bfa,stroke-width:3px,color:#fff
+    classDef aux fill:#1e293b,stroke:#475569,stroke-width:1px,color:#cbd5e1
+    linkStyle 0,1,2,3,4,5,6 stroke:#a78bfa,stroke-width:3px
 ```
 
-Solid arrows = Aeron streams (IPC, shared memory). Dotted = network or off-host.
+**Reading guide.** The thick purple spine is the trading loop:
+**venue → md-gateway → strategy → order-gateway → venue**.
+Auxiliary services (refdata, analytics, pricer, book, bridge) feed
+into the loop or ride on top of it; their connections are dotted /
+thin to keep the spine legible. `bpt-tape` is omitted here — it lives
+on a separate recording host and runs off the trading path entirely;
+see the [tape page](services/tape.md).
 
 ## Key choices
 
