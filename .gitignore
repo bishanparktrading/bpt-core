@@ -67,3 +67,6 @@ infra/terraform/**/*.tfvars
 infra/terraform/**/*.tfvars.json
 # Plan output files (may contain credential outputs)
 infra/terraform/**/*.tfplan
+
+# MkDocs build output
+site/_build/
