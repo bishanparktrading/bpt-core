@@ -21,10 +21,11 @@ recording_universe_venues = ["HYPERLIQUID"]
 
 # Path to the canonical instrument_mapping.json. Same file bpt-refdata
 # reads on the trading host; here it's the source of truth for what
-# bpt-tape subscribes to. bpt-ops fetchers update this file on
-# schedule — point at a path under config/instruments/ so a config-sync
-# pull also refreshes the recording universe.
-instrument_mapping_path = "config/instruments/instrument_mapping.hyperliquid.json"
+# bpt-tape subscribes to. Absolute path because the systemd unit's
+# WorkingDirectory is $BPT_ROOT/bpt-tape, but instrument JSONs live
+# under $BPT_ROOT/current/share/instruments/ in deploy mode. For
+# laptop dev runs, override via a local config copy.
+instrument_mapping_path = "/opt/bpt/current/share/instruments/instrument_mapping.hyperliquid.json"
 
 # No [aeron] block — bpt-tape passes connect_aeron=false to bpt::app::run
 # (see main.cpp). Venue WS frames go straight to disk via RawSpool; nothing
