@@ -1,5 +1,22 @@
 #pragma once
 
+/// \file
+/// \brief Validation + circuit-breaker decorator wrapping the concrete MdPublisher.
+///
+/// CRTP-templated on `Inner` so the chain
+///     adapter decoder → ValidatingPublisher<Inner> → Inner
+/// is fully vtable-free — every `publish()` is a direct, inlinable call.
+/// Maintains atomic counters (relaxed) the app polls every ~5 s to push
+/// deltas to Prometheus without adding per-message overhead beyond a
+/// single fetch_add.
+///
+/// Hosts the per-adapter ValidationDropBreaker: once the drop ratio
+/// over the rolling window crosses the configured threshold, all
+/// further publishes short-circuit (counted as drops; `Inner::publish`
+/// never called) until the process restarts. A feed that has gone bad
+/// (schema drift, crossed ladders) is suppressed instead of being
+/// forwarded as corrupt data.
+
 #include "md_gateway/md/md_validator.h"
 #include "md_gateway/md/validation_drop_breaker.h"
 
@@ -10,30 +27,16 @@
 
 namespace bpt::md_gateway::md {
 
-// Decorator that validates normalised market-data structs before forwarding
-// them to a concrete inner publisher. Templated on Inner so the chain
-// decoder → ValidatingPublisher<Inner> → Inner is fully vtable-free —
-// every publish() is a direct, inlinable call.
-//
-// Maintains monotonic published_ and drops_ counters (relaxed atomics) so the
-// app can poll them and push deltas to Prometheus without adding per-message
-// overhead beyond a single fetch_add.
-//
-// Also hosts the per-adapter ValidationDropBreaker: once the drop rate
-// over the rolling window crosses the configured threshold, all further
-// publishes short-circuit (counted as drops; inner_ never called) until
-// the process restarts. Intended signal is a feed that has gone bad
-// (schema drift, crossed ladders) where suppressing output is safer
-// than forwarding corrupt data.
-//
-// Not thread-safe for the validator state — one instance per adapter
-// (publisher) thread, matching the single-writer guarantee of MdValidator.
-//
-// Inner must expose:
-//   void publish(const MdBbo&);
-//   void publish(const MdTrade&);
-//   void publish(const MdOrderBook&);
-//   uint64_t drop_count() const;
+/// \brief CRTP decorator: validate-then-forward + drop-rate breaker.
+///
+/// Not thread-safe for the validator state — one instance per adapter
+/// (publisher) thread, matching the single-writer guarantee of MdValidator.
+///
+/// `Inner` must expose:
+///     - `void publish(const MdBbo&)`
+///     - `void publish(const MdTrade&)`
+///     - `void publish(const MdOrderBook&)`
+///     - `uint64_t drop_count() const`
 template <class Inner>
 class ValidatingPublisher {
 public:
@@ -44,8 +47,10 @@ public:
           adapter_name_(adapter_name),
           breaker_({}) {}
 
-    // Configure the drop-rate breaker. Safe to call before start; re-entry
-    // after start is not supported (breaker state is not atomic-reset).
+    /// \brief Configure the drop-rate breaker.
+    ///
+    /// Safe to call before start. Re-entry after start is not supported
+    /// — breaker state is not atomic-reset.
     void set_drop_breaker_config(ValidationDropBreaker::Config cfg) {
         breaker_ = ValidationDropBreaker(cfg);
     }
@@ -54,9 +59,11 @@ public:
     void publish(const MdTrade& trade) { forward(trade); }
     void publish(const MdOrderBook& book) { forward(book); }
 
-    // Drops at this layer (validation rejections + breaker latch) plus drops
-    // downstream. Layered semantic: a subscriber reading this port sees every
-    // message that failed to reach the wire, regardless of which layer rejected it.
+    /// \brief Drops at this layer (validation rejections + breaker latch) plus drops downstream.
+    ///
+    /// Layered semantic: a subscriber reading this port sees every
+    /// message that failed to reach the wire, regardless of which
+    /// layer rejected it.
     [[nodiscard]] uint64_t drop_count() const {
         return inner_.drop_count() + drops_.load(std::memory_order_relaxed);
     }
@@ -101,11 +108,11 @@ private:
     MdValidator& validator_;
     const char* adapter_name_;
     ValidationDropBreaker breaker_;
-    /// Cache-line isolated. published_ is incremented every successful
-    /// forward (the 99%+ path). MdGatewayApp's reporter reads both
-    /// counters every ~5s. Separating them from each other and from the
-    /// upstream class state keeps the producer's hot line untouched by
-    /// reporter polling.
+    /// Cache-line isolated. `published_` is incremented every successful
+    /// forward (the 99 %+ path). MdGatewayApp's reporter reads both
+    /// counters every ~5 s; separating them from each other and from
+    /// the upstream class state keeps the producer's hot line untouched
+    /// by reporter polling.
     alignas(64) std::atomic<uint64_t> published_{0};
     alignas(64) std::atomic<uint64_t> drops_{0};
 };

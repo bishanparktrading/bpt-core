@@ -1,5 +1,13 @@
 #pragma once
 
+/// \file
+/// \brief Aeron-backed concrete implementation of IAckPublisher.
+///
+/// Emits MdSubscriptionAck, MdSubscriptionHeartbeat, and MdServiceHeartbeat
+/// on the gateway → strategy ack/heartbeat stream (default 2003). All
+/// three message types share this publisher because they're small,
+/// low-frequency notifications travelling on the same Aeron stream.
+
 #include "md_gateway/messaging/i_ack_publisher.h"
 
 #include <Aeron.h>
@@ -17,12 +25,11 @@
 
 namespace bpt::md_gateway::messaging {
 
-// Publishes MdSubscriptionAck, MdSubscriptionHeartbeat, and MdServiceHeartbeat
-// on the MdGateway→Strategy ack/heartbeat stream (2003).
-//
-// Called from both the main poll thread (acks after subscription processing)
-// and the service heartbeat timer.  Uses the same aeron::Publication thread-safety
-// guarantee as MdPublisher.
+/// \brief Aeron implementation of the ACK / heartbeat outbound port.
+///
+/// Called from both the main poll thread (acks emitted after subscription
+/// processing) and the service-heartbeat timer. Concurrency is safe via
+/// the same aeron::Publication thread-safety contract used by MdPublisher.
 class AckPublisher final : public IAckPublisher {
 public:
     AckPublisher(std::shared_ptr<::aeron::Aeron> aeron, const std::string& channel, int stream_id);
@@ -36,6 +43,7 @@ public:
 
     void publish_service_heartbeat() override;
 
+    /// \brief Monotonic counter of frames emitted on this stream — used by tests.
     [[nodiscard]] uint64_t current_seq() const { return seq_.load(std::memory_order_relaxed); }
 
 private:

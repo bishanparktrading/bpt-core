@@ -1,42 +1,45 @@
 #pragma once
 
-// Per-adapter validation-drop circuit breaker (md-gateway side).
-//
-// Trips when the share of `DROP` validation results over the rolling
-// window `window_ns` exceeds `threshold_pct`, provided at least
-// `min_events` validations have run. On trip: ValidatingPublisher stops
-// forwarding to the inner publisher — downstream consumers see no
-// further data from this adapter rather than suspect data. Latches — no
-// auto-clear, mirroring the order-gateway breakers.
-//
-// Intended signal: a feed that is consistently emitting bad ticks
-// (schema drift after a venue upgrade, bad timestamp sequence, crossed
-// books from a buggy delta merger). Strategies reading that feed
-// should stop trading on it rather than act on corrupt data.
-//
-// Not thread-safe: record() is called from the same publisher thread
-// that drives validate/forward. tripped() returns a plain bool loaded
-// by the same thread — callers on other threads reading the gate
-// should use the atomic mirror if one is added later.
+/// \file
+/// \brief Per-adapter validation-drop circuit breaker.
+///
+/// Trips when the share of `DROP` validation results over the rolling
+/// window exceeds the configured threshold (and at least `min_events`
+/// validations have run). On trip, ValidatingPublisher stops forwarding
+/// to its inner publisher — downstream consumers see no further data
+/// from this adapter rather than suspect data. Latches: no auto-clear,
+/// process restart required (mirrors the order-gateway breakers).
+///
+/// Intended signal: a feed that is consistently emitting bad ticks
+/// (schema drift after a venue upgrade, broken timestamp sequence,
+/// crossed books from a buggy delta merger). Strategies reading that
+/// feed should stop trading on it rather than act on corrupt data.
 
 #include <cstdint>
 #include <deque>
 
 namespace bpt::md_gateway::md {
 
+/// \brief Rolling-window drop-rate breaker.
+///
+/// Not thread-safe. `record()` is called from the same publisher thread
+/// that runs validate/forward. `tripped()` returns a plain bool loaded
+/// from that same thread; cross-thread readers should mirror through an
+/// atomic if one is added later.
 class ValidationDropBreaker {
 public:
     struct Config {
-        uint64_t window_ns = 60ULL * 1'000'000'000ULL;  // 60 s
-        double   threshold_pct = 30.0;                    // trip at >30 %
-        uint32_t min_events = 50;                         // ignore tiny samples
-        bool     enabled = false;                         // default off
+        uint64_t window_ns    = 60ULL * 1'000'000'000ULL;  ///< rolling window (default 60 s)
+        double   threshold_pct = 30.0;                      ///< trip when drop ratio exceeds this (default 30 %)
+        uint32_t min_events    = 50;                        ///< don't evaluate until at least this many samples landed
+        bool     enabled       = false;                     ///< default off; opt-in per adapter once thresholds are tuned
     };
 
     explicit ValidationDropBreaker(Config cfg);
 
-    // Register one validation outcome. `is_drop` reflects whether the
-    // MdValidator returned DROP for this publish attempt.
+    /// \brief Register one validation outcome.
+    /// \param is_drop true iff MdValidator returned DROP for this attempt
+    /// \param now_ns  monotonic timestamp used to roll old events out of the window
     void record(bool is_drop, uint64_t now_ns);
 
     [[nodiscard]] bool tripped() const noexcept { return tripped_; }

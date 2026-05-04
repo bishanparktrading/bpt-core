@@ -1,5 +1,23 @@
 #pragma once
 
+/// \file
+/// \brief Top-level lifecycle owner for the `bpt-md-gateway` process.
+///
+/// MdGatewayApp is the `bpt::app::IService` the process entry point
+/// hands to `bpt::app::run()`. It owns:
+///   - the loaded `Settings`,
+///   - the Aeron-port objects (built by AeronBus::build in main),
+///   - one SubscriptionManager that fans control batches out to the
+///     per-venue adapters,
+///   - the Prometheus registry/exposer,
+///   - the periodic latency + per-adapter MD-stat reporters that
+///     scrape histograms into gauges every ~5 s.
+///
+/// `run()` blocks on the main poll loop until `stop()` flips the
+/// running flag. The poll loop services the control subscription, the
+/// service-heartbeat timer, and the reporter timer; per-venue WS reads
+/// run on adapter-owned IO threads, not in here.
+
 #include "md_gateway/adapter/common/i_adapter.h"
 #include "md_gateway/config/settings.h"
 #include "md_gateway/messaging/i_ack_publisher.h"
@@ -19,15 +37,31 @@
 
 namespace bpt::md_gateway {
 
+/// \brief Lifecycle service for the gateway.
+///
+/// Constructor takes everything pre-built — the bus ports, topology,
+/// settings — so the app itself contains no Aeron / port construction
+/// logic. That stays in main.cpp via `messaging::AeronBus::build`.
 class MdGatewayApp : public bpt::app::IService {
 public:
+    /// \brief Construct.
+    /// \param cfg              loaded settings (ownership taken)
+    /// \param control_source   subscriber on the strategy → gateway control stream
+    /// \param md_sink          publisher for normalised MD on the data stream
+    /// \param ack_sink         publisher for acks + heartbeats
+    /// \param funding_sink     publisher for funding-rate updates
+    /// \param topology         CPU-affinity map for IO/main thread pinning
     MdGatewayApp(config::Settings cfg,
                  std::unique_ptr<messaging::IMdControlSource> control_source,
                  std::shared_ptr<messaging::MdPublisher> md_sink,
                  std::unique_ptr<messaging::IAckPublisher> ack_sink,
                  std::shared_ptr<messaging::IFundingRatePublisher> funding_sink,
                  const bpt::common::util::Topology& topology);
+
+    /// \brief Block running the main poll loop until stop() is called.
     void run() override;
+
+    /// \brief Signal run() to exit. Safe to call from any thread (typically the signal handler).
     void stop() override;
 
 private:
@@ -39,9 +73,12 @@ private:
     std::unique_ptr<messaging::IMdControlSource> ctrl_sub_;
     subscription::SubscriptionManager sub_mgr_;
 
-    // Collected at construction; used by the periodic latency reporter in run().
+    /// \name Reporter wiring
+    /// \brief Collected at construction; consumed by the periodic latency + MD-stat reporter inside run().
+    /// @{
     std::vector<std::pair<std::string, bpt::common::util::LatencyHistogram*>> lat_reporters_;
     std::vector<std::pair<std::string, adapter::IAdapter*>> md_stat_reporters_;
+    /// @}
 };
 
 }  // namespace bpt::md_gateway
