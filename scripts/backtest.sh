@@ -28,7 +28,7 @@ STRATEGY_DIR="$STACK_DIR/bpt-strategy"
 BACKTESTER_DIR="$STACK_DIR/bpt-backtester"
 
 STRATEGY_CONFIG="${2:-$STRATEGY_DIR/config/vwap_reversion.backtest.toml}"
-BACKTESTER_CONFIG="$BACKTESTER_DIR/config/bpt-backtester.qa-okx.toml"
+BACKTESTER_CONFIG="${BACKTESTER_CONFIG:-$BACKTESTER_DIR/config/bpt-backtester.qa-okx.toml}"
 
 # ── Helpers ───────────────────────────────────────────────────────
 
