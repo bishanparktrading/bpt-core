@@ -430,7 +430,7 @@ EOF
 # Config path comes from $BPT_TAPE_CONFIG in the active env
 # (typically points at bpt-tape.hl.toml). Output dir is
 # /opt/bpt/data/raw/<venue>/<date>/, set inside the TOML — same layout
-# mdlog_to_parquet.py expects.
+# wslog_to_parquet.py expects.
 cat > "$UNIT_DIR/bpt-tape.service" <<EOF
 [Unit]
 Description=BPT Tape (continuous WS capture)

@@ -170,7 +170,7 @@ cp deploy/rollback.sh            "$STAGE/scripts/"
 # not bpt-stack.target).
 cp scripts/rotate_recordings.sh      "$STAGE/scripts/"
 cp scripts/check_recording_health.sh "$STAGE/scripts/"
-cp scripts/mdlog_to_parquet.py       "$STAGE/scripts/"
+cp scripts/wslog_to_parquet.py       "$STAGE/scripts/"
 cp scripts/sync_tape_to_s3.sh        "$STAGE/scripts/"
 
 echo "$VERSION" > "$STAGE/VERSION"

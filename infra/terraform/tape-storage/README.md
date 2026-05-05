@@ -28,7 +28,7 @@ s3://bpt-tape-archive/
   parquet/<dataset>/<venue>/<symbol>/<YYYY-MM-DD>.parquet
 ```
 
-Path layout matches what `mdlog_to_parquet.py` writes locally + what the
+Path layout matches what `wslog_to_parquet.py` writes locally + what the
 backtester expects for partition-pruning.
 
 ## Manual emergency restore from Glacier DA

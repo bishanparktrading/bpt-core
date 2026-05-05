@@ -63,14 +63,14 @@ for venue_dir in "$RAW_ROOT"/*/; do
 
     log "rotating $venue_upper for $DATE_TAG (${#wslogs[@]} wslog file(s))"
     parquet_ok=0
-    if python3 "$REPO_ROOT/scripts/mdlog_to_parquet.py" \
+    if python3 "$REPO_ROOT/scripts/wslog_to_parquet.py" \
         --input "$day_dir/*.wslog" \
         --exchange "$venue_upper" \
         --output "$PARQUET_ROOT" 2>&1 | sed "s/^/[rotate $venue_upper] /"; then
         log "parquet ok: $venue_upper $DATE_TAG"
         parquet_ok=1
     else
-        log "parquet FAILED: $venue_upper $DATE_TAG (mdlog_to_parquet.py exit non-zero)"
+        log "parquet FAILED: $venue_upper $DATE_TAG (wslog_to_parquet.py exit non-zero)"
         # Don't bail — keep going for the remaining venues. A failed
         # day won't auto-retry tomorrow but operator can run this
         # script manually with DATE_TAG override (set the env first).
@@ -79,7 +79,7 @@ for venue_dir in "$RAW_ROOT"/*/; do
     # Compress raw wslog after a successful parquet conversion. zstd -19
     # gives ~7-10x ratio on JSON for ~50-100 MB/s CPU; --rm deletes the
     # source after compression. Skipped on failure so the operator can
-    # still re-run mdlog_to_parquet.py manually against uncompressed
+    # still re-run wslog_to_parquet.py manually against uncompressed
     # input if they need to.
     if [ "$parquet_ok" = "1" ]; then
         log "compressing wslogs in $day_dir"
