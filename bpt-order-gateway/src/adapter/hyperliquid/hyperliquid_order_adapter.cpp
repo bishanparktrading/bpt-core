@@ -151,18 +151,38 @@ HyperliquidOrderAdapter::HyperliquidOrderAdapter(const config::AdapterConfig& cf
 }
 
 void HyperliquidOrderAdapter::load_asset_meta() {
-    try {
-        json::object req;
-        req["type"] = "meta";
-        const std::string resp = https_client_->post("/info", json::serialize(json::value(req)));
-        asset_meta_ = hlcodec::parse_universe_meta(resp);
-        bpt::common::log::info(
-            "HyperliquidOrderAdapter: loaded {} asset(s) from /info meta",
-            asset_meta_.size());
-    } catch (const std::exception& e) {
-        bpt::common::log::error(
-            "HyperliquidOrderAdapter: failed to load /info meta — orders "
-            "will be rejected until restart: {}", e.what());
+    // Backtest mode race: this runs in the ctor, but the backtester's
+    // HyperliquidInfoServer (which we POST /info to in backtest mode) may
+    // come up after the order gateway. Retry up to 30s @ 1s cadence so the
+    // OG can survive startup ordering without a hard "rejected until restart"
+    // mode. Live mode (TLS to api.hyperliquid.xyz) almost always succeeds
+    // first try; the retry is cheap there.
+    constexpr int kMaxAttempts = 90;
+    constexpr auto kRetryInterval = std::chrono::seconds(1);
+    json::object req;
+    req["type"] = "meta";
+    const std::string body = json::serialize(json::value(req));
+    for (int attempt = 1; attempt <= kMaxAttempts; ++attempt) {
+        try {
+            const std::string resp = https_client_->post("/info", body);
+            asset_meta_ = hlcodec::parse_universe_meta(resp);
+            bpt::common::log::info(
+                "HyperliquidOrderAdapter: loaded {} asset(s) from /info meta (attempt {})",
+                asset_meta_.size(), attempt);
+            return;
+        } catch (const std::exception& e) {
+            if (attempt == kMaxAttempts) {
+                bpt::common::log::error(
+                    "HyperliquidOrderAdapter: failed to load /info meta after {} attempts "
+                    "— orders will be rejected until restart: {}",
+                    kMaxAttempts, e.what());
+                return;
+            }
+            bpt::common::log::warn(
+                "HyperliquidOrderAdapter: /info meta load attempt {}/{} failed ({}); retrying in 1s",
+                attempt, kMaxAttempts, e.what());
+            std::this_thread::sleep_for(kRetryInterval);
+        }
     }
 }
 
