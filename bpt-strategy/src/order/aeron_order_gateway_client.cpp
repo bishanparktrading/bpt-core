@@ -56,6 +56,7 @@ bool AeronOrderGatewayClient::send_new_order(uint64_t order_id,
                                         bpt::messages::TimeInForce::Value tif,
                                         int64_t price,
                                         uint64_t quantity,
+                                        uint8_t exec_inst,
                                         const std::string& exchange_symbol) {
     using namespace bpt::messages;
 
@@ -82,6 +83,7 @@ bool AeronOrderGatewayClient::send_new_order(uint64_t order_id,
             .price(price)
             .quantity(quantity)
             .timestampNs(bpt::common::util::TscClock::now_epoch_ns())
+            .execInst(exec_inst)
             .putExchangeSymbol(exchange_symbol);
     });
     return true;

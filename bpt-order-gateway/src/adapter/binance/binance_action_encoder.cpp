@@ -1,5 +1,7 @@
 #include "order_gateway/adapter/binance/binance_action_encoder.h"
 
+#include <messages/exec_inst.h>
+
 #include <string>
 
 namespace bpt::order_gateway::adapter::binance {
@@ -12,10 +14,10 @@ const char* side_str(bpt::messages::OrderSide::Value s) {
     return (s == OS::BUY) ? "BUY" : "SELL";
 }
 
-const char* type_str(bpt::messages::OrderType::Value t) {
+const char* type_str(bpt::messages::OrderType::Value t, std::uint8_t exec_inst) {
     using OT = bpt::messages::OrderType;
-    if (t == OT::MARKET)    return "MARKET";
-    if (t == OT::POST_ONLY) return "LIMIT_MAKER";
+    if (t == OT::MARKET)                              return "MARKET";
+    if (exec_inst & bpt::messages::kExecInstPostOnly) return "LIMIT_MAKER";
     return "LIMIT";
 }
 
@@ -34,7 +36,7 @@ std::string build_new_order_params(const OrderSpec& spec) {
 
     std::string params = "symbol=" + spec.symbol +
                          "&side=" + side_str(spec.side) +
-                         "&type=" + type_str(spec.order_type) +
+                         "&type=" + type_str(spec.order_type, spec.exec_inst) +
                          "&quantity=" + std::to_string(static_cast<double>(spec.quantity_e8) / kScale) +
                          "&newClientOrderId=" + spec.cloid;
 

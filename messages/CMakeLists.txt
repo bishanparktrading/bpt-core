@@ -10,6 +10,7 @@ add_library(bpt::messages ALIAS bpt_messages)
 
 target_include_directories(bpt_messages INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/generated/cpp>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
 

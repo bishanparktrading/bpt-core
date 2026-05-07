@@ -1,5 +1,7 @@
 #include "order_gateway/adapter/okx/okx_action_encoder.h"
 
+#include <messages/exec_inst.h>
+
 #include <boost/json.hpp>
 #include <string>
 
@@ -19,10 +21,10 @@ const char* side_str(bpt::messages::OrderSide::Value s) {
     return (s == OS::BUY) ? "buy" : "sell";
 }
 
-const char* ord_type_str(bpt::messages::OrderType::Value t) {
+const char* ord_type_str(bpt::messages::OrderType::Value t, std::uint8_t exec_inst) {
     using OT = bpt::messages::OrderType;
-    if (t == OT::MARKET)    return "market";
-    if (t == OT::POST_ONLY) return "post_only";
+    if (t == OT::MARKET)                                       return "market";
+    if (exec_inst & bpt::messages::kExecInstPostOnly)          return "post_only";
     return "limit";
 }
 
@@ -76,7 +78,7 @@ json::value build_order_action(const OrderSpec& spec,
 
     arg["tdMode"]  = td_mode_for(spec.inst_id);
     arg["side"]    = side_str(spec.side);
-    arg["ordType"] = ord_type_str(spec.order_type);
+    arg["ordType"] = ord_type_str(spec.order_type, spec.exec_inst);
     (void)spec.tif;  // OKX infers tif from ordType (post_only, ioc, fok, limit=gtc)
 
     arg["sz"]      = size_to_contracts(spec.quantity_e8, spec.inst_id, contract_sizes);

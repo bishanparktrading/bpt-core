@@ -15,6 +15,7 @@
 #include <messages/OrderType.h>
 #include <messages/RejectReason.h>
 #include <messages/TimeInForce.h>
+#include <messages/exec_inst.h>
 
 #include <cstring>
 #include <gtest/gtest.h>
@@ -105,18 +106,20 @@ TEST(NewOrderTest, PostOnlyWithFOK) {
         .exchangeId(ExchangeId::HYPERLIQUID)
         .instrumentId(3ULL)
         .side(OrderSide::BUY)
-        .orderType(OrderType::POST_ONLY)
+        .orderType(OrderType::LIMIT)
         .timeInForce(TimeInForce::FOK)
         .price(10000000000LL)
         .quantity(200000000ULL)
         .timestampNs(9999ULL)
+        .execInst(bpt::messages::kExecInstPostOnly)
         .putExchangeSymbol("BTC");
 
     MessageHeader hdr(buf, kSz);
     NewOrder dec;
     dec.wrapForDecode(buf, MessageHeader::encodedLength(), hdr.blockLength(), hdr.version(), kSz);
 
-    EXPECT_EQ(dec.orderType(), OrderType::POST_ONLY);
+    EXPECT_EQ(dec.orderType(), OrderType::LIMIT);
+    EXPECT_EQ(dec.execInst() & bpt::messages::kExecInstPostOnly, bpt::messages::kExecInstPostOnly);
     EXPECT_EQ(dec.timeInForce(), TimeInForce::FOK);
     EXPECT_EQ(dec.exchangeId(), ExchangeId::HYPERLIQUID);
     EXPECT_EQ(dec.getExchangeSymbolAsString(), "BTC");
@@ -448,7 +451,10 @@ TEST(OrderSideTest, Values) {
 TEST(OrderTypeTest, Values) {
     EXPECT_EQ(static_cast<uint8_t>(OrderType::MARKET), 0u);
     EXPECT_EQ(static_cast<uint8_t>(OrderType::LIMIT), 1u);
-    EXPECT_EQ(static_cast<uint8_t>(OrderType::POST_ONLY), 2u);
+}
+
+TEST(ExecInstTest, Values) {
+    EXPECT_EQ(bpt::messages::kExecInstPostOnly, 0x01u);
 }
 
 TEST(TimeInForceTest, Values) {

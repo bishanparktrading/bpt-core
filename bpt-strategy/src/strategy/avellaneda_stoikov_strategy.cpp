@@ -5,6 +5,7 @@
 #include <messages/DeltaUpdateType.h>
 #include <messages/ExchangeId.h>
 #include <messages/ExecStatus.h>
+#include <messages/exec_inst.h>
 #include <messages/InstrumentType.h>
 #include <messages/OrderType.h>
 #include <messages/RejectSource.h>
@@ -1370,7 +1371,8 @@ uint64_t AvellanedaStoikovStrategy::send_limit_order(uint64_t instrument_id,
 
     const uint64_t order_id =
         order_mgr_
-            ->place_order(instrument_id, st.exchange_id, side, OrderType::POST_ONLY, TimeInForce::GTC, price, qty);
+            ->place_order(instrument_id, st.exchange_id, side, OrderType::LIMIT, TimeInForce::GTC, price, qty,
+                          bpt::messages::kExecInstPostOnly);
     if (order_id == 0)
         return 0;
 

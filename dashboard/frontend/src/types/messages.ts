@@ -54,7 +54,7 @@ export interface FillMsg {
   orderId: number
   symbol: string
   side: Side
-  orderType: string   // "LIMIT" | "MARKET" | "POST_ONLY"
+  orderType: string   // "LIMIT" | "MARKET" — POST_ONLY is now an execInst flag, not a type
   qty: number
   price: number
   fee: number         // in quote currency

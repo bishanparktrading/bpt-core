@@ -33,7 +33,6 @@ public:
     {
         MARKET = static_cast<std::uint8_t>(0),
         LIMIT = static_cast<std::uint8_t>(1),
-        POST_ONLY = static_cast<std::uint8_t>(2),
         NULL_VALUE = static_cast<std::uint8_t>(255)
     };
 
@@ -43,7 +42,6 @@ public:
         {
             case static_cast<std::uint8_t>(0): return MARKET;
             case static_cast<std::uint8_t>(1): return LIMIT;
-            case static_cast<std::uint8_t>(2): return POST_ONLY;
             case static_cast<std::uint8_t>(255): return NULL_VALUE;
         }
 
@@ -56,7 +54,6 @@ public:
         {
             case MARKET: return "MARKET";
             case LIMIT: return "LIMIT";
-            case POST_ONLY: return "POST_ONLY";
             case NULL_VALUE: return "NULL_VALUE";
         }
 

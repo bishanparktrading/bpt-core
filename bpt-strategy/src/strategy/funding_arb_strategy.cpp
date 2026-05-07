@@ -540,6 +540,7 @@ void FundingArbStrategy::send_leg_order(ArbPair& pair,
                                    TimeInForce::IOC,
                                    price_fixed,
                                    qty,
+                                   /*exec_inst*/ 0,
                                    leg.symbol)) {
         leg.order_id = 0;
         order_to_base_.erase(order_id);

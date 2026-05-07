@@ -57,6 +57,7 @@ void BinanceOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
         order.price(),
         order.quantity(),
         cloid,
+        order.execInst(),
     };
     const std::string params = binance::build_new_order_params(spec);
     const std::string signed_params = binance::sign_query(secret_key_, params);

@@ -101,8 +101,6 @@ public:
         std::string type_str = std::string(obj.at("o").as_string());
         if (type_str == "MARKET")
             ev.order_type = OrderType::MARKET;
-        else if (type_str == "LIMIT_MAKER")
-            ev.order_type = OrderType::POST_ONLY;
         else
             ev.order_type = OrderType::LIMIT;
 
@@ -271,7 +269,9 @@ TEST(BinanceExecNormaliserTest, PostOnlyOrderType) {
     n.process(payload, 6ULL);
 
     ASSERT_TRUE(n.last_event_.has_value());
-    EXPECT_EQ(n.last_event_->order_type, OrderType::POST_ONLY);
+    // LIMIT_MAKER decodes to LIMIT — POST_ONLY is no longer an OrderType,
+    // it's an execInst flag carried by the original NewOrder.
+    EXPECT_EQ(n.last_event_->order_type, OrderType::LIMIT);
 }
 
 TEST(BinanceExecNormaliserTest, FeeCurrencyMapping) {
@@ -352,8 +352,6 @@ public:
             std::string ord_type = std::string(d.at("ordType").as_string());
             if (ord_type == "market")
                 ev.order_type = OrderType::MARKET;
-            else if (ord_type == "post_only")
-                ev.order_type = OrderType::POST_ONLY;
             else
                 ev.order_type = OrderType::LIMIT;
 
@@ -491,7 +489,9 @@ TEST(OKXExecNormaliserTest, PostOnlyOrderType) {
     n.process(payload, 4ULL);
 
     ASSERT_TRUE(n.last_event_.has_value());
-    EXPECT_EQ(n.last_event_->order_type, OrderType::POST_ONLY);
+    // post_only decodes to LIMIT — POST_ONLY is no longer an OrderType,
+    // it's an execInst flag carried by the original NewOrder.
+    EXPECT_EQ(n.last_event_->order_type, OrderType::LIMIT);
     EXPECT_EQ(n.last_event_->side, OrderSide::SELL);
 }
 

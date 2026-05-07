@@ -21,7 +21,8 @@ uint64_t OrderManager::place_order(uint64_t instrument_id,
                                    bpt::messages::OrderType::Value order_type,
                                    bpt::messages::TimeInForce::Value tif,
                                    double price,
-                                   double quantity) {
+                                   double quantity,
+                                   uint8_t exec_inst) {
     const auto inst = cache_.get(instrument_id);
     if (!inst) {
         bpt::common::log::warn("[OrderMgr] Rejected: instrument_id={} not in refdata cache", instrument_id);
@@ -72,6 +73,7 @@ uint64_t OrderManager::place_order(uint64_t instrument_id,
                             tif,
                             price_fp,
                             qty_fp,
+                            exec_inst,
                             inst->symbol))
         return 0;
 

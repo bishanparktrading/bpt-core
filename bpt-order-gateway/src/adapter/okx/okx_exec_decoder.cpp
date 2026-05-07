@@ -122,9 +122,10 @@ void OKXExecDecoder::handle_orders_channel_item(const json::object& d, uint64_t 
     std::string ord_type = std::string(d.at("ordType").as_string());
     if (ord_type == "market")
         ev.order_type = OT::MARKET;
-    else if (ord_type == "post_only")
-        ev.order_type = OT::POST_ONLY;
     else
+        // post_only collapses to LIMIT here — the post-only constraint was
+        // a property of the placed order's execInst, not a distinct type.
+        // The fill's MAKER vs TAKER role lives separately.
         ev.order_type = OT::LIMIT;
 
     ev.price = static_cast<int64_t>(std::stod(std::string(d.at("px").as_string())) * kPriceScale);

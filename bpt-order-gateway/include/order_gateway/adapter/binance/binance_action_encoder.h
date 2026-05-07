@@ -31,6 +31,7 @@ struct OrderSpec {
     int64_t                                price_e8;      ///< natural * 1e8
     uint64_t                               quantity_e8;   ///< natural * 1e8
     std::string                            cloid;
+    std::uint8_t                           exec_inst{0};  ///< NewOrder.execInst bitmask
 };
 
 /// \brief Build the unsigned POST `/api/v3/order` query params for a new order.

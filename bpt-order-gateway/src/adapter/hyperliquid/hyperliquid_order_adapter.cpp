@@ -8,6 +8,7 @@
 #include <messages/OrderType.h>
 #include <messages/RejectReason.h>
 #include <messages/TimeInForce.h>
+#include <messages/exec_inst.h>
 
 #include <boost/json.hpp>
 #include <chrono>
@@ -215,14 +216,14 @@ void HyperliquidOrderAdapter::send_new_order(const bpt::messages::NewOrder& orde
     const double price_d = static_cast<double>(order.price()) / kScale;
     const double size_d  = static_cast<double>(order.quantity()) / kScale;
 
-    // Map (OrderType, TimeInForce) onto HL's limit tif string.
-    //   POST_ONLY → Alo  (HL rejects the order if it would cross — maker only)
+    // Map (OrderType, TimeInForce, execInst) onto HL's limit tif string.
+    //   execInst & POST_ONLY → Alo  (HL rejects the order if it would cross — maker only)
     //   LIMIT + IOC → Ioc
     //   MARKET → Ioc (HL has no market type; strategies send an aggressive
     //                 limit price with IOC semantics)
     //   everything else → Gtc
     const auto hl_tif = [&]() {
-        if (order.orderType() == OT::POST_ONLY) return hlcodec::HlTif::Alo;
+        if (order.execInst() & bpt::messages::kExecInstPostOnly) return hlcodec::HlTif::Alo;
         if (order.timeInForce() == TIF::IOC || order.orderType() == OT::MARKET)
             return hlcodec::HlTif::Ioc;
         return hlcodec::HlTif::Gtc;

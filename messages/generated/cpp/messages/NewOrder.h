@@ -117,7 +117,7 @@ private:
     }
 
 public:
-    static const std::uint16_t SBE_BLOCK_LENGTH = static_cast<std::uint16_t>(76);
+    static const std::uint16_t SBE_BLOCK_LENGTH = static_cast<std::uint16_t>(77);
     static const std::uint16_t SBE_TEMPLATE_ID = static_cast<std::uint16_t>(10);
     static const std::uint16_t SBE_SCHEMA_ID = static_cast<std::uint16_t>(1);
     static const std::uint16_t SBE_SCHEMA_VERSION = static_cast<std::uint16_t>(14);
@@ -175,7 +175,7 @@ public:
 
     SBE_NODISCARD static SBE_CONSTEXPR std::uint16_t sbeBlockLength() SBE_NOEXCEPT
     {
-        return static_cast<std::uint16_t>(76);
+        return static_cast<std::uint16_t>(77);
     }
 
     SBE_NODISCARD static SBE_CONSTEXPR std::uint64_t sbeBlockAndHeaderLength() SBE_NOEXCEPT
@@ -1049,6 +1049,69 @@ public:
     }
     #endif
 
+    SBE_NODISCARD static const char *execInstMetaAttribute(const MetaAttribute metaAttribute) SBE_NOEXCEPT
+    {
+        switch (metaAttribute)
+        {
+            case MetaAttribute::PRESENCE: return "required";
+            default: return "";
+        }
+    }
+
+    static SBE_CONSTEXPR std::uint16_t execInstId() SBE_NOEXCEPT
+    {
+        return 11;
+    }
+
+    SBE_NODISCARD static SBE_CONSTEXPR std::uint64_t execInstSinceVersion() SBE_NOEXCEPT
+    {
+        return 0;
+    }
+
+    SBE_NODISCARD bool execInstInActingVersion() SBE_NOEXCEPT
+    {
+        return true;
+    }
+
+    SBE_NODISCARD static SBE_CONSTEXPR std::size_t execInstEncodingOffset() SBE_NOEXCEPT
+    {
+        return 76;
+    }
+
+    static SBE_CONSTEXPR std::uint8_t execInstNullValue() SBE_NOEXCEPT
+    {
+        return SBE_NULLVALUE_UINT8;
+    }
+
+    static SBE_CONSTEXPR std::uint8_t execInstMinValue() SBE_NOEXCEPT
+    {
+        return static_cast<std::uint8_t>(0);
+    }
+
+    static SBE_CONSTEXPR std::uint8_t execInstMaxValue() SBE_NOEXCEPT
+    {
+        return static_cast<std::uint8_t>(254);
+    }
+
+    static SBE_CONSTEXPR std::size_t execInstEncodingLength() SBE_NOEXCEPT
+    {
+        return 1;
+    }
+
+    SBE_NODISCARD std::uint8_t execInst() const SBE_NOEXCEPT
+    {
+        std::uint8_t val;
+        std::memcpy(&val, m_buffer + m_offset + 76, sizeof(std::uint8_t));
+        return (val);
+    }
+
+    NewOrder &execInst(const std::uint8_t value) SBE_NOEXCEPT
+    {
+        std::uint8_t val = (value);
+        std::memcpy(m_buffer + m_offset + 76, &val, sizeof(std::uint8_t));
+        return *this;
+    }
+
 template<typename CharT, typename Traits>
 friend std::basic_ostream<CharT, Traits> & operator << (
     std::basic_ostream<CharT, Traits> &builder, const NewOrder &_writer)
@@ -1105,6 +1168,10 @@ friend std::basic_ostream<CharT, Traits> & operator << (
     builder << R"("exchangeSymbol": )";
     builder << '"' <<
         writer.getExchangeSymbolAsJsonEscapedString().c_str() << '"';
+
+    builder << ", ";
+    builder << R"("execInst": )";
+    builder << +writer.execInst();
 
     builder << '}';
 

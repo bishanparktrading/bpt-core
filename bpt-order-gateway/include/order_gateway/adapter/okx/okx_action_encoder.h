@@ -52,6 +52,7 @@ struct OrderSpec {
     int64_t                             price_e8;        ///< natural * 1e8
     uint64_t                            quantity_e8;     ///< base currency * 1e8
     std::string                         cloid;           ///< client order id
+    std::uint8_t                        exec_inst{0};    ///< NewOrder.execInst bitmask
 };
 
 /// \brief Build the `{"id":...,"op":"order","args":[{...}]}` envelope for a new order.

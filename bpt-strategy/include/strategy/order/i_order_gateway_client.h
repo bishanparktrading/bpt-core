@@ -53,6 +53,7 @@ public:
                                               bpt::messages::TimeInForce::Value tif,
                                               int64_t price,
                                               uint64_t quantity,
+                                              uint8_t exec_inst,
                                               const std::string& exchange_symbol) = 0;
 
     virtual void send_cancel(uint64_t order_id,

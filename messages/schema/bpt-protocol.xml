@@ -76,7 +76,6 @@
     <enum name="OrderType" encodingType="uint8">
       <validValue name="MARKET">0</validValue>
       <validValue name="LIMIT">1</validValue>
-      <validValue name="POST_ONLY">2</validValue>
     </enum>
     <enum name="RefDataErrorType" encodingType="uint8">
       <validValue name="EXCHANGE_NOT_CONFIGURED">1</validValue>
@@ -227,6 +226,10 @@
     <field name="quantity" id="8" type="uint64"/>
     <field name="timestampNs" id="9" type="uint64"/>
     <field name="exchangeSymbol" id="10" type="Char32"/>
+    <!-- Bitmask of FIX ExecInst (tag 18) values, internally encoded.
+         Bit 0 = POST_ONLY (FIX '6' / ParticipateDontInitiate).
+         Bits 1+ reserved for REDUCE_ONLY, AON, etc. as needed. 0 = no flags. -->
+    <field name="execInst" id="11" type="uint8"/>
   </sbe:message>
 
   <sbe:message name="CancelOrder" id="11">

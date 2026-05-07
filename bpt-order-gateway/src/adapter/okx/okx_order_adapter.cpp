@@ -142,6 +142,7 @@ void OKXOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
         order.price(),
         order.quantity(),
         cloid,
+        order.execInst(),
     };
     const uint64_t req_id = ws_req_id_.fetch_add(1, std::memory_order_relaxed);
     const std::string frame = json::serialize(

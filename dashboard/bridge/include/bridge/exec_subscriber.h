@@ -20,7 +20,9 @@ public:
         uint64_t       order_id;
         uint64_t       instrument_id;
         encode::Side   side;
-        uint8_t        order_type;  // raw OrderType enum (0=MARKET, 1=LIMIT, 2=POST_ONLY)
+        uint8_t        order_type;  // raw OrderType enum (0=MARKET, 1=LIMIT). The
+                                    // POST_ONLY constraint lives in NewOrder.execInst,
+                                    // not here; the fill's MAKER/TAKER role is on liquidity.
         double         qty;     // natural units
         double         price;   // natural units
         double         fee;     // in quote currency (natural units, signed — positive = paid)

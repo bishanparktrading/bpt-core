@@ -116,10 +116,10 @@ void BridgeApp::run() {
         if (settings_.instrument_id != 0 && ev.instrument_id != settings_.instrument_id) return;
 
         static const char* kStatusStr[] = {"acked", "filled", "partial", "rejected", "cancelled"};
-        static const char* kTypeStr[]   = {"MARKET", "LIMIT", "POST_ONLY"};
+        static const char* kTypeStr[]   = {"MARKET", "LIMIT"};
 
         const char* status_s = ev.status < 5 ? kStatusStr[ev.status] : "unknown";
-        const char* type_s   = ev.order_type < 3 ? kTypeStr[ev.order_type] : "UNKNOWN";
+        const char* type_s   = ev.order_type < 2 ? kTypeStr[ev.order_type] : "UNKNOWN";
 
         ws.publish(MsgKind::Order,
                    encode::order(ev.ts_ns, ev.order_id, settings_.symbol, ev.side, type_s,
@@ -147,8 +147,8 @@ void BridgeApp::run() {
 
         const auto res = tracker.apply(f.side, f.qty, f.price);
 
-        static const char* kTypeStr[] = {"MARKET", "LIMIT", "POST_ONLY"};
-        const char* type_s = f.order_type < 3 ? kTypeStr[f.order_type] : "UNKNOWN";
+        static const char* kTypeStr[] = {"MARKET", "LIMIT"};
+        const char* type_s = f.order_type < 2 ? kTypeStr[f.order_type] : "UNKNOWN";
         ws.publish(MsgKind::Fill,
                    encode::fill(f.ts_ns, f.order_id, settings_.symbol, f.side, type_s,
                                 f.qty, f.price, f.fee, res.realized_pnl, res.cumulative_pnl));

@@ -59,9 +59,10 @@ void BinanceExecDecoder::handle_execution_report(const json::object& obj, uint64
     std::string type_str = std::string(obj.at("o").as_string());
     if (type_str == "MARKET")
         ev.order_type = OT::MARKET;
-    else if (type_str == "LIMIT_MAKER")
-        ev.order_type = OT::POST_ONLY;
     else
+        // LIMIT_MAKER (POST_ONLY) collapses to LIMIT here — the post-only
+        // constraint was a property of the placed order's execInst, not a
+        // distinct type. The fill's MAKER vs TAKER role lives separately.
         ev.order_type = OT::LIMIT;
 
     ev.price = static_cast<int64_t>(std::stod(std::string(obj.at("p").as_string())) * kScale);
