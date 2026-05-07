@@ -54,6 +54,14 @@ dir   = "logs/backtest"
 [metrics]
 port = 9105
 
+[results]
+# Personal-account starting capital — what one would actually deploy.
+# Default in settings.h is $100k; that's institutional, not realistic
+# for sizing a single-trader strategy. Backtest reports return_pct
+# and max_drawdown_pct against this value, so the unit economics
+# scale to what a real account would experience.
+starting_capital = 1000.0
+
 # Per-venue fee table. Looked up by FillReport.exchange + liquidity_role.
 # HL default-tier perp fees (no volume-tier rebates assumed):
 #   maker = 1.5 bps, taker = 4.5 bps

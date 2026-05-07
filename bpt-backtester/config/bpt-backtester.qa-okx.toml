@@ -51,6 +51,10 @@ dir   = "logs/backtest"
 [metrics]
 port = 9105
 
+[results]
+# Personal-account starting capital (matches the HL backtester configs).
+starting_capital = 1000.0
+
 # Per-venue fee table. Looked up by FillReport.exchange + liquidity_role.
 # Default-tier rates — adjust if the live account is at a higher VIP tier.
 #   OKX SPOT (BTC-USDT):    maker 8 bps, taker 10 bps

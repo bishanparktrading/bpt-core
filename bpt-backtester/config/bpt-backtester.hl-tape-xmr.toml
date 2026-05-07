@@ -56,6 +56,10 @@ dir   = "logs/backtest"
 [metrics]
 port = 9105
 
+[results]
+# Personal-account starting capital (matches hl-tape.toml).
+starting_capital = 1000.0
+
 # Per-venue fee table. HL default-tier perp fees:
 #   maker = 1.5 bps, taker = 4.5 bps
 [results.fees.HYPERLIQUID]
