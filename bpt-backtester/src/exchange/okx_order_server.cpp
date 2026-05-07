@@ -35,7 +35,9 @@ static std::string format_execution_report(const matching::FillReport& fill, uin
     // Fee is negative for taker (OKX convention: negative = cost)
     double fee_val = -(fill.last_fill_qty * fill.last_fill_price * 0.0005);
 
-    std::string ord_type = (fill.order_type == matching::OrderType::MARKET) ? "market" : "limit";
+    std::string ord_type = (fill.order_type == matching::OrderType::MARKET)    ? "market"
+                          : (fill.order_type == matching::OrderType::POST_ONLY) ? "post_only"
+                                                                                 : "limit";
 
     json::object item;
     item["instId"] = fill.symbol;
@@ -157,7 +159,9 @@ private:
         order.client_order_id = std::string(args.at("clOrdId").as_string());
 
         std::string ord_type = std::string(args.at("ordType").as_string());
-        order.type = (ord_type == "market") ? matching::OrderType::MARKET : matching::OrderType::LIMIT;
+        if (ord_type == "market")          order.type = matching::OrderType::MARKET;
+        else if (ord_type == "post_only")  order.type = matching::OrderType::POST_ONLY;
+        else                                order.type = matching::OrderType::LIMIT;
 
         std::string side_str = std::string(args.at("side").as_string());
         order.side = (side_str == "sell") ? matching::OrderSide::SELL : matching::OrderSide::BUY;
@@ -169,19 +173,28 @@ private:
         uint64_t oid = ++order_id_seq_;
         order.order_id = std::to_string(oid);
 
-        engine_.submit_order(std::move(order));
+        const auto submitted = engine_.submit_order(std::move(order));
 
-        // Ack the order placement (OKX place-order response)
+        // OKX place-order response — the per-order data entry carries
+        // its own sCode (success code) distinct from the envelope code.
+        // POST_ONLY rejections set sCode=51008 (post-only would have
+        // crossed) per OKX's docs; the OGW okx_exec_decoder routes any
+        // non-"0" sCode to a REJECTED ExecReport.
         json::object ack;
         ack["id"] = std::string(args.contains("clOrdId") ? std::string(args.at("clOrdId").as_string()) : "");
         ack["op"] = "order";
         ack["code"] = "0";
         ack["msg"] = "";
         json::object data;
-        data["clOrdId"] = order.client_order_id;
+        data["clOrdId"] = submitted.client_order_id;
         data["ordId"] = std::to_string(oid);
-        data["sCode"] = "0";
-        data["sMsg"] = "";
+        if (submitted.rejected) {
+            data["sCode"] = "51008";
+            data["sMsg"] = "Order would immediately match — post_only set.";
+        } else {
+            data["sCode"] = "0";
+            data["sMsg"] = "";
+        }
         ack["data"] = json::array{std::move(data)};
         send(std::make_shared<std::string>(json::serialize(ack)));
     }
