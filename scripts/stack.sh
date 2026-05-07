@@ -66,7 +66,7 @@ do_start() {
     "$REFDATA_DIR/scripts/start.sh"
     echo
 
-    # 3. Huginn + Heimdall (can start in parallel — neither depends on the other)
+    # 3. bpt-md-gateway + bpt-order-gateway (can start in parallel — neither depends on the other)
     "$MD_GATEWAY_DIR/scripts/start.sh" &
     MD_GATEWAY_START_PID=$!
 

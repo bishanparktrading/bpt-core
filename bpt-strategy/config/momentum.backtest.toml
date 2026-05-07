@@ -2,7 +2,7 @@
 # BBO-driven so it works without trade parquet files in the cache.  Purpose:
 # pipeline verification — exercises the order / exec report / bridge chain.
 
-environment    = "backtest"
+environment    = "dev"
 backtest_mode  = true
 strategy_config = "strategies/momentum.backtest.toml"
 

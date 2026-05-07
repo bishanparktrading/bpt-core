@@ -6,7 +6,7 @@
 # service's TOML.
 #
 # Job names track the current service identity (post-rename 2026-04-17:
-# heimdall→bpt-ogw, huginn→bpt-mdgw, muninn→bpt-rfd, fenrir→bpt-strategy,
+# bpt-order-gateway→bpt-ogw, bpt-md-gateway→bpt-mdgw, bpt-refdata→bpt-rfd, fenrir→bpt-strategy,
 # tyr→bpt-analytics). The service label uses the abbreviated form to
 # match the process `comm` field set via prctl in bpt-app.
 

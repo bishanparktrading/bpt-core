@@ -1,7 +1,7 @@
 # bpt-core monitoring
 
 Operational health monitoring for the bpt-core services. Prometheus scrapes
-`muninn` / `huginn` / `heimdall` directly on their metrics ports; Grafana
+`bpt-refdata` / `bpt-md-gateway` / `bpt-order-gateway` directly on their metrics ports; Grafana
 renders dashboards from Python source via [grafanalib](https://github.com/weaveworks/grafanalib).
 
 This layer is **ops only** — service up/down, exchange connectivity,
@@ -60,9 +60,9 @@ Prometheus: <http://localhost:9090>.
 
 | Service  | Port | Prefix        |
 |----------|------|---------------|
-| muninn   | 9101 | `muninn_`     |
-| huginn   | 9102 | `huginn_`     |
-| heimdall | 9103 | `heimdall_`   |
+| bpt-refdata   | 9101 | `refdata_`     |
+| bpt-md-gateway   | 9102 | `bpt_md_gateway_`    |
+| bpt-order-gateway | 9103 | `bpt_order_gateway_` |
 | fenrir   | 9104 | *(no-op stub)* |
 
 Fenrir's `metrics.h` is currently a no-op — no HTTP server is started and no

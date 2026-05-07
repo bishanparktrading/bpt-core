@@ -1,5 +1,5 @@
 # Instance config — BACKTEST mode, VWAP reversion on OKX BTC/ETH SWAP
-environment    = "backtest"
+environment    = "dev"
 backtest_mode  = true
 strategy_config = "strategies/vwap_reversion.swap.toml"
 

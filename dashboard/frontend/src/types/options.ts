@@ -1,4 +1,4 @@
-// Options data types — mirrors the shapes from surtr's VolSurface grid and
+// Options data types — mirrors the shapes from bpt-pricer's VolSurface grid and
 // fenrir's refdata instruments. Mock data uses these directly; phase 2 will
 // wire them to a real PortfolioSnapshot Aeron stream via the bridge.
 
@@ -17,7 +17,7 @@ export interface OptionLeg {
   avgEntry: number          // average fill price
   markPrice: number         // current market mid
   iv: number                // implied vol (annualized)
-  // Per-leg Greeks (from surtr, per 1 contract)
+  // Per-leg Greeks (from bpt-pricer, per 1 contract)
   delta: number
   gamma: number
   vega: number
@@ -35,7 +35,7 @@ export interface PortfolioGreeks {
   totalRealizedPnl: number
 }
 
-// A single point on the vol surface — matches surtr's VolSurface grid point.
+// A single point on the vol surface — matches bpt-pricer's VolSurface grid point.
 export interface VolSurfacePoint {
   instrumentId: number
   strike: number

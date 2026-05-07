@@ -22,7 +22,7 @@ export type InstrumentType = 'SPOT' | 'PERP' | 'FUTURE' | 'OPTION'
 // Sent once at the start of a session (and replayed to mid-run joiners).
 //
 // No starting_capital field — equity for live/paper sessions is sourced
-// from heimdall AccountSnapshots (relayed by the bridge as `account`
+// from bpt-order-gateway AccountSnapshots (relayed by the bridge as `account`
 // messages). Backtest archive views read equity from summary.json instead.
 export interface SessionMsg {
   type: 'session'
@@ -63,7 +63,7 @@ export interface FillMsg {
 }
 
 // One open position row, as reported by the exchange and relayed via
-// heimdall → bridge → this message.
+// bpt-order-gateway → bridge → this message.
 export interface AccountPosition {
   symbol: string          // exchange-native, e.g. "BTC"
   netQty: number          // signed (+ long, − short)

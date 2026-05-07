@@ -54,13 +54,13 @@ stream_id = 3003
 
 [aeron.account_snapshot]
 channel = "aeron:ipc"
-stream_id = 3004    # Heimdall → Fenrir (AccountSnapshot)
+stream_id = 3004    # bpt-order-gateway → Fenrir (AccountSnapshot)
 
 [aeron.vol_surface]
 channel = "aeron:ipc"
 stream_id = 4001
 
-[aeron.surtr_status]
+[aeron.pricer_status]
 channel = "aeron:ipc"
 stream_id = 4002
 

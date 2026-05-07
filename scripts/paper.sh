@@ -41,7 +41,7 @@ esac
 
 REFDATA_CONFIG="$REFDATA_DIR/config/bpt-refdata.qa-${EXCHANGE}.toml"
 MD_GATEWAY_CONFIG="$MD_GATEWAY_DIR/config/bpt-md-gateway.qa-${EXCHANGE}.toml"
-ORDER_GATEWAY_CONFIG="$ORDER_GATEWAY_DIR/config/order-gateway.qa-${EXCHANGE}.toml"
+ORDER_GATEWAY_CONFIG="$ORDER_GATEWAY_DIR/config/bpt-order-gateway.qa-${EXCHANGE}.toml"
 PRICER_CONFIG="$PRICER_DIR/config/bpt-pricer.qa-${EXCHANGE}.toml"
 
 # Options strategies need bpt-pricer for vol surface computation.
@@ -89,8 +89,8 @@ do_start() {
     echo "  Exchange      : $EXCHANGE"
     echo "  Strategy config : $STRATEGY_CONFIG"
     echo "  Refdata config : $REFDATA_CONFIG"
-    echo "  Huginn config : $MD_GATEWAY_CONFIG"
-    echo "  Heimdall cfg  : $ORDER_GATEWAY_CONFIG"
+    echo "  bpt-md-gateway config : $MD_GATEWAY_CONFIG"
+    echo "  bpt-order-gateway cfg  : $ORDER_GATEWAY_CONFIG"
     $NEEDS_PRICER && echo "  Pricer config  : $PRICER_CONFIG"
     echo
 
@@ -102,7 +102,7 @@ do_start() {
     "$REFDATA_DIR/scripts/start.sh" "$REFDATA_CONFIG"
     echo
 
-    # 3. Huginn + Heimdall (+ Pricer if options) — parallel startup.
+    # 3. bpt-md-gateway + bpt-order-gateway (+ Pricer if options) — parallel startup.
     "$MD_GATEWAY_DIR/scripts/start.sh" "$MD_GATEWAY_CONFIG" &
     MD_GATEWAY_PID=$!
 
@@ -120,7 +120,7 @@ do_start() {
     echo
 
     # 4. Strategy — waits for RefDataReady from Refdata, subscribes to MD via
-    #    Huginn, and begins trading.
+    #    bpt-md-gateway, and begins trading.
     "$STRATEGY_DIR/scripts/start.sh" "$STRATEGY_CONFIG"
     echo
 

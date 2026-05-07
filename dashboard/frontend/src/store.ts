@@ -146,7 +146,7 @@ const initialState = {
   strategy: '',
   exchange: '',
   instrumentType: null as InstrumentType | null,
-  // Live exchange account snapshots from heimdall, relayed by the bridge.
+  // Live exchange account snapshots from bpt-order-gateway, relayed by the bridge.
   // The EquityChart and RiskPanel use these as the canonical equity series.
   accountBalance: 0,
   accountEquity: 0,
@@ -249,7 +249,7 @@ export const useStore = create<State>((set) => ({
 
         case 'account': {
           // Defensive: drop all-zero snapshots. These can leak through on a
-          // failed clearinghouseState parse (heimdall catches and publishes
+          // failed clearinghouseState parse (bpt-order-gateway catches and publishes
           // a default-constructed zero snapshot). Without this guard the
           // equity chart visibly flips to 0 on any such bad message.
           if (msg.balance === 0 && msg.equity === 0) return state

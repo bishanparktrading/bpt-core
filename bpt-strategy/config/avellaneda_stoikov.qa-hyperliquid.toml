@@ -56,7 +56,7 @@ stream_id = 3003
 channel = "aeron:ipc"
 stream_id = 3004
 
-# Tyr toxicity stream (optional — set stream_id = 5001 to enable)
+# Analytics toxicity stream (optional — set stream_id = 5001 to enable)
 [aeron.toxicity]
 channel = "aeron:ipc"
 stream_id = 5001

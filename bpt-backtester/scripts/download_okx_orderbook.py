@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Download OKX historical L2 order book data and convert to Jormungandr Parquet format.
+Download OKX historical L2 order book data and convert to bpt-backtester Parquet format.
 
 Source format: newline-delimited JSON inside a .data file within a .tar.gz archive.
 Each line: {"instId":..., "action":"snapshot"|"update", "ts":"<ms>",
@@ -14,12 +14,12 @@ Usage:
         --symbol BTC-USDT-SWAP \
         --start 2025-03-20 \
         --end   2025-03-26 \
-        --output /data/jormungandr
+        --output /data/bpt-backtester
 
 Output layout:
     {output}/OKX/{symbol}/orderbook/YYYY-MM-DD.parquet
 
-Parquet schema (matches Jormungandr DataLoader):
+Parquet schema (matches bpt-backtester DataLoader):
     timestamp_ns  int64
     bid_px_1..5   float64   (best bid = level 1)
     bid_sz_1..5   float64
@@ -44,7 +44,7 @@ import requests
 # ── Constants ──────────────────────────────────────────────────────────────────
 
 CDN_BASE  = "https://static.okx.com/cdn/okx/match/orderbook/L2/400lv/daily"
-DEPTH     = 5    # Jormungandr kOrderBookDepth
+DEPTH     = 5    # bpt-backtester kOrderBookDepth
 SAMPLE_MS = 100  # Keep one snapshot per this many milliseconds (0 = keep all)
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -173,7 +173,7 @@ def write_parquet(df: pd.DataFrame, path: Path) -> None:
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Download OKX L2 orderbook → Jormungandr Parquet")
+    parser = argparse.ArgumentParser(description="Download OKX L2 orderbook → bpt-backtester Parquet")
     parser.add_argument("--symbol",   default="BTC-USDT-SWAP", help="OKX instrument ID")
     parser.add_argument("--start",    required=True,            help="Start date YYYY-MM-DD (inclusive)")
     parser.add_argument("--end",      required=True,            help="End date   YYYY-MM-DD (inclusive)")

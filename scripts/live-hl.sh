@@ -21,7 +21,7 @@
 #   3. Verify these configs all exist and point at mainnet:
 #        bpt-refdata/config/bpt-refdata.hyperliquid.toml
 #        bpt-md-gateway/config/bpt-md-gateway.hyperliquid.toml
-#        order-gateway/config/order-gateway.hyperliquid.toml
+#        order-gateway/config/bpt-order-gateway.hyperliquid.toml
 #        bpt-strategy/config/ofi.hl-live.toml
 #
 # Usage:
@@ -42,7 +42,7 @@ STRATEGY_DIR="$STACK_DIR/bpt-strategy"
 STRATEGY_CONFIG="$STRATEGY_DIR/config/ofi.hl-live.toml"
 REFDATA_CONFIG="$REFDATA_DIR/config/bpt-refdata.hyperliquid.toml"
 MD_GATEWAY_CONFIG="$MD_GATEWAY_DIR/config/bpt-md-gateway.hyperliquid.toml"
-ORDER_GATEWAY_CONFIG="$ORDER_GATEWAY_DIR/config/order-gateway.hyperliquid.toml"
+ORDER_GATEWAY_CONFIG="$ORDER_GATEWAY_DIR/config/bpt-order-gateway.hyperliquid.toml"
 
 # ── Helpers ───────────────────────────────────────────────────────
 

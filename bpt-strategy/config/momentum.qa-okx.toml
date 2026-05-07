@@ -42,7 +42,7 @@ stream_id = 3003
 
 [aeron.account_snapshot]
 channel = "aeron:ipc"
-stream_id = 3004    # Heimdall → Fenrir (AccountSnapshot)
+stream_id = 3004    # bpt-order-gateway → Fenrir (AccountSnapshot)
 
 [fenrir]
 correlation_id = 1001

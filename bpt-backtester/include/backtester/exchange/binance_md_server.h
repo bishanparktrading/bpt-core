@@ -17,7 +17,7 @@ class BinanceSession;
 //
 // Listens on a configurable port and serves Binance-format combined-stream
 // WebSocket messages (same protocol as stream.binance.com:9443/stream).
-// MdGateway's BinanceAdapter connects here instead of the real exchange when
+// MdGateway's BinanceMdAdapter connects here instead of the real exchange when
 // backtest_mode is active.
 //
 // Usage:

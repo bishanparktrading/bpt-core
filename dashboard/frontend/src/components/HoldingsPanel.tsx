@@ -1,6 +1,6 @@
 import { useStore } from '../store'
 
-// Holdings breakdown — table of open positions from heimdall AccountSnapshot.
+// Holdings breakdown — table of open positions from bpt-order-gateway AccountSnapshot.
 //
 // Distinct from PositionPanel: PositionPanel shows ONE instrument (the
 // one the bridge's fill stream covers), derived client-side from fills.

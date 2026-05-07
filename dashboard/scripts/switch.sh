@@ -51,7 +51,7 @@ echo
 # ── 1. Tear down whatever's running ─────────────────────────────────────────
 # All three stop commands are idempotent and clean up the same set of
 # services, so calling smoke_test.sh stop is safe regardless of which stack
-# was actually running.  (It also knows to stop jormungandr, which the other
+# was actually running.  (It also knows to stop bpt-backtester, which the other
 # two don't — important because backtest→paper needs that teardown.)
 echo "--- Stopping current stack (if any) ---"
 "$SMOKE_TEST_SH" stop 2>&1 || true

@@ -17,7 +17,7 @@
 #
 #   bpt-refdata/config/bpt-refdata.live-okx.toml
 #   bpt-md-gateway/config/bpt-md-gateway.live-okx.toml
-#   order-gateway/config/order-gateway.live-okx.toml
+#   order-gateway/config/bpt-order-gateway.live-okx.toml
 #   bpt-strategy/config/<strategy>.live-okx.toml
 #
 # Usage:
@@ -38,7 +38,7 @@ STRATEGY_DIR="$STACK_DIR/bpt-strategy"
 STRATEGY_CONFIG="${2:-}"  # no default — live trading requires explicit choice
 REFDATA_CONFIG="$REFDATA_DIR/config/bpt-refdata.live-okx.toml"
 MD_GATEWAY_CONFIG="$MD_GATEWAY_DIR/config/bpt-md-gateway.live-okx.toml"
-ORDER_GATEWAY_CONFIG="$ORDER_GATEWAY_DIR/config/order-gateway.live-okx.toml"
+ORDER_GATEWAY_CONFIG="$ORDER_GATEWAY_DIR/config/bpt-order-gateway.live-okx.toml"
 
 # ── Helpers ───────────────────────────────────────────────────────
 

@@ -57,11 +57,11 @@ do_start() {
     "$REFDATA_DIR/scripts/start.sh" "$REFDATA_DIR/config/bpt-refdata.qa-okx.toml"
     echo
 
-    # 3. Huginn + Heimdall in parallel — both use testnet configs by default
+    # 3. bpt-md-gateway + bpt-order-gateway in parallel — both use testnet configs by default
     "$MD_GATEWAY_DIR/scripts/start.sh" "$MD_GATEWAY_DIR/config/bpt-md-gateway.qa-okx.toml" &
     MD_GATEWAY_PID=$!
 
-    "$ORDER_GATEWAY_DIR/scripts/start.sh" "$ORDER_GATEWAY_DIR/config/order-gateway.qa-okx.toml" &
+    "$ORDER_GATEWAY_DIR/scripts/start.sh" "$ORDER_GATEWAY_DIR/config/bpt-order-gateway.qa-okx.toml" &
     ORDER_GATEWAY_PID=$!
 
     wait "$MD_GATEWAY_PID"

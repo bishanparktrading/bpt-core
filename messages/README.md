@@ -13,26 +13,26 @@ Transport layer: [bpt-transport](../transport/aeron) (Aeron).
 | 1 | `RefDataSubscriptionRequest` | 1003 | Fenrir → Sindri | Subscribe to instrument snapshot |
 | 2 | `RefDataSnapshot` | 1001 | Sindri → Fenrir | Full instrument snapshot (group message) |
 | 3 | `RefDataDelta` | 1002 | Sindri → Fenrir | Incremental update or heartbeat |
-| 4 | `MdSubscribeBatch` | 2001 | Fenrir → Huginn | MD subscription request |
-| 5 | `MdSubscriptionAck` | 2003 | Huginn → Fenrir | Per-instrument subscription acknowledgement |
-| 6 | `MdSubscriptionHeartbeat` | 2003 | Huginn → Fenrir | Per-instrument keepalive (when no data) |
-| 7 | `MdMarketData` | 2002 | Huginn → Fenrir | BBO (best-bid/offer) snapshot |
-| 8 | `MdTrade` | 2002 | Huginn → Fenrir | Trade print |
-| 9 | `MdServiceHeartbeat` | 2003 | Huginn → Fenrir | Service-level keepalive |
-| 10 | `NewOrder` | 3001 | Fenrir → Heimdall | Place a new order |
-| 11 | `CancelOrder` | 3001 | Fenrir → Heimdall | Cancel existing order |
-| 12 | `CancelAll` | 3001 | Fenrir → Heimdall | Cancel all orders (optionally filtered) |
-| 13 | `ModifyOrder` | 3001 | Fenrir → Heimdall | Modify price/qty |
-| 14 | `ExecutionReport` | 3002 | Heimdall → Fenrir | Fill/cancel/reject |
-| 15 | `OrderGatewayHeartbeat` | 3003 | Heimdall → Fenrir | Gateway liveness |
+| 4 | `MdSubscribeBatch` | 2001 | Fenrir → bpt-md-gateway | MD subscription request |
+| 5 | `MdSubscriptionAck` | 2003 | bpt-md-gateway → Fenrir | Per-instrument subscription acknowledgement |
+| 6 | `MdSubscriptionHeartbeat` | 2003 | bpt-md-gateway → Fenrir | Per-instrument keepalive (when no data) |
+| 7 | `MdMarketData` | 2002 | bpt-md-gateway → Fenrir | BBO (best-bid/offer) snapshot |
+| 8 | `MdTrade` | 2002 | bpt-md-gateway → Fenrir | Trade print |
+| 9 | `MdServiceHeartbeat` | 2003 | bpt-md-gateway → Fenrir | Service-level keepalive |
+| 10 | `NewOrder` | 3001 | Fenrir → bpt-order-gateway | Place a new order |
+| 11 | `CancelOrder` | 3001 | Fenrir → bpt-order-gateway | Cancel existing order |
+| 12 | `CancelAll` | 3001 | Fenrir → bpt-order-gateway | Cancel all orders (optionally filtered) |
+| 13 | `ModifyOrder` | 3001 | Fenrir → bpt-order-gateway | Modify price/qty |
+| 14 | `ExecutionReport` | 3002 | bpt-order-gateway → Fenrir | Fill/cancel/reject |
+| 15 | `OrderGatewayHeartbeat` | 3003 | bpt-order-gateway → Fenrir | Gateway liveness |
 | 16 | `RefDataReady` | 1006 | Sindri → Fenrir | All adapters completed snapshot |
 | 17 | `RefDataError` | 1006 | Sindri → Fenrir | Runtime error |
 | 18 | `FundingRate` | 1005 | Sindri → Fenrir | Perpetual funding rate update |
 | 19 | `FeeSchedule` | 1004 | Sindri → Fenrir | Exchange/instrument fee schedule |
-| 20 | `MdOrderBook` | 2002 | Huginn → Fenrir | Top-N order book snapshot |
-| 21 | `VolSurface` | 4001 | Surtr → Fenrir | Implied-volatility surface snapshot |
-| 22 | `SurtrHeartbeat` | 4002 | Surtr → Fenrir | Service-level keepalive |
-| 23 | `SurtrReady` | 4002 | Surtr → Fenrir | Startup ready signal |
+| 20 | `MdOrderBook` | 2002 | bpt-md-gateway → Fenrir | Top-N order book snapshot |
+| 21 | `VolSurface` | 4001 | bpt-pricer → Fenrir | Implied-volatility surface snapshot |
+| 22 | `PricerHeartbeat` | 4002 | bpt-pricer → Fenrir | Service-level keepalive |
+| 23 | `PricerReady` | 4002 | bpt-pricer → Fenrir | Startup ready signal |
 
 ### Snapshot/delta flow (refdata)
 

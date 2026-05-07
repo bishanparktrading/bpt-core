@@ -8,15 +8,15 @@ media_driver_dir = "/dev/shm/aeron-bpt"
 
 [aeron.md_data]
 channel   = "aeron:ipc"
-stream_id = 2002               # Huginn → everyone (MdMarketData, MdTrade)
+stream_id = 2002               # bpt-md-gateway → everyone (MdMarketData, MdTrade)
 
 [aeron.exec_report]
 channel   = "aeron:ipc"
-stream_id = 3002               # Heimdall → Fenrir (ExecutionReport)
+stream_id = 3002               # bpt-order-gateway → Fenrir (ExecutionReport)
 
 [aeron.account_snapshot]
 channel   = "aeron:ipc"
-stream_id = 3004               # Heimdall → bridge (live balance/equity)
+stream_id = 3004               # bpt-order-gateway → bridge (live balance/equity)
 
 [aeron.toxicity]
 channel   = "aeron:ipc"

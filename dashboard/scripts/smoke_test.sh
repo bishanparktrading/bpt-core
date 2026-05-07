@@ -1,8 +1,8 @@
 #!/bin/bash
 # smoke_test.sh — End-to-end dashboard smoke test.
 #
-# Launches the full backtest stack (bpt-transport + bpt-refdata + huginn + order-gateway +
-# fenrir + jormungandr) via the existing backtest.sh, then starts the bridge
+# Launches the full backtest stack (bpt-transport + bpt-refdata + bpt-md-gateway + order-gateway +
+# fenrir + bpt-backtester) via the existing backtest.sh, then starts the bridge
 # on top and prints the command to run the frontend.
 #
 # Usage:
@@ -14,13 +14,13 @@
 # The optional fenrir-config is forwarded to backtest.sh — use it to pick a
 # strategy config other than the default vwap_reversion.backtest.toml.
 #
-# --starting-capital N (default: 100000) is forwarded to BOTH jormungandr and
+# --starting-capital N (default: 100000) is forwarded to BOTH bpt-backtester and
 # the bridge so the equity curve on the dashboard matches the one written to
 # summary.json.  Strategy's risk limits (max_position_usd etc.) are separate
 # and stay whatever the strategy config says.
 #
 # What a passing smoke test looks like:
-#   1. Stack launches, Jormungandr starts replaying Jan 6-12 OKX data
+#   1. Stack launches, bpt-backtester starts replaying Jan 6-12 OKX data
 #   2. Bridge connects to Aeron, listens on :8080
 #   3. Frontend (run separately) connects to ws://localhost:8080
 #   4. Blotter fills up with 22 fills as the backtest runs
@@ -34,7 +34,7 @@ BRIDGE_CFG="$STACK_DIR/dashboard/bridge/config/bridge.live.toml"
 BRIDGE_LOG_DIR="$STACK_DIR/dashboard/bridge/logs"
 BRIDGE_PID="$STACK_DIR/dashboard/bridge/.bridge.pid"
 BACKTEST_SH="$STACK_DIR/scripts/backtest.sh"
-RESULTS_DIR="$STACK_DIR/jormungandr/results"
+RESULTS_DIR="$STACK_DIR/bpt-backtester/results"
 FRONTEND_DIR="$STACK_DIR/dashboard/frontend"
 
 is_running() {
@@ -80,7 +80,7 @@ bridge_start() {
     strategy_name="$(derive_strategy_name "${FENRIR_CONFIG_OVERRIDE:-}")"
 
     # NB: bridge no longer takes --starting-capital — it's a backtest concept
-    # only forwarded to jormungandr via backtest.sh.
+    # only forwarded to bpt-backtester via backtest.sh.
     local extra_args=()
     if [ -n "${INSTRUMENT_ID:-}" ]; then
         extra_args+=(--instrument-id "$INSTRUMENT_ID")
@@ -153,12 +153,12 @@ Now, in a separate terminal, start the frontend pointed at the bridge:
     VITE_WS_URL=ws://localhost:8080 npm run dev
 
 Then open the URL Vite prints (http://localhost:5173/).  The dashboard
-should animate with real fills as Jormungandr replays the data.
+should animate with real fills as bpt-backtester replays the data.
 
 Logs:
   bridge  : $BRIDGE_LOG_DIR/bridge.stdout
   fenrir  : $STACK_DIR/fenrir/logs/fenrir.log
-  jormun. : $STACK_DIR/jormungandr/logs/backtest/jormungandr.log
+  jormun. : $STACK_DIR/bpt-backtester/logs/backtest/bpt-backtester.log
 
 After the backtest completes, run:
     $0 verify

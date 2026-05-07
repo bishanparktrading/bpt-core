@@ -22,7 +22,7 @@ STRATEGY_DIR="$STACK_DIR/bpt-strategy"
 STRATEGY_CONFIG="$STRATEGY_DIR/config/avellaneda_stoikov.qa-hyperliquid.toml"
 REFDATA_CONFIG="$REFDATA_DIR/config/bpt-refdata.qa-hyperliquid.toml"
 MD_GATEWAY_CONFIG="$MD_GATEWAY_DIR/config/bpt-md-gateway.qa-hyperliquid.toml"
-ORDER_GATEWAY_CONFIG="$ORDER_GATEWAY_DIR/config/order-gateway.qa-hyperliquid.toml"
+ORDER_GATEWAY_CONFIG="$ORDER_GATEWAY_DIR/config/bpt-order-gateway.qa-hyperliquid.toml"
 
 is_running() {
     local pid_file="$1"

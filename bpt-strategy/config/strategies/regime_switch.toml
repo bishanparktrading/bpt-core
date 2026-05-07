@@ -51,7 +51,7 @@ atr_target_multiplier = 15.0
 momentum_qty_usd = 200.0
 
 # ── Order book depth ─────────────────────────────────────────────────
-order_book_depth = 5    # 0 = BBO only, 5 = top-5 levels from Huginn
+order_book_depth = 5    # 0 = BBO only, 5 = top-5 levels from bpt-md-gateway
 
 # ── Execution ────────────────────────────────────────────────────────
 aggress_bps = 10.0

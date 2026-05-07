@@ -17,7 +17,7 @@ class HyperliquidMdSession;
 //
 // Listens on a configurable port and serves Hyperliquid-format WebSocket
 // messages (same protocol as wss://api.hyperliquid.xyz/ws). MdGateway's
-// HyperliquidAdapter connects here in backtest mode.
+// HyperliquidMdAdapter connects here in backtest mode.
 //
 // Supported subscription types:
 //   "l2Book"          → {"channel":"l2Book","data":{"coin":"...","time":...,"levels":[[bids],[asks]]}}

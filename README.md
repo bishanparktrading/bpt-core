@@ -46,7 +46,7 @@ out-of-tree cache. `bazel-*` symlinks are `.gitignore`'d.
 ### CMake — backtester only
 
 Backtester still requires CMake + vcpkg + Arrow/Parquet from the Apache apt
-repo. Only set this up if you actually need to build `jormungandr`:
+repo. Only set this up if you actually need to build `bpt-backtester`:
 
 ```bash
 git clone https://github.com/microsoft/vcpkg.git
@@ -55,7 +55,7 @@ git clone https://github.com/microsoft/vcpkg.git
 cmake -B build -G Ninja \
   -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake
-cmake --build build --target jormungandr -j$(nproc)
+cmake --build build --target bpt-backtester -j$(nproc)
 ctest --test-dir build --output-on-failure -j$(nproc)
 ```
 

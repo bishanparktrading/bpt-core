@@ -10,7 +10,7 @@ but should be picked up when the related subsystem is next touched.
 **Status:** open, observed on HL testnet 2026-04-16.
 
 **Symptom:** HL gracefully closes the `/ws` connection every ~10 minutes
-(`"The WebSocket stream was gracefully closed at both endpoints"`). Heimdall
+(`"The WebSocket stream was gracefully closed at both endpoints"`). bpt-order-gateway
 reconnects within ~2 s, but any `userFills` events generated on the exchange
 during the reconnect window are lost — HL does not replay them after the new
 subscription. Fenrir's inventory then diverges from the exchange by however
@@ -46,6 +46,6 @@ Recommended first step: option (1). It's a single-file change in the parser
 and directly addresses the observed leak.
 
 **Relevant code:**
-- `heimdall/src/adapter/hyperliquid/hyperliquid_ws_client.cpp` — reconnect loop
-- `heimdall/src/adapter/hyperliquid/hyperliquid_exec_parser.cpp` — `handle_fills`
-- Log tag to watch: `"gracefully closed at both endpoints"` in `heimdall.log`
+- `bpt-order-gateway/src/adapter/hyperliquid/hyperliquid_ws_client.cpp` — reconnect loop
+- `bpt-order-gateway/src/adapter/hyperliquid/hyperliquid_exec_parser.cpp` — `handle_fills`
+- Log tag to watch: `"gracefully closed at both endpoints"` in `bpt-order-gateway.log`

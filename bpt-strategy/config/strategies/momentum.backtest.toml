@@ -2,7 +2,7 @@
 # BBO-driven (no trade data required) so it will fire orders even when the
 # backtest cache has only orderbook snapshots.
 #
-# Trimmed to BTC-only since Jormungandr is configured to replay a single
+# Trimmed to BTC-only since bpt-backtester is configured to replay a single
 # instrument.  The entry threshold is intentionally aggressive — the goal
 # here is to exercise the order/exec/bridge plumbing, not to make money.
 
