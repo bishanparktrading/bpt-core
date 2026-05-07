@@ -7,6 +7,8 @@
         "tomlplusplus",
         {"name": "boost-system", "default-features": false},
         {"name": "boost-json",   "default-features": false},
+        {"name": "boost-asio",   "default-features": false},
+        {"name": "boost-beast",  "default-features": false},
         "gtest",
         {"name": "prometheus-cpp", "features": ["pull"]},
         "cli11"
