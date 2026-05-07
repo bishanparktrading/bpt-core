@@ -1,10 +1,13 @@
 #pragma once
 
-// yggdrasil/aeron_utils.h — Helpers for Aeron publication and subscription setup.
-//
-// Usage:
-//   auto pub = bpt::common::aeron::wait_for_publication(aeron, channel, stream_id);
-//   auto sub = bpt::common::aeron::wait_for_subscription(aeron, channel, stream_id);
+/// @file
+/// Helpers for Aeron publication and subscription setup.
+///
+/// Usage:
+/// @code
+///   auto pub = bpt::common::aeron::wait_for_publication(aeron, channel, stream_id);
+///   auto sub = bpt::common::aeron::wait_for_subscription(aeron, channel, stream_id);
+/// @endcode
 
 #include <Aeron.h>
 
@@ -17,14 +20,17 @@
 
 namespace bpt::common::aeron {
 
-// Error handler signature used by the Aeron client when it catches an
-// exception on the client-driver conductor thread. Services typically
-// want to log + optionally print a backtrace, without crashing the
-// process (Aeron is designed to keep running on its side too).
+/// Error handler signature used by the Aeron client.
+///
+/// Invoked when the client catches an exception on the client-driver
+/// conductor thread. Services typically want to log + optionally print
+/// a backtrace, without crashing the process (Aeron is designed to
+/// keep running on its side too).
 using ErrorHandler = std::function<void(const std::exception&)>;
 
-// Register a publication and spin until Aeron connects it.
-// Throws std::runtime_error if not connected within max_retries * 10 ms.
+/// Register a publication and spin until Aeron connects it.
+///
+/// Throws std::runtime_error if not connected within max_retries * 10 ms.
 inline std::shared_ptr<::aeron::Publication> wait_for_publication(std::shared_ptr<::aeron::Aeron> aeron,
                                                                   const std::string& channel,
                                                                   int stream_id,
@@ -43,8 +49,9 @@ inline std::shared_ptr<::aeron::Publication> wait_for_publication(std::shared_pt
     return pub;  // unreachable
 }
 
-// Register a subscription and spin until Aeron connects it.
-// Throws std::runtime_error if not connected within max_retries * 10 ms.
+/// Register a subscription and spin until Aeron connects it.
+///
+/// Throws std::runtime_error if not connected within max_retries * 10 ms.
 inline std::shared_ptr<::aeron::Subscription> wait_for_subscription(std::shared_ptr<::aeron::Aeron> aeron,
                                                                     const std::string& channel,
                                                                     int stream_id,
@@ -63,11 +70,13 @@ inline std::shared_ptr<::aeron::Subscription> wait_for_subscription(std::shared_
     return sub;  // unreachable
 }
 
-// Connect to an Aeron media driver. Optional error_handler is wired to
-// aeron::Context::errorHandler and fires on the client-driver conductor
-// thread whenever Aeron catches an exception. Services should pass a
-// handler that logs (and optionally captures a backtrace) — default is
-// to do nothing, which makes Aeron fall back to its own stderr output.
+/// Connect to an Aeron media driver.
+///
+/// Optional error_handler is wired to aeron::Context::errorHandler and
+/// fires on the client-driver conductor thread whenever Aeron catches
+/// an exception. Services should pass a handler that logs (and
+/// optionally captures a backtrace) — default is to do nothing, which
+/// makes Aeron fall back to its own stderr output.
 inline std::shared_ptr<::aeron::Aeron> connect(const std::string& media_driver_dir = "",
                                                ErrorHandler error_handler = {}) {
     ::aeron::Context ctx;
