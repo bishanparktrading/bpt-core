@@ -1,1 +1,4 @@
 build
+build-cmake
+vcpkg
+vcpkg_installed
