@@ -164,6 +164,26 @@ groups:
             watchdog fired.  Check `strategy_trading_paused` label set
             and journalctl for the pause reason.
 
+      - alert: StrategyPausedForRefdata
+        # Strategy noticed refdata heartbeat stale and stopped emitting
+        # new quotes (graceful degradation). Distinct from RefdataStale
+        # below — this fires only when the strategy SIDE detected and
+        # reacted, confirming the breaker tripped end-to-end. Trading
+        # is safely paused, not in trouble — warning only, no critical
+        # page.
+        expr: strategy_refdata_stale == 1
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Strategy paused for stale refdata"
+          description: |
+            Strategy has paused new quotes because bpt-refdata's
+            heartbeat aged past the configured threshold (default 25s,
+            5× heartbeat cadence).  Cancels of resting orders still
+            flow.  Quoting auto-resumes when refdata recovers.  Check
+            RefdataStale alert + journalctl --user -u bpt-refdata.
+
       - alert: MDGatewayQuiet
         # Rate of publish counter over 1 min. Zero for 60s is "nothing
         # going through" — either reconnecting (covered by AdapterDisconnected)
