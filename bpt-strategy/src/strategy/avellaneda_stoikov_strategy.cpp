@@ -794,12 +794,30 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
     // Classic AS: r = s - q*γ*σ²*(T-t)               (assumes µ=0)
     // With drift: r = s + µ*(T-t) - q*γ*σ²*(T-t)     (leans into the trend)
     //
+    // Implementation note — dimensional handling: σ² and µ here are
+    // computed from log-returns (dimensionless), not from price changes
+    // ($²). The textbook formula treats q*γ*σ²*T as a price-units
+    // displacement; with log-return σ² that product is a fraction.
+    // Multiplying by `mid` converts it back to price units. q is also
+    // normalized to [-1, 1] via max_inventory_ so γ is scale-invariant
+    // across instruments — same γ=0.05 produces ~3% max skew on APE
+    // ($0.16) and on BTC ($30k). Without the normalization the formula
+    // silently broke on cheap instruments (e.g. APE: q=100 produced a
+    // $2.74 inventory penalty against a $0.16 mid, blowing reservation
+    // negative — see commit b684b17 for the empirical trace).
+    //
     // When µ > 0 (uptrend), reservation rises above mid → asks move up
     // (harder to get filled short), bids move up (easier to get filled long).
     // This counteracts the core AS weakness of accumulating adverse inventory
     // in momentum regimes.
-    const double drift_adjustment = st.ewma_drift * T_minus_t;
-    const double reservation = mid + drift_adjustment - net_qty * gamma_sigma_sq_T;
+    const double q_normalized = (max_inventory_ > 0.0)
+                                    ? std::clamp(net_qty / max_inventory_, -1.0, 1.0)
+                                    : 0.0;
+    const double inventory_skew_frac = q_normalized * gamma_sigma_sq_T;
+    const double drift_skew_frac = st.ewma_drift * T_minus_t;
+    const double reservation = mid * (1.0 + drift_skew_frac - inventory_skew_frac);
+    // Kept for the debug log below; same as drift_skew_frac * mid.
+    const double drift_adjustment = drift_skew_frac * mid;
 
     // Minimum half-spread: config floor + round-trip maker fee so we never
     // quote a spread that is guaranteed to lose money to commissions.
