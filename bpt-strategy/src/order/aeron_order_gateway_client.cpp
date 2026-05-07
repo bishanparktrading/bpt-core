@@ -72,25 +72,18 @@ bool AeronOrderGatewayClient::send_new_order(uint64_t order_id,
         return false;
     }
 
-    constexpr std::size_t kBufSize = MessageHeader::encodedLength() + NewOrder::sbeBlockLength();
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
-    char buf[kBufSize];
-
-    NewOrder msg;
-    msg.wrapAndApplyHeader(buf, 0, kBufSize)
-        .orderId(order_id)
-        .exchangeId(exchange_id)
-        .instrumentId(instrument_id)
-        .side(side)
-        .orderType(order_type)
-        .timeInForce(tif)
-        .price(price)
-        .quantity(quantity)
-        .timestampNs(bpt::common::util::TscClock::now_epoch_ns())
-        .putExchangeSymbol(exchange_symbol);
-
-    aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), static_cast<aeron::util::index_t>(kBufSize));
-    order_pub_->offer(ab, 0, static_cast<aeron::util::index_t>(kBufSize));
+    order_pub_->publish<NewOrder>([&](NewOrder& msg) {
+        msg.orderId(order_id)
+            .exchangeId(exchange_id)
+            .instrumentId(instrument_id)
+            .side(side)
+            .orderType(order_type)
+            .timeInForce(tif)
+            .price(price)
+            .quantity(quantity)
+            .timestampNs(bpt::common::util::TscClock::now_epoch_ns())
+            .putExchangeSymbol(exchange_symbol);
+    });
     return true;
 }
 
@@ -99,36 +92,22 @@ void AeronOrderGatewayClient::send_cancel(uint64_t order_id,
                                      uint64_t instrument_id) {
     using namespace bpt::messages;
 
-    constexpr std::size_t kBufSize = MessageHeader::encodedLength() + CancelOrder::sbeBlockLength();
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
-    char buf[kBufSize];
-
-    CancelOrder msg;
-    msg.wrapAndApplyHeader(buf, 0, kBufSize)
-        .orderId(order_id)
-        .exchangeId(exchange_id)
-        .instrumentId(instrument_id)
-        .timestampNs(bpt::common::util::TscClock::now_epoch_ns());
-
-    aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), static_cast<aeron::util::index_t>(kBufSize));
-    order_pub_->offer(ab, 0, static_cast<aeron::util::index_t>(kBufSize));
+    order_pub_->publish<CancelOrder>([&](CancelOrder& msg) {
+        msg.orderId(order_id)
+            .exchangeId(exchange_id)
+            .instrumentId(instrument_id)
+            .timestampNs(bpt::common::util::TscClock::now_epoch_ns());
+    });
 }
 
 void AeronOrderGatewayClient::send_cancel_all(bpt::messages::ExchangeId::Value exchange_id, uint64_t instrument_id) {
     using namespace bpt::messages;
 
-    constexpr std::size_t kBufSize = MessageHeader::encodedLength() + CancelAll::sbeBlockLength();
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
-    char buf[kBufSize];
-
-    CancelAll msg;
-    msg.wrapAndApplyHeader(buf, 0, kBufSize)
-        .exchangeId(exchange_id)
-        .instrumentId(instrument_id)
-        .timestampNs(bpt::common::util::TscClock::now_epoch_ns());
-
-    aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), static_cast<aeron::util::index_t>(kBufSize));
-    order_pub_->offer(ab, 0, static_cast<aeron::util::index_t>(kBufSize));
+    order_pub_->publish<CancelAll>([&](CancelAll& msg) {
+        msg.exchangeId(exchange_id)
+            .instrumentId(instrument_id)
+            .timestampNs(bpt::common::util::TscClock::now_epoch_ns());
+    });
 }
 
 void AeronOrderGatewayClient::send_modify(uint64_t order_id,
@@ -138,39 +117,25 @@ void AeronOrderGatewayClient::send_modify(uint64_t order_id,
                                      uint64_t new_quantity) {
     using namespace bpt::messages;
 
-    constexpr std::size_t kBufSize = MessageHeader::encodedLength() + ModifyOrder::sbeBlockLength();
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
-    char buf[kBufSize];
-
-    ModifyOrder msg;
-    msg.wrapAndApplyHeader(buf, 0, kBufSize)
-        .orderId(order_id)
-        .exchangeId(exchange_id)
-        .instrumentId(instrument_id)
-        .newPrice(new_price)
-        .newQuantity(new_quantity)
-        .timestampNs(bpt::common::util::TscClock::now_epoch_ns());
-
-    aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), static_cast<aeron::util::index_t>(kBufSize));
-    order_pub_->offer(ab, 0, static_cast<aeron::util::index_t>(kBufSize));
+    order_pub_->publish<ModifyOrder>([&](ModifyOrder& msg) {
+        msg.orderId(order_id)
+            .exchangeId(exchange_id)
+            .instrumentId(instrument_id)
+            .newPrice(new_price)
+            .newQuantity(new_quantity)
+            .timestampNs(bpt::common::util::TscClock::now_epoch_ns());
+    });
 }
 
 void AeronOrderGatewayClient::send_account_snapshot_request(bpt::messages::ExchangeId::Value exchange_id,
                                                        uint64_t correlation_id) {
     using namespace bpt::messages;
 
-    constexpr std::size_t kBufSize = MessageHeader::encodedLength() + AccountSnapshotRequest::sbeBlockLength();
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
-    char buf[kBufSize];
-
-    AccountSnapshotRequest msg;
-    msg.wrapAndApplyHeader(buf, 0, kBufSize)
-        .exchangeId(exchange_id)
-        .correlationId(correlation_id)
-        .timestampNs(bpt::common::util::TscClock::now_epoch_ns());
-
-    aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), static_cast<aeron::util::index_t>(kBufSize));
-    order_pub_->offer(ab, 0, static_cast<aeron::util::index_t>(kBufSize));
+    order_pub_->publish<AccountSnapshotRequest>([&](AccountSnapshotRequest& msg) {
+        msg.exchangeId(exchange_id)
+            .correlationId(correlation_id)
+            .timestampNs(bpt::common::util::TscClock::now_epoch_ns());
+    });
 }
 
 int AeronOrderGatewayClient::poll(int fragment_limit) {
