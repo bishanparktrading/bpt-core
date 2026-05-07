@@ -1,5 +1,6 @@
 #pragma once
 
+#include "backtester/config/settings.h"
 #include "backtester/data/market_event.h"
 #include "backtester/matching/open_order.h"
 
@@ -65,7 +66,8 @@ public:
 
     ResultsCollector(double starting_capital, std::string output_dir,
                      RunMetadata metadata = {},
-                     double fee_bps_per_fill = 1.0);
+                     std::unordered_map<std::string, config::ResultsConfig::FeeRates>
+                         fees_by_venue = {});
 
     // Called on every fill from MatchingEngine.
     void on_fill(const matching::FillReport& fill);
@@ -119,6 +121,7 @@ private:
         std::string client_order_id;
         std::string side;
         std::string order_type;
+        std::string liquidity;  // "MAKER" or "TAKER" — drives fee_paid below
         double qty;
         double price;
         double realized_pnl;  // from this fill only (gross, fee not deducted here)
@@ -146,10 +149,16 @@ private:
     RunMetadata metadata_;
     uint64_t wallclock_start_ns_{0};
 
-    // Per-fill fee rate (bps of notional). Same rate for every fill in v0;
-    // a per-fill maker/taker split needs FillReport to surface aggressor side.
-    double fee_bps_per_fill_{1.0};
+    // Per-venue maker/taker fee table — looked up per fill via
+    // FillReport.exchange + FillReport.liquidity_role. Empty table means
+    // "no fees charged" (legitimate for fees-disabled tests). Missing
+    // venue at fill time logs a warning once per (venue, role) pair and
+    // charges 0 — a misconfig should be loud, not silently miscompute.
+    std::unordered_map<std::string, config::ResultsConfig::FeeRates> fees_by_venue_;
     double total_fees_paid_{0.0};
+    // Cache of (exchange, role) pairs we've already warned about so
+    // logs aren't spammed once per fill.
+    mutable std::unordered_map<std::string, bool> missing_fee_warned_;
 
     std::unordered_map<std::string, Position> positions_;  // key = "EXCHANGE:SYMBOL"
     std::unordered_map<std::string, double> mid_prices_;   // key = "EXCHANGE:SYMBOL"

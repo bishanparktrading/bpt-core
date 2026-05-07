@@ -55,3 +55,9 @@ dir   = "logs/backtest"
 
 [metrics]
 port = 9105
+
+# Per-venue fee table. HL default-tier perp fees:
+#   maker = 1.5 bps, taker = 4.5 bps
+[results.fees.HYPERLIQUID]
+maker_bps = 1.5
+taker_bps = 4.5

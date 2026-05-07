@@ -1,0 +1,11 @@
+# Refdata exchange config for backtest mode — HL mainnet (read-only).
+# No secret_name: refdata only reads /info, no signed actions needed.
+
+[[adapters]]
+exchange    = "HYPERLIQUID"
+secret_name = ""
+rest_host   = "api.hyperliquid.xyz"
+rest_port   = "443"
+ws_host     = "api.hyperliquid.xyz"
+ws_port     = "443"
+use_tls     = true

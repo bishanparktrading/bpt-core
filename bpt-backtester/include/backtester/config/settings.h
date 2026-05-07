@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <bpt_app/base_settings.h>
 #include <bpt_common/aeron/stream_config.h>
@@ -58,14 +59,21 @@ struct DataConfig {
 struct ResultsConfig {
     std::string output_dir{"results"};
     double starting_capital{100'000.0};
-    // Per-fill fee in basis points of notional. Default 1.0 = HL maker fee
-    // (0.01%, the most common case for AS / passive market making which
-    // posts limit orders that rest in the book). For strategies that
-    // aggressively cross the spread, set to taker fee (e.g. HL ~4.5 bps).
-    // The model applies the same rate to every fill regardless of aggressor
-    // side — a more principled split awaits a per-fill maker/taker flag
-    // on FillReport.
-    double fee_bps_per_fill{1.0};
+
+    // Per-venue maker/taker fee rates in basis points of notional. Looked
+    // up by FillReport.exchange + FillReport.liquidity_role, so a single
+    // run with mixed-venue fills bills each at its own rate.
+    //
+    // Defaults are 0.0 — TOML must set them explicitly so a missing entry
+    // is loud at parse time rather than silently mispricing fills. The
+    // venue key matches FillReport.exchange (e.g. "OKX", "HYPERLIQUID",
+    // "BINANCE", "DERIBIT"). HL pays a maker rebate (negative bps);
+    // CEX makers typically pay a small positive rate.
+    struct FeeRates {
+        double maker_bps{0.0};
+        double taker_bps{0.0};
+    };
+    std::unordered_map<std::string, FeeRates> fees_by_venue;
     // Run identity — populated from CLI flags by main.cpp (the orchestrator
     // script knows the strategy file + git state, the backtester binary
     // doesn't). All optional; when unset, ResultsCollector falls back to

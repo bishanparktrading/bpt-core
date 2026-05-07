@@ -98,7 +98,7 @@ BacktesterApp::BacktesterApp(config::Settings settings, messaging::BacktesterBus
 
     results_ = std::make_unique<results::ResultsCollector>(
         settings_.results.starting_capital, out_dir, std::move(metadata),
-        settings_.results.fee_bps_per_fill);
+        settings_.results.fees_by_venue);
 
     matching_engine_->set_fill_callback([this](matching::FillReport fill) {
         results_->on_fill(fill);

@@ -1,4 +1,5 @@
 // Unit tests for bpt::backtester::results::ResultsCollector
+#include "backtester/config/settings.h"
 #include "backtester/data/market_event.h"
 #include "backtester/data/orderbook_record.h"
 #include "backtester/matching/open_order.h"
@@ -13,6 +14,7 @@ namespace fs = std::filesystem;
 using namespace bpt::backtester::results;
 using namespace bpt::backtester::matching;
 using namespace bpt::backtester::data;
+using bpt::backtester::config::ResultsConfig;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -163,4 +165,76 @@ TEST(ResultsCollectorTest, MaxDrawdown) {
     // max drawdown > 0 (there was a drawdown from 1010 to 990)
     EXPECT_GT(rc.compute_max_drawdown(), 0.0);
     EXPECT_LE(rc.compute_max_drawdown(), 1.0);
+}
+
+// ── Per-venue maker/taker fee tests ──────────────────────────────────────────
+
+TEST(ResultsCollectorTest, MakerTakerFeesChargedSeparately) {
+    // OKX: maker = 2 bps, taker = 5 bps. BUY as maker, SELL as taker.
+    // Round-trip BUY 1@100 (maker) + SELL 1@110 (taker)
+    //   maker fee: 100 × 2bps = 0.02
+    //   taker fee: 110 × 5bps = 0.055
+    //   total fees: 0.075
+    //   gross PnL: 10
+    //   final equity: 1000 + 10 - 0.075 = 1009.925
+    std::unordered_map<std::string, ResultsConfig::FeeRates> fees{
+        {"BINANCE", {.maker_bps = 2.0, .taker_bps = 5.0}},
+    };
+    ResultsCollector rc(1000.0, "/tmp/jorm_rc_mt_test", {}, fees);
+
+    FillReport buy = make_fill(OrderSide::BUY, 1.0, 100.0, OrderType::LIMIT, 1000);
+    buy.liquidity_role = LiquidityRole::MAKER;
+    rc.on_fill(buy);
+
+    FillReport sell = make_fill(OrderSide::SELL, 1.0, 110.0, OrderType::LIMIT, 2000);
+    sell.liquidity_role = LiquidityRole::TAKER;
+    rc.on_fill(sell);
+
+    EXPECT_NEAR(rc.current_equity(), 1009.925, 1e-9);
+}
+
+TEST(ResultsCollectorTest, MakerRebateProducesNegativeFee) {
+    // HL: maker = -1.5 bps (rebate), taker = 4.5 bps.
+    // Single MAKER fill: 100 × -1.5bps = -0.015 (rebate, ADDS to equity)
+    std::unordered_map<std::string, ResultsConfig::FeeRates> fees{
+        {"BINANCE", {.maker_bps = -1.5, .taker_bps = 4.5}},
+    };
+    ResultsCollector rc(1000.0, "/tmp/jorm_rc_rebate_test", {}, fees);
+
+    FillReport buy = make_fill(OrderSide::BUY, 1.0, 100.0, OrderType::LIMIT, 1000);
+    buy.liquidity_role = LiquidityRole::MAKER;
+    rc.on_fill(buy);
+
+    // Holding long 1 @ 100 with no mid → unrealized 0, fees = -0.015
+    // Equity: 1000 + 0 + 0 - (-0.015) = 1000.015
+    EXPECT_NEAR(rc.current_equity(), 1000.015, 1e-9);
+}
+
+TEST(ResultsCollectorTest, EmptyFeeTableMeansNoFees) {
+    // Round-trip with no fee config → gross PnL only, no fee deduction.
+    // This is the test default — preserves backward compatibility.
+    ResultsCollector rc(1000.0, "/tmp/jorm_rc_nofee_test");
+
+    rc.on_fill(make_fill(OrderSide::BUY, 1.0, 100.0, OrderType::LIMIT, 1000));
+    rc.on_fill(make_fill(OrderSide::SELL, 1.0, 110.0, OrderType::LIMIT, 2000));
+
+    EXPECT_DOUBLE_EQ(rc.current_equity(), 1010.0);
+}
+
+TEST(ResultsCollectorTest, MissingVenueChargesZeroAndWarns) {
+    // Fees configured for BINANCE but a fill arrives for OKX → 0 fee
+    // applied (and a one-shot warning, not asserted here). Run still
+    // produces sensible equity.
+    std::unordered_map<std::string, ResultsConfig::FeeRates> fees{
+        {"BINANCE", {.maker_bps = 2.0, .taker_bps = 5.0}},
+    };
+    ResultsCollector rc(1000.0, "/tmp/jorm_rc_missing_test", {}, fees);
+
+    FillReport buy = make_fill(OrderSide::BUY, 1.0, 100.0, OrderType::LIMIT, 1000);
+    buy.exchange = "OKX";
+    buy.liquidity_role = LiquidityRole::MAKER;
+    rc.on_fill(buy);
+
+    // No fee charged for OKX (missing from table) → equity = starting_capital
+    EXPECT_DOUBLE_EQ(rc.current_equity(), 1000.0);
 }

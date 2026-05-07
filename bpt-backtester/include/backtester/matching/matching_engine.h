@@ -45,9 +45,36 @@ private:
     // Caller must hold mutex_.
     void fill_market(OpenOrder& order, const data::OrderBookRecord& book, std::vector<FillReport>& out);
 
+    // Fills `order` aggressively against `book`, walking levels until
+    // either the order is fully filled or the next level's price is
+    // worse than `price_limit` (BUY: ask > price_limit, SELL: bid <
+    // price_limit). Used by both fill_market (no cap, +/- infinity) and
+    // the crossing-LIMIT path at submit time (cap = limit price).
+    // Emitted FillReports are tagged with `report_type` and TAKER.
+    // Caller must hold mutex_.
+    void fill_book_until(OpenOrder& order,
+                         const data::OrderBookRecord& book,
+                         double price_limit,
+                         OrderType report_type,
+                         std::vector<FillReport>& out);
+
     // Scans pending limit orders for key and fills crossing ones; appends to out.
     // Caller must hold mutex_.
     void fill_crossing_limits(const std::string& book_key, std::vector<FillReport>& out);
+
+    // Drains queue_ahead from resting LIMITs at the trade price, then
+    // fills the residual against us in FIFO order. Caller must hold mutex_.
+    // Counter-side semantics:
+    //   trade.side == SELL → taker sold → consumed bid queue → our resting BUYs may fill
+    //   trade.side == BUY  → taker bought → consumed ask queue → our resting SELLs may fill
+    void fill_against_trade(const data::TradeRecord& trade, std::vector<FillReport>& out);
+
+    // Look up resting volume at a given price level on a given side.
+    // Returns 0.0 if the price isn't found in the L5 snapshot. Used to
+    // seed queue_ahead at submit_order time.
+    static double book_qty_at_price(const data::OrderBookRecord& book,
+                                    OrderSide side,
+                                    double price);
 
     std::mutex mutex_;
     std::unordered_map<std::string, data::OrderBookRecord> books_;

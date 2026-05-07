@@ -79,8 +79,34 @@ Settings load(const std::string& path) {
             s.results.output_dir = *v;
         if (auto v = (*r)["starting_capital"].value<double>())
             s.results.starting_capital = *v;
-        if (auto v = (*r)["fee_bps_per_fill"].value<double>())
-            s.results.fee_bps_per_fill = *v;
+
+        // Per-venue fee table. Format:
+        //   [results.fees.OKX] maker_bps = 2  taker_bps = 5
+        //   [results.fees.HYPERLIQUID] maker_bps = -1.5  taker_bps = 4.5
+        if (auto* fees = (*r)["fees"].as_table()) {
+            for (const auto& [venue, val] : *fees) {
+                auto* vt = val.as_table();
+                if (!vt)
+                    continue;
+                ResultsConfig::FeeRates rates;
+                if (auto v = (*vt)["maker_bps"].value<double>())
+                    rates.maker_bps = *v;
+                if (auto v = (*vt)["taker_bps"].value<double>())
+                    rates.taker_bps = *v;
+                s.results.fees_by_venue[std::string{venue.str()}] = rates;
+            }
+        }
+
+        // Back-compat: old `fee_bps_per_fill` scalar is treated as both
+        // maker and taker, applied to every venue in the run. Loud
+        // warning so configs get migrated.
+        if (auto v = (*r)["fee_bps_per_fill"].value<double>()) {
+            for (const auto& inst : s.instruments) {
+                auto& rates = s.results.fees_by_venue[inst.exchange];
+                rates.maker_bps = *v;
+                rates.taker_bps = *v;
+            }
+        }
     }
 
     if (auto* a = root["aeron"].as_table()) {

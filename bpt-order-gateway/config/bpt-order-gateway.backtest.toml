@@ -1,9 +1,9 @@
 # Instance config — BACKTEST mode
-# Order Gateway routes orders to Jormungandr's local order servers instead of real exchanges.
+# Order Gateway routes orders to bpt-backtester's local order servers instead of real exchanges.
 # Aeron config is identical to QA — Fenrir still sends orders via Aeron as normal.
-environment    = "backtest"
+environment    = "dev"
 exchange_config = "config/exchanges/backtest.toml"
-exchanges      = ["BINANCE", "OKX"]
+exchanges      = ["BINANCE", "OKX", "HYPERLIQUID"]
 
 [aeron]
 media_driver_dir = "/dev/shm/aeron-bpt"

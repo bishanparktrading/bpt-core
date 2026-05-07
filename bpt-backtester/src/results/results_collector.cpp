@@ -45,7 +45,10 @@ std::string ResultsCollector::compose_run_id(const RunMetadata& m,
 }
 
 ResultsCollector::ResultsCollector(double starting_capital, std::string output_dir,
-                                   RunMetadata metadata, double fee_bps_per_fill)
+                                   RunMetadata metadata,
+                                   std::unordered_map<std::string,
+                                                      config::ResultsConfig::FeeRates>
+                                       fees_by_venue)
     : starting_capital_(starting_capital),
       output_dir_(std::move(output_dir)),
       metadata_(std::move(metadata)),
@@ -53,7 +56,7 @@ ResultsCollector::ResultsCollector(double starting_capital, std::string output_d
           std::chrono::duration_cast<std::chrono::nanoseconds>(
               std::chrono::system_clock::now().time_since_epoch())
               .count())),
-      fee_bps_per_fill_(fee_bps_per_fill) {
+      fees_by_venue_(std::move(fees_by_venue)) {
     // Seed the equity curve with the starting point (ts=0 means pre-simulation).
     equity_curve_.push_back({0, starting_capital_});
 }
@@ -145,8 +148,29 @@ void ResultsCollector::on_fill(const matching::FillReport& fill) {
     // does NOT subtract fees so it stays a pure spread-capture metric.
     // Total equity / final P&L deducts fees via current_equity()'s
     // total_fees_paid_ term.
+    //
+    // Per-fill rate looked up by (exchange, liquidity_role). Missing
+    // venue → 0 + one-shot warning (loud misconfig, not silent zero).
     const double fill_notional = fill.last_fill_qty * fill.last_fill_price;
-    const double fee = fill_notional * fee_bps_per_fill_ * 1e-4;
+    double rate_bps = 0.0;
+    auto fee_it = fees_by_venue_.find(fill.exchange);
+    if (fee_it != fees_by_venue_.end()) {
+        rate_bps = (fill.liquidity_role == matching::LiquidityRole::TAKER)
+                       ? fee_it->second.taker_bps
+                       : fee_it->second.maker_bps;
+    } else if (!fees_by_venue_.empty()) {
+        // Empty table = fees disabled (tests). Non-empty but missing this
+        // venue = real misconfig. Warn once per venue.
+        const std::string warn_key = fill.exchange + ":missing";
+        if (!missing_fee_warned_[warn_key]) {
+            missing_fee_warned_[warn_key] = true;
+            bpt::common::log::warn(
+                "[ResultsCollector] No fee table entry for venue '{}' — charging 0 bps "
+                "on fills (config gap?)",
+                fill.exchange);
+        }
+    }
+    const double fee = fill_notional * rate_bps * 1e-4;
     total_fees_paid_ += fee;
     open_realized_[key] += realized;
 
@@ -177,6 +201,7 @@ void ResultsCollector::on_fill(const matching::FillReport& fill) {
     row.client_order_id = fill.client_order_id;
     row.side = (fill.side == OrderSide::BUY) ? "BUY" : "SELL";
     row.order_type = (fill.order_type == matching::OrderType::MARKET) ? "MARKET" : "LIMIT";
+    row.liquidity = (fill.liquidity_role == matching::LiquidityRole::TAKER) ? "TAKER" : "MAKER";
     row.qty = fill.last_fill_qty;
     row.price = fill.last_fill_price;
     row.realized_pnl = realized;
@@ -320,10 +345,10 @@ void ResultsCollector::write() const {
         if (!f)
             throw std::runtime_error("Cannot open " + output_dir_ + "/trades.csv");
         f << "simulation_ts,exchange,symbol,order_id,client_order_id,"
-             "side,type,qty,price,realized_pnl,fee_paid,equity,"
+             "side,type,liquidity,qty,price,realized_pnl,fee_paid,equity,"
              "markout_50ms_bps,markout_1s_bps,markout_5s_bps,markout_30s_bps\n";
         for (const auto& r : trades_) {
-            f << std::format("{},{},{},{},{},{},{},{:.10g},{:.10g},{:.10g},{:.10g},{:.10g}",
+            f << std::format("{},{},{},{},{},{},{},{},{:.10g},{:.10g},{:.10g},{:.10g},{:.10g}",
                              r.simulation_ts,
                              r.exchange,
                              r.symbol,
@@ -331,6 +356,7 @@ void ResultsCollector::write() const {
                              r.client_order_id,
                              r.side,
                              r.order_type,
+                             r.liquidity,
                              r.qty,
                              r.price,
                              r.realized_pnl,
@@ -416,7 +442,27 @@ void ResultsCollector::write() const {
         obj["buy_notional_usd"] = buy_notional;
         obj["sell_notional_usd"] = sell_notional;
         obj["fees_paid_usd"] = total_fees_paid_;
-        obj["fee_bps_per_fill"] = fee_bps_per_fill_;
+        // Per-venue fee table — both rates surfaced so reviewers can
+        // tell whether maker rebates or taker charges drove the fee
+        // total. Keys are venue names matching FillReport.exchange.
+        json::object fees_obj;
+        for (const auto& [venue, rates] : fees_by_venue_) {
+            json::object v;
+            v["maker_bps"] = rates.maker_bps;
+            v["taker_bps"] = rates.taker_bps;
+            fees_obj[venue] = std::move(v);
+        }
+        obj["fees_by_venue"] = std::move(fees_obj);
+        // Per-liquidity fill counts so a reviewer can spot e.g. "100%
+        // taker fills on a market-making strategy" as a bug signal.
+        int maker_fills = 0;
+        int taker_fills = 0;
+        for (const auto& r : trades_) {
+            if (r.liquidity == "MAKER") ++maker_fills;
+            else if (r.liquidity == "TAKER") ++taker_fills;
+        }
+        obj["maker_fills"] = static_cast<int64_t>(maker_fills);
+        obj["taker_fills"] = static_cast<int64_t>(taker_fills);
         obj["simulation_start"] = metadata_.simulation_start;
         obj["simulation_end"] = metadata_.simulation_end;
         obj["wallclock_duration_ms"] = static_cast<int64_t>(wallclock_duration_ms);

@@ -8,6 +8,23 @@ namespace bpt::backtester::matching {
 enum class OrderType { MARKET, LIMIT };
 enum class OrderSide { BUY, SELL };
 
+// Identifies whether a fill consumed liquidity (TAKER) or provided it
+// (MAKER). Drives fee selection in ResultsCollector — venues typically
+// charge taker fees and either charge or rebate maker fees, so the two
+// must be tracked separately to predict P&L accurately.
+//
+// Mapping in MatchingEngine:
+//   MARKET orders → TAKER (always cross the book on submission)
+//   LIMIT orders that rest in `pending_` and fill on a later book update
+//     → MAKER (the book moved to them; they were passive)
+//
+// Note: the matching engine does not currently distinguish a LIMIT
+// submitted at an already-crossing price (which a real exchange would
+// fill as TAKER) — that's a separate fidelity gap from the fee model.
+// All LIMIT fills today route through fill_crossing_limits and are
+// treated as MAKER.
+enum class LiquidityRole { MAKER, TAKER };
+
 struct OpenOrder {
     std::string order_id;
     std::string client_order_id;
@@ -19,6 +36,28 @@ struct OpenOrder {
     double quantity{0.0};
     double filled_qty{0.0};
     uint64_t submitted_ts{0};
+
+    // ── Queue position tracking (LIMIT orders only) ─────────────────────
+    //
+    // Volume of resting orders ahead of us at our price level. Seeded at
+    // submit_order() time from the current book snapshot's bid_sz/ask_sz
+    // at our `price`. Drained by trade prints at our price (FIFO: prints
+    // consume queue-ahead before they reach us). Once `queue_ahead`
+    // reaches 0, subsequent prints fill us directly until the order is
+    // fully filled.
+    //
+    // queue_seeded is false when we couldn't find our price in the book
+    // at submit time (no L2 snapshot yet, or our price is deeper than
+    // L5). Such orders fall back to the legacy fill_crossing_limits
+    // path, which still over-fills — accepted limitation, logged once
+    // per order if it matters.
+    //
+    // This model under-models cancellations from ahead of us (we have
+    // no L3 visibility), so backtests are still mildly optimistic vs
+    // live, but materially less so than the previous "fill 100% on any
+    // cross" engine.
+    double queue_ahead{0.0};
+    bool   queue_seeded{false};
 };
 
 struct FillReport {
@@ -28,6 +67,7 @@ struct FillReport {
     std::string symbol;
     OrderType order_type{OrderType::LIMIT};
     OrderSide side{OrderSide::BUY};
+    LiquidityRole liquidity_role{LiquidityRole::MAKER};
     double original_qty{0.0};
     double order_price{0.0};  // limit price of the original order
     double last_fill_qty{0.0};

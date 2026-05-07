@@ -1,12 +1,13 @@
 environment    = "dev"
 
-# Backtest configured against the live HL tape capture from 2026-05-05
-# (/tmp/tape-replay/parquet/, pulled from S3 via the reader IAM key).
-# 1 hour of 11 HL PERPs at depth 5 + funding + mark.
+# Backtest configured against the local 2026-04-25 HL tape capture
+# (/opt/bpt/data/backtest-cache/). Full-day data — APE, ETH, SOL,
+# DOGE, etc. Allow_partial_data=true skips funding/mark gracefully
+# (local cache only has trades + orderbook).
 
 [simulation]
-start              = "2026-05-05T01:40:00Z"
-end                = "2026-05-05T02:40:00Z"
+start              = "2026-04-25T00:00:00Z"
+end                = "2026-04-25T23:59:59Z"
 allow_partial_data = true
 
 [simulation.latency]
@@ -15,10 +16,7 @@ hyperliquid_base_ms   = 200
 hyperliquid_jitter_ms = 50
 
 [data]
-local_cache = "/tmp/tape-replay/parquet"
-# Reuses the HL meta.json snapshot from the prior 2026-04-25 run —
-# universe metadata (tick size, contract size, etc.) doesn't change
-# in 10 days; only the prices in the actual MD do.
+local_cache = "/opt/bpt/data/backtest-cache"
 hyperliquid_refdata_snapshot = "/opt/bpt/data/raw/hyperliquid/2026-04-25/meta.json"
 
 # APE — matches avellaneda_stoikov.backtest.toml's pinned
@@ -55,3 +53,11 @@ dir   = "logs/backtest"
 
 [metrics]
 port = 9105
+
+# Per-venue fee table. Looked up by FillReport.exchange + liquidity_role.
+# HL default-tier perp fees (no volume-tier rebates assumed):
+#   maker = 1.5 bps, taker = 4.5 bps
+# Adjust if running against a higher-tier account that earns maker rebates.
+[results.fees.HYPERLIQUID]
+maker_bps = 1.5
+taker_bps = 4.5

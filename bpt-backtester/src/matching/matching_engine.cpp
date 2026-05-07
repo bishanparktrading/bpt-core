@@ -4,7 +4,9 @@
 #include "backtester/data/trade_record.h"
 
 #include <algorithm>
+#include <cmath>
 #include <format>
+#include <limits>
 #include <bpt_common/logging.h>
 
 namespace bpt::backtester::matching {
@@ -31,12 +33,17 @@ void MatchingEngine::on_market_event(const data::MarketEvent& event) {
             const auto& ob = std::get<data::OrderBookRecord>(event.payload);
             current_ts_ = ob.timestamp_ns;
             books_[key(ob.exchange, ob.symbol)] = ob;
+            // Backstop path for orders whose queue_ahead couldn't be
+            // seeded (deeper than L5, or pre-book-snapshot). These
+            // still fill on book cross — over-optimistic but rare.
             fill_crossing_limits(key(ob.exchange, ob.symbol), fills);
         } else {
             const auto& t = std::get<data::TradeRecord>(event.payload);
             current_ts_ = t.timestamp_ns;
-            // Trades carry price info but don't give us a full book snapshot;
-            // limit matching only runs on order-book updates.
+            // Primary fill path: trade prints drain queue_ahead first,
+            // then fill us. This is the queue-aware model. The legacy
+            // book-cross path above remains as a backstop only.
+            fill_against_trade(t, fills);
         }
     }
 
@@ -64,12 +71,46 @@ OpenOrder MatchingEngine::submit_order(OpenOrder order) {
                                order.symbol);
             }
         } else {
-            pending_[key(order.exchange, order.symbol)].push_back(order);
-            bpt::common::log::debug("[MatchingEngine] Queued LIMIT {} {} {} @ {}",
-                            order.symbol,
-                            (order.side == OrderSide::BUY ? "BUY" : "SELL"),
-                            order.quantity,
-                            order.price);
+            auto it = books_.find(key(order.exchange, order.symbol));
+            if (it != books_.end()) {
+                const auto& book = it->second;
+
+                // Crossing-LIMIT path: if our price is at or through
+                // the touch, the crossing portion fills as TAKER at
+                // book level prices (NOT at our limit). This mirrors
+                // real exchange semantics — submitting a BUY at a
+                // price >= best ask immediately consumes the ask side
+                // and pays taker fees. Without this, AS's
+                // inventory-skew quotes (which intentionally cross to
+                // unwind position) get phantom-filled at the limit
+                // price, biasing backtest P&L by tens of bps per fill.
+                const bool crosses =
+                    (order.side == OrderSide::BUY  && book.ask_px[0] > 0.0 && order.price >= book.ask_px[0] - 1e-9) ||
+                    (order.side == OrderSide::SELL && book.bid_px[0] > 0.0 && order.price <= book.bid_px[0] + 1e-9);
+                if (crosses) {
+                    fill_book_until(order, book, order.price, OrderType::LIMIT, fills);
+                }
+
+                // Residual (or non-crossing fully) rests in pending_
+                // with queue_ahead seeded from the book.
+                if (order.filled_qty < order.quantity - 1e-12) {
+                    order.queue_ahead = book_qty_at_price(book, order.side, order.price);
+                    order.queue_seeded = true;
+                    pending_[key(order.exchange, order.symbol)].push_back(order);
+                    bpt::common::log::debug("[MatchingEngine] Queued LIMIT {} {} {} @ {} queue_ahead={:.4f} cross_filled={:.4f}",
+                                    order.symbol,
+                                    (order.side == OrderSide::BUY ? "BUY" : "SELL"),
+                                    order.quantity - order.filled_qty,
+                                    order.price,
+                                    order.queue_ahead,
+                                    order.filled_qty);
+                }
+            } else {
+                // No book yet — queue without seeding. Legacy
+                // fill_crossing_limits backstop will catch it on the
+                // first book snapshot.
+                pending_[key(order.exchange, order.symbol)].push_back(order);
+            }
         }
     }
 
@@ -97,6 +138,25 @@ bool MatchingEngine::cancel_order(const std::string& exchange, const std::string
 // ── Matching logic ────────────────────────────────────────────────────────────
 
 void MatchingEngine::fill_market(OpenOrder& order, const data::OrderBookRecord& book, std::vector<FillReport>& out) {
+    // MARKET = no price cap. BUY accepts any ask; SELL accepts any bid.
+    const double cap = (order.side == OrderSide::BUY)
+                           ? std::numeric_limits<double>::infinity()
+                           : 0.0;
+    fill_book_until(order, book, cap, OrderType::MARKET, out);
+
+    if (order.filled_qty < order.quantity - 1e-12) {
+        bpt::common::log::warn("[MatchingEngine] Market order {} partially filled: {}/{} — book too thin",
+                       order.order_id,
+                       order.filled_qty,
+                       order.quantity);
+    }
+}
+
+void MatchingEngine::fill_book_until(OpenOrder& order,
+                                     const data::OrderBookRecord& book,
+                                     double price_limit,
+                                     OrderType report_type,
+                                     std::vector<FillReport>& out) {
     double remaining = order.quantity - order.filled_qty;
 
     for (int lvl = 0; lvl < data::kOrderBookDepth && remaining > 1e-12; ++lvl) {
@@ -112,6 +172,15 @@ void MatchingEngine::fill_market(OpenOrder& order, const data::OrderBookRecord& 
         if (level_px <= 0.0 || level_sz <= 0.0)
             break;
 
+        // Stop once the level is worse than our price cap. BUY tops out
+        // when the ask rises above price_limit; SELL stops when the bid
+        // drops below price_limit.
+        const bool acceptable = (order.side == OrderSide::BUY)
+                                    ? (level_px <= price_limit + 1e-9)
+                                    : (level_px >= price_limit - 1e-9);
+        if (!acceptable)
+            break;
+
         double fill_qty = std::min(remaining, level_sz);
         order.filled_qty += fill_qty;
         remaining -= fill_qty;
@@ -121,23 +190,20 @@ void MatchingEngine::fill_market(OpenOrder& order, const data::OrderBookRecord& 
         r.client_order_id = order.client_order_id;
         r.exchange = order.exchange;
         r.symbol = order.symbol;
-        r.order_type = OrderType::MARKET;
+        r.order_type = report_type;
         r.side = order.side;
+        r.liquidity_role = LiquidityRole::TAKER;  // crossing the book = TAKER
         r.original_qty = order.quantity;
-        r.order_price = 0.0;
+        // For LIMIT orders we expose the original limit price (callers
+        // care about both the limit and the actual fill price); for
+        // MARKET it stays 0.
+        r.order_price = (report_type == OrderType::LIMIT) ? order.price : 0.0;
         r.last_fill_qty = fill_qty;
         r.last_fill_price = level_px;
         r.cumulative_fill_qty = order.filled_qty;
         r.is_fully_filled = (remaining <= 1e-12);
         r.simulation_ts = current_ts_;
         out.push_back(r);
-    }
-
-    if (remaining > 1e-12) {
-        bpt::common::log::warn("[MatchingEngine] Market order {} partially filled: {}/{} — book too thin",
-                       order.order_id,
-                       order.filled_qty,
-                       order.quantity);
     }
 }
 
@@ -159,6 +225,12 @@ void MatchingEngine::fill_crossing_limits(const std::string& book_key, std::vect
                                 orders.end(),
                                 [&](OpenOrder& order) {
                                     if (order.type != OrderType::LIMIT)
+                                        return false;
+
+                                    // Queue-seeded orders fill via the
+                                    // trade-print path (fill_against_trade);
+                                    // skip them here to avoid double-counting.
+                                    if (order.queue_seeded)
                                         return false;
 
                                     double fill_px = 0.0;
@@ -185,6 +257,9 @@ void MatchingEngine::fill_crossing_limits(const std::string& book_key, std::vect
                                     r.symbol = book.symbol;
                                     r.order_type = OrderType::LIMIT;
                                     r.side = order.side;
+                                    // Order rested in pending_ until the
+                                    // book moved to it → passive fill, MAKER.
+                                    r.liquidity_role = LiquidityRole::MAKER;
                                     r.original_qty = order.quantity;
                                     r.order_price = order.price;
                                     r.last_fill_qty = fill_qty;
@@ -196,6 +271,117 @@ void MatchingEngine::fill_crossing_limits(const std::string& book_key, std::vect
                                     return true;  // remove from pending
                                 }),
                  orders.end());
+}
+
+double MatchingEngine::book_qty_at_price(const data::OrderBookRecord& book,
+                                         OrderSide side,
+                                         double price) {
+    constexpr double kPriceTol = 1e-9;
+    if (side == OrderSide::BUY) {
+        // BUY → joins the bid queue at our price. Look for matching bid level.
+        for (int i = 0; i < data::kOrderBookDepth; ++i) {
+            if (book.bid_px[i] <= 0.0)
+                continue;
+            if (std::abs(book.bid_px[i] - price) < kPriceTol)
+                return book.bid_sz[i];
+        }
+    } else {
+        // SELL → joins the ask queue at our price.
+        for (int i = 0; i < data::kOrderBookDepth; ++i) {
+            if (book.ask_px[i] <= 0.0)
+                continue;
+            if (std::abs(book.ask_px[i] - price) < kPriceTol)
+                return book.ask_sz[i];
+        }
+    }
+    return 0.0;
+}
+
+void MatchingEngine::fill_against_trade(const data::TradeRecord& trade,
+                                        std::vector<FillReport>& out) {
+    auto pit = pending_.find(key(trade.exchange, trade.symbol));
+    if (pit == pending_.end())
+        return;
+    auto& orders = pit->second;
+
+    // Counter-side semantics: a SELL trade (taker sold) consumed the bid
+    // book → only resting BUYs at price ≥ trade price participate. A BUY
+    // trade consumed the ask book → only resting SELLs at price ≤ trade
+    // price participate.
+    //
+    // Within the eligible orders, prints fan out FIFO across our own
+    // resting orders ordered by submitted_ts. We take a single trade and
+    // walk through orders in order — each consumes from its own queue
+    // first, then fills from the residual. The next order in line sees
+    // whatever volume is left after the previous order's queue+fill
+    // consumption.
+    //
+    // Note: this doesn't model trade-volume that hits orders ahead of
+    // the FIRST order in our pending list (those orders aren't ours).
+    // queue_ahead absorbs that — it's the volume between the touch and
+    // our first order. Correct as long as we trust the L5 snapshot.
+    // Walk orders in submission order (FIFO). Each iteration may consume
+    // some of the remaining trade volume. We index-iterate so we don't
+    // invalidate iterators when erasing fully-filled orders at the end.
+    double remaining_print = trade.quantity;
+    for (auto& order : orders) {
+        if (remaining_print <= 0.0)
+            break;
+        if (order.type != OrderType::LIMIT || !order.queue_seeded)
+            continue;
+
+        const bool eligible =
+            (order.side == OrderSide::BUY  && trade.side == data::TradeSide::SELL && order.price >= trade.price - 1e-9) ||
+            (order.side == OrderSide::SELL && trade.side == data::TradeSide::BUY  && order.price <= trade.price + 1e-9);
+        if (!eligible)
+            continue;
+
+        // Drain queue_ahead first.
+        const double consumed = std::min(remaining_print, order.queue_ahead);
+        order.queue_ahead -= consumed;
+        remaining_print -= consumed;
+        if (remaining_print <= 0.0)
+            continue;
+
+        // Residual fills us, capped at our remaining qty.
+        const double our_remaining = order.quantity - order.filled_qty;
+        const double fill_qty = std::min(remaining_print, our_remaining);
+        if (fill_qty <= 0.0)
+            continue;
+
+        order.filled_qty += fill_qty;
+        remaining_print  -= fill_qty;
+
+        FillReport r;
+        r.order_id = order.order_id;
+        r.client_order_id = order.client_order_id;
+        r.exchange = order.exchange;
+        r.symbol = order.symbol;
+        r.order_type = OrderType::LIMIT;
+        r.side = order.side;
+        // Resting LIMIT consumed by an incoming print = MAKER, by definition.
+        r.liquidity_role = LiquidityRole::MAKER;
+        r.original_qty = order.quantity;
+        r.order_price = order.price;
+        r.last_fill_qty = fill_qty;
+        // Real exchanges fill resting limits at the limit price (better
+        // than the trade print for the maker), not at the print price.
+        r.last_fill_price = order.price;
+        r.cumulative_fill_qty = order.filled_qty;
+        r.is_fully_filled = (order.filled_qty >= order.quantity - 1e-12);
+        r.simulation_ts = current_ts_;
+        out.push_back(r);
+    }
+
+    // Erase fully-filled queue-seeded orders. Non-seeded orders are
+    // managed by fill_crossing_limits.
+    orders.erase(
+        std::remove_if(orders.begin(), orders.end(),
+                       [](const OpenOrder& o) {
+                           return o.queue_seeded &&
+                                  o.filled_qty >= o.quantity - 1e-12;
+                       }),
+        orders.end());
 }
 
 }  // namespace bpt::backtester::matching

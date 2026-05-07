@@ -55,7 +55,7 @@ max_inventory = 500.0
 order_qty_fraction      = 0
 order_qty_min           = 50
 max_inventory_fraction  = 0
-min_half_spread_bps     = 1.0
+min_half_spread_bps     = 4.0   # full quote = 8 bps, matches HL APE's ~8 bps median spread
 
 # Backtest knobs: real HL APE shows drift ≈ 6.7 bps/√s and σ² ≈ 1.6e-4
 # at steady state, well above the prod 3.0 bps drift_suppress and the
