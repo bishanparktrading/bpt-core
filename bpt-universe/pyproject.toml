@@ -1,0 +1,31 @@
+[project]
+name = "bpt-universe"
+version = "0.1.0"
+description = "Offline tradable-universe selector for bpt-strategy. Reads refdata + tape captures, scores instruments, emits a ranked candidate list and a TOML config diff for human review."
+requires-python = ">=3.11"
+dependencies = [
+    "polars >= 1.0",
+    "click >= 8.1",
+    "tomlkit >= 0.13",
+    "pyarrow >= 17.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest >= 8.0",
+    "pytest-cov >= 5.0",
+]
+
+[project.scripts]
+bpt-universe = "bpt_universe.cli:cli"
+
+[build-system]
+requires = ["setuptools >= 68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["bpt_universe*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
