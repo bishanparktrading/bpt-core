@@ -34,6 +34,7 @@
 #include <messages/OrderGatewayHeartbeat.h>
 #include <messages/OrderSide.h>
 #include <messages/OrderType.h>
+#include <messages/RejectSource.h>
 #include <messages/TimeInForce.h>
 
 #include <cstdint>
@@ -135,7 +136,9 @@ private:
                              bpt::messages::OrderType::Value order_type,
                              int64_t price,
                              uint64_t quantity,
-                             uint64_t cumulative_filled_qty);
+                             uint64_t cumulative_filled_qty,
+                             bpt::messages::RejectSource::Value reject_source =
+                                 bpt::messages::RejectSource::EXCHANGE);
 
     matching::MatchingEngine& matching_;
 

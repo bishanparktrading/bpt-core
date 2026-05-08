@@ -112,9 +112,23 @@ bool InProcessOrderGatewayClient::send_new_order(uint64_t order_id,
     matching::OpenOrder result = matching_.submit_order(std::move(mo));
 
     if (result.rejected) {
-        // POST_ONLY crossing → rejected. Logged once per occurrence so
-        // the operator can see WHY a backtest produces no fills if the
-        // strategy's quotes consistently cross the book at submit time.
+        // POST_ONLY would have crossed → matching declines. Synchronous
+        // single-process semantics make a fired-during-submit
+        // ExecReport unsafe: AS strategy's on_exec_report runs INSIDE
+        // place_order before place_order returns, so the strategy's
+        // own bid_order_id / ask_order_id assignment hasn't happened
+        // yet. The REJECTED handler can't clear something that hasn't
+        // been set, and place_order then sets bid_order_id to a dead
+        // order id — the strategy waits forever for a terminal status
+        // that already fired.
+        //
+        // The clean local fix: return false. The strategy's place_order
+        // returns 0, bid_order_id stays 0, strategy retries next tick.
+        // This treats POST_ONLY-cross like a pre-trade risk reject —
+        // no order was ever placed from the strategy's point of view.
+        //
+        // Counter logged to keep the operator aware of how often quotes
+        // are crossing the book on submit.
         ++rejected_count_;
         if (rejected_count_ <= 5 || rejected_count_ % 100 == 0) {
             bpt::common::log::warn(
@@ -125,13 +139,8 @@ bool InProcessOrderGatewayClient::send_new_order(uint64_t order_id,
                 static_cast<double>(price) / kPriceScale,
                 rejected_count_);
         }
-        // POST_ONLY would have crossed; venue rejects.
-        publish_exec_status(order_id, exchange_id, instrument_id,
-                            bpt::messages::ExecStatus::REJECTED,
-                            side, order_type, price, quantity,
-                            /*cumulative_filled_qty=*/0);
         live_.erase(order_id);
-        return true;  // adapter accepted the call; matching declined
+        return false;
     }
 
     // Synchronous MARKET / crossing-LIMIT fills already fired their
@@ -288,7 +297,8 @@ void InProcessOrderGatewayClient::publish_exec_status(
     bpt::messages::OrderType::Value order_type,
     int64_t price,
     uint64_t quantity,
-    uint64_t cumulative_filled_qty) {
+    uint64_t cumulative_filled_qty,
+    bpt::messages::RejectSource::Value reject_source) {
     if (!on_exec_report) return;
 
     using namespace bpt::messages;
@@ -309,7 +319,9 @@ void InProcessOrderGatewayClient::publish_exec_status(
         .price(price)
         .filledQty(status == ExecStatus::FILLED || status == ExecStatus::PARTIAL ? quantity : 0)
         .remainingQty(quantity > cumulative_filled_qty ? (quantity - cumulative_filled_qty) : 0)
-        .rejectReason(RejectReason::OK)
+        .rejectReason(status == ExecStatus::REJECTED ? RejectReason::INVALID_PRICE
+                                                     : RejectReason::OK)
+        .rejectSource(reject_source)
         .fee(0)
         .putFeeCurrency(ccy_pad)
         .timestampNs(simulation_now_ns_)
