@@ -47,10 +47,15 @@ cc_test(
     ],
 )
 
-cc_binary(
-    name = "bpt-strategy",
+# Full strategy library — every concrete strategy class plus the app
+# scaffolding (refdata client, MD client, order manager, lifecycle).
+# Split out from `:bpt-strategy` cc_binary so a deterministic backtest
+# harness (in bpt-backtester) can link AvellanedaStoikovStrategy +
+# friends without duplicating the source list. The cc_binary now just
+# wraps main.cpp around this library.
+cc_library(
+    name = "strategy_lib",
     srcs = [
-        "src/main.cpp",
         "src/app/strategy_app.cpp",
         "src/app/strategy_app_wiring.cpp",
         "src/app/strategy_app_shutdown.cpp",
@@ -82,6 +87,7 @@ cc_binary(
         "src/order/aeron_order_gateway_client.cpp",
         "src/order/order_manager.cpp",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":strategy_core",
         "//bpt-app",
@@ -93,4 +99,10 @@ cc_binary(
         "@prometheus_cpp//:pull",
         "@tomlplusplus//:tomlplusplus",
     ],
+)
+
+cc_binary(
+    name = "bpt-strategy",
+    srcs = ["src/main.cpp"],
+    deps = [":strategy_lib"],
 )

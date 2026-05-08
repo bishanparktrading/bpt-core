@@ -288,7 +288,7 @@ void InProcessOrderGatewayClient::publish_exec_status(
         .price(price)
         .filledQty(status == ExecStatus::FILLED || status == ExecStatus::PARTIAL ? quantity : 0)
         .remainingQty(quantity > cumulative_filled_qty ? (quantity - cumulative_filled_qty) : 0)
-        .rejectReason(RejectReason::NONE)
+        .rejectReason(RejectReason::OK)
         .fee(0)
         .putFeeCurrency(ccy_pad)
         .timestampNs(simulation_now_ns_)

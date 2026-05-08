@@ -39,3 +39,28 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+# Deterministic single-process backtest harness. Wires the strategy
+# library directly to the matching engine via the InProcess clients —
+# no Aeron, no WS server, no IPC. Replaces the multi-process backtest
+# stack as a *measurement device* for parameter sweeps; multi-process
+# stack remains as the integration smoke for the live wire.
+#
+# Reads .wslog files directly (skipping the Arrow/Parquet path that
+# keeps the rest of bpt-backtester on CMake) — same recorder format
+# bpt-tape produces, parsed via the existing mdgw venue decoders.
+cc_library(
+    name = "harness_lib",
+    srcs = [
+        "src/harness/inprocess_order_gateway_client.cpp",
+    ],
+    hdrs = glob(["include/backtester/harness/*.h"]),
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":backtester_core",
+        "//bpt-strategy:strategy_lib",
+        "//bpt-common",
+        "//messages",
+    ],
+)
