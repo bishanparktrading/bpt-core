@@ -42,7 +42,7 @@ public:
 
     // order_gw may be null in refdata-only / dry-run modes; in that case the
     // account-snapshot phase is skipped entirely.
-    StartupGate(refdata::RefdataClient& refdata,
+    StartupGate(refdata::IRefdataClient& refdata,
                 order::IOrderGatewayClient* order_gw,
                 strategy::IStrategy& strategy,
                 metrics::StrategyMetrics& metrics,
@@ -82,7 +82,7 @@ public:
 private:
     void send_account_snapshot_requests();
 
-    refdata::RefdataClient& refdata_;
+    refdata::IRefdataClient& refdata_;
     order::IOrderGatewayClient* order_gw_;  // nullable
     strategy::IStrategy& strategy_;
     metrics::StrategyMetrics& metrics_;

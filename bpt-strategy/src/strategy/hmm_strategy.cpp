@@ -40,8 +40,8 @@ static constexpr size_t kMinWarmupBars = 30;
 
 HmmStrategy::HmmStrategy(uint64_t correlation_id,
                          const config::StrategyConfig& cfg,
-                         refdata::RefdataClient& refdata,
-                         md::MdClient* md,
+                         refdata::IRefdataClient& refdata,
+                         md::IMdClient* md,
                          order::OrderManager* order_mgr)
     : confidence_threshold_(cfg.params["hmm_confidence"].value<double>().value_or(0.50)),
       min_dwell_bars_(static_cast<int>(cfg.params["hmm_min_dwell_bars"].value<int64_t>().value_or(5))),
@@ -108,7 +108,7 @@ HmmStrategy::HmmStrategy(uint64_t correlation_id,
 // ── IStrategy lifecycle ──────────────────────────────────────────────────────
 
 void HmmStrategy::start() {
-    std::vector<refdata::RefdataClient::CanonicalFilter> filters;
+    std::vector<refdata::IRefdataClient::CanonicalFilter> filters;
     for (const auto& sym : instruments_) {
         if (auto parsed = CanonicalResolver::parse(sym)) {
             const auto sbe_type = [&]() {
@@ -178,7 +178,7 @@ void HmmStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
 
     if (!md_client_)
         return;
-    std::vector<md::MdClient::InstrumentDesc> subs;
+    std::vector<md::IMdClient::InstrumentDesc> subs;
     for (const auto& [id, st] : state_)
         subs.push_back({id, st.exchange, st.symbol, order_book_depth_});
     md_client_->subscribe(correlation_id_, subs);

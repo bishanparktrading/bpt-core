@@ -60,8 +60,8 @@ const char* RegimeSwitchStrategy::regime_name(Regime r) {
 
 RegimeSwitchStrategy::RegimeSwitchStrategy(uint64_t correlation_id,
                                            const config::StrategyConfig& cfg,
-                                           refdata::RefdataClient& refdata,
-                                           md::MdClient* md,
+                                           refdata::IRefdataClient& refdata,
+                                           md::IMdClient* md,
                                            order::OrderManager* order_mgr)
     : hurst_window_(static_cast<size_t>(cfg.params["hurst_window"].value<int64_t>().value_or(100))),
       hurst_eval_ticks_(static_cast<int>(cfg.params["hurst_eval_ticks"].value<int64_t>().value_or(10))),
@@ -142,7 +142,7 @@ void RegimeSwitchStrategy::start() {
     for (const auto& ex : md_exchanges_)
         bpt::common::log::info(kLog(), "MD exchange: {}", ex);
 
-    std::vector<refdata::RefdataClient::CanonicalFilter> filters;
+    std::vector<refdata::IRefdataClient::CanonicalFilter> filters;
     for (const auto& sym : instruments_) {
         if (auto parsed = CanonicalResolver::parse(sym)) {
             const auto sbe_type = [&]() {
@@ -220,7 +220,7 @@ void RegimeSwitchStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
     if (!md_client_)
         return;
 
-    std::vector<md::MdClient::InstrumentDesc> subs;
+    std::vector<md::IMdClient::InstrumentDesc> subs;
     for (const auto& [id, st] : state_)
         subs.push_back({id, st.exchange, st.symbol, order_book_depth_});
 

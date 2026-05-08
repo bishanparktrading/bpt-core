@@ -17,8 +17,8 @@ public:
     // md, order_mgr, and vol_client are optional (nullptr if not configured).
     // Throws std::invalid_argument if the strategy type is unknown.
     static std::unique_ptr<IStrategy> create(const config::EngineConfig& cfg,
-                                             refdata::RefdataClient& refdata,
-                                             md::MdClient* md,
+                                             refdata::IRefdataClient& refdata,
+                                             md::IMdClient* md,
                                              order::OrderManager* order_mgr,
                                              vol::VolSurfaceClient* vol_client = nullptr);
 };

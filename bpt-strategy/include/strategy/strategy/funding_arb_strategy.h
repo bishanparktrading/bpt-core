@@ -39,8 +39,8 @@ class FundingArbStrategy : public IStrategy {
 public:
     FundingArbStrategy(uint64_t correlation_id,
                        const config::StrategyConfig& cfg,
-                       refdata::RefdataClient& refdata,
-                       md::MdClient* md,
+                       refdata::IRefdataClient& refdata,
+                       md::IMdClient* md,
                        order::IOrderGatewayClient* order_gw);
 
     void start() override;
@@ -137,8 +137,8 @@ private:
     std::vector<std::string> md_exchanges_;
     std::unordered_map<std::string, config::VenueExecConfig> venue_exec_;
 
-    refdata::RefdataClient& refdata_;
-    md::MdClient* md_client_;
+    refdata::IRefdataClient& refdata_;
+    md::IMdClient* md_client_;
     order::IOrderGatewayClient* order_gw_;
 
     std::atomic<uint64_t> next_order_id_{1};

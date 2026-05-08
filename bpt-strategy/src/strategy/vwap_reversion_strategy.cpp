@@ -24,8 +24,8 @@ static constexpr double kOrderQty = 0.001;  // 0.001 base unit in natural units
 
 VwapReversionStrategy::VwapReversionStrategy(uint64_t correlation_id,
                                              const config::StrategyConfig& cfg,
-                                             refdata::RefdataClient& refdata,
-                                             md::MdClient* md,
+                                             refdata::IRefdataClient& refdata,
+                                             md::IMdClient* md,
                                              order::OrderManager* order_mgr)
     : correlation_id_(correlation_id),
       ema_period_(static_cast<std::size_t>(cfg.params["vwap_window_trades"].value<int64_t>().value_or(200))),
@@ -64,7 +64,7 @@ void VwapReversionStrategy::start() {
     for (const auto& ex : md_exchanges_)
         bpt::common::log::info("[VwapReversion] MD exchange: {}", ex);
 
-    std::vector<refdata::RefdataClient::CanonicalFilter> filters;
+    std::vector<refdata::IRefdataClient::CanonicalFilter> filters;
     for (const auto& sym : instruments_) {
         if (auto parsed = CanonicalResolver::parse(sym)) {
             const auto sbe_type = [&]() {
@@ -123,7 +123,7 @@ void VwapReversionStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
     if (!md_client_)
         return;
 
-    std::vector<md::MdClient::InstrumentDesc> subs;
+    std::vector<md::IMdClient::InstrumentDesc> subs;
     subs.reserve(state_.size());
     for (const auto& [id, st] : state_)
         subs.push_back({id, st.exchange, st.symbol});

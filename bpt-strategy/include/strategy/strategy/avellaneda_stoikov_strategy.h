@@ -7,6 +7,7 @@
 #include "strategy/strategy/canonical_resolver.h"
 #include "strategy/strategy/fair_value_estimator.h"
 #include "strategy/strategy/i_strategy.h"
+#include "strategy/strategy/ofi_calculator.h"
 #include "strategy/strategy/order_book_state.h"
 #include "strategy/strategy/position_tracker.h"
 #include "strategy/strategy/queue_tracker.h"
@@ -66,8 +67,8 @@ class AvellanedaStoikovStrategy : public IStrategy {
 public:
     AvellanedaStoikovStrategy(uint64_t correlation_id,
                               const config::StrategyConfig& cfg,
-                              refdata::RefdataClient& refdata,
-                              md::MdClient* md,
+                              refdata::IRefdataClient& refdata,
+                              md::IMdClient* md,
                               order::OrderManager* order_mgr);
 
     void start() override;
@@ -255,6 +256,14 @@ private:
         // strategy overwrites with the configured estimator after each
         // InstrumentState is inserted into state_.
         FairValueEstimator fv;
+
+        // Order-Flow Imbalance signal — additive skew to the AS
+        // reservation. Default-config gives a 1s rolling window over
+        // 5 levels; strategy overwrites with the configured window/depth
+        // after emplace, same pattern as `fv`. ofi_weight_bps_ = 0
+        // (default) makes the signal a no-op so existing configs
+        // produce byte-identical quotes.
+        OFICalculator ofi{OFICalculator::Config{}};
 
         // Drawdown circuit-breaker. When set non-zero (in steady_clock ns),
         // both sides are suppressed until this timestamp passes. Set in
@@ -561,12 +570,21 @@ private:
 
     [[nodiscard]] double gamma_pnl_mult(const InstrumentState& st) const;
 
+    // OFI quote-skew (Cont-Kukanov-Stoikov). Adds an additive offset
+    // to the AS reservation price proportional to the rolling normalized
+    // OFI signal:  reservation += mid * (ofi_weight_bps * 1e-4 * ofi_value).
+    // Positive OFI lifts reservation (makes asks easier to fill, bids
+    // harder), matching the drift-extension sign convention. Default 0
+    // makes the feature a no-op so legacy configs are unchanged.
+    double ofi_weight_bps_;
+    uint64_t ofi_window_ns_;
+
     std::vector<std::string> instruments_;
     std::vector<std::string> md_exchanges_;
     std::unordered_map<std::string, config::VenueExecConfig> venue_exec_;
 
-    refdata::RefdataClient& refdata_;
-    md::MdClient* md_client_;
+    refdata::IRefdataClient& refdata_;
+    md::IMdClient* md_client_;
     order::OrderManager* order_mgr_;
     std::unordered_map<uint64_t, InstrumentState> state_;         // keyed by instrument_id
     std::unordered_map<uint64_t, uint64_t> order_to_instrument_;  // order_id → instrument_id

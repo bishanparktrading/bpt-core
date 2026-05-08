@@ -33,8 +33,8 @@ static ExchangeId::Value exchange_from_str(const std::string& s) {
 
 ShortVolStrategy::ShortVolStrategy(uint64_t correlation_id,
                                    const config::StrategyConfig& cfg,
-                                   refdata::RefdataClient& refdata,
-                                   md::MdClient* md,
+                                   refdata::IRefdataClient& refdata,
+                                   md::IMdClient* md,
                                    order::OrderManager* order_mgr,
                                    vol::VolSurfaceClient* vol_client)
     : correlation_id_(correlation_id),
@@ -88,7 +88,7 @@ void ShortVolStrategy::start() {
     // Subscribe to perp BBO for delta-hedging + option BBO for Pricer vol surface computation.
     // Pricer passively reads stream 2002, so we subscribe to options here to drive MdGateway.
     if (md_client_) {
-        std::vector<md::MdClient::InstrumentDesc> subs;
+        std::vector<md::IMdClient::InstrumentDesc> subs;
         for (const auto& [key, state] : states_) {
             if (state.perp_instrument_id != 0) {
                 auto inst = refdata_.cache().get(state.perp_instrument_id);

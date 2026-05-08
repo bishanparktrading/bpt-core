@@ -18,8 +18,8 @@
 namespace bpt::strategy::strategy {
 
 std::unique_ptr<IStrategy> StrategyFactory::create(const config::EngineConfig& cfg,
-                                                   refdata::RefdataClient& refdata,
-                                                   md::MdClient* md,
+                                                   refdata::IRefdataClient& refdata,
+                                                   md::IMdClient* md,
                                                    order::OrderManager* order_mgr,
                                                    vol::VolSurfaceClient* vol_client) {
     const std::string& type = cfg.strategy.type;

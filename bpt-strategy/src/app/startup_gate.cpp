@@ -7,7 +7,7 @@ namespace bpt::strategy::app {
 
 using bpt::messages::ExchangeId;
 
-StartupGate::StartupGate(refdata::RefdataClient& refdata,
+StartupGate::StartupGate(refdata::IRefdataClient& refdata,
                          order::IOrderGatewayClient* order_gw,
                          strategy::IStrategy& strategy,
                          metrics::StrategyMetrics& metrics,

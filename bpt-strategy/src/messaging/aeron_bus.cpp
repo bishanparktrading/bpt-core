@@ -1,7 +1,9 @@
 #include "strategy/messaging/aeron_bus.h"
 
 #include "strategy/config/config.h"
+#include "strategy/md/md_client.h"
 #include "strategy/order/aeron_order_gateway_client.h"
+#include "strategy/refdata/refdata_client.h"
 
 #include <bpt_common/logging.h>
 
@@ -14,7 +16,7 @@ StrategyBus StrategyAeronBus::build(std::shared_ptr<aeron::Aeron> aeron,
 
     StrategyBus bus;
 
-    bus.refdata = std::make_unique<refdata::RefdataClient>(
+    bus.refdata = std::make_unique<refdata::AeronRefdataClient>(
         aeron,
         ac.refdata_control.channel,
         ac.refdata_control.stream_id,
@@ -26,7 +28,7 @@ StrategyBus StrategyAeronBus::build(std::shared_ptr<aeron::Aeron> aeron,
         fc.strategy.schedule.max_refdata_staleness_ns);
 
     if (ac.md_control.stream_id != 0) {
-        bus.md = std::make_unique<md::MdClient>(
+        bus.md = std::make_unique<md::AeronMdClient>(
             aeron,
             ac.md_control.channel,
             ac.md_control.stream_id,

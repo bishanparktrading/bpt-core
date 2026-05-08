@@ -46,8 +46,8 @@ static constexpr double kAggressBps = 0.0;
 
 OFIStrategy::OFIStrategy(uint64_t correlation_id,
                           const config::StrategyConfig& cfg,
-                          refdata::RefdataClient& refdata,
-                          md::MdClient* md,
+                          refdata::IRefdataClient& refdata,
+                          md::IMdClient* md,
                           order::OrderManager* order_mgr)
     : correlation_id_(correlation_id),
       book_levels_(static_cast<int>(cfg.params["book_levels"].value<int64_t>().value_or(5))),
@@ -99,7 +99,7 @@ OFIStrategy::OFIStrategy(uint64_t correlation_id,
 // ── IStrategy lifecycle ──────────────────────────────────────────────────────
 
 void OFIStrategy::start() {
-    std::vector<refdata::RefdataClient::CanonicalFilter> filters;
+    std::vector<refdata::IRefdataClient::CanonicalFilter> filters;
     for (const auto& sym : instruments_) {
         if (auto parsed = CanonicalResolver::parse(sym)) {
             const auto sbe_type = [&]() {
@@ -164,7 +164,7 @@ void OFIStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
 
     if (!md_client_)
         return;
-    std::vector<md::MdClient::InstrumentDesc> subs;
+    std::vector<md::IMdClient::InstrumentDesc> subs;
     for (const auto& [id, st] : state_)
         subs.push_back({id, st.exchange, st.symbol, order_book_depth_});
     md_client_->subscribe(correlation_id_, subs);

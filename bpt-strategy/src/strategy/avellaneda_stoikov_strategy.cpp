@@ -68,8 +68,8 @@ static constexpr double kPriceScale = 1e8;
 
 AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
                                                      const config::StrategyConfig& cfg,
-                                                     refdata::RefdataClient& refdata,
-                                                     md::MdClient* md,
+                                                     refdata::IRefdataClient& refdata,
+                                                     md::IMdClient* md,
                                                      order::OrderManager* order_mgr)
     : correlation_id_(correlation_id),
       gamma_(cfg.params["gamma"].value<double>().value_or(0.1)),
@@ -129,6 +129,9 @@ AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
       gamma_pnl_profit_threshold_usd_(cfg.params["gamma_pnl_profit_threshold_usd"].value<double>().value_or(0.0)),
       gamma_pnl_widen_mult_(cfg.params["gamma_pnl_widen_mult"].value<double>().value_or(1.0)),
       gamma_pnl_tighten_mult_(cfg.params["gamma_pnl_tighten_mult"].value<double>().value_or(1.0)),
+      ofi_weight_bps_(cfg.params["ofi_weight_bps"].value<double>().value_or(0.0)),
+      ofi_window_ns_(static_cast<uint64_t>(
+          cfg.params["ofi_window_ms"].value<double>().value_or(1000.0) * 1e6)),
       instruments_(cfg.instruments),
       md_exchanges_(cfg.md_exchanges),
       venue_exec_(cfg.venue_exec),
@@ -216,7 +219,7 @@ void AvellanedaStoikovStrategy::start() {
     for (const auto& ex : md_exchanges_)
         bpt::common::log::info(kLog(), "MD exchange: {}", ex);
 
-    std::vector<refdata::RefdataClient::CanonicalFilter> filters;
+    std::vector<refdata::IRefdataClient::CanonicalFilter> filters;
     for (const auto& sym : instruments_) {
         if (auto parsed = CanonicalResolver::parse(sym)) {
             const auto sbe_type = [&]() {
@@ -280,8 +283,13 @@ void AvellanedaStoikovStrategy::on_snapshot(const refdata::InstrumentCache& cach
                                        .lot_size = inst->lot_size,
                                        .vol_gate = VolatilityGate(vol_gate_cfg_),
                                        .regime = RegimeDetector(regime_cfg_)});
-        if (inserted)
+        if (inserted) {
             it->second.fv = FairValueEstimator{fv_cfg_};
+            it->second.ofi = OFICalculator{OFICalculator::Config{
+                .max_levels = static_cast<int>(order_book_depth_ > 0 ? order_book_depth_ : 5),
+                .window_ns  = ofi_window_ns_,
+            }};
+        }
         bpt::common::log::info("  [{}] {} @ {} tick={} lot={}",
                                id,
                                inst->symbol,
@@ -295,7 +303,7 @@ void AvellanedaStoikovStrategy::on_snapshot(const refdata::InstrumentCache& cach
     if (!md_client_)
         return;
 
-    std::vector<md::MdClient::InstrumentDesc> subs;
+    std::vector<md::IMdClient::InstrumentDesc> subs;
     subs.reserve(state_.size());
     for (const auto& [id, st] : state_)
         subs.push_back({id, st.exchange, st.symbol, order_book_depth_});
@@ -333,8 +341,13 @@ void AvellanedaStoikovStrategy::on_delta(const refdata::Instrument& inst,
                                        .lot_size = inst.lot_size,
                                        .vol_gate = VolatilityGate(vol_gate_cfg_),
                                        .regime = RegimeDetector(regime_cfg_)});
-        if (inserted)
+        if (inserted) {
             it->second.fv = FairValueEstimator{fv_cfg_};
+            it->second.ofi = OFICalculator{OFICalculator::Config{
+                .max_levels = static_cast<int>(order_book_depth_ > 0 ? order_book_depth_ : 5),
+                .window_ns  = ofi_window_ns_,
+            }};
+        }
         bpt::common::log::info(kLog(),
                                "Delta ADD {} @ {} tick={} lot={}",
                                inst.symbol,
@@ -359,6 +372,24 @@ void AvellanedaStoikovStrategy::on_order_book(const bpt::messages::MdOrderBook& 
     // we're on a delta channel and fold-only is correct.
     const bool is_snapshot = order_book_depth_ <= 5;
     st.book.apply(book, is_snapshot);
+
+    // Feed the maintained ladder into the OFI rolling estimator —
+    // ONLY when the signal is actually enabled. Even unused, the
+    // top_bids/top_asks copy + deque maintenance perturbs strategy
+    // timing enough to shift fill outcomes through the Aeron-IPC
+    // simulator, breaking the "ofi_weight_bps=0 is identical to the
+    // prior baseline" property required for the calibration grid.
+    if (ofi_weight_bps_ != 0.0 && st.book.ready()) {
+        const std::size_t K = order_book_depth_ > 0 ? order_book_depth_ : 5;
+        const auto top_b = st.book.top_bids(K);
+        const auto top_a = st.book.top_asks(K);
+        std::vector<OFICalculator::Level> ofi_bids, ofi_asks;
+        ofi_bids.reserve(top_b.size());
+        ofi_asks.reserve(top_a.size());
+        for (const auto& l : top_b) ofi_bids.emplace_back(l.price, l.qty);
+        for (const auto& l : top_a) ofi_asks.emplace_back(l.price, l.qty);
+        st.ofi.update(ofi_bids, ofi_asks, book.timestampNs());
+    }
 
     // Diagnostic: log maintained-ladder state periodically so we can
     // confirm deltas are merging correctly. The raw per-frame delta
@@ -887,7 +918,14 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
     // skewed. Switching to √T brings drift_skew_frac to ~-0.042 (-4.2%)
     // for the same inputs — bounded and dimensionally honest.
     const double drift_skew_frac = st.ewma_drift * std::sqrt(T_minus_t);
-    const double reservation = mid * (1.0 + drift_skew_frac - inventory_skew_frac);
+    // OFI skew (Cont-Kukanov-Stoikov) — additive contribution to the
+    // reservation proportional to the rolling normalized OFI signal.
+    // Sign matches drift_skew_frac: positive OFI = buy pressure, lifts
+    // reservation above mid → asks move up (harder to fill short),
+    // bids move up (easier to fill long), opposite of how AS handles
+    // accumulating inventory. ofi_weight_bps_ = 0 (default) → no-op.
+    const double ofi_skew_frac = ofi_weight_bps_ * 1e-4 * st.ofi.value();
+    const double reservation = mid * (1.0 + drift_skew_frac + ofi_skew_frac - inventory_skew_frac);
     // Kept for the debug log below; same as drift_skew_frac * mid.
     const double drift_adjustment = drift_skew_frac * mid;
 

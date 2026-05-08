@@ -19,11 +19,11 @@
 
 #include "strategy/backtest/backtest_client.h"
 #include "strategy/dashboard/portfolio_snapshot_publisher.h"
-#include "strategy/md/md_client.h"
+#include "strategy/md/i_md_client.h"
 #include "strategy/messaging/dashboard_control_subscriber.h"
 #include "strategy/messaging/toxicity_subscriber.h"
 #include "strategy/order/i_order_gateway_client.h"
-#include "strategy/refdata/refdata_client.h"
+#include "strategy/refdata/i_refdata_client.h"
 #include "strategy/vol/vol_surface_client.h"
 
 #include <Aeron.h>
@@ -35,12 +35,20 @@ namespace config { struct AppConfig; }
 
 namespace messaging {
 
-/// Bundle of every Aeron-touching object the strategy needs. Optional
+/// Bundle of every transport-coupled object the strategy needs. Optional
 /// fields are null when the corresponding stream_id in config is 0
 /// (matches the existing per-feature opt-in shape).
+///
+/// `refdata`, `md`, and `order_gw` are typed against polymorphic interfaces
+/// so a deterministic backtest harness can substitute in-process
+/// implementations without any change to the strategy. The remaining
+/// fields are still typed against concrete classes — they're either
+/// off-hot-path (vol, dashboard) or only used in production paths
+/// (backtest, tox); promoting them to interfaces is deferred until a
+/// concrete consumer needs the substitution.
 struct StrategyBus {
-    std::unique_ptr<refdata::RefdataClient> refdata;
-    std::unique_ptr<md::MdClient> md;
+    std::unique_ptr<refdata::IRefdataClient> refdata;
+    std::unique_ptr<md::IMdClient> md;
     std::unique_ptr<order::IOrderGatewayClient> order_gw;
     std::unique_ptr<vol::VolSurfaceClient> vol;
     std::unique_ptr<backtest::BacktestClient> backtest;

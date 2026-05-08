@@ -39,8 +39,8 @@ class ShortVolStrategy : public IStrategy {
 public:
     ShortVolStrategy(uint64_t correlation_id,
                      const config::StrategyConfig& cfg,
-                     refdata::RefdataClient& refdata,
-                     md::MdClient* md,
+                     refdata::IRefdataClient& refdata,
+                     md::IMdClient* md,
                      order::OrderManager* order_mgr,
                      vol::VolSurfaceClient* vol_client);
 
@@ -158,8 +158,8 @@ private:
     std::unordered_map<std::string, config::VenueExecConfig> venue_exec_;
     config::RiskConfig risk_;
 
-    refdata::RefdataClient& refdata_;
-    md::MdClient* md_client_;
+    refdata::IRefdataClient& refdata_;
+    md::IMdClient* md_client_;
     order::OrderManager* order_mgr_;
     vol::VolSurfaceClient* vol_client_;
 

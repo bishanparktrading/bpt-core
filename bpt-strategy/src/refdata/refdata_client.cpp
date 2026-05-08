@@ -16,7 +16,7 @@
 
 namespace bpt::strategy::refdata {
 
-RefdataClient::RefdataClient(std::shared_ptr<aeron::Aeron> aeron,
+AeronRefdataClient::AeronRefdataClient(std::shared_ptr<aeron::Aeron> aeron,
                              const std::string& channel,
                              int control_stream,
                              int snapshot_stream,
@@ -70,7 +70,7 @@ RefdataClient::RefdataClient(std::shared_ptr<aeron::Aeron> aeron,
                    status_stream);
 }
 
-void RefdataClient::subscribe(uint64_t correlation_id, std::vector<CanonicalFilter> filters) {
+void AeronRefdataClient::subscribe(uint64_t correlation_id, std::vector<CanonicalFilter> filters) {
     correlation_id_ = correlation_id;
 
     using namespace bpt::messages;
@@ -106,7 +106,7 @@ void RefdataClient::subscribe(uint64_t correlation_id, std::vector<CanonicalFilt
     bpt::common::log::info("Subscription request sent: correlation_id={} canonical_filters={}", correlation_id, nf);
 }
 
-void RefdataClient::handle_snapshot_fragment(aeron::AtomicBuffer& buffer,
+void AeronRefdataClient::handle_snapshot_fragment(aeron::AtomicBuffer& buffer,
                                              aeron::util::index_t offset,
                                              aeron::util::index_t length,
                                              aeron::Header& /*header*/) {
@@ -138,7 +138,7 @@ void RefdataClient::handle_snapshot_fragment(aeron::AtomicBuffer& buffer,
         on_snapshot_complete(cache_);
 }
 
-void RefdataClient::handle_delta_fragment(aeron::AtomicBuffer& buffer,
+void AeronRefdataClient::handle_delta_fragment(aeron::AtomicBuffer& buffer,
                                           aeron::util::index_t offset,
                                           aeron::util::index_t length,
                                           aeron::Header& /*header*/) {
@@ -200,7 +200,7 @@ void RefdataClient::handle_delta_fragment(aeron::AtomicBuffer& buffer,
     }
 }
 
-void RefdataClient::handle_fee_schedule_fragment(aeron::AtomicBuffer& buffer,
+void AeronRefdataClient::handle_fee_schedule_fragment(aeron::AtomicBuffer& buffer,
                                                  aeron::util::index_t offset,
                                                  aeron::util::index_t length,
                                                  aeron::Header& /*header*/) {
@@ -231,7 +231,7 @@ void RefdataClient::handle_fee_schedule_fragment(aeron::AtomicBuffer& buffer,
                     msg.takerFeeBps());
 }
 
-void RefdataClient::handle_funding_rate_fragment(aeron::AtomicBuffer& buffer,
+void AeronRefdataClient::handle_funding_rate_fragment(aeron::AtomicBuffer& buffer,
                                                  aeron::util::index_t offset,
                                                  aeron::util::index_t length,
                                                  aeron::Header& /*header*/) {
@@ -265,7 +265,7 @@ void RefdataClient::handle_funding_rate_fragment(aeron::AtomicBuffer& buffer,
                     msg.rateBps());
 }
 
-void RefdataClient::handle_status_fragment(aeron::AtomicBuffer& buffer,
+void AeronRefdataClient::handle_status_fragment(aeron::AtomicBuffer& buffer,
                                            aeron::util::index_t offset,
                                            aeron::util::index_t length,
                                            aeron::Header& /*header*/) {
@@ -315,7 +315,7 @@ void RefdataClient::handle_status_fragment(aeron::AtomicBuffer& buffer,
     }
 }
 
-int RefdataClient::poll(int fragment_limit) {
+int AeronRefdataClient::poll(int fragment_limit) {
     int total = 0;
     total += snap_sub_->poll(fragment_limit);
     total += delta_sub_->poll(fragment_limit);

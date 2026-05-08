@@ -16,7 +16,7 @@
 
 namespace bpt::strategy::md {
 
-MdClient::MdClient(std::shared_ptr<aeron::Aeron> aeron,
+AeronMdClient::AeronMdClient(std::shared_ptr<aeron::Aeron> aeron,
                    const std::string& channel,
                    int control_stream,
                    int data_stream,
@@ -40,7 +40,7 @@ MdClient::MdClient(std::shared_ptr<aeron::Aeron> aeron,
     bpt::common::log::info("MdClient connected: ctrl={} data={} ack_hb={}", control_stream, data_stream, ack_hb_stream);
 }
 
-void MdClient::subscribe(uint64_t correlation_id, const std::vector<InstrumentDesc>& instruments) {
+void AeronMdClient::subscribe(uint64_t correlation_id, const std::vector<InstrumentDesc>& instruments) {
     using namespace bpt::messages;
 
     const auto n = static_cast<uint16_t>(instruments.size());
@@ -72,7 +72,7 @@ void MdClient::subscribe(uint64_t correlation_id, const std::vector<InstrumentDe
     bpt::common::log::info("MdClient: subscription sent correlation_id={} instruments={}", correlation_id, n);
 }
 
-void MdClient::handle_data_fragment(aeron::AtomicBuffer& buffer,
+void AeronMdClient::handle_data_fragment(aeron::AtomicBuffer& buffer,
                                     aeron::util::index_t offset,
                                     aeron::util::index_t length,
                                     aeron::Header& /*header*/) {
@@ -131,7 +131,7 @@ void MdClient::handle_data_fragment(aeron::AtomicBuffer& buffer,
     }
 }
 
-void MdClient::handle_ack_hb_fragment(aeron::AtomicBuffer& buffer,
+void AeronMdClient::handle_ack_hb_fragment(aeron::AtomicBuffer& buffer,
                                       aeron::util::index_t offset,
                                       aeron::util::index_t length,
                                       aeron::Header& /*header*/) {
@@ -168,7 +168,7 @@ void MdClient::handle_ack_hb_fragment(aeron::AtomicBuffer& buffer,
     // MdSubscriptionHeartbeat silently consumed — used by a watchdog if needed
 }
 
-int MdClient::poll(int fragment_limit) {
+int AeronMdClient::poll(int fragment_limit) {
     int total = 0;
 
     int data_frags = data_sub_->poll(fragment_limit);

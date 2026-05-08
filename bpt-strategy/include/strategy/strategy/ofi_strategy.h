@@ -43,8 +43,8 @@ class OFIStrategy : public IStrategy {
 public:
     OFIStrategy(uint64_t correlation_id,
                 const config::StrategyConfig& cfg,
-                refdata::RefdataClient& refdata,
-                md::MdClient* md,
+                refdata::IRefdataClient& refdata,
+                md::IMdClient* md,
                 order::OrderManager* order_mgr);
 
     void start() override;
@@ -154,8 +154,8 @@ private:
     std::vector<std::string> md_exchanges_;
     std::unordered_map<std::string, config::VenueExecConfig> venue_exec_;
 
-    refdata::RefdataClient& refdata_;
-    md::MdClient* md_client_;
+    refdata::IRefdataClient& refdata_;
+    md::IMdClient* md_client_;
     order::OrderManager* order_mgr_;
     std::unordered_map<uint64_t, InstrumentState> state_;
     std::unordered_map<uint64_t, uint64_t> order_to_instrument_;

@@ -48,8 +48,8 @@ const char* FundingArbStrategy::state_name(PairState s) {
 
 FundingArbStrategy::FundingArbStrategy(uint64_t correlation_id,
                                        const config::StrategyConfig& cfg,
-                                       refdata::RefdataClient& refdata,
-                                       md::MdClient* md,
+                                       refdata::IRefdataClient& refdata,
+                                       md::IMdClient* md,
                                        order::IOrderGatewayClient* order_gw)
     : min_funding_rate_bps_(static_cast<int32_t>(cfg.params["min_funding_rate_bps"].value<int64_t>().value_or(5))),
       exit_funding_rate_bps_(static_cast<int32_t>(cfg.params["exit_funding_rate_bps"].value<int64_t>().value_or(2))),
@@ -108,7 +108,7 @@ void FundingArbStrategy::start() {
         bpt::common::log::info("[FA] MD exchange: {}", ex);
 
     // Build canonical filters for both SPOT and PERP for each base asset.
-    std::vector<refdata::RefdataClient::CanonicalFilter> filters;
+    std::vector<refdata::IRefdataClient::CanonicalFilter> filters;
     for (const auto& sym : instruments_) {
         if (auto parsed = CanonicalResolver::parse(sym)) {
             const auto sbe_type = [&]() {
@@ -215,7 +215,7 @@ void FundingArbStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
         return;
 
     // Subscribe to MD for all resolved instruments.
-    std::vector<md::MdClient::InstrumentDesc> subs;
+    std::vector<md::IMdClient::InstrumentDesc> subs;
     for (const auto& [base, pair] : pairs_) {
         subs.push_back({pair.spot.instrument_id, pair.spot.exchange, pair.spot.symbol});
         subs.push_back({pair.perp.instrument_id, pair.perp.exchange, pair.perp.symbol});
