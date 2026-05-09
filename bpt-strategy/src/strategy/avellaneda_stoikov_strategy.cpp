@@ -96,6 +96,8 @@ AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
       post_fill_markout_threshold_bps_(cfg.params["post_fill_markout_threshold_bps"].value<double>().value_or(0.0)),
       post_fill_markout_cooldown_s_(cfg.params["post_fill_markout_cooldown_s"].value<double>().value_or(30.0)),
       drift_halflife_s_(cfg.params["drift_halflife_s"].value<double>().value_or(30.0)),
+      drift_warmup_ticks_(static_cast<std::size_t>(
+          cfg.params["drift_warmup_ticks"].value<int64_t>().value_or(50))),
       drift_suppress_bps_(cfg.params["drift_suppress_bps"].value<double>().value_or(0.0)),
       drift_suppress_sigma_mult_(cfg.params["drift_suppress_sigma_mult"].value<double>().value_or(0.0)),
       slow_drift_window_s_(cfg.params["slow_drift_window_s"].value<double>().value_or(300.0)),
@@ -555,6 +557,7 @@ void AvellanedaStoikovStrategy::on_bbo(const bpt::messages::MdMarketData& tick) 
             // Shorter halflife lets µ react faster to regime changes than σ².
             const double drift_lambda = std::exp(-dt_s / drift_halflife_s_);
             st.ewma_drift = drift_lambda * st.ewma_drift + (1.0 - drift_lambda) * norm_ret;
+            ++st.drift_ticks;
 
             // Periodic drift diagnostic — log every 100 ticks so we can see
             // what values µ reaches without turning on full debug logging.
@@ -917,7 +920,13 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
     // sanity clamp absorbed the spikes but the distribution was still
     // skewed. Switching to √T brings drift_skew_frac to ~-0.042 (-4.2%)
     // for the same inputs — bounded and dimensionally honest.
-    const double drift_skew_frac = st.ewma_drift * std::sqrt(T_minus_t);
+    // Suppress drift skew during warmup — early ewma_drift values are
+    // noisy enough to push reservation through the touch. After
+    // drift_warmup_ticks_ BBO updates, the EWMA has settled enough that
+    // its sqrt(T - t) projection is a meaningful directional bias.
+    const double drift_skew_frac = (st.drift_ticks >= drift_warmup_ticks_)
+                                       ? st.ewma_drift * std::sqrt(T_minus_t)
+                                       : 0.0;
     // OFI skew (Cont-Kukanov-Stoikov) — additive contribution to the
     // reservation proportional to the rolling normalized OFI signal.
     // Sign matches drift_skew_frac: positive OFI = buy pressure, lifts

@@ -105,6 +105,7 @@ private:
         // Positive = uptrend, negative = downtrend. Used to shift the
         // reservation price and suppress the adverse side in momentum regimes.
         double ewma_drift{0.0};
+        std::size_t drift_ticks{0};  // BBO ticks seen for drift estimator (warmup guard)
 
         // EWMA market-order arrival rate κ (trades per second, per side).
         // Estimated from inter-trade intervals on the public trade feed.
@@ -473,6 +474,14 @@ private:
 
     // Drift (momentum) detection — Cartea-Jaimungal extension of AS.
     double drift_halflife_s_;    // EWMA half-life for µ estimation (seconds)
+    // Warmup gate for drift_skew_frac. During the first N BBO ticks the
+    // ewma_drift estimate is noisy — at session start, with no history,
+    // a single big tick can produce drift_skew_frac of 30+ bps which
+    // pushes reservation through the touch (POST_ONLY rejected, GTC
+    // crosses). Suppress the drift contribution to reservation pricing
+    // until the estimator has settled. Drift suppression / suppression
+    // checks elsewhere remain unaffected — only the bid/ask offset.
+    std::size_t drift_warmup_ticks_;
     double drift_suppress_bps_;  // suppress adverse side when |µ| > this (bps/√s, fixed floor)
     // σ-multiple adaptive companion to drift_suppress_bps_. Effective
     // threshold at runtime = max(drift_suppress_bps_,

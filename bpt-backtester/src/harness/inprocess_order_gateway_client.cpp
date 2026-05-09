@@ -197,20 +197,56 @@ void InProcessOrderGatewayClient::send_cancel_all(bpt::messages::ExchangeId::Val
 }
 
 void InProcessOrderGatewayClient::send_modify(uint64_t order_id,
-                                               bpt::messages::ExchangeId::Value exchange_id,
-                                               uint64_t instrument_id,
+                                               bpt::messages::ExchangeId::Value /*exchange_id*/,
+                                               uint64_t /*instrument_id*/,
                                                int64_t new_price,
                                                uint64_t new_quantity) {
     auto it = live_.find(order_id);
     if (it == live_.end()) return;
-    const auto lo = it->second;  // copy: send_cancel erases the entry
-    send_cancel(order_id, exchange_id, instrument_id);
-    // Reuse the same order_id — strategy's order map keys on it.
-    (void)send_new_order(order_id, exchange_id, instrument_id,
-                         lo.side, lo.order_type, lo.tif,
-                         new_price, new_quantity,
-                         lo.post_only ? kExecInstPostOnlyMask : uint8_t{0},
-                         lo.exchange_symbol);
+    auto& lo = it->second;
+
+    // Production HL `modify` semantics: venue-side in-place price/qty
+    // change preserving order_id, no CANCELLED ExecReport emitted.
+    // Strategy's bid_order_id / ask_order_id stays unchanged.
+    //
+    // MatchingEngine has no native modify, so we simulate by
+    // cancelling the prior pending entry and resubmitting under the
+    // SAME order_id — but crucially WITHOUT firing the CANCELLED
+    // ExecReport that send_cancel() would normally emit. The strategy
+    // sees the order remain live; only its parameters changed.
+    matching_.cancel_order(lo.exchange, lo.exchange_symbol, std::to_string(order_id));
+
+    lo.price    = new_price;
+    lo.quantity = new_quantity;
+
+    matching::OpenOrder mo{
+        .order_id        = std::to_string(order_id),
+        .client_order_id = std::to_string(order_id),
+        .exchange        = lo.exchange,
+        .symbol          = lo.exchange_symbol,
+        .type            = lo.post_only ? matching::OrderType::POST_ONLY
+                                        : matching::OrderType::LIMIT,
+        .side            = lo.side == bpt::messages::OrderSide::BUY
+                               ? matching::OrderSide::BUY
+                               : matching::OrderSide::SELL,
+        .price           = static_cast<double>(new_price)    / kPriceScale,
+        .quantity        = static_cast<double>(new_quantity) / kQtyScale,
+        .filled_qty      = static_cast<double>(lo.cumulative_filled_qty) / kQtyScale,
+        .submitted_ts    = simulation_now_ns_,
+    };
+    matching::OpenOrder result = matching_.submit_order(std::move(mo));
+
+    // If the modified order would now cross (POST_ONLY rejection on a
+    // bumped price that's into the book), the engine flags rejected.
+    // Fire CANCELLED in that case — strategy treats it as the order
+    // ending, the natural outcome for a cross-on-modify on HL Alo.
+    if (result.rejected) {
+        publish_exec_status(order_id, lo.exchange_id, lo.instrument_id,
+                            bpt::messages::ExecStatus::CANCELLED,
+                            lo.side, lo.order_type, new_price, new_quantity,
+                            lo.cumulative_filled_qty);
+        live_.erase(it);
+    }
 }
 
 void InProcessOrderGatewayClient::send_account_snapshot_request(

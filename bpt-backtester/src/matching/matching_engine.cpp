@@ -254,7 +254,17 @@ void MatchingEngine::fill_crossing_limits(const std::string& book_key, std::vect
                                     // Queue-seeded orders fill via the
                                     // trade-print path (fill_against_trade);
                                     // skip them here to avoid double-counting.
-                                    if (order.queue_seeded)
+                                    // Exception: queue_ahead == 0 means the
+                                    // book lookup at submit time didn't find
+                                    // a level matching our price (depth-1 BBO
+                                    // book, or order deeper than L5). Those
+                                    // orders have no useful queue info and
+                                    // should fall through to the book-cross
+                                    // backstop — otherwise they're never
+                                    // fillable, which is wrong for orders
+                                    // that the book legitimately walks
+                                    // through.
+                                    if (order.queue_seeded && order.queue_ahead > 0.0)
                                         return false;
 
                                     double fill_px = 0.0;
