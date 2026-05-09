@@ -98,6 +98,7 @@ AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
       drift_halflife_s_(cfg.params["drift_halflife_s"].value<double>().value_or(30.0)),
       drift_warmup_ticks_(static_cast<std::size_t>(
           cfg.params["drift_warmup_ticks"].value<int64_t>().value_or(50))),
+      max_drift_skew_bps_(cfg.params["max_drift_skew_bps"].value<double>().value_or(10.0)),
       drift_suppress_bps_(cfg.params["drift_suppress_bps"].value<double>().value_or(0.0)),
       drift_suppress_sigma_mult_(cfg.params["drift_suppress_sigma_mult"].value<double>().value_or(0.0)),
       slow_drift_window_s_(cfg.params["slow_drift_window_s"].value<double>().value_or(300.0)),
@@ -924,9 +925,19 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
     // noisy enough to push reservation through the touch. After
     // drift_warmup_ticks_ BBO updates, the EWMA has settled enough that
     // its sqrt(T - t) projection is a meaningful directional bias.
-    const double drift_skew_frac = (st.drift_ticks >= drift_warmup_ticks_)
-                                       ? st.ewma_drift * std::sqrt(T_minus_t)
-                                       : 0.0;
+    double drift_skew_frac = (st.drift_ticks >= drift_warmup_ticks_)
+                                 ? st.ewma_drift * std::sqrt(T_minus_t)
+                                 : 0.0;
+    // Hard cap on drift skew magnitude. Without it, strong intraday
+    // trends amplified by √(T-t) at session start drive reservation
+    // 50+ bps from mid, putting quotes deeper than any realistic book
+    // cross. The drift signal is still in play (suppression checks on
+    // ewma_drift remain unchanged); cap only bounds how far reservation
+    // can be moved by drift alone.
+    if (max_drift_skew_bps_ > 0.0) {
+        const double cap = max_drift_skew_bps_ / 10000.0;
+        drift_skew_frac = std::clamp(drift_skew_frac, -cap, cap);
+    }
     // OFI skew (Cont-Kukanov-Stoikov) — additive contribution to the
     // reservation proportional to the rolling normalized OFI signal.
     // Sign matches drift_skew_frac: positive OFI = buy pressure, lifts

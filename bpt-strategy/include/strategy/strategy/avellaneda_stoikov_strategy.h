@@ -482,6 +482,13 @@ private:
     // until the estimator has settled. Drift suppression / suppression
     // checks elsewhere remain unaffected — only the bid/ask offset.
     std::size_t drift_warmup_ticks_;
+    // Hard cap on |drift_skew_frac| applied to reservation pricing. The
+    // un-capped formula `ewma_drift × √(T-t)` amplifies even moderate
+    // drift estimates by √session_duration (~60× for a 1h session at
+    // start) — turning a 1 bp/√s drift into a 60 bp reservation skew
+    // that drives quotes deep into the book. Cap defaults to 10 bps;
+    // 0 disables the cap (legacy behaviour).
+    double max_drift_skew_bps_;
     double drift_suppress_bps_;  // suppress adverse side when |µ| > this (bps/√s, fixed floor)
     // σ-multiple adaptive companion to drift_suppress_bps_. Effective
     // threshold at runtime = max(drift_suppress_bps_,
