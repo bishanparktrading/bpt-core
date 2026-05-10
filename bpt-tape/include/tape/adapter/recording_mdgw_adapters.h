@@ -17,9 +17,11 @@
 
 #include "bpt_common/recorder/raw_spool.h"
 #include "md_gateway/adapter/binance/binance_md_adapter.h"
+#include "md_gateway/adapter/common/i_adapter.h"
 #include "md_gateway/adapter/deribit/deribit_md_adapter.h"
 #include "md_gateway/adapter/hyperliquid/hyperliquid_md_adapter.h"
 #include "md_gateway/adapter/okx/okx_md_adapter.h"
+#include <messages/ExchangeRegistry.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -63,5 +65,39 @@ BPT_DECLARE_RECORDING_ADAPTER(RecordingHyperliquidMdAdapter, HyperliquidMdAdapte
 BPT_DECLARE_RECORDING_ADAPTER(RecordingDeribitMdAdapter, DeribitMdAdapter)
 
 #undef BPT_DECLARE_RECORDING_ADAPTER
+
+/// @brief Build the venue-specific recording adapter for `exch_id`.
+///
+/// Replaces the per-venue switch that used to live inline in
+/// RecorderService::setup_mdgw_recording. Returns nullptr if the
+/// exchange is in messages/exchanges.yaml but bpt-tape doesn't have a
+/// recording subclass for it (caller throws). Pub is templated so
+/// callers using a NoopMdPublisher (recorder) and ones using a real
+/// publisher (any future hybrid mode) share the same factory.
+///
+/// `exch_id` is `ExchangeId::Value` (the enum), not the wrapping
+/// ExchangeId struct — that's what `ExchangeRegistry::from_name()`
+/// returns through its std::optional.
+template <class Pub>
+inline std::shared_ptr<::bpt::md_gateway::adapter::IAdapter>
+make_recording_adapter(
+    bpt::messages::ExchangeId::Value exch_id,
+    std::shared_ptr<::bpt::common::recorder::RawSpool> spool,
+    const ::bpt::md_gateway::config::AdapterConfig& cfg,
+    std::shared_ptr<Pub> md_pub) {
+    using namespace bpt::messages;
+    switch (exch_id) {
+        case ExchangeId::BINANCE:
+            return std::make_shared<RecordingBinanceMdAdapter<Pub>>(spool, cfg, md_pub);
+        case ExchangeId::OKX:
+            return std::make_shared<RecordingOkxMdAdapter<Pub>>(spool, cfg, md_pub);
+        case ExchangeId::HYPERLIQUID:
+            return std::make_shared<RecordingHyperliquidMdAdapter<Pub>>(spool, cfg, md_pub);
+        case ExchangeId::DERIBIT:
+            return std::make_shared<RecordingDeribitMdAdapter<Pub>>(spool, cfg, md_pub);
+        default:
+            return nullptr;
+    }
+}
 
 }  // namespace bpt::tape::adapter

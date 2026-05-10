@@ -53,6 +53,53 @@ TapeMetrics::TapeMetrics(const std::string& host, uint16_t port) {
                    "'create_directories' or 'fopen' — see RawSpool::ensure_file_open. "
                    "A non-zero value here means the writer aborted (Restart=always recycles).")
              .Register(*registry_);
+
+    ws_connected_fam_ =
+        &prometheus::BuildGauge()
+             .Name("bpt_tape_ws_connected")
+             .Help("1 if the venue WebSocket is currently connected, 0 otherwise. "
+                   "Per-venue. Compared against ws_reconnects_total to distinguish "
+                   "'flapping' from 'down right now'.")
+             .Register(*registry_);
+
+    ws_reconnects_total_fam_ =
+        &prometheus::BuildCounter()
+             .Name("bpt_tape_ws_reconnects_total")
+             .Help("Cumulative WebSocket reconnect count per venue. Increments on "
+                   "every successful reconnect after a prior disconnect. A high "
+                   "rate (rate(ws_reconnects[5m]) > N) means the venue is flapping; "
+                   "alert TapeWsFlapping fires on this.")
+             .Register(*registry_);
+
+    subscriptions_fam_ =
+        &prometheus::BuildGauge()
+             .Name("bpt_tape_subscriptions")
+             .Help("Count of currently-subscribed instruments per venue. Set once "
+                   "after the universe loads at startup. A sudden drop from N to "
+                   "1 is the universe-config-broke signal — would have caught the "
+                   "earlier 'tape was only on 11 of 230 perps' surprise.")
+             .Register(*registry_);
+}
+
+void TapeMetrics::on_ws_connect(const std::string& venue) {
+    ws_connected_fam_->Add({{"venue", venue}}).Set(1.0);
+    // Counter ticks on every successful connect, including the initial
+    // bootstrap at process start. Steady-state value is therefore
+    // (reconnects + 1); the +1 noise is one-shot, washes out under
+    // rate() / increase() over any practical window. Distinguishing
+    // "first connect" from "reconnect" without extra per-venue state
+    // requires either a mutex-protected set or an extra gauge — not
+    // worth the complexity for a metric whose primary use case is
+    // alerting on rate() spikes.
+    ws_reconnects_total_fam_->Add({{"venue", venue}}).Increment();
+}
+
+void TapeMetrics::on_ws_disconnect(const std::string& venue) {
+    ws_connected_fam_->Add({{"venue", venue}}).Set(0.0);
+}
+
+void TapeMetrics::set_subscriptions(const std::string& venue, std::size_t count) {
+    subscriptions_fam_->Add({{"venue", venue}}).Set(static_cast<double>(count));
 }
 
 bpt::common::recorder::RawSpool::MetricsHooks

@@ -35,9 +35,9 @@ namespace bpt::tape::metrics {
 
 class TapeMetrics {
 public:
-    /// Binds an HTTP exposer at host:port. host is typically "127.0.0.1"
-    /// (per the bpt-tape config) so prometheus must scrape via SSH tunnel
-    /// or the recorder's private IP — not exposed publicly.
+    /// Binds an HTTP exposer at host:port. host=0.0.0.0 in prod so the
+    /// in-VPC monitor host can scrape; the tape-host SG restricts which
+    /// peer can actually reach the port.
     TapeMetrics(const std::string& host, uint16_t port);
 
     /// Hook bundle for a single RawSpool. Lambdas capture the labeled
@@ -45,6 +45,19 @@ public:
     /// is a single virtual call + atomic increment, not a hash lookup.
     /// Caller installs these into RawSpool::Config::metrics.
     bpt::common::recorder::RawSpool::MetricsHooks hooks_for(const std::string& venue);
+
+    /// WebSocket connection state callbacks for the recording mdgw
+    /// adapter's on_connect/on_disconnect lambdas. ws_connected is a
+    /// gauge (current state); ws_reconnects_total is a counter (how
+    /// often it has flapped). Together they distinguish "down right
+    /// now" from "down 4x in the last hour."
+    void on_ws_connect(const std::string& venue);
+    void on_ws_disconnect(const std::string& venue);
+
+    /// Set the count of currently-subscribed instruments per venue.
+    /// Called once after the universe loads at startup. Catches the
+    /// "did the universe shrink unexpectedly" failure class.
+    void set_subscriptions(const std::string& venue, std::size_t count);
 
     /// Flip the healthy gauge to 0 on shutdown so dashboards can
     /// distinguish "process down" from "process up but stale".
@@ -63,6 +76,9 @@ private:
     prometheus::Family<prometheus::Counter>* bytes_written_total_fam_{};
     prometheus::Family<prometheus::Counter>* wslog_rotations_total_fam_{};
     prometheus::Family<prometheus::Counter>* wslog_rotation_failures_total_fam_{};
+    prometheus::Family<prometheus::Gauge>*   ws_connected_fam_{};
+    prometheus::Family<prometheus::Counter>* ws_reconnects_total_fam_{};
+    prometheus::Family<prometheus::Gauge>*   subscriptions_fam_{};
 };
 
 }  // namespace bpt::tape::metrics

@@ -52,6 +52,22 @@ private:
     void setup_universe();
     void setup_refdata_pollers();
 
+    /// Shared spool factory — same RawSpool config shape between the
+    /// mdgw recording flow and the refdata REST flow. Pulls the per-
+    /// flow knobs from settings_.recording and installs per-venue
+    /// metrics hooks if metrics_ is live.
+    std::shared_ptr<bpt::common::recorder::RawSpool> make_spool(
+        const std::string& venue_tag);
+
+    /// Wire the venue adapter's on_connect / on_disconnect callbacks to
+    /// (a) write WS_RECONNECT / WS_DISCONNECT markers into the spool,
+    /// (b) update bpt_tape_ws_connected + bpt_tape_ws_reconnects_total
+    ///     metrics. Used to be inline in setup_mdgw_recording.
+    void wire_connection_markers(
+        std::shared_ptr<bpt::md_gateway::adapter::IAdapter> adapter,
+        std::shared_ptr<bpt::common::recorder::RawSpool> spool,
+        const std::string& venue_tag);
+
     config::Settings settings_;
     const bpt::common::util::Topology& topology_;
 
