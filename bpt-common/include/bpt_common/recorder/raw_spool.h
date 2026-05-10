@@ -32,6 +32,7 @@
 #include <atomic>
 #include <cstdint>
 #include <cstdio>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -62,6 +63,25 @@ enum class RecordType : uint8_t {
 /// the only methods that may be called from another thread.
 class RawSpool {
 public:
+    /// \brief Optional metrics callbacks. All fields default to no-op; if any
+    /// is set, RawSpool calls it at the corresponding event. Using
+    /// std::function (not concrete prometheus types) so bpt-common doesn't
+    /// depend on prometheus-cpp — wiring lives in the consumer (bpt-tape).
+    struct MetricsHooks {
+        /// Called after a successful write_record(). recv_ts_ns is the
+        /// payload timestamp (used to populate last-write gauges);
+        /// total_bytes is the on-disk size of the record (header + payload).
+        std::function<void(uint64_t recv_ts_ns, std::size_t total_bytes)> on_write_success;
+
+        /// Called after a successful file rotation (new wslog opened).
+        std::function<void()> on_rotation_success;
+
+        /// Called when ensure_file_open() fails. cause is one of
+        /// "create_directories" or "fopen" so the consumer can label the
+        /// failure for the rotation_failures counter.
+        std::function<void(std::string_view cause)> on_rotation_failure;
+    };
+
     struct Config {
         std::string root_dir;                  ///< e.g. "/opt/bpt/data/raw"
         std::string venue_tag;                 ///< e.g. "okx" — used in path + audit log
@@ -71,6 +91,8 @@ public:
         /// wall-clock ns have elapsed since the last flush — bounds replay-
         /// loss on crash to this interval regardless of buffer fill rate.
         uint64_t flush_interval_ns{1'000'000'000ULL};
+        /// Optional. All hooks are no-op if unset.
+        MetricsHooks metrics{};
     };
 
     explicit RawSpool(Config cfg);

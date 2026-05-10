@@ -21,6 +21,8 @@
 #include "md_gateway/adapter/hyperliquid/hyperliquid_md_adapter.h"
 #include "md_gateway/adapter/okx/okx_md_adapter.h"
 
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <string_view>
 #include <utility>
@@ -39,7 +41,15 @@ namespace bpt::tape::adapter {
                                                                                               \
     protected:                                                                                \
         void handle_frame(std::string_view payload, uint64_t recv_ns) noexcept override {    \
-            if (spool_) spool_->write_frame(recv_ns, payload);                                \
+            if (spool_ && !spool_->write_frame(recv_ns, payload)) {                           \
+                /* RawSpool already logged the cause via Quill (async). Write a   */         \
+                /* synchronous stderr line too so journald captures the fatal     */         \
+                /* even if Quill's async queue doesn't drain before abort().      */         \
+                std::fputs("[FATAL] bpt-tape: RawSpool::write_frame failed; "                 \
+                           "aborting (Restart=always recycles).\n", stderr);                  \
+                std::fflush(stderr);                                                          \
+                std::abort();                                                                 \
+            }                                                                                 \
             ::bpt::md_gateway::adapter::BaseClass<Pub>::handle_frame(payload, recv_ns);       \
         }                                                                                     \
                                                                                               \

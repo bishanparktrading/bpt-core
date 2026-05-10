@@ -1,7 +1,10 @@
 #include "bpt_common/recorder/raw_spool.h"
 
+#include "bpt_common/logging.h"
+
 #include <fmt/format.h>
 
+#include <cerrno>
 #include <chrono>
 #include <cstring>
 #include <ctime>
@@ -67,15 +70,33 @@ bool RawSpool::ensure_file_open(uint64_t recv_ts_ns) {
     const std::string path = build_path(recv_ts_ns);
     std::error_code ec;
     fs::create_directories(fs::path(path).parent_path(), ec);
-    if (ec)
+    if (ec) {
+        // Surface the cause: ENOSPC, EACCES, EROFS all look identical at
+        // the bool-return seam. The 2026-05-09 incident burned 36 hours
+        // because this path was silent. See docs/backlog.md.
+        bpt::common::log::error(
+            "RawSpool: create_directories({}) failed: {} ({})",
+            fs::path(path).parent_path().string(),
+            ec.message(), ec.value());
+        if (cfg_.metrics.on_rotation_failure)
+            cfg_.metrics.on_rotation_failure("create_directories");
         return false;
+    }
 
     fp_ = std::fopen(path.c_str(), "ab");
-    if (fp_ == nullptr)
+    if (fp_ == nullptr) {
+        bpt::common::log::error(
+            "RawSpool: fopen({}, \"ab\") failed: {} (errno={})",
+            path, std::strerror(errno), errno);
+        if (cfg_.metrics.on_rotation_failure)
+            cfg_.metrics.on_rotation_failure("fopen");
         return false;
+    }
 
     current_path_ = path;
     current_file_start_ns_ = recv_ts_ns;
+    if (cfg_.metrics.on_rotation_success)
+        cfg_.metrics.on_rotation_success();
     return true;
 }
 
@@ -103,17 +124,27 @@ bool RawSpool::write_record(uint64_t recv_ts_ns, RecordType type, std::string_vi
     // Flush userspace buffer if this record won't fit.
     if (buffer_pos_ + total > buffer_.size()) {
         if (buffer_pos_ > 0) {
-            if (std::fwrite(buffer_.data(), 1, buffer_pos_, fp_) != buffer_pos_)
+            if (std::fwrite(buffer_.data(), 1, buffer_pos_, fp_) != buffer_pos_) {
+                bpt::common::log::error(
+                    "RawSpool: fwrite(buffer={} B) to {} failed: {} (errno={})",
+                    buffer_pos_, current_path_, std::strerror(errno), errno);
                 return false;
+            }
             buffer_pos_ = 0;
         }
         // Pathological-size record: write direct.
         if (total > buffer_.size()) {
-            if (std::fwrite(&recv_ts_ns, sizeof(recv_ts_ns), 1, fp_) != 1) return false;
-            if (std::fwrite(&type_byte, sizeof(type_byte), 1, fp_) != 1) return false;
-            if (std::fwrite(&length, sizeof(length), 1, fp_) != 1) return false;
+            const auto fail = [&](const char* what) {
+                bpt::common::log::error(
+                    "RawSpool: fwrite({} direct, {} B) to {} failed: {} (errno={})",
+                    what, total, current_path_, std::strerror(errno), errno);
+                return false;
+            };
+            if (std::fwrite(&recv_ts_ns, sizeof(recv_ts_ns), 1, fp_) != 1) return fail("ts");
+            if (std::fwrite(&type_byte, sizeof(type_byte), 1, fp_) != 1)   return fail("type");
+            if (std::fwrite(&length,    sizeof(length),    1, fp_) != 1)   return fail("len");
             if (length > 0 &&
-                std::fwrite(payload.data(), 1, length, fp_) != length) return false;
+                std::fwrite(payload.data(), 1, length, fp_) != length)     return fail("payload");
             frames_written_.fetch_add(1, std::memory_order_relaxed);
             bytes_written_.fetch_add(total, std::memory_order_relaxed);
             return true;
@@ -145,6 +176,8 @@ bool RawSpool::write_record(uint64_t recv_ts_ns, RecordType type, std::string_vi
         std::fflush(fp_);
         last_flush_ns_ = recv_ts_ns;
     }
+    if (cfg_.metrics.on_write_success)
+        cfg_.metrics.on_write_success(recv_ts_ns, total);
     return true;
 }
 

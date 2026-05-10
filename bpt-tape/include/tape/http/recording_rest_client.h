@@ -28,6 +28,8 @@
 
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -78,9 +80,14 @@ private:
         buf.push_back(static_cast<char>((target_len >> 8) & 0xff));
         buf.append(target);
         buf.append(body);
-        spool_->write_marker(wall_now_ns(),
-                             ::bpt::common::recorder::RecordType::REST_RESPONSE,
-                             buf);
+        if (!spool_->write_marker(wall_now_ns(),
+                                  ::bpt::common::recorder::RecordType::REST_RESPONSE,
+                                  buf)) {
+            std::fputs("[FATAL] bpt-tape: RawSpool::write_marker (REST) failed; "
+                       "aborting (Restart=always recycles).\n", stderr);
+            std::fflush(stderr);
+            std::abort();
+        }
         // Force the record to disk. RawSpool's auto-flush runs INSIDE
         // write_record and only fires when a subsequent record is written —
         // for an hourly REST poller, the buffer would otherwise sit unflushed
