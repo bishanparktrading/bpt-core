@@ -48,7 +48,6 @@ cc_binary(
         ":analytics_core",
         "//bpt-app",
         "//bpt-common",
-        "@cli11",
         "@tomlplusplus//:tomlplusplus",
     ],
 )

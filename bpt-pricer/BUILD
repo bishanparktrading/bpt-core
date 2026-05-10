@@ -48,7 +48,6 @@ cc_binary(
         ":pricer_core",
         "//bpt-app",
         "//bpt-common",
-        "@cli11",
         "@fmt",
         "@tomlplusplus//:tomlplusplus",
     ],

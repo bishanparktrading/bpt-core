@@ -114,7 +114,6 @@ cc_binary(
         ":refdata_lib",
         "//bpt-app",
         "//bpt-common",
-        "@cli11",
         "@fmt",
         "@tomlplusplus//:tomlplusplus",
     ],

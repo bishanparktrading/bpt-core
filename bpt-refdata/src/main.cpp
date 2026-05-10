@@ -3,7 +3,6 @@
 #include "refdata/config/settings.h"
 #include "refdata/messaging/aeron_bus.h"
 
-#include <CLI/CLI.hpp>
 #include <algorithm>
 #include <cctype>
 #include <map>
@@ -13,6 +12,7 @@
 #include <utility>
 #include <vector>
 #include <bpt_app/app.h>
+#include <bpt_app/cli.h>
 #include <bpt_common/aeron/chaos_config.h>
 #include <bpt_common/env.h>
 #include <bpt_common/logging.h>
@@ -80,38 +80,25 @@ std::string derive_service_name(const std::vector<bpt::refdata::config::AdapterC
 }  // namespace
 
 int main(int argc, char** argv) {
-    CLI::App cli{"bpt-refdata — instrument reference data service"};
-    std::string config_path;
-    cli.add_option("-c,--config", config_path, "Path to TOML config file")
-        ->required()
-        ->check(CLI::ExistingFile);
-    CLI11_PARSE(cli, argc, argv);
+    auto args = bpt::app::parse_cli(argc, argv,
+                                    "bpt-refdata",
+                                    "instrument reference data service");
 
-    bpt::refdata::config::Settings settings;
+    bpt::common::logging::init("bpt-refdata");
+
     try {
-        settings = bpt::refdata::config::load(config_path);
-    } catch (const std::exception& e) {
-        bpt::common::logging::init("bpt-refdata");
-        bpt::common::log::error("Failed to load config: {}", e.what());
-        return 1;
-    }
+        auto settings = bpt::refdata::config::load(args.config_path);
+        const std::string service_name = derive_service_name(settings.adapters);
+        bpt::common::logging::init(service_name);
 
-    const std::string service_name = derive_service_name(settings.adapters);
-
-    // Optional fault injection (dev/qa only). Must run before bpt::app::run
-    // builds the AeronBus — Subscribers consult the registry at ctor time.
-    try {
+        // Optional fault injection (dev/qa only). Must run before
+        // bpt::app::run builds the AeronBus — Subscribers consult the
+        // registry at ctor time.
         bpt::common::aeron::install_chaos_from_toml(
-            config_path,
+            args.config_path,
             bpt::common::to_string(settings.base.environment),
             service_name);
-    } catch (const std::exception& e) {
-        bpt::common::logging::init(service_name);
-        bpt::common::log::error("[chaos] config rejected: {}", e.what());
-        return 1;
-    }
 
-    try {
         return bpt::app::run(service_name, std::move(settings),
             [](auto& cfg, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
                 auto creds = load_credentials(cfg.adapters, cfg.base.environment);

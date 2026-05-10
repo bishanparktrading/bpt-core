@@ -35,7 +35,6 @@ cc_binary(
         "@boost.beast",
         "@boost.json",
         "@boost.system",
-        "@cli11",
         "@fmt",
         "@openssl",
         "@tomlplusplus//:tomlplusplus",

@@ -5,7 +5,6 @@
 #include "order_gateway/config/settings.h"
 #include "order_gateway/messaging/aeron_bus.h"
 
-#include <CLI/CLI.hpp>
 #include <algorithm>
 #include <cctype>
 #include <map>
@@ -14,6 +13,7 @@
 #include <string>
 #include <sys/prctl.h>
 #include <bpt_app/app.h>
+#include <bpt_app/cli.h>
 #include <bpt_common/aeron/chaos_config.h>
 #include <bpt_common/env.h>
 #include <bpt_common/logging.h>
@@ -81,38 +81,29 @@ int main(int argc, char* argv[]) {
     // Has to happen before any child threads could fork — do it first.
     ::prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
 
-    CLI::App cli{"bpt-order-gateway — order routing + risk enforcement"};
-    std::string config_path;
-    cli.add_option("-c,--config", config_path, "Path to TOML config file")
-        ->required()
-        ->check(CLI::ExistingFile);
-    CLI11_PARSE(cli, argc, argv);
+    auto args = bpt::app::parse_cli(argc, argv,
+                                    "bpt-order-gateway",
+                                    "order routing + risk enforcement");
 
-    bpt::order_gateway::config::Settings cfg;
+    // Bootstrap logger so pre-run failures land in the same sink.
+    // Re-initialised below once derive_service_name produces the
+    // venue-suffixed name. bpt::app::run reinits a third time with
+    // the loaded LogConfig.
+    bpt::common::logging::init("order-gateway");
+
     try {
-        cfg = bpt::order_gateway::config::load(config_path);
-    } catch (const std::exception& e) {
-        bpt::common::logging::init("order-gateway");
-        bpt::common::log::error("Failed to load config: {}", e.what());
-        return 1;
-    }
+        auto cfg = bpt::order_gateway::config::load(args.config_path);
+        const std::string service_name = derive_service_name(cfg.exchanges);
+        bpt::common::logging::init(service_name);
 
-    const std::string service_name = derive_service_name(cfg.exchanges);
-
-    // Optional fault injection (dev/qa only). Must run before bpt::app::run
-    // builds the AeronBus — Subscribers consult the registry at ctor time.
-    try {
+        // Optional fault injection (dev/qa only). Must run before
+        // bpt::app::run builds the AeronBus — Subscribers consult the
+        // registry at ctor time.
         bpt::common::aeron::install_chaos_from_toml(
-            config_path,
+            args.config_path,
             bpt::common::to_string(cfg.base.environment),
             service_name);
-    } catch (const std::exception& e) {
-        bpt::common::logging::init(service_name);
-        bpt::common::log::error("[chaos] config rejected: {}", e.what());
-        return 1;
-    }
 
-    try {
         return bpt::app::run(service_name, std::move(cfg),
             [](auto& settings, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
                 auto creds = load_credentials(settings.gateway.adapters, settings.base.environment);

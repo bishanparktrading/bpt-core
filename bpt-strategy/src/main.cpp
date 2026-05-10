@@ -2,11 +2,10 @@
 #include "strategy/config/config.h"
 #include "strategy/messaging/aeron_bus.h"
 
-#include <CLI/CLI.hpp>
-
 #include <memory>
 #include <string>
 #include <bpt_app/app.h>
+#include <bpt_app/cli.h>
 #include <bpt_common/aeron/chaos_config.h>
 #include <bpt_common/env.h>
 #include <bpt_common/logging.h>
@@ -39,38 +38,30 @@ std::string derive_service_name(const std::string& strategy_type) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-    CLI::App cli{"bpt-strategy — strategy engine"};
-    std::string config_path;
-    cli.add_option("-c,--config", config_path, "Path to TOML config file")
-        ->required()
-        ->check(CLI::ExistingFile);
-    CLI11_PARSE(cli, argc, argv);
+    auto args = bpt::app::parse_cli(argc, argv,
+                                    "bpt-strategy",
+                                    "strategy engine");
 
-    bpt::strategy::config::AppConfig app_cfg;
+    // Bootstrap logger up-front so any pre-run() failure (config load,
+    // chaos config) lands in the same sink. bpt::app::run reinits with
+    // the loaded LogConfig later. Service name is finalized after the
+    // config loads — re-init then so log lines pick up the strategy
+    // variant suffix.
+    bpt::common::logging::init("bpt-strategy");
+
     try {
-        app_cfg = bpt::strategy::config::AppConfig::load(config_path);
-    } catch (const std::exception& e) {
-        bpt::common::logging::init("bpt-strategy");
-        bpt::common::log::error("{}", e.what());
-        return 1;
-    }
+        auto app_cfg = bpt::strategy::config::AppConfig::load(args.config_path);
+        const std::string service_name = derive_service_name(app_cfg.strat.strategy.type);
+        bpt::common::logging::init(service_name);
 
-    const std::string service_name = derive_service_name(app_cfg.strat.strategy.type);
-
-    // Optional fault injection (dev/qa only). Must run before bpt::app::run
-    // builds the AeronBus — Subscribers consult the registry at ctor time.
-    try {
+        // Optional fault injection (dev/qa only). Must run before
+        // bpt::app::run builds the AeronBus — Subscribers consult the
+        // registry at ctor time.
         bpt::common::aeron::install_chaos_from_toml(
-            config_path,
+            args.config_path,
             bpt::common::to_string(app_cfg.base.environment),
             service_name);
-    } catch (const std::exception& e) {
-        bpt::common::logging::init(service_name);
-        bpt::common::log::error("[chaos] config rejected: {}", e.what());
-        return 1;
-    }
 
-    try {
         return bpt::app::run(service_name, std::move(app_cfg),
             [](auto& cfg, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
                 auto bus = bpt::strategy::messaging::StrategyAeronBus::build(ctx.aeron, cfg);

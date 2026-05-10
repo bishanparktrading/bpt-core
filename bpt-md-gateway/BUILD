@@ -66,7 +66,6 @@ cc_binary(
         ":md_gateway_lib",
         "//bpt-app",
         "//bpt-common",
-        "@cli11",
     ],
 )
 
