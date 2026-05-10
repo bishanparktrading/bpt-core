@@ -63,7 +63,10 @@ buffer_bytes = 1048576
 
 [metrics]
 host = "127.0.0.1"
-port = 9110
+# 9110 is bpt-transport (Aeron MediaDriver) — different host in prod, but
+# the same monitoring stack scrapes both, so they need disjoint ports.
+# bpt-tape at 9111; trading hosts at 9110.
+port = 9111
 
 [logging]
 level = "info"

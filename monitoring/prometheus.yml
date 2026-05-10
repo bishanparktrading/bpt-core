@@ -97,3 +97,42 @@ scrape_configs:
       - targets: ['host.docker.internal:9106']
         labels:
           service: analytics
+
+  - job_name: bpt-tape
+    # The recorder binds metrics to 127.0.0.1:9111 on a remote host
+    # (tape-hl-tokyo-01, ap-northeast-1). 9111 keeps it disjoint from
+    # bpt-transport's 9110, so a single Prometheus can scrape both
+    # without label collisions. To make this scrape work, run an SSH
+    # tunnel from the prometheus host before starting the stack:
+    #
+    #   ssh -L 9111:127.0.0.1:9111 -N -f \
+    #       -i ~/.ssh/bpt_tape_ed25519 ubuntu@13.193.107.7
+    #
+    # Then host.docker.internal:9111 reaches the recorder's metrics
+    # endpoint. Tunnel survives across `docker compose up` cycles.
+    # When we have a permanent monitoring host in-VPC, switch this to
+    # the recorder's private IP (10.42.1.221:9111) and drop the tunnel.
+    static_configs:
+      - targets: ['host.docker.internal:9111']
+        labels:
+          service: tape
+          venue: hyperliquid
+          host: tape-hl-tokyo-01
+
+  - job_name: tape-host
+    # node-exporter on the tape recorder host (NOT the trading-host
+    # node-exporter at 9100, which scrapes the laptop). Reach it via
+    # the same SSH tunnel pattern as bpt-tape:
+    #
+    #   ssh -L 9120:127.0.0.1:9100 -N -f \
+    #       -i ~/.ssh/bpt_tape_ed25519 ubuntu@13.193.107.7
+    #
+    # 9120 locally → 9100 on the remote, so it doesn't clash with the
+    # laptop's own node-exporter on 9100. Disk-free panels in the
+    # bpt-tape Grafana dashboard pull from this job's
+    # node_filesystem_avail_bytes{mountpoint="/opt/bpt/data"}.
+    static_configs:
+      - targets: ['host.docker.internal:9120']
+        labels:
+          service: host
+          host: tape-hl-tokyo-01

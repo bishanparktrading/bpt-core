@@ -248,3 +248,92 @@ groups:
             contention (unpinned thread, missing isolcpus) or a slow
             path in the strategy (refdata lookup hot-path, logging at
             trace level, etc.).  Check `top -H -p $(pgrep -f bpt-strat)`.
+
+  # ─────────────── TAPE (recording host) ────────────────────────────
+  - name: bpt-tape
+    interval: 30s
+    rules:
+
+      - alert: TapeWriterStale
+        # The flagship alert: bpt-tape's last successful wslog write was
+        # more than 5min ago. Would have caught the 2026-05-09 ENOSPC
+        # incident at minute zero instead of 36 hours later. Per-venue
+        # so a quiet REST poll (hourly) doesn't drag the WS check.
+        # `time() - gauge` works because the gauge holds a unix-epoch
+        # value, not a duration. Threshold 300s = 5 min.
+        expr: time() - bpt_tape_last_wslog_write_unix_seconds > 300
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "bpt-tape writer stale on {{ $labels.venue }} ({{ $value | humanizeDuration }})"
+          description: |
+            No successful wslog write on venue {{ $labels.venue }} for
+            {{ $value | humanizeDuration }}. The recorder process may
+            be alive but stuck — check `journalctl --user -u bpt-tape`
+            and /opt/bpt/data/raw/{{ $labels.venue }}/ for missing date
+            dirs or empty files. Disk-full was the root cause on
+            2026-05-09; `df -h /opt/bpt/data` first.
+
+      - alert: TapeRotationFailure
+        # Counter goes up only when ensure_file_open() can't mkdir or
+        # fopen the next wslog. After T81 the recorder also aborts on
+        # this path (the abort is the durable signal); the metric
+        # increment is best-effort and may be lost on the abort race,
+        # but if it lands it's a free heads-up.
+        expr: increase(bpt_tape_wslog_rotation_failures_total[5m]) > 0
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "bpt-tape rotation failure on {{ $labels.venue }} (cause={{ $labels.cause }})"
+          description: |
+            RawSpool::ensure_file_open() failed with cause={{ $labels.cause }}.
+            The recorder will abort + restart; investigate why mkdir/fopen
+            failed. ENOSPC, EACCES, EROFS are the usual suspects. The
+            journal will have the errno in the [E] log line.
+
+      - alert: TapeDataRateRegression
+        # Sustained data-rate drop > 75% vs the prior hour suggests the
+        # WS subscriptions have shrunk or fallen behind. Compare the
+        # current 5-min rate to the rate observed an hour ago. Both
+        # sides must be > 0 so a fresh start with no offset history
+        # doesn't auto-fire.
+        expr: |
+          (
+            rate(bpt_tape_bytes_written_total[5m]) > 0 and
+            rate(bpt_tape_bytes_written_total[5m] offset 1h) > 0 and
+            rate(bpt_tape_bytes_written_total[5m]) <
+              0.25 * rate(bpt_tape_bytes_written_total[5m] offset 1h)
+          )
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "bpt-tape data rate dropped on {{ $labels.venue }} (now {{ $value | humanize }} B/s)"
+          description: |
+            Data rate on {{ $labels.venue }} is below 25% of an hour ago
+            for the past 10 minutes. Either the universe shrank, an
+            upstream feed went quiet, or we're silently dropping frames.
+            Cross-check against the venue status page and
+            bpt_tape_frames_written_total.
+
+      - alert: TapeProcessDown
+        # `up` is Prometheus' built-in scrape gauge — 0 if scrape failed.
+        # absent(bpt_tape_healthy) covers the case where scrape succeeds
+        # but the metric is gone (process re-launched without metrics
+        # somehow). 60s `for:` dampens the natural up=0 blip during a
+        # Restart=always recycle, which lasts ~5s.
+        expr: up{job="bpt-tape"} == 0 or absent(bpt_tape_healthy)
+        for: 60s
+        labels:
+          severity: critical
+        annotations:
+          summary: "bpt-tape process is not reachable"
+          description: |
+            Prometheus scrape of bpt-tape has been failing for 60s, OR
+            the bpt_tape_healthy gauge has gone away. A Restart=always
+            cycle would clear in ~5s; sustained means the process is in
+            a crash loop or systemd has hit StartLimitBurst. Check
+            `systemctl --user status bpt-tape` on tape-hl-tokyo-01 and
+            `journalctl --user -u bpt-tape -n 100`.
