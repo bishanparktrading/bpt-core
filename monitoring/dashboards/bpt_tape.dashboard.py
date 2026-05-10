@@ -17,6 +17,8 @@ from grafanalib.core import (
     Graph,
     GridPos,
     OPS_FORMAT,
+    PERCENT_FORMAT,
+    PERCENT_UNIT_FORMAT,
     SECONDS_FORMAT,
     SHORT_FORMAT,
     Stat,
@@ -191,13 +193,166 @@ disk_panels = [
 ]
 
 
+# ── Row 5: WebSocket connection state (y=25) ─────────────────────────
+# bpt_tape_ws_connected: bool, current state per venue (1 = connected).
+# bpt_tape_subscriptions: count of currently-subscribed instruments per
+# venue; catches the "config regression shrunk the universe" failure
+# class (would have caught the 12-vs-230 confusion immediately).
+
+ws_state_row = [
+    stat(
+        "ws connected — md",
+        'bpt_tape_ws_connected{job="bpt-tape",venue="hyperliquid"} or on() vector(0)',
+        x=0, y=25, w=6, h=4,
+        thresholds=HEALTH_THRESHOLDS,
+    ),
+    stat(
+        "subscriptions — hyperliquid",
+        'bpt_tape_subscriptions{job="bpt-tape",venue="hyperliquid"}',
+        x=6, y=25, w=6, h=4,
+    ),
+    stat(
+        "ws connected — rest",
+        # No bpt_tape_ws_connected for the REST stream — the REST poller
+        # opens connections per-call rather than maintaining a long-lived
+        # one. Substitute the freshness gauge: if rest hasn't written in
+        # over 90 min, it's effectively "down".
+        'clamp_max(bpt_tape_last_wslog_write_unix_seconds{job="bpt-tape",venue="hyperliquid-rest"} > bool (time() - 5400), 1) or on() vector(1)',
+        x=12, y=25, w=6, h=4,
+        thresholds=HEALTH_THRESHOLDS,
+    ),
+    stat(
+        "subscriptions — rest endpoints",
+        # REST endpoints aren't subscribed in the same way; show 0 for
+        # consistency until refdata-poller exposes its own count.
+        'count(bpt_tape_last_wslog_write_unix_seconds{job="bpt-tape",venue="hyperliquid-rest"}) or on() vector(0)',
+        x=18, y=25, w=6, h=4,
+    ),
+]
+
+
+# ── Row 6: WS reconnect rate (y=29) ──────────────────────────────────
+# Counter increments on every ws_connect (including initial bootstrap).
+# rate() over 5m removes the bootstrap noise; sustained > 0.01/s = a
+# reconnect every couple of minutes = flapping. TapeWsFlapping alert
+# fires at that threshold.
+
+ws_rate_panels = [
+    graph(
+        "WS reconnects / min (per venue)",
+        [target('rate(bpt_tape_ws_reconnects_total{job="bpt-tape"}[5m]) * 60',
+                '{{venue}}')],
+        x=0, y=29, w=12, h=7, unit=OPS_FORMAT,
+    ),
+    graph(
+        "WS reconnect cumulative",
+        [target('bpt_tape_ws_reconnects_total{job="bpt-tape"}',
+                '{{venue}}')],
+        x=12, y=29, w=12, h=7,
+    ),
+]
+
+
+# ── Row 7: Tape host CPU + memory (y=36) ─────────────────────────────
+# From node-exporter on the tape host (job="tape-host"). Catches host-
+# level pressure (contention, runaway process, leak) before it cascades
+# into app-level symptoms.
+
+host_cpu_mem_panels = [
+    graph(
+        "Host CPU % (per mode)",
+        [
+            # 1 - irate(idle) gives total non-idle. Per-mode breakdown
+            # below shows where CPU went (user/sys/iowait/etc).
+            target('avg by (mode) (rate(node_cpu_seconds_total{job="tape-host"}[2m])) * 100',
+                   '{{mode}}'),
+        ],
+        x=0, y=36, w=12, h=7, unit=PERCENT_FORMAT,
+    ),
+    graph(
+        "Host memory",
+        [
+            target('node_memory_MemAvailable_bytes{job="tape-host"}', 'available'),
+            target('node_memory_MemFree_bytes{job="tape-host"}',      'free'),
+            target('node_memory_Cached_bytes{job="tape-host"}',       'cached'),
+            target('node_memory_Buffers_bytes{job="tape-host"}',      'buffers'),
+        ],
+        x=12, y=36, w=12, h=7, unit=BYTES_FORMAT,
+    ),
+]
+
+
+# ── Row 8: Tape host network + load (y=43) ───────────────────────────
+# Network: cross-check against bytes_written. RX should roughly track
+# venue WS data rate; TX is mostly S3 sync traffic during the hourly
+# upload window.
+# Load: single-number health summary. >2 sustained on a 2-vCPU box =
+# queueing.
+
+host_net_load_panels = [
+    graph(
+        "Host network throughput",
+        [
+            # ens5 / eth0 / etc — match all named interfaces, exclude
+            # loopback. node_network_receive_bytes_total is per-NIC.
+            target('rate(node_network_receive_bytes_total{job="tape-host",device!~"lo|docker.*"}[1m])',
+                   'rx {{device}}'),
+            target('rate(node_network_transmit_bytes_total{job="tape-host",device!~"lo|docker.*"}[1m])',
+                   'tx {{device}}'),
+        ],
+        x=0, y=43, w=12, h=7, unit=BYTES_FORMAT,
+    ),
+    graph(
+        "Host load average",
+        [
+            target('node_load1{job="tape-host"}',  '1m'),
+            target('node_load5{job="tape-host"}',  '5m'),
+            target('node_load15{job="tape-host"}', '15m'),
+        ],
+        x=12, y=43, w=12, h=7,
+    ),
+]
+
+
+# ── Row 9: Inode usage on /opt/bpt/data (y=50) ───────────────────────
+# Inode exhaustion is a different failure mode from byte-exhaustion
+# (lots of small files): df -h says 50% but mkfs reports ENOSPC. The
+# wslog stream rotates hourly = ~24 files/day, well below limits, but
+# parquet conversions can produce many small files. Catch it before
+# ENOSPC hits.
+
+inode_panel = [
+    stat(
+        "/opt/bpt/data inode % free",
+        '100 * node_filesystem_files_free{job="tape-host",mountpoint="/opt/bpt/data"}'
+        ' / node_filesystem_files{job="tape-host",mountpoint="/opt/bpt/data"}',
+        x=0, y=50, w=12, h=4,
+        unit=PERCENT_FORMAT,
+        decimals=1,
+        thresholds=[
+            {"color": "red",    "value": None},
+            {"color": "yellow", "value": 20},
+            {"color": "green",  "value": 50},
+        ],
+    ),
+    stat(
+        "/opt/bpt/data inodes used",
+        'node_filesystem_files{job="tape-host",mountpoint="/opt/bpt/data"} '
+        '- node_filesystem_files_free{job="tape-host",mountpoint="/opt/bpt/data"}',
+        x=12, y=50, w=12, h=4,
+        decimals=0,
+    ),
+]
+
+
 # ── Dashboard ─────────────────────────────────────────────────────────
 
 dashboard = Dashboard(
     title="BPT Tape",
     description=(
-        "Recorder freshness, throughput, rotations, disk. Top row "
-        "answers 'is tape capturing right now'; rest are evidence."
+        "Recorder freshness, throughput, rotations, disk, ws state, "
+        "host health. Top row answers 'is tape capturing right now'; "
+        "lower rows are layered evidence (app → host)."
     ),
     tags=["bpt", "tape", "ops"],
     timezone="browser",
@@ -209,8 +364,13 @@ dashboard = Dashboard(
         + throughput_panels
         + rotation_panels
         + disk_panels
+        + ws_state_row
+        + ws_rate_panels
+        + host_cpu_mem_panels
+        + host_net_load_panels
+        + inode_panel
     ),
     uid="bpt-tape",
-    version=1,
+    version=2,
     schemaVersion=30,
 ).auto_panel_ids()

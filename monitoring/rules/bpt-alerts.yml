@@ -337,3 +337,44 @@ groups:
             a crash loop or systemd has hit StartLimitBurst. Check
             `systemctl --user status bpt-tape` on tape-hl-tokyo-01 and
             `journalctl --user -u bpt-tape -n 100`.
+
+      - alert: TapeWsFlapping
+        # ws_reconnects_total counts (re)connects including bootstrap.
+        # rate over 5m of > 1 per minute = >5 reconnects in 5min = the
+        # WS is flapping. HL's normal ~10min graceful close cycle yields
+        # one reconnect per 10min = ~0.1/min; threshold 1/min has 10x
+        # headroom. Distinguishes "occasional reconnect (normal)" from
+        # "venue API is unstable (warn)".
+        expr: rate(bpt_tape_ws_reconnects_total{job="bpt-tape"}[5m]) * 60 > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "bpt-tape WS flapping on {{ $labels.venue }} ({{ $value | humanize }} reconnects/min)"
+          description: |
+            WebSocket connection to {{ $labels.venue }} is reconnecting
+            faster than once per minute, sustained for 5 minutes. Either
+            the venue API is degraded or our WS keepalive logic is
+            misaligned with the venue's session-lifetime expectations.
+            Check journalctl for "WS_DISCONNECT" markers and the venue's
+            status page.
+
+      - alert: TapeSubscriptionsLow
+        # Catches universe-config regressions. The 230-perp HL universe
+        # is the operational target; threshold 50 is the floor between
+        # "tape is on a meaningful subset" and "tape is operating on a
+        # tiny test universe by mistake" (the earlier 12-instrument
+        # state would fire this).
+        expr: bpt_tape_subscriptions{job="bpt-tape"} < 50
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "bpt-tape subscription count low on {{ $labels.venue }} ({{ $value }} instruments)"
+          description: |
+            Recorder is subscribed to fewer than 50 instruments on
+            {{ $labels.venue }}. A correctly-configured HL recorder
+            should have ~229 (full PERP universe minus BTC). A drop
+            indicates either a config regression (universe filter
+            tightened, mapping shrunk) or a startup race where the
+            mapping hadn't fully loaded.
