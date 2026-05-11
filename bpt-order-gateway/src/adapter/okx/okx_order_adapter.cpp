@@ -13,8 +13,11 @@
 #include <boost/json.hpp>
 #include <chrono>
 #include <string>
+#include <bpt_common/util/tsc_clock.h>
 
 namespace bpt::order_gateway::adapter {
+
+using bpt::common::util::WallClock;
 
 namespace json = boost::json;
 
@@ -209,9 +212,7 @@ void OKXOrderAdapter::send_modify(const bpt::messages::ModifyOrder& modify, cons
 }
 
 AccountSnapshotData OKXOrderAdapter::fetch_account_snapshot(uint64_t correlation_id) {
-    const uint64_t ts_ns = static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
-            .count());
+    const uint64_t ts_ns = WallClock::now_ns();
 
     AccountSnapshotData snap;
     snap.exchange_id = bpt::messages::ExchangeId::OKX;

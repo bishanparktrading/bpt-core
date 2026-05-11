@@ -5,13 +5,15 @@
 #include <messages/RefDataSnapshot.h>
 #include <messages/RefDataSubscriptionRequest.h>
 
-#include <chrono>
 #include <cstring>
 #include <thread>
 #include <bpt_common/aeron/aeron_utils.h>
 #include <bpt_common/logging.h>
+#include <bpt_common/util/tsc_clock.h>
 
 namespace bpt::order_gateway::refdata {
+
+using bpt::common::util::WallClock;
 
 RefdataClient::RefdataClient(std::shared_ptr<aeron::Aeron> aeron,
                              const std::string& channel,
@@ -56,9 +58,7 @@ void RefdataClient::subscribe(uint64_t correlation_id, std::vector<CanonicalFilt
     RefDataSubscriptionRequest req;
     req.wrapAndApplyHeader(buf.data(), 0, buf_size)
         .correlationId(correlation_id)
-        .timestampNs(static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
-                .count()));
+        .timestampNs(WallClock::now_ns());
 
     req.instrumentsCount(0);
 

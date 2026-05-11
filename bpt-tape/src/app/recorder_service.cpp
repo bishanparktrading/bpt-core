@@ -18,8 +18,11 @@
 #include <unistd.h>
 #include <bpt_common/logging.h>
 #include <bpt_common/signal.h>
+#include <bpt_common/util/tsc_clock.h>
 
 namespace bpt::tape::app {
+
+using bpt::common::util::WallClock;
 
 namespace {
 
@@ -28,12 +31,6 @@ std::string lowercase_venue(const std::string& exchange) {
     std::transform(out.begin(), out.end(), out.begin(),
                    [](unsigned char c) { return std::tolower(c); });
     return out;
-}
-
-uint64_t wall_now_ns() {
-    return static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count());
 }
 
 // Discards all parsed SBE — recorder has no downstream consumers, the
@@ -100,7 +97,7 @@ void RecorderService::wire_connection_markers(
         if (metrics) metrics->on_ws_connect(venue_tag);
         if (!state->was_disconnected) return;  // initial connect — SESSION_START covers it
         ++state->reconnect_count;
-        tape->write_marker(wall_now_ns(),
+        tape->write_marker(WallClock::now_ns(),
                             bpt::common::recorder::RecordType::WS_RECONNECT,
                             fmt::format(R"({{"attempt":{}}})", state->reconnect_count));
         tape->flush();
@@ -108,7 +105,7 @@ void RecorderService::wire_connection_markers(
     };
     adapter->on_disconnect = [tape, state, metrics, venue_tag]() {
         if (metrics) metrics->on_ws_disconnect(venue_tag);
-        tape->write_marker(wall_now_ns(),
+        tape->write_marker(WallClock::now_ns(),
                             bpt::common::recorder::RecordType::WS_DISCONNECT,
                             fmt::format(R"({{"attempt":{}}})",
                                         state->reconnect_count + 1));
@@ -124,7 +121,7 @@ void RecorderService::setup_mdgw_recording() {
         const std::string venue_tag = lowercase_venue(a_cfg.exchange);
         auto tape = make_tape(venue_tag);
 
-        tape->write_marker(wall_now_ns(),
+        tape->write_marker(WallClock::now_ns(),
                             bpt::common::recorder::RecordType::SESSION_START,
                             fmt::format(R"({{"pid":{},"exchange":"{}","ws":"{}://{}:{}{}"}})",
                                         ::getpid(), a_cfg.exchange,
@@ -229,7 +226,7 @@ void RecorderService::setup_refdata_pollers() {
     for (auto& [venue_name, eps] : endpoints_per_venue) {
         const std::string venue_tag = lowercase_venue(venue_name) + "-rest";
         auto tape = make_tape(venue_tag);
-        tape->write_marker(wall_now_ns(),
+        tape->write_marker(WallClock::now_ns(),
                             bpt::common::recorder::RecordType::SESSION_START,
                             fmt::format(R"({{"pid":{},"exchange":"{}","kind":"refdata","endpoints":{}}})",
                                         ::getpid(), venue_name, eps.size()));
@@ -255,14 +252,14 @@ void RecorderService::stop() {
     // from this thread — otherwise SESSION_STOP races with a frame write.
     for (auto& a : adapters_) a->stop();
     for (auto& s : tapes_) {
-        s->write_marker(wall_now_ns(),
+        s->write_marker(WallClock::now_ns(),
                         bpt::common::recorder::RecordType::SESSION_STOP,
                         R"({"reason":"stop"})");
         s->flush();
     }
     for (auto& p : refdata_pollers_) p->stop();
     for (auto& s : refdata_tapes_) {
-        s->write_marker(wall_now_ns(),
+        s->write_marker(WallClock::now_ns(),
                         bpt::common::recorder::RecordType::SESSION_STOP,
                         R"({"reason":"stop"})");
         s->flush();

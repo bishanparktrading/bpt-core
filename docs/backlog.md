@@ -272,10 +272,6 @@ Low-priority but worth picking up next time the file is open:
 - `bpt-tape/src/main.cpp:12` — header comment claims refdata REST
   capture is "a planned extension" but it's been shipped (commit
   `02e7ab7`). Drop the future-tense paragraph.
-- Four copies of `wall_now_ns()` — `main.cpp:49`,
-  `refdata_poller.cpp:22`, `recording_rest_client.h:63`, and inside
-  the anonymous namespace of `tape.cpp`. Move to a shared
-  `bpt-common/util/clock.h` (single inline function).
 - Two ad-hoc string-case helpers (`lowercase_venue` in main.cpp,
   `to_upper` in refdata_poller.cpp) — same shape, different files.
   Pull into `bpt-common/util/strings.h`.

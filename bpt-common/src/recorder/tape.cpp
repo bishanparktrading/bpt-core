@@ -1,11 +1,11 @@
 #include "bpt_common/recorder/tape.h"
 
 #include "bpt_common/logging.h"
+#include "bpt_common/util/tsc_clock.h"
 
 #include <fmt/format.h>
 
 #include <cerrno>
-#include <chrono>
 #include <cstring>
 #include <ctime>
 #include <filesystem>
@@ -14,15 +14,11 @@ namespace bpt::common::recorder {
 
 namespace fs = std::filesystem;
 
+using bpt::common::util::WallClock;
+
 namespace {
 
 constexpr std::size_t kHeaderBytes = sizeof(uint64_t) + sizeof(uint8_t) + sizeof(uint32_t);
-
-uint64_t wall_now_ns() {
-    return static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count());
-}
 
 }  // namespace
 
@@ -39,8 +35,8 @@ Tape::~Tape() {
     // explicitly with a structured exit reason; this is just the safety net.
     if (fp_ != nullptr) {
         const std::string payload = R"({"reason":"destructor"})";
-        write_record(wall_now_ns(), RecordType::SESSION_STOP, payload);
-        close_current(wall_now_ns());
+        write_record(WallClock::now_ns(), RecordType::SESSION_STOP, payload);
+        close_current(WallClock::now_ns());
     }
 }
 
@@ -197,9 +193,7 @@ void Tape::flush() {
         buffer_pos_ = 0;
     }
     std::fflush(fp_);
-    last_flush_ns_ = static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count());
+    last_flush_ns_ = WallClock::now_ns();
 }
 
 }  // namespace bpt::common::recorder

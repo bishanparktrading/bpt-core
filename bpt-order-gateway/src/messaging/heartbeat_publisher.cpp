@@ -3,9 +3,11 @@
 #include <messages/MessageHeader.h>
 #include <messages/OrderGatewayHeartbeat.h>
 
-#include <chrono>
+#include <bpt_common/util/tsc_clock.h>
 
 namespace bpt::order_gateway::messaging {
+
+using bpt::common::util::WallClock;
 
 using Policy = bpt::common::aeron::Publisher::Policy;
 
@@ -24,9 +26,7 @@ void HeartbeatPublisher::publish(uint8_t service_id, uint16_t orders_in_flight, 
     OrderGatewayHeartbeat msg;
     msg.wrapAndApplyHeader(buf, 0, kBufSize)
         .serviceId(service_id)
-        .timestampNs(static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
-                .count()))
+        .timestampNs(WallClock::now_ns())
         .ordersInFlight(orders_in_flight)
         .exchangeStatus(exchange_status);
 

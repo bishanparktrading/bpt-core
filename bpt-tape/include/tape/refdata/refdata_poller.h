@@ -84,8 +84,6 @@ private:
 
     void run_loop();
 
-    static uint64_t wall_now_ns();
-
     std::string venue_tag_;
     std::shared_ptr<::bpt::common::recorder::Tape> tape_;
     std::vector<EndpointState> endpoints_;

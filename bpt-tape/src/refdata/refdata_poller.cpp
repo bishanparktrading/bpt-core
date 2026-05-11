@@ -22,12 +22,6 @@ std::string to_upper(std::string s) {
 
 }  // namespace
 
-uint64_t RefdataPoller::wall_now_ns() {
-    return static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count());
-}
-
 RefdataPoller::RefdataPoller(std::string venue_tag,
                              std::shared_ptr<::bpt::common::recorder::Tape> tape,
                              std::vector<EndpointSpec> endpoints)

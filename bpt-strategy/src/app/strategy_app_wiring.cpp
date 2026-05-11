@@ -190,12 +190,9 @@ void StrategyApp::wire_order_callbacks() {
             snap.positions().count());
 
         // Stamp arrival time in wall ns so Alertmanager can fire on
-        // staleness (time() - gauge/1e9 > threshold). Uses system_clock
-        // rather than steady_clock so the absolute timestamp Prometheus
-        // ingests lines up with scrape-time clocks.
-        const uint64_t recv_ns = static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count());
+        // staleness (time() - gauge/1e9 > threshold). Wall (CLOCK_REALTIME)
+        // not monotonic — Prometheus aligns this with scrape-time clocks.
+        const uint64_t recv_ns = bpt::common::util::WallClock::now_ns();
         metrics_.account_snapshot_last_recv_ns(ExchangeId::c_str(exchange_id))
             .Set(static_cast<double>(recv_ns));
 

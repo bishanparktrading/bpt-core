@@ -16,10 +16,13 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <bpt_common/util/tsc_clock.h>
 
 namespace bpt::order_gateway::adapter {
 
 namespace json = boost::json;
+
+using bpt::common::util::WallClock;
 
 static constexpr double kScale = 1e8;
 
@@ -309,9 +312,7 @@ void HyperliquidOrderAdapter::send_new_order(const bpt::messages::NewOrder& orde
             order.price(),
             order.quantity(),
             exchange_symbol,
-            static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::system_clock::now().time_since_epoch())
-                                      .count()),
+            WallClock::now_ns(),
         });
     }
 }
@@ -559,9 +560,7 @@ void HyperliquidOrderAdapter::send_modify(const bpt::messages::ModifyOrder& modi
 }
 
 AccountSnapshotData HyperliquidOrderAdapter::fetch_account_snapshot(uint64_t correlation_id) {
-    const uint64_t ts_ns = static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
-            .count());
+    const uint64_t ts_ns = WallClock::now_ns();
 
     AccountSnapshotData snap;
     snap.exchange_id = bpt::messages::ExchangeId::HYPERLIQUID;

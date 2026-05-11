@@ -25,9 +25,9 @@
 /// binary-safe (no JSON escaping of binary response bodies).
 
 #include "bpt_common/recorder/tape.h"
+#include "bpt_common/util/tsc_clock.h"
 #include "refdata/http/rest_client.h"
 
-#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -68,12 +68,6 @@ public:
     }
 
 private:
-    static uint64_t wall_now_ns() {
-        return static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count());
-    }
-
     /// Build the on-disk envelope and write it as one Tape record.
     /// Aborts on tape failure so systemd recycles us — silent drops
     /// were the failure mode this guards against.
@@ -89,7 +83,7 @@ private:
         buf.push_back(static_cast<char>((target_len >> 8) & 0xff));
         buf.append(target);
         buf.append(body);
-        if (!tape_->write_marker(wall_now_ns(),
+        if (!tape_->write_marker(::bpt::common::util::WallClock::now_ns(),
                                   ::bpt::common::recorder::RecordType::REST_RESPONSE,
                                   buf)) {
             std::fputs("[FATAL] bpt-tape: Tape::write_marker (REST) failed; "

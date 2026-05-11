@@ -2,18 +2,12 @@
 
 #include <messages/MessageHeader.h>
 
-#include <chrono>
 #include <cstring>
-
-namespace {
-inline uint64_t now_ns() noexcept {
-    return static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
-            .count());
-}
-}  // namespace
+#include <bpt_common/util/tsc_clock.h>
 
 namespace bpt::md_gateway::messaging {
+
+using bpt::common::util::WallClock;
 
 using Policy = bpt::common::aeron::Publisher::Policy;
 
@@ -34,7 +28,7 @@ void AckPublisher::publish_ack(uint64_t correlation_id,
     MdSubscriptionAck msg;
     msg.wrapAndApplyHeader(buf, 0, kBufSize)
         .correlationId(correlation_id)
-        .timestampNs(now_ns())
+        .timestampNs(WallClock::now_ns())
         .instrumentId(instrument_id)
         .ackStatus(status);
 
@@ -54,7 +48,7 @@ void AckPublisher::publish_subscription_heartbeat(uint64_t instrument_id) {
 
     MdSubscriptionHeartbeat msg;
     msg.wrapAndApplyHeader(buf, 0, kBufSize)
-        .timestampNs(now_ns())
+        .timestampNs(WallClock::now_ns())
         .instrumentId(instrument_id)
         .seqNum(seq_.fetch_add(1, std::memory_order_relaxed) + 1);
 
@@ -70,7 +64,7 @@ void AckPublisher::publish_service_heartbeat() {
 
     MdServiceHeartbeat msg;
     msg.wrapAndApplyHeader(buf, 0, kBufSize)
-        .timestampNs(now_ns())
+        .timestampNs(WallClock::now_ns())
         .seqNum(seq_.fetch_add(1, std::memory_order_relaxed) + 1);
 
     ::aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), static_cast<::aeron::util::index_t>(kBufSize));

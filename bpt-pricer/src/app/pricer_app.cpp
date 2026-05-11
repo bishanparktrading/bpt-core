@@ -5,13 +5,9 @@
 #include <thread>
 #include <bpt_common/logging.h>
 #include <bpt_common/signal.h>
+#include <bpt_common/util/tsc_clock.h>
 
 namespace {
-inline uint64_t now_ns() noexcept {
-    return static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
-            .count());
-}
 inline uint32_t today_yyyymmdd() noexcept {
     auto tt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     std::tm tm{};
@@ -23,6 +19,8 @@ inline uint32_t today_yyyymmdd() noexcept {
 using namespace std::chrono_literals;
 
 namespace bpt::pricer {
+
+using bpt::common::util::WallClock;
 
 PricerApp::PricerApp(config::Settings settings, messaging::PricerBus bus)
     : settings_(std::move(settings)),
@@ -91,7 +89,7 @@ void PricerApp::run() {
             auto grids = builder_.build(today);
 
             for (const auto& grid : grids) {
-                bus_.vol_pub->publish(grid, now_ns());
+                bus_.vol_pub->publish(grid, WallClock::now_ns());
                 bpt::common::log::debug("Published surface: {} {} points={}",
                                 grid.underlying,
                                 static_cast<int>(grid.exchange_id),
@@ -113,7 +111,7 @@ void PricerApp::run() {
                     else if (g.exchange_id == EX::DERIBIT)
                         exchanges_loaded |= 0x08;
                 }
-                bus_.status_pub->publish_ready(now_ns(),
+                bus_.status_pub->publish_ready(WallClock::now_ns(),
                                                exchanges_loaded,
                                                static_cast<uint16_t>(grids.size()),
                                                total_points);
@@ -124,7 +122,7 @@ void PricerApp::run() {
         }
 
         if (now - last_heartbeat >= heartbeat_interval) {
-            bus_.status_pub->publish_heartbeat(now_ns(), ++heartbeat_seq);
+            bus_.status_pub->publish_heartbeat(WallClock::now_ns(), ++heartbeat_seq);
             last_heartbeat = now;
         }
 
@@ -145,7 +143,7 @@ void PricerApp::run() {
                 else if (g.exchange_id == EX::DERIBIT)
                     exchanges_loaded |= 0x08;
             }
-            bus_.status_pub->publish_ready(now_ns(), exchanges_loaded, static_cast<uint16_t>(grids.size()), total_points);
+            bus_.status_pub->publish_ready(WallClock::now_ns(), exchanges_loaded, static_cast<uint16_t>(grids.size()), total_points);
             last_ready = now;
         }
 
