@@ -26,6 +26,64 @@ std::string float_to_wire(double v) {
     return s;
 }
 
+AssetTable parse_spot_universe_meta(std::string_view body) {
+    // HL spotMeta shape (truncated):
+    //   {"tokens": [{"name":"USDC","szDecimals":8,"index":0,...},
+    //               {"name":"PURR","szDecimals":0,"index":1,...}],
+    //    "universe": [{"name":"PURR/USDC","tokens":[1,0],"index":0,...},
+    //                 {"name":"@1","tokens":[2,0],"index":1,...}]}
+    // asset_idx for spot orders = 10000 + universe[i].index (HL convention).
+    // Tick precision uses the spot rule: max_px_decimals = 8 - base.szDecimals.
+    const json::value parsed = json::parse(body);
+    if (!parsed.is_object())
+        throw std::runtime_error("HL spotMeta response not an object");
+    const auto& obj = parsed.as_object();
+    const auto* tokens_p = obj.if_contains("tokens");
+    const auto* universe_p = obj.if_contains("universe");
+    if (!tokens_p || !tokens_p->is_array())
+        throw std::runtime_error("HL spotMeta response missing 'tokens' array");
+    if (!universe_p || !universe_p->is_array())
+        throw std::runtime_error("HL spotMeta response missing 'universe' array");
+
+    // Index tokens by their `index` field — HL leaves gaps when delisting,
+    // so position-in-array is unreliable.
+    std::unordered_map<int64_t, int> token_sz_decimals;
+    for (const auto& t : tokens_p->as_array()) {
+        if (!t.is_object()) continue;
+        const auto& to = t.as_object();
+        const auto* idx = to.if_contains("index");
+        const auto* sz = to.if_contains("szDecimals");
+        if (!idx || !idx->is_int64() || !sz || !sz->is_int64()) continue;
+        token_sz_decimals.emplace(idx->as_int64(), static_cast<int>(sz->as_int64()));
+    }
+
+    AssetTable out;
+    const auto& uarr = universe_p->as_array();
+    out.reserve(uarr.size());
+    for (const auto& u : uarr) {
+        if (!u.is_object()) continue;
+        const auto& uo = u.as_object();
+        const auto* name = uo.if_contains("name");
+        const auto* index = uo.if_contains("index");
+        const auto* tokens_ref = uo.if_contains("tokens");
+        if (!name || !name->is_string() || !index || !index->is_int64() ||
+            !tokens_ref || !tokens_ref->is_array() || tokens_ref->as_array().empty())
+            continue;
+        const auto& tokens_arr = tokens_ref->as_array();
+        if (!tokens_arr[0].is_int64()) continue;
+        const int64_t base_idx = tokens_arr[0].as_int64();
+        const auto it = token_sz_decimals.find(base_idx);
+        if (it == token_sz_decimals.end()) continue;
+
+        AssetMeta meta;
+        meta.asset_idx = 10000 + static_cast<int>(index->as_int64());
+        meta.sz_decimals = it->second;
+        meta.max_px_decimals = 8 - meta.sz_decimals;
+        out.emplace(std::string(name->as_string()), meta);
+    }
+    return out;
+}
+
 AssetTable parse_universe_meta(std::string_view meta_response_body) {
     // HL /info meta response shape (truncated):
     //   {"universe": [

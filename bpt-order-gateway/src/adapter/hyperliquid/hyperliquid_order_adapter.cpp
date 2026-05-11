@@ -173,7 +173,7 @@ void HyperliquidOrderAdapter::load_asset_meta() {
             bpt::common::log::info(
                 "HyperliquidOrderAdapter: loaded {} asset(s) from /info meta (attempt {})",
                 asset_meta_.size(), attempt);
-            return;
+            break;
         } catch (const std::exception& e) {
             if (attempt == kMaxAttempts) {
                 bpt::common::log::error(
@@ -187,6 +187,27 @@ void HyperliquidOrderAdapter::load_asset_meta() {
                 attempt, kMaxAttempts, e.what());
             std::this_thread::sleep_for(kRetryInterval);
         }
+    }
+
+    // Spot universe — optional / additive. No retry: perp meta is the
+    // primary product, spot is opportunistic. If we never trade spot,
+    // an empty merge is fine; if we do, the entries land in asset_meta_
+    // keyed by pair name ("PURR/USDC") with asset_idx = 10000 + idx.
+    try {
+        json::object spot_req;
+        spot_req["type"] = "spotMeta";
+        const std::string spot_body = json::serialize(json::value(spot_req));
+        const std::string resp = https_client_->post("/info", spot_body);
+        auto spot_table = hlcodec::parse_spot_universe_meta(resp);
+        const std::size_t n = spot_table.size();
+        for (auto& [k, v] : spot_table)
+            asset_meta_.emplace(std::move(k), v);
+        bpt::common::log::info(
+            "HyperliquidOrderAdapter: loaded {} spot pair(s) from /info spotMeta", n);
+    } catch (const std::exception& e) {
+        bpt::common::log::warn(
+            "HyperliquidOrderAdapter: failed to load /info spotMeta — spot orders "
+            "will be rejected: {}", e.what());
     }
 }
 

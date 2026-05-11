@@ -69,6 +69,17 @@ using AssetTable = std::unordered_map<std::string, AssetMeta>;
 /// that a new HL field shape doesn't crash startup.
 [[nodiscard]] AssetTable parse_universe_meta(std::string_view meta_response_body);
 
+/// \brief Parse HL's `/info` response body (POST {"type":"spotMeta"}) into an AssetTable.
+///
+/// Entries are keyed by the HL spot pair `name` field — "PURR/USDC" for
+/// canonical pairs, "@N" for user-deployed pairs. `asset_idx` is
+/// `10000 + universe[i].index` per HL's spot order convention.
+/// `sz_decimals` comes from the base token; `max_px_decimals = 8 -
+/// sz_decimals` (HL spot's MAX_DECIMALS=8, vs perps' 6).
+///
+/// Throws on malformed JSON or missing tokens/universe arrays.
+[[nodiscard]] AssetTable parse_spot_universe_meta(std::string_view spot_meta_response_body);
+
 /// \brief HL time-in-force for the limit variant.
 ///
 /// Alo = Add Liquidity Only (post-only) — HL rejects the order if it

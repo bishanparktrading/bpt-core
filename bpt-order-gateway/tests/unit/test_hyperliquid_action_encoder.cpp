@@ -100,6 +100,81 @@ TEST(ParseUniverseMetaTest, SkipsMalformedEntries) {
 }
 
 // ---------------------------------------------------------------------------
+// parse_spot_universe_meta — HL /info spotMeta response parsing
+// ---------------------------------------------------------------------------
+
+TEST(ParseSpotUniverseMetaTest, BasicExtract) {
+    // Two canonical-shape spot pairs. universe[i].index drives asset_idx
+    // (= 10000 + index). Base-token szDecimals drives lot/tick precision.
+    constexpr const char* body = R"({
+      "tokens": [
+        {"name":"USDC","szDecimals":8,"weiDecimals":8,"index":0,"isCanonical":true},
+        {"name":"PURR","szDecimals":0,"weiDecimals":5,"index":1,"isCanonical":true},
+        {"name":"HFUN","szDecimals":2,"weiDecimals":8,"index":2,"isCanonical":true}
+      ],
+      "universe": [
+        {"name":"PURR/USDC","tokens":[1,0],"index":0,"isCanonical":true},
+        {"name":"HFUN/USDC","tokens":[2,0],"index":2,"isCanonical":true}
+      ]
+    })";
+    const auto table = parse_spot_universe_meta(body);
+    ASSERT_EQ(table.size(), 2u);
+
+    const auto& purr = table.at("PURR/USDC");
+    EXPECT_EQ(purr.asset_idx, 10000);          // 10000 + 0
+    EXPECT_EQ(purr.sz_decimals, 0);            // PURR base szDecimals
+    EXPECT_EQ(purr.max_px_decimals, 8);        // 8 - 0 (spot rule)
+
+    const auto& hfun = table.at("HFUN/USDC");
+    EXPECT_EQ(hfun.asset_idx, 10002);          // 10000 + 2 — gap in index space
+    EXPECT_EQ(hfun.sz_decimals, 2);
+    EXPECT_EQ(hfun.max_px_decimals, 6);
+}
+
+TEST(ParseSpotUniverseMetaTest, IndexFieldNotArrayPosition) {
+    // HL leaves index gaps when delisting; asset_idx must use the
+    // `index` field, not the position in `universe[]`.
+    constexpr const char* body = R"({
+      "tokens": [
+        {"name":"USDC","szDecimals":8,"index":0},
+        {"name":"PURR","szDecimals":0,"index":1}
+      ],
+      "universe": [
+        {"name":"PURR/USDC","tokens":[1,0],"index":7}
+      ]
+    })";
+    const auto table = parse_spot_universe_meta(body);
+    ASSERT_EQ(table.size(), 1u);
+    EXPECT_EQ(table.at("PURR/USDC").asset_idx, 10007);  // 10000 + 7, NOT 10000
+}
+
+TEST(ParseSpotUniverseMetaTest, ThrowsOnMissingTokens) {
+    EXPECT_THROW(parse_spot_universe_meta(R"({"universe":[]})"), std::runtime_error);
+}
+
+TEST(ParseSpotUniverseMetaTest, ThrowsOnMissingUniverse) {
+    EXPECT_THROW(parse_spot_universe_meta(R"({"tokens":[]})"), std::runtime_error);
+}
+
+TEST(ParseSpotUniverseMetaTest, SkipsPairWithUnknownToken) {
+    // universe references a token index not present in tokens[] →
+    // pair is skipped, parsing continues for the rest.
+    constexpr const char* body = R"({
+      "tokens": [
+        {"name":"USDC","szDecimals":8,"index":0},
+        {"name":"PURR","szDecimals":0,"index":1}
+      ],
+      "universe": [
+        {"name":"GHOST/USDC","tokens":[99,0],"index":0},
+        {"name":"PURR/USDC","tokens":[1,0],"index":1}
+      ]
+    })";
+    const auto table = parse_spot_universe_meta(body);
+    EXPECT_EQ(table.size(), 1u);
+    EXPECT_TRUE(table.contains("PURR/USDC"));
+}
+
+// ---------------------------------------------------------------------------
 // tif_to_string
 // ---------------------------------------------------------------------------
 
