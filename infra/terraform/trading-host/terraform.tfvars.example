@@ -1,0 +1,26 @@
+// Local overrides for the QA trading host.
+//
+// .tfvars is gitignored repo-wide — copy this template into terraform.tfvars
+// before running `terraform apply`:
+//
+//   cp terraform.tfvars.example terraform.tfvars
+//   # Edit terraform.tfvars: update operator_ssh_cidr if your home IP differs.
+//   terraform apply
+
+// Singtel home IP (Sengkang, SG). Update if your residential IP changes
+// or you SSH from a different network.
+operator_ssh_cidr = "119.74.13.119/32"
+
+// Same operator key as tape-host. Could rotate to a per-host keypair later.
+ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILOXOJIVr7rVJOOc3b5c9XRoP1Y7vLzGzHfHqq6XRb1E bpt-tape-operator-20260504"
+
+// QA sizing: c7i.2xlarge is the production-equivalent floor — 4 physical
+// cores with SMT off, fits hot-thread set with headroom. ~$0.45/hr in
+// ap-southeast-1, ~$54/mo at 4 hr/day. Bump to c7i.4xlarge when graduating
+// to prod multi-strategy.
+instance_type = "c7i.2xlarge"
+
+// Data disk for the source repo + bazel cache + binaries + logs.
+data_disk_gb = 50
+
+env_tag = "qa"
