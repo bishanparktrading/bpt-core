@@ -1,7 +1,6 @@
 #include "order_gateway/adapter/hyperliquid/hyperliquid_signer.h"
 
 #include <algorithm>
-#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <iomanip>
@@ -11,6 +10,7 @@
 #include <vector>
 
 #include <boost/json.hpp>
+#include <bpt_common/util/tsc_clock.h>
 #include <secp256k1.h>
 #include <secp256k1_recovery.h>
 
@@ -377,10 +377,7 @@ HyperliquidSigner::~HyperliquidSigner() {
 
 uint64_t HyperliquidSigner::next_nonce() noexcept {
     // Hyperliquid nonces are millisecond timestamps, strictly increasing.
-    const uint64_t now_ms = static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now().time_since_epoch())
-            .count());
+    const uint64_t now_ms = bpt::common::util::WallClock::now_ms();
     uint64_t prev = last_nonce_.load(std::memory_order_relaxed);
     uint64_t next;
     do {

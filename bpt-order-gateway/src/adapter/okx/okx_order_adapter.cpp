@@ -29,8 +29,7 @@ OKXOrderAdapter::OKXOrderAdapter(const config::AdapterConfig& cfg, const Exchang
       https_client_(cfg_, creds),
       instruments_(https_client_),
       ws_client_(ioc_, ssl_ctx_, cfg_) {
-    uint32_t epoch_s = static_cast<uint32_t>(
-        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+    uint32_t epoch_s = static_cast<uint32_t>(WallClock::now_s());
     char buf[9];
     std::snprintf(buf, sizeof(buf), "%08x", epoch_s);
     session_prefix_ = std::string(buf, 8);
@@ -151,7 +150,7 @@ void OKXOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
     const std::string frame = json::serialize(
         okx::build_order_action(spec, req_id, instruments_.inst_id_codes(), instruments_.contract_sizes()));
     auto emit_rejection = [&]() {
-        uint64_t ts = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
+        uint64_t ts = WallClock::now_ns();
         ExecEvent rej;
         rej.order_id = order.orderId();
         rej.exchange_id = bpt::messages::ExchangeId::OKX;

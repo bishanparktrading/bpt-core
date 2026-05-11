@@ -9,9 +9,10 @@
 #include <messages/TimeInForce.h>
 
 #include <atomic>
-#include <chrono>
 #include <cstdint>
 #include <functional>
+
+#include "bpt_common/util/tsc_clock.h"
 
 namespace bpt::strategy::order {
 
@@ -80,10 +81,7 @@ private:
     // High 32 bits = Unix timestamp at construction (seconds), low 32 bits = counter.
     // Guarantees uniqueness across process restarts without any persistent state.
     static uint64_t make_session_base() {
-        const uint64_t ts = static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch())
-                .count());
-        return ts << 32;
+        return bpt::common::util::WallClock::now_s() << 32;
     }
     std::atomic<uint64_t> next_order_id_{make_session_base() + 1};
 };

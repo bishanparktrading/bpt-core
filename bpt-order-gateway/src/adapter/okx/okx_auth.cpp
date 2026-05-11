@@ -11,19 +11,16 @@
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <string>
+#include <bpt_common/util/tsc_clock.h>
 
 namespace bpt::order_gateway::adapter::okx {
 
 namespace http = boost::beast::http;
 namespace json = boost::json;
 
+using bpt::common::util::WallClock;
+
 namespace {
-uint64_t epoch_seconds_now() {
-    return static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::seconds>(
-            std::chrono::system_clock::now().time_since_epoch())
-            .count());
-}
 
 // OKX REST auth requires the timestamp as ISO 8601 UTC with millisecond
 // precision, e.g. "2026-04-15T05:54:43.123Z". The same string is used
@@ -77,7 +74,7 @@ std::string hmac_sha256_b64(std::string_view key, std::string_view data) {
 std::string build_login_msg(std::string_view api_key,
                              std::string_view secret_key,
                              std::string_view passphrase) {
-    const std::string ts_str = std::to_string(epoch_seconds_now());
+    const std::string ts_str = std::to_string(WallClock::now_s());
     const std::string prehash = ts_str + "GET" + "/users/self/verify";
     const std::string sign = hmac_sha256_b64(secret_key, prehash);
 

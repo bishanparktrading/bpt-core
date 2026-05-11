@@ -9,6 +9,7 @@
 #include <thread>
 #include <bpt_common/logging.h>
 #include <bpt_common/signal.h>
+#include <bpt_common/util/tsc_clock.h>
 
 namespace bpt::book {
 
@@ -39,13 +40,6 @@ make_adapter(const config::AdapterConfig& a) {
     }
 }
 
-uint64_t now_ns() {
-    return static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::system_clock::now().time_since_epoch())
-            .count());
-}
-
 }  // namespace
 
 BookApp::BookApp(config::Settings settings, messaging::BookBus bus)
@@ -70,7 +64,7 @@ void BookApp::run() {
     while (bpt::common::signal::is_running()) {
         adapter::BalanceSnapshot snap;
         snap.correlation_id = ++correlation_id_;
-        snap.timestamp_ns = now_ns();
+        snap.timestamp_ns = bpt::common::util::WallClock::now_ns();
 
         for (auto& ad : adapters_) {
             try {

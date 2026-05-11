@@ -18,13 +18,14 @@ namespace bpt::order_gateway::adapter {
 
 namespace json = boost::json;
 
+using bpt::common::util::WallClock;
+
 DeribitOrderAdapter::DeribitOrderAdapter(const config::AdapterConfig& cfg, const ExchangeCredentials& creds)
     : OrderAdapterBase(cfg),
       client_id_(creds.client_id),
       client_secret_(creds.client_secret),
       ws_client_(ioc_, ssl_ctx_, cfg_) {
-    uint32_t epoch_s = static_cast<uint32_t>(
-        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+    uint32_t epoch_s = static_cast<uint32_t>(WallClock::now_s());
     char buf[9];
     std::snprintf(buf, sizeof(buf), "%08x", epoch_s);
     session_prefix_ = std::string(buf, 8);

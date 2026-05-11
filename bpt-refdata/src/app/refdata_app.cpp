@@ -17,6 +17,7 @@
 #include <string>
 #include <thread>
 #include <bpt_common/signal.h>
+#include <bpt_common/util/tsc_clock.h>
 
 using namespace std::chrono_literals;
 
@@ -140,8 +141,7 @@ RefdataApp::RefdataApp(config::Settings settings,
                                               uint64_t /*collected_ts_ns*/) {
             delta_pub_->publish_delta(update_type, inst);
             metrics_.last_update_ns->Set(static_cast<double>(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::system_clock::now().time_since_epoch()).count()));
+                bpt::common::util::WallClock::now_ns()));
         };
 
         adapters_.push_back(std::move(adapter));
@@ -160,8 +160,7 @@ void RefdataApp::handle_request(const messaging::RefdataRequest& request) {
     snapshot_pub_->publish(*registry_, request, delta_pub_->current_sequence());
     metrics_.requests_served_total->Increment();
     metrics_.last_update_ns->Set(static_cast<double>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count()));
+        bpt::common::util::WallClock::now_ns()));
 }
 
 void RefdataApp::run() {
@@ -250,8 +249,7 @@ void RefdataApp::run() {
             messaging::RefdataRequest empty_req{};
             snapshot_pub_->publish(*registry_, empty_req, delta_pub_->current_sequence());
             metrics_.last_update_ns->Set(static_cast<double>(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::system_clock::now().time_since_epoch()).count()));
+                bpt::common::util::WallClock::now_ns()));
             bpt::common::log::info("Periodic snapshot republish: {} instruments", registry_->count());
             last_snapshot_republish = now;
         }

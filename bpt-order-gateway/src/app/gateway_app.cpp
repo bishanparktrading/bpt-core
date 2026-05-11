@@ -127,9 +127,7 @@ OrderGatewayApp::OrderGatewayApp(config::Settings cfg,
                     adapter::AccountSnapshotData empty;
                     empty.exchange_id = exchange_id;
                     empty.correlation_id = correlation_id;
-                    empty.timestamp_ns = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                                                   std::chrono::system_clock::now().time_since_epoch())
-                                                                   .count());
+                    empty.timestamp_ns = bpt::common::util::WallClock::now_ns();
                     account_snap_pub_->publish(empty);
                 }
             }).detach();

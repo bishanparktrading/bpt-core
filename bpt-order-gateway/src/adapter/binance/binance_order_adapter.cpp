@@ -138,10 +138,8 @@ void BinanceOrderAdapter::send_modify(const bpt::messages::ModifyOrder& modify, 
 }
 
 AccountSnapshotData BinanceOrderAdapter::fetch_account_snapshot(uint64_t correlation_id) {
-    using namespace std::chrono;
     const uint64_t ts_ns = bpt::common::util::WallClock::now_ns();
-    const uint64_t ts_ms =
-        static_cast<uint64_t>(duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
+    const uint64_t ts_ms = bpt::common::util::WallClock::now_ms();
 
     // GET /fapi/v2/account — futures/perp account balance and open positions.
     const std::string params = "timestamp=" + std::to_string(ts_ms);

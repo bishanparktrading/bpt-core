@@ -1,10 +1,12 @@
 #include "order_gateway/risk/risk_checker.h"
 
-#include <chrono>
 #include <cstring>
 #include <expected>
+#include <bpt_common/util/tsc_clock.h>
 
 namespace bpt::order_gateway::risk {
+
+using bpt::common::util::WallClock;
 
 namespace {
 
@@ -19,11 +21,6 @@ double bits_to_double(uint64_t bits) noexcept {
     double v;
     std::memcpy(&v, &bits, sizeof(v));
     return v;
-}
-
-uint64_t current_second() noexcept {
-    return static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
 }
 
 }  // namespace
@@ -62,7 +59,7 @@ std::expected<void, bpt::messages::RejectReason::Value> RiskChecker::check(
         return std::unexpected(RR::RISK_REJECTED);
 
     // 4. Rate limit check (per-second token bucket approximation)
-    uint64_t now_s = current_second();
+    uint64_t now_s = WallClock::now_s();
     uint64_t window = rate_window_s_.load(std::memory_order_relaxed);
     if (window != now_s) {
         // New second — try to reset the window.

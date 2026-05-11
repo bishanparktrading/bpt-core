@@ -1,12 +1,14 @@
 #include "order_gateway/adapter/binance/binance_auth.h"
 
-#include <chrono>
 #include <iomanip>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <sstream>
+#include <bpt_common/util/tsc_clock.h>
 
 namespace bpt::order_gateway::adapter::binance {
+
+using bpt::common::util::WallClock;
 
 std::string hmac_sha256_hex(std::string_view key, std::string_view data) {
     unsigned char digest[EVP_MAX_MD_SIZE];
@@ -26,10 +28,7 @@ std::string hmac_sha256_hex(std::string_view key, std::string_view data) {
 }
 
 std::string sign_query(std::string_view secret_key, const std::string& params) {
-    const uint64_t ts_ms = static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now().time_since_epoch())
-            .count());
+    const uint64_t ts_ms = WallClock::now_ms();
     std::string full = params + "&timestamp=" + std::to_string(ts_ms);
     std::string sig = hmac_sha256_hex(secret_key, full);
     return full + "&signature=" + sig;

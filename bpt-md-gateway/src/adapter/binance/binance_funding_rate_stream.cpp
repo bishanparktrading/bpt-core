@@ -9,6 +9,7 @@
 #include <cstring>
 #include <bpt_common/logging.h>
 #include <bpt_common/util/thread_name.h>
+#include <bpt_common/util/tsc_clock.h>
 #include <bpt_common/ws/ws_connect.h>
 
 namespace bpt::md_gateway::adapter {
@@ -66,7 +67,7 @@ void BinanceFundingRateStream::run() {
                     continue;
                 }
 
-                uint64_t recv_ns = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
+                uint64_t recv_ns = bpt::common::util::WallClock::now_ns();
                 std::string_view sv(static_cast<const char*>(buf.data().data()), buf.data().size());
                 buf.consume(buf.size());
 
