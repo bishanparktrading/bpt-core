@@ -10,6 +10,7 @@ cc_library(
         "src/env.cpp",
         "src/logging.cpp",
         "src/secrets/secrets_client.cpp",
+        "src/util/openssl_helpers.cpp",
         "src/util/topology.cpp",
         "src/util/tsc_clock.cpp",
     ],
@@ -20,9 +21,18 @@ cc_library(
         "@quill",
         "@aeron//:aeron_client",
         "@fmt",
+        "@openssl",
         "@tomlplusplus//:tomlplusplus",
     ],
-    linkopts = ["-lpthread"],
+    # openssl symbols pulled in via openssl_helpers.cpp need explicit
+    # link flags here so cc_test consumers of :bpt-common get them too —
+    # @openssl as a deps entry alone doesn't propagate the libs to the
+    # test binary's link command on this toolchain.
+    linkopts = [
+        "-lpthread",
+        "-lssl",
+        "-lcrypto",
+    ],
 )
 
 cc_test(

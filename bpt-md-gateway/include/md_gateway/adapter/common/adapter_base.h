@@ -20,11 +20,9 @@
 #include "md_gateway/md/md_validator.h"
 #include "md_gateway/md/validating_publisher.h"
 
-#include <algorithm>
 #include <atomic>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ssl/context.hpp>
-#include <cctype>
 #include <chrono>
 #include <memory>
 #include <string>
@@ -32,6 +30,7 @@
 #include <utility>
 #include <bpt_common/logging.h>
 #include <bpt_common/util/spsc_queue.h>
+#include <bpt_common/util/strings.h>
 #include <bpt_common/util/thread_name.h>
 #include <bpt_common/util/thread_pin.h>
 #include <bpt_common/ws/ws_connect.h>
@@ -40,18 +39,11 @@ namespace bpt::md_gateway::adapter {
 
 namespace detail {
 
-inline std::string lowercase_venue(const char* exchange) {
-    std::string venue = exchange;
-    std::transform(venue.begin(), venue.end(), venue.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
-    return venue;
-}
-
 // Compose the topology role name used by md-gateway IO threads:
 // "mdgw.<venue-lower>.io". Keeps the role vocabulary in sync with
 // the service_name abbreviation used elsewhere (bpt-mdgw-<venue>).
 inline std::string io_role(const char* exchange) {
-    return "mdgw." + lowercase_venue(exchange) + ".io";
+    return "mdgw." + bpt::common::util::to_lower(exchange) + ".io";
 }
 
 // OS thread names for the two AdapterBase threads. Venue in the middle
@@ -60,10 +52,10 @@ inline std::string io_role(const char* exchange) {
 // Matches the existing quill-backend (mdgw-<venue>-log) and topology-role
 // (mdgw.<venue>.<subsystem>) ordering. 15-char cap per Linux TASK_COMM_LEN.
 inline std::string io_thread_name(const char* exchange) {
-    return "mdgw-" + lowercase_venue(exchange) + "-io";
+    return "mdgw-" + bpt::common::util::to_lower(exchange) + "-io";
 }
 inline std::string pub_thread_name(const char* exchange) {
-    return "mdgw-" + lowercase_venue(exchange) + "-pub";
+    return "mdgw-" + bpt::common::util::to_lower(exchange) + "-pub";
 }
 
 }  // namespace detail

@@ -8,6 +8,7 @@ project(bpt-common VERSION 0.1.0 LANGUAGES CXX)
 add_library(bpt-common STATIC
     src/env.cpp
     src/logging.cpp
+    src/util/openssl_helpers.cpp
     src/util/topology.cpp
     src/util/tsc_clock.cpp
     src/secrets/secrets_client.cpp
@@ -19,10 +20,13 @@ target_include_directories(bpt-common PUBLIC
 )
 
 find_package(fmt CONFIG REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 target_link_libraries(bpt-common PUBLIC
     quill::quill
     fmt::fmt
+    OpenSSL::SSL
+    OpenSSL::Crypto
 )
 
 target_compile_features(bpt-common PUBLIC cxx_std_20)

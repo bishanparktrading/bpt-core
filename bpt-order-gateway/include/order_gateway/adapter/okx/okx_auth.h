@@ -24,14 +24,6 @@
 
 namespace bpt::order_gateway::adapter::okx {
 
-/// \brief Base64 (single-line) encode arbitrary bytes. Used for HMAC output.
-[[nodiscard]] std::string base64_encode(const unsigned char* data, std::size_t len);
-
-/// \brief HMAC-SHA256(key, data) -> base64.
-///
-/// Wraps the two-step for callers that don't care about the raw digest bytes.
-[[nodiscard]] std::string hmac_sha256_b64(std::string_view key, std::string_view data);
-
 /// \brief Build the OKX WS `{"op":"login","args":[...]}` envelope as a serialised JSON string.
 ///
 /// Uses std::chrono::system_clock for the timestamp so the sig is fresh each call.

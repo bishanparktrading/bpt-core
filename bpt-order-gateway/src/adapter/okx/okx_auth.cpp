@@ -6,11 +6,8 @@
 #include <chrono>
 #include <cstdio>
 #include <ctime>
-#include <openssl/bio.h>
-#include <openssl/buffer.h>
-#include <openssl/evp.h>
-#include <openssl/hmac.h>
 #include <string>
+#include <bpt_common/util/openssl_helpers.h>
 #include <bpt_common/util/tsc_clock.h>
 
 namespace bpt::order_gateway::adapter::okx {
@@ -19,6 +16,8 @@ namespace http = boost::beast::http;
 namespace json = boost::json;
 
 using bpt::common::util::WallClock;
+using bpt::common::util::base64_encode;
+using bpt::common::util::hmac_sha256;
 
 namespace {
 
@@ -41,35 +40,12 @@ std::string iso8601_now_ms() {
                   static_cast<long long>(ms_part.count()));
     return out;
 }
-}  // namespace
-
-std::string base64_encode(const unsigned char* data, std::size_t len) {
-    BIO* b64 = BIO_new(BIO_f_base64());
-    BIO* mem = BIO_new(BIO_s_mem());
-    BIO_push(b64, mem);
-    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
-    BIO_write(b64, data, static_cast<int>(len));
-    BIO_flush(b64);
-
-    BUF_MEM* buf;
-    BIO_get_mem_ptr(b64, &buf);
-    std::string out(buf->data, buf->length);
-    BIO_free_all(b64);
-    return out;
-}
 
 std::string hmac_sha256_b64(std::string_view key, std::string_view data) {
-    unsigned char digest[EVP_MAX_MD_SIZE];
-    unsigned int digest_len = 0;
-    HMAC(EVP_sha256(),
-         key.data(),
-         static_cast<int>(key.size()),
-         reinterpret_cast<const unsigned char*>(data.data()),
-         static_cast<int>(data.size()),
-         digest,
-         &digest_len);
-    return base64_encode(digest, digest_len);
+    return base64_encode(hmac_sha256(key, data));
 }
+
+}  // namespace
 
 std::string build_login_msg(std::string_view api_key,
                              std::string_view secret_key,

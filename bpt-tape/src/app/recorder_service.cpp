@@ -18,20 +18,15 @@
 #include <unistd.h>
 #include <bpt_common/logging.h>
 #include <bpt_common/signal.h>
+#include <bpt_common/util/strings.h>
 #include <bpt_common/util/tsc_clock.h>
 
 namespace bpt::tape::app {
 
 using bpt::common::util::WallClock;
+using bpt::common::util::to_lower;
 
 namespace {
-
-std::string lowercase_venue(const std::string& exchange) {
-    std::string out = exchange;
-    std::transform(out.begin(), out.end(), out.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
-    return out;
-}
 
 // Discards all parsed SBE — recorder has no downstream consumers, the
 // disk tap on raw frames is the only output. Templated venue adapters
@@ -118,7 +113,7 @@ void RecorderService::setup_mdgw_recording() {
     auto pub = std::make_shared<NoopMdPublisher>();
 
     for (const auto& a_cfg : settings_.mdgw_adapters) {
-        const std::string venue_tag = lowercase_venue(a_cfg.exchange);
+        const std::string venue_tag = to_lower(a_cfg.exchange);
         auto tape = make_tape(venue_tag);
 
         tape->write_marker(WallClock::now_ns(),
@@ -194,7 +189,7 @@ void RecorderService::setup_universe() {
             // Lowercase to match the venue-tag label used by other
             // metrics (frames_written_total, etc.).
             if (metrics_) {
-                metrics_->set_subscriptions(lowercase_venue(venue_name), n_for_this_venue);
+                metrics_->set_subscriptions(to_lower(venue_name), n_for_this_venue);
             }
         }
         bpt::common::log::info("bpt-tape: subscribed {} symbols across {} adapters",
@@ -214,7 +209,7 @@ void RecorderService::setup_refdata_pollers() {
     for (const auto& e : settings_.refdata_endpoints)
         endpoints_per_venue[e.exchange].push_back(e);
     for (auto& [venue_name, eps] : endpoints_per_venue) {
-        const std::string venue_tag = lowercase_venue(venue_name) + "-rest";
+        const std::string venue_tag = to_lower(venue_name) + "-rest";
         auto tape = make_tape(venue_tag);
         tape->write_marker(WallClock::now_ns(),
                             bpt::common::recorder::RecordType::SESSION_START,

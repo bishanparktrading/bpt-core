@@ -3,33 +3,18 @@
 #include <chrono>
 #include <ctime>
 #include <iomanip>
-#include <openssl/evp.h>
-#include <openssl/hmac.h>
 #include <sstream>
+#include <bpt_common/util/openssl_helpers.h>
 
 namespace bpt::refdata::adapter {
 
+using bpt::common::util::base64_encode;
+using bpt::common::util::hmac_sha256;
+
 namespace {
 
-std::string base64_encode(const unsigned char* data, size_t len) {
-    std::string out;
-    out.resize(((len + 2) / 3) * 4);
-    int written = EVP_EncodeBlock(reinterpret_cast<unsigned char*>(out.data()), data, static_cast<int>(len));
-    out.resize(static_cast<size_t>(written));
-    return out;
-}
-
 std::string hmac_sha256_b64(const std::string& key, const std::string& message) {
-    unsigned char digest[EVP_MAX_MD_SIZE];
-    unsigned int digest_len = 0;
-    HMAC(EVP_sha256(),
-         key.data(),
-         static_cast<int>(key.size()),
-         reinterpret_cast<const unsigned char*>(message.data()),
-         static_cast<int>(message.size()),
-         digest,
-         &digest_len);
-    return base64_encode(digest, digest_len);
+    return base64_encode(hmac_sha256(key, message));
 }
 
 std::string iso8601_now() {

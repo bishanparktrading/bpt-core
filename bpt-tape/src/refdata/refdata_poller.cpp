@@ -3,24 +3,15 @@
 
 #include "tape/refdata/refdata_poller.h"
 
-#include <algorithm>
-#include <cctype>
 #include <chrono>
 #include <exception>
 #include <fmt/format.h>
 #include <bpt_common/logging.h>
+#include <bpt_common/util/strings.h>
 
 namespace bpt::tape::refdata {
 
-namespace {
-
-std::string to_upper(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(),
-                   [](unsigned char c) { return std::toupper(c); });
-    return s;
-}
-
-}  // namespace
+using bpt::common::util::to_upper;
 
 RefdataPoller::RefdataPoller(std::string venue_tag,
                              std::shared_ptr<::bpt::tape::io::Tape> tape,

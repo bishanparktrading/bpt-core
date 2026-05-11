@@ -1,9 +1,8 @@
 #include "order_gateway/adapter/common/order_adapter_base.h"
 
-#include <algorithm>
-#include <cctype>
 #include <string>
 #include <bpt_common/logging.h>
+#include <bpt_common/util/strings.h>
 #include <bpt_common/util/thread_name.h>
 #include <bpt_common/util/thread_pin.h>
 #include <bpt_common/util/tsc_clock.h>
@@ -14,18 +13,11 @@ namespace ssl = boost::asio::ssl;
 
 namespace {
 
-std::string lowercase_venue(const char* exchange) {
-    std::string venue = exchange;
-    std::transform(venue.begin(), venue.end(), venue.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
-    return venue;
-}
-
 // Topology role name for the order-gw IO thread per adapter.
 // Convention: "ogw.<venue-lower>.io". Matches the service_name shape
 // (bpt-ogw-<venue>) so operators see a consistent vocabulary.
 std::string io_role(const char* exchange) {
-    return "ogw." + lowercase_venue(exchange) + ".io";
+    return "ogw." + bpt::common::util::to_lower(exchange) + ".io";
 }
 
 // OS thread name for the adapter IO thread. Venue in the middle so
@@ -33,7 +25,7 @@ std::string io_role(const char* exchange) {
 // — matches the existing quill-backend and topology-role ordering.
 // Truncated to 15 chars by set_thread_name if the venue name is long.
 std::string io_thread_name(const char* exchange) {
-    return "ogw-" + lowercase_venue(exchange) + "-io";
+    return "ogw-" + bpt::common::util::to_lower(exchange) + "-io";
 }
 
 }  // namespace
