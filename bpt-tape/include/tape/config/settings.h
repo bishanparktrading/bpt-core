@@ -54,14 +54,18 @@ struct RecordingConfig {
 /// Operator declares the URL shape directly; bpt-tape doesn't
 /// introspect bpt-refdata's adapter code so the refdata service can
 /// grow new endpoints without recorder changes (and vice versa).
+///
+/// Used directly by `bpt::tape::refdata::RefdataPoller` (aliased there
+/// as `EndpointSpec`) — the runtime poller consumes the config schema
+/// as-is, no translation layer.
 struct RefdataEndpoint {
     std::string exchange;            ///< venue tag, picks the tape
     std::string host;                ///< e.g. "api.hyperliquid.xyz"
     std::string port{"443"};
     bool use_tls{true};
-    std::string method{"GET"};       ///< "GET" or "POST"
+    std::string method{"GET"};       ///< "GET" or "POST" (case-insensitive)
     std::string path;                ///< e.g. "/info"
-    std::string body;                ///< POST body; ignored for GET
+    std::string body;                ///< POST body (ignored for GET)
     uint32_t interval_seconds{3600}; ///< per-endpoint poll cadence
 };
 

@@ -211,18 +211,8 @@ void RecorderService::setup_refdata_pollers() {
     // converter's input.
     std::unordered_map<std::string, std::vector<refdata::EndpointSpec>>
         endpoints_per_venue;
-    for (const auto& e : settings_.refdata_endpoints) {
-        refdata::EndpointSpec spec;
-        spec.exchange = e.exchange;
-        spec.host = e.host;
-        spec.port = e.port;
-        spec.use_tls = e.use_tls;
-        spec.method = e.method;
-        spec.path = e.path;
-        spec.body = e.body;
-        spec.interval_seconds = e.interval_seconds;
-        endpoints_per_venue[e.exchange].push_back(std::move(spec));
-    }
+    for (const auto& e : settings_.refdata_endpoints)
+        endpoints_per_venue[e.exchange].push_back(e);
     for (auto& [venue_name, eps] : endpoints_per_venue) {
         const std::string venue_tag = lowercase_venue(venue_name) + "-rest";
         auto tape = make_tape(venue_tag);
