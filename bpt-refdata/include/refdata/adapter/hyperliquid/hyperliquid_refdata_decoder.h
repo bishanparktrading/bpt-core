@@ -21,8 +21,17 @@ class HyperliquidRefdataDecoder {
 public:
     explicit HyperliquidRefdataDecoder(std::shared_ptr<mapping::InstrumentMappingLoader> mapping);
 
-    /// \brief Decode `POST /info {"type":"meta"}` body.
+    /// \brief Decode `POST /info {"type":"meta"}` body (perpetuals).
     std::vector<refdata::Instrument> parse_meta(const std::string& body, uint64_t collected_ts) const;
+
+    /// \brief Decode `POST /info {"type":"spotMeta"}` body (spot pairs).
+    ///
+    /// HL spot universe entries reference two tokens (base, quote) by
+    /// position in the `tokens[]` array. Tick precision follows the
+    /// spot convention (MAX_DECIMALS=8, vs perps' 6). Pairs whose
+    /// venue_symbol (HL `name` field — e.g. "PURR/USDC") isn't in the
+    /// mapping JSON are silently skipped — same gating as perps.
+    std::vector<refdata::Instrument> parse_spot_meta(const std::string& body, uint64_t collected_ts) const;
 
     /// \brief Decode `POST /info {"type":"userFees","user":"<wallet_address>"}` body.
     std::vector<refdata::FeeScheduleState> parse_user_fees(const std::string& body, uint64_t collected_ts) const;

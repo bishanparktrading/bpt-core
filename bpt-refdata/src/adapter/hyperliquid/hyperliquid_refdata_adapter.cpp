@@ -40,7 +40,19 @@ void HyperliquidRefDataAdapter::fetchSnapshot() {
         throw;
     }
 
-    // 2. User fees (requires wallet address)
+    // 2. spotMeta — HL spot pairs. Optional: testnet may have none we
+    // care about, mainnet has a handful. Mapping JSON gates which pairs
+    // actually flow through. A failure here doesn't abort the snapshot —
+    // perps are the primary product, spot is additive.
+    try {
+        auto body = client_->post("/info", R"({"type":"spotMeta"})");
+        for (auto& inst : decoder_.parse_spot_meta(body, ts))
+            registry_->add(inst);
+    } catch (const std::exception& e) {
+        bpt::common::log::warn("[HyperliquidRefData] Failed to fetch spotMeta: {}", e.what());
+    }
+
+    // 3. User fees (requires wallet address)
     if (!wallet_address_.empty()) {
         try {
             nlohmann::json fee_req = {{"type", "userFees"}, {"user", wallet_address_}};
@@ -71,6 +83,16 @@ void HyperliquidRefDataAdapter::fetchInstrumentListing() {
         }
     } catch (const std::exception& e) {
         bpt::common::log::error("[HyperliquidRefData] Hourly meta refresh failed: {}", e.what());
+    }
+
+    try {
+        auto body = client_->post("/info", R"({"type":"spotMeta"})");
+        for (auto& inst : decoder_.parse_spot_meta(body, ts)) {
+            if (registry_->update_if_changed(inst) && on_instrument_delta)
+                on_instrument_delta(inst, bpt::messages::DeltaUpdateType::MODIFY, ts);
+        }
+    } catch (const std::exception& e) {
+        bpt::common::log::warn("[HyperliquidRefData] Hourly spotMeta refresh failed: {}", e.what());
     }
 }
 

@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <nlohmann/json.hpp>
+#include <unordered_map>
 #include <bpt_common/logging.h>
 
 using json = nlohmann::json;
@@ -56,6 +57,78 @@ std::vector<refdata::Instrument> HyperliquidRefdataDecoder::parse_meta(const std
     }
 
     bpt::common::log::info("[HyperliquidRefdataDecoder] Parsed {} perpetual instruments from /info meta", result.size());
+    return result;
+}
+
+std::vector<refdata::Instrument> HyperliquidRefdataDecoder::parse_spot_meta(const std::string& body, uint64_t collected_ts) const {
+    auto j = json::parse(body);
+    const auto& tokens   = j.value("tokens",   json::array());
+    const auto& universe = j.value("universe", json::array());
+
+    // Index tokens by their `index` field — universe entries reference
+    // them by this index, not by array position (defensive: HL has
+    // historically left gaps when delisting).
+    struct TokenInfo { std::string name; int sz_decimals; };
+    std::unordered_map<int, TokenInfo> token_by_idx;
+    token_by_idx.reserve(tokens.size());
+    for (const auto& t : tokens) {
+        const int idx = t.value("index", -1);
+        if (idx < 0)
+            continue;
+        token_by_idx.emplace(idx, TokenInfo{t.value("name", std::string{}),
+                                            t.value("szDecimals", 0)});
+    }
+
+    std::vector<refdata::Instrument> result;
+    for (const auto& pair : universe) {
+        std::string name = pair.value("name", "");
+        if (name.empty())
+            continue;
+
+        // Mapping gates which pairs flow through. Non-canonical "@N"
+        // dev pairs that ops hasn't approved → no mapping entry → skip.
+        auto cid = mapping_->try_resolve_canonical_id(mapping::EXCHANGE_ID_HYPERLIQUID, name);
+        if (!cid)
+            continue;
+
+        const auto& token_pair = pair.value("tokens", json::array());
+        if (token_pair.size() < 2)
+            continue;
+        const int base_idx  = token_pair[0].get<int>();
+        const int quote_idx = token_pair[1].get<int>();
+
+        auto base_it  = token_by_idx.find(base_idx);
+        auto quote_it = token_by_idx.find(quote_idx);
+        if (base_it == token_by_idx.end() || quote_it == token_by_idx.end())
+            continue;
+        if (base_it->second.name.empty() || quote_it->second.name.empty())
+            continue;
+
+        refdata::Instrument inst;
+        inst.venue = "HYPERLIQUID";
+        inst.venue_symbol = name;
+        inst.base = base_it->second.name;
+        inst.quote = quote_it->second.name;
+        inst.inst_type = refdata::InstrumentType::SPOT;
+        inst.status = refdata::InstrumentStatus::ACTIVE;
+        inst.version = collected_ts;
+        inst.display_name = name;
+        inst.inst_uid = mapping::make_inst_uid(*cid, mapping::EXCHANGE_ID_HYPERLIQUID);
+        inst.contract_multiplier = 1.0;
+
+        // Spot: lot_size from base-token szDecimals, tick_size from the
+        // spot price-decimal rule (MAX_DECIMALS=8 vs perps' 6).
+        const int sz_decimals = base_it->second.sz_decimals;
+        inst.lot_size = std::pow(10.0, -sz_decimals);
+
+        constexpr int kSpotMaxDecimals = 8;
+        const int px_decimals = std::max(0, kSpotMaxDecimals - sz_decimals);
+        inst.tick_size = std::pow(10.0, -px_decimals);
+
+        result.push_back(std::move(inst));
+    }
+
+    bpt::common::log::info("[HyperliquidRefdataDecoder] Parsed {} spot instruments from /info spotMeta", result.size());
     return result;
 }
 

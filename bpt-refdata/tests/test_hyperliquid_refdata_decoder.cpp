@@ -20,14 +20,16 @@ using namespace bpt::refdata::refdata;
 
 static const char* kMappingJson = R"({
   "exported_at": 1000000000000000000,
-  "instrument_count": 2,
+  "instrument_count": 3,
   "forward": {
     "3_BTC": 1001,
-    "3_ETH": 1002
+    "3_ETH": 1002,
+    "3_PURR/USDC": 1500
   },
   "reverse": {
     "1001": { "base":"BTC","quote":"USDT","type":"PERP","exchanges":{"3":"BTC"} },
-    "1002": { "base":"ETH","quote":"USDT","type":"PERP","exchanges":{"3":"ETH"} }
+    "1002": { "base":"ETH","quote":"USDT","type":"PERP","exchanges":{"3":"ETH"} },
+    "1500": { "base":"PURR","quote":"USDC","type":"SPOT","exchanges":{"3":"PURR/USDC"} }
   }
 })";
 
@@ -107,6 +109,81 @@ TEST(HyperliquidRefdataDecoder, MetaEmptyUniverseReturnsEmpty) {
 TEST(HyperliquidRefdataDecoder, MetaMissingUniverseKeyReturnsEmpty) {
     HyperliquidRefdataDecoder parser(make_mapping());
     auto result = parser.parse_meta(R"({})", 0u);
+    EXPECT_TRUE(result.empty());
+}
+
+// ---------------------------------------------------------------------------
+// parse_spot_meta
+// ---------------------------------------------------------------------------
+
+// Mirrors the shape returned by HL `POST /info {"type":"spotMeta"}`:
+//   tokens[]  — per-token info indexed by `index`
+//   universe[] — pair entries that reference tokens by index
+static const char* kSpotMeta = R"({
+  "tokens": [
+    {"name":"USDC","szDecimals":8,"weiDecimals":8,"index":0,"isCanonical":true},
+    {"name":"PURR","szDecimals":0,"weiDecimals":5,"index":1,"isCanonical":true},
+    {"name":"TEST","szDecimals":1,"weiDecimals":8,"index":2,"isCanonical":false}
+  ],
+  "universe": [
+    {"name":"PURR/USDC","tokens":[1,0],"index":0,"isCanonical":true},
+    {"name":"@1","tokens":[2,0],"index":1,"isCanonical":false}
+  ]
+})";
+
+TEST(HyperliquidRefdataDecoder, SpotMetaParsesKnownPairs) {
+    HyperliquidRefdataDecoder parser(make_mapping());
+    auto result = parser.parse_spot_meta(kSpotMeta, 42u);
+    // @1 (TEST/USDC) has no mapping entry → filtered. Only PURR/USDC survives.
+    ASSERT_EQ(result.size(), 1u);
+    EXPECT_EQ(result[0].venue_symbol, "PURR/USDC");
+}
+
+TEST(HyperliquidRefdataDecoder, SpotMetaFieldsCorrect) {
+    HyperliquidRefdataDecoder parser(make_mapping());
+    auto result = parser.parse_spot_meta(kSpotMeta, 99u);
+    ASSERT_EQ(result.size(), 1u);
+
+    const auto& purr = result[0];
+    EXPECT_EQ(purr.venue, "HYPERLIQUID");
+    EXPECT_EQ(purr.venue_symbol, "PURR/USDC");
+    EXPECT_EQ(purr.base, "PURR");
+    EXPECT_EQ(purr.quote, "USDC");  // distinct from perp's hardcoded "USD"
+    EXPECT_EQ(purr.inst_type, InstrumentType::SPOT);
+    EXPECT_EQ(purr.status, InstrumentStatus::ACTIVE);
+    EXPECT_DOUBLE_EQ(purr.contract_multiplier, 1.0);
+    EXPECT_EQ(purr.version, 99u);
+    EXPECT_EQ(purr.display_name, "PURR/USDC");
+    EXPECT_EQ(purr.inst_uid, make_inst_uid(1500, EXCHANGE_ID_HYPERLIQUID));
+}
+
+TEST(HyperliquidRefdataDecoder, SpotMetaTickAndLotForSzDecimalsZero) {
+    HyperliquidRefdataDecoder parser(make_mapping());
+    auto result = parser.parse_spot_meta(kSpotMeta, 0u);
+    ASSERT_EQ(result.size(), 1u);
+
+    // PURR szDecimals=0 → lot_size = 10^0 = 1.0
+    EXPECT_DOUBLE_EQ(result[0].lot_size, 1.0);
+    // Spot MAX_DECIMALS=8 (vs perp's 6); px_decimals = 8 - 0 = 8 → tick = 1e-8
+    EXPECT_DOUBLE_EQ(result[0].tick_size, std::pow(10.0, -8));
+}
+
+TEST(HyperliquidRefdataDecoder, SpotMetaSkipsUnmappedPair) {
+    HyperliquidRefdataDecoder parser(make_mapping());
+    auto result = parser.parse_spot_meta(kSpotMeta, 0u);
+    for (const auto& inst : result)
+        EXPECT_NE(inst.venue_symbol, "@1");
+}
+
+TEST(HyperliquidRefdataDecoder, SpotMetaEmptyUniverseReturnsEmpty) {
+    HyperliquidRefdataDecoder parser(make_mapping());
+    auto result = parser.parse_spot_meta(R"({"tokens":[],"universe":[]})", 0u);
+    EXPECT_TRUE(result.empty());
+}
+
+TEST(HyperliquidRefdataDecoder, SpotMetaMissingKeysReturnsEmpty) {
+    HyperliquidRefdataDecoder parser(make_mapping());
+    auto result = parser.parse_spot_meta(R"({})", 0u);
     EXPECT_TRUE(result.empty());
 }
 
