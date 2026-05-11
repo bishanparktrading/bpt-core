@@ -1,3 +1,6 @@
+/// \file
+/// \brief RecorderService implementation — see header for contract.
+
 #include "tape/app/recorder_service.h"
 
 #include "tape/adapter/recording_mdgw_adapters.h"
@@ -33,11 +36,9 @@ uint64_t wall_now_ns() {
             std::chrono::system_clock::now().time_since_epoch()).count());
 }
 
-// Drops every published message. Recording host has no downstream
-// consumers of the parsed SBE — the disk tap on raw WS frames is the
-// only output. Concrete (non-virtual) — venue adapters are templated
-// on Pub so the publish() chain compiles down to dead branches the
-// optimizer drops.
+// Discards all parsed SBE — recorder has no downstream consumers, the
+// disk tap on raw frames is the only output. Templated venue adapters
+// inline these no-ops; the publish() chain compiles to dead branches.
 class NoopMdPublisher {
 public:
     void publish(const bpt::md_gateway::md::MdBbo&) {}
@@ -51,9 +52,6 @@ public:
 RecorderService::RecorderService(config::Settings settings,
                                  const bpt::common::util::Topology& topology)
     : settings_(std::move(settings)), topology_(topology) {
-    // Constructor is a 4-phase orchestrator. Each phase is independently
-    // navigable; failures in setup_universe() roll back adapter threads
-    // started in setup_mdgw_recording() before re-throwing.
     setup_metrics();
     setup_mdgw_recording();
     setup_universe();
@@ -61,10 +59,8 @@ RecorderService::RecorderService(config::Settings settings,
 }
 
 void RecorderService::setup_metrics() {
-    // Skip silently if metrics_port=0 (BaseSettings default — disables
-    // the endpoint, e.g. for local dev runs that don't want a port
-    // collision). Built before any spool so spool construction can
-    // install per-venue hooks.
+    // metrics_port == 0 disables the endpoint (BaseSettings default).
+    // Useful for local dev runs that don't want a port collision.
     if (settings_.base.metrics_port == 0) return;
 
     metrics_ = std::make_unique<metrics::TapeMetrics>(
@@ -94,17 +90,15 @@ void RecorderService::wire_connection_markers(
     std::shared_ptr<bpt::md_gateway::adapter::IAdapter> adapter,
     std::shared_ptr<bpt::common::recorder::RawSpool> spool,
     const std::string& venue_tag) {
-    // Per-adapter ConnState is the only mutable thing the lambdas share
-    // (reconnect counter + "have we seen a disconnect" flag). Captured
-    // by shared_ptr so both lambdas observe the same state.
+    // ConnState shared via shared_ptr so both lambdas see the same
+    // counter + "have we ever disconnected" flag. metrics_ raw pointer
+    // is safe — TapeMetrics outlives all adapters by member order.
     auto state = std::make_shared<ConnState>();
-    // Metrics raw pointer is safe — TapeMetrics outlives every adapter
-    // by member declaration order in recorder_service.h.
     auto* metrics = metrics_.get();
 
     adapter->on_connect = [spool, state, metrics, venue_tag]() {
         if (metrics) metrics->on_ws_connect(venue_tag);
-        if (!state->was_disconnected) return;  // first connect — SESSION_START already covered it
+        if (!state->was_disconnected) return;  // initial connect — SESSION_START covers it
         ++state->reconnect_count;
         spool->write_marker(wall_now_ns(),
                             bpt::common::recorder::RecordType::WS_RECONNECT,
@@ -130,7 +124,6 @@ void RecorderService::setup_mdgw_recording() {
         const std::string venue_tag = lowercase_venue(a_cfg.exchange);
         auto spool = make_spool(venue_tag);
 
-        // SESSION_START with config snapshot — pid + venue + WS endpoint.
         spool->write_marker(wall_now_ns(),
                             bpt::common::recorder::RecordType::SESSION_START,
                             fmt::format(R"({{"pid":{},"exchange":"{}","ws":"{}://{}:{}{}"}})",
@@ -166,15 +159,10 @@ void RecorderService::setup_mdgw_recording() {
 }
 
 void RecorderService::setup_universe() {
-    // Anything in this method that throws would leave the just-started
-    // adapter threads orphaned (AdapterBase has no joining destructor —
-    // by design, since stop() is the lifecycle handle the framework
-    // calls). Wrap so we can stop cleanly before re-throwing.
+    // Throws here would orphan the adapter threads started in
+    // setup_mdgw_recording (AdapterBase has no joining destructor — stop()
+    // is the lifecycle handle). Stop them before re-throwing.
     try {
-        // Build the universe by reading the canonical instrument-mapping
-        // JSON (same file bpt-refdata reads on the trading host) and
-        // filtering per venue. No refdata service needed on the
-        // recording host — the mapping logic is imported as a library.
         bpt::refdata::mapping::InstrumentMappingLoader mapping;
         mapping.load(settings_.instrument_mapping_path);
         bpt::common::log::info("bpt-tape: loaded instrument mapping from {} ({} instruments)",
@@ -206,31 +194,24 @@ void RecorderService::setup_universe() {
                 ++n_for_this_venue;
             }
             n_subscribed_total += n_for_this_venue;
-            // Surface as a per-venue gauge so the dashboard catches
-            // a sudden drop (config regression, mapping shrink).
-            // venue_tag is the lowercase form used in metric labels
-            // elsewhere (frames_written_total, etc.) — match that.
+            // Lowercase to match the venue-tag label used by other
+            // metrics (frames_written_total, etc.).
             if (metrics_) {
-                std::string venue_tag = venue_name;
-                std::transform(venue_tag.begin(), venue_tag.end(), venue_tag.begin(),
-                               [](unsigned char c) { return std::tolower(c); });
-                metrics_->set_subscriptions(venue_tag, n_for_this_venue);
+                metrics_->set_subscriptions(lowercase_venue(venue_name), n_for_this_venue);
             }
         }
         bpt::common::log::info("bpt-tape: subscribed {} symbols across {} adapters",
                                n_subscribed_total, adapters_.size());
     } catch (...) {
-        // Reraise after stopping so adapter threads join cleanly —
-        // otherwise std::thread destructor calls std::terminate.
         for (auto& a : adapters_) a->stop();
         throw;
     }
 }
 
 void RecorderService::setup_refdata_pollers() {
-    // Group endpoints by exchange so each venue gets its own spool +
-    // single-writer thread. Spool path is `{venue}-rest` so the WS
-    // converter doesn't see these records.
+    // Group by venue so each gets its own spool + single-writer thread.
+    // Spool path suffix `-rest` keeps these records out of the WS
+    // converter's input.
     std::unordered_map<std::string, std::vector<refdata::EndpointSpec>>
         endpoints_per_venue;
     for (const auto& e : settings_.refdata_endpoints) {
@@ -263,8 +244,6 @@ void RecorderService::setup_refdata_pollers() {
 
 void RecorderService::run() {
     bpt::common::log::info("bpt-tape running — Ctrl-C to stop");
-    // Block until a signal flips the running flag. Adapter threads do
-    // the actual capture work; this thread just waits.
     while (bpt::common::signal::is_running()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
@@ -272,10 +251,8 @@ void RecorderService::run() {
 }
 
 void RecorderService::stop() {
-    // Stop adapters first — joins their IO + publisher threads — then
-    // write SESSION_STOP markers + flush each spool. Order matters:
-    // the IO thread is the sole writer, so it must be quiesced before
-    // we touch the spool from this thread.
+    // Stop the IO thread (sole spool writer) BEFORE touching the spool
+    // from this thread — otherwise SESSION_STOP races with a frame write.
     for (auto& a : adapters_) a->stop();
     for (auto& s : spools_) {
         s->write_marker(wall_now_ns(),
@@ -283,8 +260,6 @@ void RecorderService::stop() {
                         R"({"reason":"stop"})");
         s->flush();
     }
-    // Same dance for refdata pollers — stop() joins each poll thread,
-    // so the spool is quiescent by the time we write SESSION_STOP.
     for (auto& p : refdata_pollers_) p->stop();
     for (auto& s : refdata_spools_) {
         s->write_marker(wall_now_ns(),
@@ -292,9 +267,8 @@ void RecorderService::stop() {
                         R"({"reason":"stop"})");
         s->flush();
     }
-    // Flip healthy=0 last so dashboards can distinguish a clean stop
-    // from a crash (where healthy stays at the last live value but
-    // the scrape just goes away).
+    // healthy=0 last — dashboards key on it being 1-then-0 (clean stop)
+    // vs scrape-just-vanishes (crash).
     if (metrics_) metrics_->shutdown();
 }
 
