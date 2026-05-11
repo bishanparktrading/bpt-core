@@ -1,7 +1,9 @@
 #include "bridge/md_subscriber.h"
 
+#include "bridge/sbe_decode.h"
+
 #include <messages/MdMarketData.h>
-#include <messages/MessageHeader.h>
+
 #include <bpt_common/logging.h>
 
 namespace bridge {
@@ -26,27 +28,14 @@ void MdSubscriber::on_fragment(::aeron::AtomicBuffer& buffer,
                                ::aeron::util::index_t offset,
                                ::aeron::util::index_t length,
                                ::aeron::Header& /*header*/) {
-    using namespace bpt::messages;
-
-    if (length < static_cast<::aeron::util::index_t>(MessageHeader::encodedLength())) return;
-
-    auto* data = reinterpret_cast<char*>(buffer.buffer() + offset);
-    MessageHeader hdr;
-    hdr.wrap(data, 0, MessageHeader::sbeSchemaVersion(), static_cast<uint64_t>(length));
-
-    if (hdr.templateId() != MdMarketData::sbeTemplateId()) return;
-
-    MdMarketData md;
-    md.wrapForDecode(data, MessageHeader::encodedLength(),
-                     hdr.blockLength(), hdr.version(),
-                     static_cast<uint64_t>(length));
-
-    const double bid = md.bidPrice();
-    const double ask = md.askPrice();
-    if (bid <= 0 || ask <= 0) return;
-    const double mid = (bid + ask) * 0.5;
-
-    if (handler_) handler_(md.instrumentId(), mid, md.timestampNs());
+    decode_sbe_fragment<bpt::messages::MdMarketData>(buffer, offset, length,
+        [this](bpt::messages::MdMarketData& md) {
+            const double bid = md.bidPrice();
+            const double ask = md.askPrice();
+            if (bid <= 0 || ask <= 0) return;
+            const double mid = (bid + ask) * 0.5;
+            if (handler_) handler_(md.instrumentId(), mid, md.timestampNs());
+        });
 }
 
 }  // namespace bridge

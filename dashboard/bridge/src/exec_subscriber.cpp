@@ -1,8 +1,9 @@
 #include "bridge/exec_subscriber.h"
 
+#include "bridge/sbe_decode.h"
+
 #include <messages/ExecStatus.h>
 #include <messages/ExecutionReport.h>
-#include <messages/MessageHeader.h>
 #include <messages/OrderSide.h>
 
 #include <bpt_common/logging.h>
@@ -35,62 +36,50 @@ void ExecSubscriber::on_fragment(::aeron::AtomicBuffer& buffer,
                                  ::aeron::util::index_t offset,
                                  ::aeron::util::index_t length,
                                  ::aeron::Header& /*header*/) {
-    using namespace bpt::messages;
+    decode_sbe_fragment<bpt::messages::ExecutionReport>(buffer, offset, length,
+        [this](bpt::messages::ExecutionReport& msg) {
+            using namespace bpt::messages;
 
-    if (length < static_cast<::aeron::util::index_t>(MessageHeader::encodedLength())) return;
+            const auto status = msg.status();
+            const auto side = (msg.side() == OrderSide::BUY) ? encode::Side::Buy : encode::Side::Sell;
+            const double price = static_cast<double>(msg.price()) / kPriceScale;
 
-    auto* data = reinterpret_cast<char*>(buffer.buffer() + offset);
-    MessageHeader hdr;
-    hdr.wrap(data, 0, MessageHeader::sbeSchemaVersion(), static_cast<uint64_t>(length));
+            // Fire order lifecycle event for all statuses so the dashboard can
+            // track open/working orders.
+            if (order_handler_) {
+                OrderEvent ev{};
+                ev.ts_ns         = msg.timestampNs();
+                ev.order_id      = msg.orderId();
+                ev.instrument_id = msg.instrumentId();
+                ev.side          = side;
+                ev.status        = static_cast<uint8_t>(status);
+                ev.order_type    = msg.orderTypeRaw();
+                ev.price         = price;
+                ev.qty           = static_cast<double>(msg.filledQty() + msg.remainingQty()) / kQtyScale;
+                ev.filled_qty    = static_cast<double>(msg.filledQty()) / kQtyScale;
+                ev.remaining_qty = static_cast<double>(msg.remainingQty()) / kQtyScale;
+                order_handler_(ev);
+            }
 
-    if (hdr.templateId() != ExecutionReport::sbeTemplateId()) return;
+            // Only forward real fills to the position tracker / equity curve.
+            // OKX (and other venues) can emit PARTIAL exec reports with filled_qty=0
+            // as order-state updates ("order is resting in book"). Those are not
+            // actual executions and must not be counted as fills.
+            if (status != ExecStatus::FILLED && status != ExecStatus::PARTIAL) return;
+            if (msg.filledQty() == 0) return;
 
-    ExecutionReport msg;
-    msg.wrapForDecode(data,
-                      MessageHeader::encodedLength(),
-                      hdr.blockLength(),
-                      hdr.version(),
-                      static_cast<uint64_t>(length));
+            Fill f{};
+            f.ts_ns         = msg.timestampNs();
+            f.order_id      = msg.orderId();
+            f.instrument_id = msg.instrumentId();
+            f.side          = side;
+            f.order_type    = msg.orderTypeRaw();
+            f.qty           = static_cast<double>(msg.filledQty()) / kQtyScale;
+            f.price         = price;
+            f.fee           = static_cast<double>(msg.fee()) / kFeeScale;
 
-    const auto status = msg.status();
-    const auto side = (msg.side() == OrderSide::BUY) ? encode::Side::Buy : encode::Side::Sell;
-    const double price = static_cast<double>(msg.price()) / kPriceScale;
-
-    // Fire order lifecycle event for all statuses so the dashboard can
-    // track open/working orders.
-    if (order_handler_) {
-        OrderEvent ev{};
-        ev.ts_ns         = msg.timestampNs();
-        ev.order_id      = msg.orderId();
-        ev.instrument_id = msg.instrumentId();
-        ev.side          = side;
-        ev.status        = static_cast<uint8_t>(status);
-        ev.order_type    = msg.orderTypeRaw();
-        ev.price         = price;
-        ev.qty           = static_cast<double>(msg.filledQty() + msg.remainingQty()) / kQtyScale;
-        ev.filled_qty    = static_cast<double>(msg.filledQty()) / kQtyScale;
-        ev.remaining_qty = static_cast<double>(msg.remainingQty()) / kQtyScale;
-        order_handler_(ev);
-    }
-
-    // Only forward real fills to the position tracker / equity curve.
-    // OKX (and other venues) can emit PARTIAL exec reports with filled_qty=0
-    // as order-state updates ("order is resting in book"). Those are not
-    // actual executions and must not be counted as fills.
-    if (status != ExecStatus::FILLED && status != ExecStatus::PARTIAL) return;
-    if (msg.filledQty() == 0) return;
-
-    Fill f{};
-    f.ts_ns         = msg.timestampNs();
-    f.order_id      = msg.orderId();
-    f.instrument_id = msg.instrumentId();
-    f.side          = side;
-    f.order_type    = msg.orderTypeRaw();
-    f.qty           = static_cast<double>(msg.filledQty()) / kQtyScale;
-    f.price         = price;
-    f.fee           = static_cast<double>(msg.fee()) / kFeeScale;
-
-    if (handler_) handler_(f);
+            if (handler_) handler_(f);
+        });
 }
 
 }  // namespace bridge
