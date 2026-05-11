@@ -229,7 +229,8 @@
         "3_DASH": 1227,
         "3_SKR": 1228,
         "3_AZTEC": 1229,
-        "3_CHIP": 1230
+        "3_CHIP": 1230,
+        "3_PURR/USDC": 1500
     },
     "reverse": {
         "1001": {
@@ -2071,8 +2072,16 @@
             "exchanges": {
                 "3": "CHIP"
             }
+        },
+        "1500": {
+            "base": "PURR",
+            "quote": "USDC",
+            "type": "SPOT",
+            "exchanges": {
+                "3": "PURR/USDC"
+            }
         }
     },
     "exported_at": 1778167912849,
-    "instrument_count": 230
+    "instrument_count": 231
 }
