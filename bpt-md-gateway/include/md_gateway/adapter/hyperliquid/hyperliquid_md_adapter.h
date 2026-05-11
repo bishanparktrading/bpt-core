@@ -28,6 +28,18 @@ namespace bpt::md_gateway::adapter {
 /// trades, and activeAssetCtx per instrument. Runtime subscribe /
 /// unsubscribe take effect immediately via the pending queue.
 ///
+/// Both perp and spot instruments route through the same subscribe path.
+/// HL's WS accepts the pair name verbatim as the `coin` field
+/// ("PURR/USDC" for spot, "BTC" for perp) and mirrors that name in
+/// response frames — no `@N` translation needed. The `@N` universe-index
+/// form is *not* accepted by the WS endpoint (server-side reject).
+///
+/// activeAssetCtx behaves differently for spot: HL responds with
+/// `channel:"activeSpotAssetCtx"` (different schema, no funding rate).
+/// The decoder only branches on the perp `activeAssetCtx` channel, so
+/// spot frames silently fall through — correct, because spot has no
+/// funding to extract.
+///
 /// HL closes idle WebSockets ~60 s after the last client-sent message,
 /// so the WS client's ping_config emits a JSON `{"method":"ping"}`
 /// payload on a 20 s cadence (control-frame pings don't reset HL's
