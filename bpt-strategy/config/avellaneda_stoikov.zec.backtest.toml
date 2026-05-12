@@ -4,7 +4,9 @@
 # Phase 1 dimensional fixes generalize across price scales (ZEC
 # mid ~$356 vs APE ~$0.18).
 
-environment    = "dev"
+# Deployment profile (env only; strategy keeps its own md_exchanges).
+profile_config = "../deploy/config/profile/backtest-hl.toml"
+
 backtest_mode  = true
 strategy_config = "strategies/avellaneda_stoikov.zec.backtest.toml"
 

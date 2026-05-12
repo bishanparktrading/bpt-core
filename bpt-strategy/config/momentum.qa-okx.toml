@@ -1,4 +1,6 @@
-environment = "qa"
+# Deployment profile (env only; strategy keeps its own md_exchanges).
+profile_config = "../deploy/config/profile/qa-okx.toml"
+
 strategy_config = "strategies/momentum.toml"
 
 # Shared aeron stream registry — see deploy/config/aeron/streams.toml.

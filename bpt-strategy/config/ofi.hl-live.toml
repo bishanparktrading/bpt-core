@@ -1,4 +1,6 @@
-environment = "live"
+# Deployment profile (env only; strategy keeps its own md_exchanges).
+profile_config = "../deploy/config/profile/live-hyperliquid.toml"
+
 strategy_config = "strategies/ofi.hl-live.toml"
 
 # Shared aeron stream registry — see deploy/config/aeron/streams.toml.

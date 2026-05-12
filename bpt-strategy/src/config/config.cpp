@@ -2,9 +2,11 @@
 
 #include <bpt_app/base_settings.h>
 #include <bpt_common/aeron/streams_map.h>
+#include <bpt_common/config/profile_config.h>
 #include <bpt_common/logging.h>
 #include <filesystem>
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 #include <stdexcept>
 #include <toml++/toml.hpp>
 
@@ -19,6 +21,20 @@ AppConfig AppConfig::load(const std::string& path) {
         cfg = toml::parse_file(path);
     } catch (const toml::parse_error& e) {
         throw std::runtime_error(fmt::format("Failed to load config {}: {}", path, std::string(e.description())));
+    }
+
+    // Profile sets `environment` so the strategy logs the same env as
+    // refdata/md/og. Strategy keeps its own `md_exchanges` / `configured_exchanges`
+    // (intentionally per-strategy — see fenrir.strategy block — so a strategy
+    // can subscribe to MD from venues it doesn't trade on for cross-venue signal).
+    if (auto v = cfg["profile_config"].value<std::string>()) {
+        auto profile = bpt::common::config::load_profile_config(*v);
+        bpt::common::log::info("Loaded deployment profile from {} (env={}, exchanges=[{}])",
+                               *v,
+                               bpt::common::to_string(profile.environment),
+                               fmt::join(profile.exchanges, ", "));
+        if (!cfg.contains("environment"))
+            cfg.insert("environment", std::string(bpt::common::to_string(profile.environment)));
     }
 
     bpt::app::load_base_settings(cfg, app_cfg.base);
