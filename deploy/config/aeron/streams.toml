@@ -1,0 +1,46 @@
+# Single source of truth for Aeron wiring across all bpt-* services.
+#
+# Each service's TOML references this file via `aeron_config = "..."`.
+# Its loader calls `bpt::common::config::resolve_stream(shared, "<name>", fallback)`
+# to fetch its own streams by their global name.
+#
+# Changing a stream ID here updates every service simultaneously on the
+# next restart — no per-service drift, no silent disconnect.
+
+[aeron]
+# Universal MediaDriver path. Every service uses this; previously
+# duplicated in each service's [aeron] block.
+media_driver_dir = "/dev/shm/aeron-bpt"
+
+[streams]
+# Refdata service → consumers
+refdata_snapshot = 1001
+refdata_delta    = 1002
+refdata_control  = 1003
+fee_schedule     = 1004
+funding_rate     = 1005
+refdata_status   = 1006
+
+# MD-gateway → consumers
+md_control       = 2001
+md_data          = 2002
+md_ack_hb        = 2003
+
+# Order-gateway / strategy
+order            = 3001
+exec_report      = 3002
+heartbeat        = 3003
+account_snapshot = 3004
+
+# Analytics → bridge
+toxicity         = 5001
+
+# Bridge / backtester
+portfolio        = 9004
+backtest_control = 9003
+
+[channels]
+# Per-stream channel override. Default for everything is "aeron:ipc"
+# (loopback shared-memory, the prod transport). Add entries here only
+# when you need UDP / multicast for a specific stream:
+#   refdata_snapshot = "aeron:udp?endpoint=10.0.0.5:50001"

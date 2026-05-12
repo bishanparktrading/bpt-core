@@ -7,6 +7,7 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 cc_library(
     name = "bpt-common",
     srcs = [
+        "src/aeron/streams_map.cpp",
         "src/env.cpp",
         "src/logging.cpp",
         "src/secrets/secrets_client.cpp",

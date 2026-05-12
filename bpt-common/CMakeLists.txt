@@ -6,6 +6,7 @@ project(bpt-common VERSION 0.1.0 LANGUAGES CXX)
 # only needs the corresponding bpt-common headers.
 
 add_library(bpt-common STATIC
+    src/aeron/streams_map.cpp
     src/env.cpp
     src/logging.cpp
     src/util/openssl_helpers.cpp
