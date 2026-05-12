@@ -43,6 +43,15 @@ Settings load(const std::string& path, const std::string& profile_override) {
         // point of plumbing --profile through systemd, so prod-* unit files
         // make bridge log "prod" instead of "qa".
         root.insert_or_assign("environment", std::string(bpt::common::to_string(profile.environment)));
+    } else if (!root.contains("environment")) {
+        // No profile and no `environment` in the TOML — bridge.live.toml
+        // deliberately drops `environment` because the profile owns it.
+        // If we got here, the operator forgot BPT_BRIDGE_PROFILE in the env
+        // file (or removed --profile from the unit). load_base_settings
+        // would throw cryptically; surface the real cause instead.
+        throw std::runtime_error(
+            "bridge: no `profile_config` in TOML and no --profile CLI arg — "
+            "expected BPT_BRIDGE_PROFILE to be set in the active env file");
     }
 
     bpt::app::load_base_settings(root, s.base);

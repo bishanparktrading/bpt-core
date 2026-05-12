@@ -21,6 +21,23 @@
 # The config-sync timer is also emitted — it git-pulls the repo daily (laptop mode)
 # or the config dir (deploy mode) so config PRs propagate to running services on
 # their next refresh tick.
+#
+# Stack-wide registries every service reads at startup (per-service WorkingDirectory
+# is set so each service's relative paths resolve):
+#
+#   deploy/config/aeron/streams.toml      — Aeron stream IDs + media driver dir.
+#                                            Referenced by `aeron_config = "..."` in
+#                                            each service's instance TOML.
+#   deploy/config/profile/<tag>.toml      — Deployment profile (environment,
+#                                            exchanges filter, exchange_config path).
+#                                            Referenced by `profile_config = "..."`
+#                                            in each service's instance TOML; bridge
+#                                            takes the path via --profile CLI arg
+#                                            (BPT_BRIDGE_PROFILE in the env file).
+#
+# switch-env.sh refuses to activate an env file whose picked configs disagree on
+# profile_config — a structural defence against a stack booting with services on
+# different exchanges.
 set -euo pipefail
 
 # ── Mode + path resolution ──────────────────────────────────────────────────
