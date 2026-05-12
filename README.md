@@ -8,6 +8,12 @@
 
 A solo project. Built end-to-end — services, deploy tooling, dashboard, and a backtest harness — to learn what a production trading stack actually feels like to operate. Live on Hyperliquid testnet; mainnet read-only verified on PURR + HYPE funding-arb and XMR market making.
 
+<p align="center">
+  <img src="docs/diagrams/system-overview.svg" alt="bpt-core system overview" width="900">
+</p>
+
+Deeper diagrams (tick→fill sequence, config topology) live in [`docs/architecture.md`](docs/architecture.md).
+
 ## What's here
 
 | Service | Language | Role |

@@ -1,0 +1,59 @@
+vars: {
+  d2-config: {
+    theme-id: 0
+    dark-theme-id: 200
+    pad: 40
+  }
+}
+
+title: "Tick → order → fill (single round-trip)" {
+  near: top-center
+  shape: text
+  style: {
+    font-size: 22
+    bold: true
+  }
+}
+
+shape: sequence_diagram
+
+venue: "Exchange venue\n(Hyperliquid / Binance / OKX / Deribit)" {
+  style.fill: "#fef3c7"
+}
+md: bpt-md-gateway {
+  style.fill: "#dbeafe"
+}
+aeron: "Aeron fabric (SBE-encoded)" {
+  style.fill: "#fed7aa"
+  shape: cylinder
+}
+strat: bpt-strategy {
+  style.fill: "#dbeafe"
+}
+og: bpt-order-gateway {
+  style.fill: "#dbeafe"
+}
+bridge: "bpt-bridge → dashboard" {
+  style.fill: "#dcfce7"
+}
+
+venue -> md: "WebSocket book update"
+md -> md: "validate · canonicalise · breaker"
+md -> aeron: "publish MdSnapshot / MdDelta"
+aeron -> strat: "subscribe (zero-copy decode)"
+strat -> strat: "regime · OFI · sizing"
+strat -> aeron: "publish OrderRequest"
+aeron -> og: "subscribe"
+og -> og: "risk · min-notional · circuit breakers"
+og -> venue: "POST /order (REST or WS)"
+venue -> og: "ack + later Fill event"
+og -> aeron: "publish ExecReport"
+aeron -> strat: "fill → position update"
+strat -> aeron: "publish StrategyState (per-strategy JSON)"
+aeron -> bridge: "tap state for dashboard"
+
+note: "p50 ~150µs · max 524µs measured Aeron round-trip\non commodity hardware (strategy ↔ order-gateway)" {
+  near: bottom-center
+  shape: text
+  style.font-size: 14
+}

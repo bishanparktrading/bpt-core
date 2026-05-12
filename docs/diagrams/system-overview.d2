@@ -1,0 +1,70 @@
+direction: right
+
+vars: {
+  d2-config: {
+    theme-id: 0
+    dark-theme-id: 200
+    pad: 40
+  }
+}
+
+venues: Exchange venues {
+  shape: rectangle
+  style: {
+    fill: "#fef3c7"
+    stroke: "#92400e"
+    border-radius: 8
+  }
+  hl: Hyperliquid
+  binance: Binance
+  okx: OKX
+  deribit: Deribit
+}
+
+core: "bpt-core  ·  C++23 services" {
+  style: {
+    fill: "#eff6ff"
+    stroke: "#1e3a8a"
+    border-radius: 12
+  }
+
+  refdata: bpt-refdata
+  md: bpt-md-gateway
+  og: bpt-order-gateway
+  strategy: bpt-strategy
+  book: bpt-book
+  analytics: bpt-analytics
+  pricer: bpt-pricer
+
+  aeron: "Aeron MediaDriver\n(external JVM · ZGC-tuned · SBE wire)" {
+    shape: cylinder
+    style: {
+      fill: "#fed7aa"
+      stroke: "#9a3412"
+    }
+  }
+
+  refdata -> aeron
+  md -> aeron
+  og -> aeron
+  strategy -> aeron
+  book -> aeron
+  analytics -> aeron
+  pricer -> aeron
+}
+
+dashboard: Real-time dashboard {
+  style: {
+    fill: "#dcfce7"
+    stroke: "#166534"
+    border-radius: 8
+  }
+  bridge: "bpt-bridge\n(Aeron → WS)"
+  frontend: "React + TypeScript\nper-strategy panels"
+  bridge -> frontend: WebSocket
+}
+
+venues -> core.md: market data (WS)
+venues -> core.refdata: instruments · fees (REST)
+core.og -> venues: orders (WS · REST)
+core.aeron -> dashboard.bridge: tap published state

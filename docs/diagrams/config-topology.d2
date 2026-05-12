@@ -1,0 +1,89 @@
+direction: down
+
+vars: {
+  d2-config: {
+    theme-id: 0
+    dark-theme-id: 200
+    pad: 40
+  }
+}
+
+title: "Configuration topology — single sources of truth + coherence gate" {
+  near: top-center
+  shape: text
+  style: {
+    font-size: 20
+    bold: true
+  }
+}
+
+registries: Shared registries (one per concern) {
+  style: {
+    fill: "#fef3c7"
+    stroke: "#92400e"
+    border-radius: 8
+  }
+
+  streams: "deploy/config/aeron/streams.toml\n· every Aeron stream ID\n· MediaDriver path" {
+    style.fill: "#fff7ed"
+  }
+  profile: "deploy/config/profile/<tag>.toml\n· environment (dev/qa/prod)\n· exchange filter\n· exchange-endpoints path" {
+    style.fill: "#fff7ed"
+  }
+  exchanges: "bpt-book/config/exchanges/*.toml\n· per-network REST + WS endpoints\n· split by mainnet / testnet" {
+    style.fill: "#fff7ed"
+  }
+}
+
+services: Per-service configs {
+  style: {
+    fill: "#dbeafe"
+    stroke: "#1e3a8a"
+    border-radius: 8
+  }
+  rfd: "bpt-refdata.toml"
+  md: "bpt-md-gateway.toml"
+  og: "bpt-order-gateway.toml"
+  strat: "bpt-strategy.toml"
+  others: "...one TOML per service"
+}
+
+env: "deploy/env/dev-hyperliquid.env\n(symlinked to active.env)" {
+  style: {
+    fill: "#dcfce7"
+    stroke: "#166534"
+    border-radius: 8
+  }
+}
+
+gate: "switch-env.sh\n· lints services agree on profile\n· refuses incoherent stacks\n· reloads + restarts" {
+  style: {
+    fill: "#fee2e2"
+    stroke: "#991b1b"
+    border-radius: 8
+    bold: true
+  }
+}
+
+systemd: "systemd user units\n(bpt-*.service)" {
+  style: {
+    fill: "#e0e7ff"
+    stroke: "#3730a3"
+    border-radius: 8
+  }
+}
+
+services.rfd -> registries.streams: aeron_config
+services.md -> registries.streams: aeron_config
+services.og -> registries.streams: aeron_config
+services.strat -> registries.streams: aeron_config
+services.rfd -> registries.profile: profile_config
+services.md -> registries.profile: profile_config
+services.og -> registries.profile: profile_config
+services.strat -> registries.profile: profile_config
+registries.profile -> registries.exchanges: exchange_endpoints
+
+env -> services: BPT_*_CONFIG points to each TOML
+env -> gate: input
+gate -> systemd: starts when coherent
+systemd -> services: reads at boot
