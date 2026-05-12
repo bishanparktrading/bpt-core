@@ -12,12 +12,12 @@
 environment = "dev"
 exchanges = ["HYPERLIQUID"]
 
-[aeron]
-media_driver_dir = "/dev/shm/aeron-bpt"
+# Shared aeron stream registry — see deploy/config/aeron/streams.toml.
+aeron_config = "../deploy/config/aeron/streams.toml"
 
-[aeron.balance_snapshot]
-channel = "aeron:ipc"
-stream_id = 6001
+[aeron]
+# Fallback only — shared file wins when present.
+media_driver_dir = "/dev/shm/aeron-bpt"
 
 [book]
 # Poll every 5 s. HL rate-limits /info generously; 5 s is comfortably

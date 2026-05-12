@@ -39,6 +39,9 @@ pricer_status    = 4002
 # Analytics → strategy / bridge
 toxicity         = 5001
 
+# Bpt-book → consumers
+balance_snapshot = 6001
+
 # Backtester ↔ strategy
 backtest_ack     = 9001
 backtest_control = 9002

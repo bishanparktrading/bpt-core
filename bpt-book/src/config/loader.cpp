@@ -1,6 +1,7 @@
 #include "book/config/settings.h"
 
 #include <bpt_app/base_settings.h>
+#include <bpt_common/aeron/streams_map.h>
 #include <bpt_common/logging.h>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
@@ -9,23 +10,6 @@
 #include <unordered_set>
 
 namespace bpt::book::config {
-
-namespace {
-
-bpt::common::config::StreamConfig load_stream(const toml::table* t,
-                                              std::string default_channel,
-                                              int32_t default_stream_id) {
-    bpt::common::config::StreamConfig s{std::move(default_channel), default_stream_id};
-    if (!t)
-        return s;
-    if (auto v = (*t)["channel"].value<std::string>())
-        s.channel = *v;
-    if (auto v = (*t)["stream_id"].value<int64_t>())
-        s.stream_id = static_cast<int32_t>(*v);
-    return s;
-}
-
-}  // namespace
 
 Settings load(const std::string& path) {
     toml::table root = toml::parse_file(path);
@@ -58,9 +42,17 @@ Settings load(const std::string& path) {
         bpt::common::log::info("Exchange filter: [{}]", fmt::join(s.exchanges, ", "));
     }
 
-    if (auto* aeron = root["aeron"].as_table()) {
-        s.aeron.balance_snapshot = load_stream((*aeron)["balance_snapshot"].as_table(), "aeron:ipc", 6001);
+    bpt::common::config::AeronStreamMap shared_streams;
+    if (auto v = root["aeron_config"].value<std::string>()) {
+        shared_streams = bpt::common::config::load_shared_streams(*v);
+        bpt::common::log::info("Loaded shared aeron stream map from {} ({} streams)",
+                               *v, shared_streams.stream_ids.size());
+        if (!shared_streams.media_driver_dir.empty())
+            s.base.media_driver_dir = shared_streams.media_driver_dir;
     }
+
+    using bpt::common::config::resolve_stream;
+    s.aeron.balance_snapshot = resolve_stream(shared_streams, "balance_snapshot", 6001);
 
     if (auto* b = root["book"].as_table()) {
         if (auto v = (*b)["poll_interval_ms"].value<int64_t>())
