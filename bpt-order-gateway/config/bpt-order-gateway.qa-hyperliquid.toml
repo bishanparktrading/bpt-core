@@ -3,24 +3,12 @@ environment = "dev"
 exchange_config = "config/exchanges/testnet.toml"
 exchanges = ["HYPERLIQUID"]
 
+# Shared aeron stream registry — see deploy/config/aeron/streams.toml.
+aeron_config = "../deploy/config/aeron/streams.toml"
+
 [aeron]
+# Fallback only — shared file wins when present.
 media_driver_dir = "/dev/shm/aeron-bpt"
-
-[aeron.order]
-channel = "aeron:ipc"
-stream_id = 3001
-
-[aeron.exec_report]
-channel = "aeron:ipc"
-stream_id = 3002
-
-[aeron.heartbeat]
-channel = "aeron:ipc"
-stream_id = 3003
-
-[aeron.account_snapshot]
-channel = "aeron:ipc"
-stream_id = 3004
 
 [order-gateway]
 heartbeat_interval_ms = 1000

@@ -243,21 +243,29 @@ use_tls   = true
     EXPECT_TRUE(a.use_tls);
 }
 
-// ── Custom stream IDs ─────────────────────────────────────────────────────────
+// ── Custom stream IDs via shared streams.toml ─────────────────────────────────
 
-TEST(GatewayConfigTest, CustomAeronStreamIds) {
+TEST(GatewayConfigTest, CustomAeronStreamIdsFromSharedRegistry) {
+    // Write the shared registry file alongside the instance config, then
+    // point the instance at it. This is the only override path post-migration.
+    auto streams_path = fs::temp_directory_path() / "ogw_test_streams.toml";
+    {
+        std::ofstream f(streams_path);
+        f << R"([aeron]
+media_driver_dir = "/tmp/aeron-test"
+
+[streams]
+order            = 5001
+exec_report      = 5002
+heartbeat        = 5003
+account_snapshot = 5004
+)";
+    }
+
     auto path = write_toml(R"(
 environment = "dev"
 exchanges = []
-
-[aeron.order]
-stream_id = 5001
-
-[aeron.exec_report]
-stream_id = 5002
-
-[aeron.heartbeat]
-stream_id = 5003
+aeron_config = ")" + streams_path.string() + R"("
 )");
 
     auto s = bpt::order_gateway::config::load(path.string());
@@ -265,6 +273,8 @@ stream_id = 5003
     EXPECT_EQ(s.aeron.order.stream_id, 5001);
     EXPECT_EQ(s.aeron.exec_report.stream_id, 5002);
     EXPECT_EQ(s.aeron.heartbeat.stream_id, 5003);
+    EXPECT_EQ(s.aeron.account_snapshot.stream_id, 5004);
+    EXPECT_EQ(s.base.media_driver_dir, "/tmp/aeron-test");
 }
 
 // ── Error handling ────────────────────────────────────────────────────────────
