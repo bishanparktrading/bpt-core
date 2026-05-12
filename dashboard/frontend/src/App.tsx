@@ -5,7 +5,6 @@ import { PositionPanel } from './components/PositionPanel'
 import { RiskPanel } from './components/RiskPanel'
 import { Blotter } from './components/Blotter'
 import type { MockFill } from './mock/replay'
-import { PriceChart } from './components/PriceChart'
 import { EquityChart } from './components/EquityChart'
 import { HaltedBanner } from './components/HaltedBanner'
 import { OpenOrdersPanel } from './components/OpenOrdersPanel'
@@ -18,6 +17,7 @@ import { VolTermStructure } from './components/VolTermStructure'
 import { RiskLimitsPanel, MOCK_LIMITS } from './components/RiskLimitsPanel'
 import { ToxicityPanel } from './components/ToxicityPanel'
 import { STRATEGY_PANELS, GenericStrategyPanel } from './components/panels'
+import { STRATEGY_CHARTS, DefaultChart } from './components/charts'
 import { startMockReplay } from './mock/replay'
 import { connectWebSocket } from './ws/client'
 import { useStore } from './store'
@@ -254,8 +254,6 @@ export default function App() {
   const storeGreeks = useStore((s) => s.portfolioGreeks)
   const storeSurface = useStore((s) => s.volSurface)
   const price = useStore((s) => s.price)
-  const symbol = useStore((s) => s.symbol)
-  const exchange = useStore((s) => s.exchange)
   const strategyState = useStore((s) => s.strategyState)
 
   const hasLiveOptions = storeLegs.length > 0
@@ -277,19 +275,21 @@ export default function App() {
       })()
     : <GenericStrategyPanel state={null} />
 
+  // Per-strategy main chart. AS keeps the candlestick PriceChart;
+  // FundingArb gets the dual-leg DualLegChart. Unknown kinds default
+  // to PriceChart (works for any single-instrument feed).
+  function MainChart() {
+    const Chart = strategyState ? (STRATEGY_CHARTS[strategyState.kind] ?? DefaultChart) : DefaultChart
+    return <Chart />
+  }
+
   return (
     <div className={`shell ${showOptions ? 'shell--options' : ''}`}>
       <TopBar />
       <HaltedBanner />
 
       <div className="main-row">
-        <div className="panel">
-          <div className="panel-header">
-            <span className="panel-title">{symbol ? `${symbol} · 1m` : '— · 1m'}</span>
-            <span className="panel-badge">{exchange || '—'}</span>
-          </div>
-          <PriceChart />
-        </div>
+        <MainChart />
 
         <div className={`right-col ${showOptions ? 'right-col--options' : ''}`}>
           {showOptions ? <GreeksPanel greeks={optGreeks} /> : <PositionPanel />}

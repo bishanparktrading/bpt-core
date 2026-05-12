@@ -39,6 +39,8 @@ const CHART_THEME = {
 export function PriceChart() {
   const fills = useStore((s) => s.fills)
   const candles = useStore((s) => s.candles)
+  const symbol = useStore((s) => s.symbol)
+  const exchange = useStore((s) => s.exchange)
   // Quote/reservation overlays are AS-specific (resting maker orders +
   // reservation price). Narrow to AS so other strategies don't render
   // meaningless overlay lines and TS catches the field-access mismatch
@@ -246,5 +248,13 @@ export function PriceChart() {
     })
   }, [strat])
 
-  return <div className="chart-host" ref={hostRef} />
+  return (
+    <div className="panel">
+      <div className="panel-header">
+        <span className="panel-title">{symbol ? `${symbol} · 1m` : '— · 1m'}</span>
+        <span className="panel-badge">{exchange || '—'}</span>
+      </div>
+      <div className="chart-host" ref={hostRef} />
+    </div>
+  )
 }
