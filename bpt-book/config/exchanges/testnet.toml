@@ -9,4 +9,4 @@ rest_host      = "api.hyperliquid-testnet.xyz"
 rest_port      = "443"
 # Public address — safe to commit. For mainnet / multiple accounts
 # this would move to a secret to avoid accidental mix-ups.
-wallet_address = "0x87b8D67Dd5B4aF939F6c53b18a711BF2654c4d9d"
+wallet_address = "0x0000000000000000000000000000000000000001"

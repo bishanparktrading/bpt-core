@@ -89,7 +89,7 @@ resource "aws_security_group" "monitor" {
     Name      = "bpt-monitor-sg"
     Role      = "monitor"
     Env       = "prod"
-    Owner     = "jseow"
+    Owner     = "trading"
     ManagedBy = "terraform-monitoring-host"
   }
 }
@@ -221,7 +221,7 @@ resource "aws_instance" "monitor" {
     Name      = "bpt-monitor-tokyo-01"
     Role      = "monitor"
     Env       = "prod"
-    Owner     = "jseow"
+    Owner     = "trading"
     ManagedBy = "terraform-monitoring-host"
   }
 }
@@ -236,7 +236,7 @@ resource "aws_ebs_volume" "data" {
     Name      = "bpt-monitor-data"
     Role      = "monitor-data"
     Env       = "prod"
-    Owner     = "jseow"
+    Owner     = "trading"
     ManagedBy = "terraform-monitoring-host"
   }
 }
@@ -258,7 +258,7 @@ resource "aws_eip" "monitor" {
     Name      = "bpt-monitor-eip"
     Role      = "monitor"
     Env       = "prod"
-    Owner     = "jseow"
+    Owner     = "trading"
     ManagedBy = "terraform-monitoring-host"
   }
 }

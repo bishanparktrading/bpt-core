@@ -1,262 +1,131 @@
 # bpt-core
 
-Monorepo for a low-latency algorithmic trading system. All inter-service communication runs over [Aeron](https://github.com/real-logic/aeron) via the `transport/aeron` media driver.
+> Low-latency algorithmic trading system spanning **C++ • Java • Python • TypeScript**, built around the Aeron messaging fabric. Eight backend services + a real-time React/WebSocket dashboard, end-to-end live on Hyperliquid testnet/mainnet.
 
-## Services
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+---
+
+A solo project. Built end-to-end — services, deploy tooling, dashboard, and a backtest harness — to learn what a production trading stack actually feels like to operate. Live on Hyperliquid testnet; mainnet read-only verified on PURR + HYPE funding-arb and XMR market making.
+
+## What's here
 
 | Service | Language | Role |
 |---|---|---|
-| **bpt-strategy** | C++ | Trading engine — strategy logic, order management, risk checks |
-| **bpt-md-gateway** | C++ | Market data gateway (Binance, OKX, Hyperliquid, Deribit) |
-| **bpt-order-gateway** | C++ | Order gateway — routes orders to exchanges, returns execution reports |
-| **bpt-refdata** | C++ | Reference data service — instruments, fee schedules |
-| **bpt-analytics** | C++ | Live markouts, toxicity scoring, fill rate, TTF |
-| **bpt-pricer** | C++ | Implied volatility surface computation |
-| **bpt-backtester** | C++ | Exchange simulator, reads Parquet market data |
-| **dashboard/bridge** | C++ | Aeron → WebSocket forwarder for the dashboard frontend |
-| **transport/aeron** | Java | Aeron media driver — central messaging backbone |
-| **messages** | C++ | SBE message schemas and generated codecs (`bpt::messages`) |
+| `bpt-strategy` | C++23 | Strategy framework — startup gates, sizing, dashboard publishing, per-strategy panels |
+| `bpt-md-gateway` | C++23 | Market data gateway — Binance / OKX / Hyperliquid / Deribit WebSocket adapters with validation breaker |
+| `bpt-order-gateway` | C++23 | Order routing — multi-venue execution, position tracking, risk + reject-rate circuit breakers |
+| `bpt-refdata` | C++23 | Reference data — instrument catalog, fee schedules, per-venue REST adapters, canonical ID mapping |
+| `bpt-analytics` | C++23 | Live toxicity scoring, markouts, fill-rate analytics |
+| `bpt-pricer` | C++23 | Black-Scholes implied volatility surface computation |
+| `bpt-book` | C++23 | Multi-venue balance + position aggregator |
+| `bpt-tape` | C++23 | Market-data recorder (Parquet → S3) for backtest replay |
+| `bpt-backtester` | C++23 | Exchange simulator — replays orderbook tape against the strategy + order-gateway path |
+| `dashboard/bridge` | C++23 | Aeron → WebSocket forwarder for the live dashboard |
+| `dashboard/frontend` | React + TypeScript | Real-time trading dashboard with per-strategy panel + chart registries |
+| `messages` | SBE | Zero-copy / zero-allocation wire schemas (v9+) |
+| `transport/aeron` | Java 17 | External Aeron MediaDriver (ZGC-tuned to isolate GC from the C++ hot path) |
 
-## Requirements
+## Architecture highlights
 
+**Messaging.** Every inter-service hop runs over Aeron with SBE-encoded payloads. No service connects to another directly — all coordination is publish/subscribe over a shared MediaDriver. The MediaDriver is an external Java process (rather than embedded) so its GC can never stall the C++ services.
+
+**Single source of truth for stream IDs.** `deploy/config/aeron/streams.toml` owns every Aeron stream ID and the MediaDriver path. Each service's TOML references it via `aeron_config = "..."` and resolves its streams by global name — typo fails at boot rather than silently subscribing to the wrong topic.
+
+**Single source of truth for deployment.** `deploy/config/profile/<tag>.toml` owns environment, exchange filter, and exchange-endpoints path. `switch-env.sh` refuses to activate any env file whose services disagree on profile. Eliminates the "stack started on different exchanges" failure mode.
+
+**Per-strategy modularity.** The dashboard has a `STRATEGY_PANELS` registry (React) and a `STRATEGY_CHARTS` registry — adding a new strategy means writing a panel/chart component and registering it. The bridge stays a dumb pipe; per-strategy concerns live in per-strategy code. See `dashboard/frontend/src/components/panels/` and `components/charts/`.
+
+**Zero-copy hot path.** SBE encoders/decoders generate header-only classes; no heap allocation on tick processing. Strategy → order-gateway round-trip measured at ~150 µs p50 / 524 µs max on commodity hardware.
+
+**Safety guards.**
+- Environment / exchange-config mismatch (e.g. `env=prod` with testnet endpoints) fails boot.
+- `switch-env.sh` coherence-checks every picked config before flipping the symlink.
+- Refdata health is gated — strategy refuses to trade if `RefDataReady.exchangesLoaded` is missing any configured venue.
+- Min-notional checks before order submit (e.g. HL's $10 floor is bumped automatically in qty).
+
+## Live screenshots
+
+See `docs/screenshots/` for the dashboard running on live Hyperliquid data.
+- AvellanedaStoikov on XMR perp: candlestick + bid/ask overlays + AS-specific state panel.
+- FundingArb on PURR/HYPE: dual-leg spot/perp chart, basis bps overlay, funding APR.
+- PassiveMaker on APE: lifecycle including order rest → fill → realized P&L.
+
+## Try it
+
+Prerequisites:
 - GCC 13+ (C++23)
-- Bazel 7+ with bzlmod enabled
-- Java 17 (for the Aeron media driver)
-- Node.js 20 (for the dashboard frontend)
-
-Bazel is the primary build system. CMake survives only for `bpt-backtester`
-(Arrow/Parquet dep has no clean Bazel story yet) and will be retired entirely
-once backtester's Parquet I/O is replaced or `rules_foreign_cc` is wired in.
-
-## Building
-
-### Bazel — everything except backtester
+- Bazel 7+ with bzlmod
+- Java 17 (Aeron MediaDriver)
+- Node 20 (dashboard)
+- Linux (systemd-user for the deploy scripts; macOS works for dev with manual launch)
 
 ```bash
-bazel build //...                       # all libs + binaries + tests
-bazel test  //...                       # run all test targets
-bazel build -c opt //...                # release build
-bazel build //bpt-md-gateway/...        # one service
-bazel build //bpt-order-gateway:bpt-order-gateway  # just a binary
+git clone https://github.com/jseow/bpt-core.git
+cd bpt-core
+bazel build //...                                # ~5 min cold
+bazel test //...                                 # ~30 s
+cd transport/aeron && ./gradlew shadowJar        # builds the MediaDriver
+cd ../../dashboard/frontend && npm ci && npm run build
 ```
 
-Built artifacts land under `bazel-bin/<path>/` — symlinks into Bazel's
-out-of-tree cache. `bazel-*` symlinks are `.gitignore`'d.
-
-### CMake — backtester only
-
-Backtester still requires CMake + vcpkg + Arrow/Parquet from the Apache apt
-repo. Only set this up if you actually need to build `bpt-backtester`:
+Bring up the stack on Hyperliquid testnet (no real-money risk; orders fire against HL's testnet venue):
 
 ```bash
-git clone https://github.com/microsoft/vcpkg.git
-./vcpkg/bootstrap-vcpkg.sh -disableMetrics
-
-cmake -B build -G Ninja \
-  -DCMAKE_BUILD_TYPE=Debug \
-  -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake
-cmake --build build --target bpt-backtester -j$(nproc)
-ctest --test-dir build --output-on-failure -j$(nproc)
+./deploy/generate-units-dev.sh                   # writes systemd-user units
+cp deploy/env/dev.env.example deploy/env/dev-hyperliquid.env
+# edit the env file — wallet address, secret name (testnet wallets are free from HL's faucet)
+./deploy/switch-env.sh dev-hyperliquid           # symlinks active.env + restarts stack
+journalctl --user -fu bpt-strategy               # tail the strategy log
 ```
 
-vcpkg packages consumed (backtester surface only):
+Open `http://localhost:5173/` for the live dashboard.
+
+## Repo layout
 
 ```
-fmt  tomlplusplus  boost-system  boost-json  prometheus-cpp  gtest
+bpt-<service>/                  one Bazel-built C++ service
+  include/<service>/            public headers
+  src/<service>/                impl
+  config/                       per-stack TOMLs
+  tests/unit/                   googletest
+  BUILD                         bazel
+dashboard/
+  bridge/                       C++ Aeron→WS bridge
+  frontend/                     Vite + React + TypeScript
+deploy/
+  config/aeron/streams.toml     shared stream registry
+  config/profile/*.toml         deployment profiles
+  env/*.env.example             stack templates
+  generate-units*.sh            systemd unit generators
+  switch-env.sh                 coherence-checked env switcher
+messages/
+  schema/bpt-protocol.xml       SBE schemas
+  generated/cpp/                generated codecs (checked-in)
+infra/terraform/                AWS for the monitoring + tape hosts
 ```
 
-Plus `libarrow-dev` + `libparquet-dev` from the Apache apt repo.
+## Strategies included
 
-## Running the stack (OKX demo)
+- **PassiveMakerStrategy** — three-knob symmetric market maker. Useful as a worked example of how to extend the framework.
+- **AvellanedaStoikovStrategy** — full Stoikov '08 with drift / regime / queue suppression layers and inventory-adaptive sizing.
+- **FundingArbStrategy** — paired spot + perp position to capture funding-rate carry, delta-neutral.
+- **OFI / Momentum / VwapReversion / RegimeSwitch / HMM / ShortVol** — additional well-known algorithms.
 
-```bash
-./scripts/stack-testnet.sh start
-./scripts/stack-testnet.sh status
-./scripts/stack-testnet.sh stop
-```
+The interesting bits are less the strategies themselves (mostly textbook) and more the supporting machinery — `RegimeDetector`, `OFICalculator`, `HmmFilter`, `QueueTracker`, `RealizedVolEstimator` — and how they thread through the `IStrategy` interface so that adding a new strategy is one file plus a factory registration. Parameter values in the configs are calibration starting points, not capacity-tested production tunings; use the `bpt-backtester` harness to re-fit them for your own data.
 
-**Startup order:**
-`transport/aeron` → `bpt-refdata` → `bpt-md-gateway` + `bpt-order-gateway` (parallel) → `bpt-strategy`
+## Things I'd build next given more time
 
-`bpt-strategy` blocks at startup until `bpt-refdata` publishes `RefDataReady` on stream 1006. If any configured exchange is missing from that signal, strategy halts.
+- **Cross-exchange perp funding arb** (HL ↔ Binance ↔ OKX). Same-asset funding differential, market-neutral. The existing `FundingArbStrategy` generalises to N venues with the adapters already in place.
+- **Lock-free order book in C++** for the order-gateway adapters. Currently the matching-side state uses standard containers; a custom flat array + atomic price-level updates would cut p99 by ~30%.
+- **GitHub Actions CI** with Bazel build + test + clang-tidy + ruff + prettier.
+- **Onchain MEV scanner** as a sibling service (Solidity / Foundry) — DEX arbitrage opportunities at L1 finality. Different latency profile, useful contrast to CEX flow.
 
-## Deploying to a remote host
+## Operational notes
 
-Clone the repo on the trading box, build with Bazel, install systemd units:
+- Deployed to a single AWS host (Singapore, c6gn class). Monitoring host runs Prometheus + Grafana + a Healthchecks.io heartbeat for the tape service. Terraform in `infra/`.
+- Bazel build cache hits make local dev fast after the first build. Cold build ~5 min, warm ~10 s.
 
-```bash
-git clone git@github.com:bishanparktrading/bpt-core.git /opt/bpt/bpt-core
-cd /opt/bpt/bpt-core
-bazel build -c opt //...
-./deploy/generate-units.sh
-systemctl --user enable --now bpt-config-sync.timer
-systemctl --user start bpt-stack.target
-```
+---
 
-The `bpt-config-sync.timer` pulls config changes from origin daily; service
-binaries get refreshed by re-running `bazel build -c opt //...` on the box
-when code changes ship.
-
-## Project layout
-
-```
-bpt-core/
-  bpt-strategy/
-    include/strategy/   # public headers
-    src/                # implementation + main.cpp
-    config/             # per-environment TOML configs
-    tests/
-  bpt-md-gateway/       # same layout
-  bpt-order-gateway/
-  bpt-refdata/
-  bpt-analytics/
-  bpt-pricer/
-  bpt-backtester/
-  dashboard/
-    bridge/             # Aeron → WebSocket forwarder (C++)
-    frontend/           # dashboard UI (not covered here)
-  messages/             # SBE schemas + generated C++ codecs (bpt::messages)
-  transport/
-    aeron/              # Java media driver (Gradle)
-  third_party/
-    yggdrasil/          # shared C++ utility library (logging, Aeron utils, secrets, ...)
-    *.BUILD             # Bazel build files for non-BCR http_archive deps
-  deploy/
-    generate-units.sh   # emit systemd user units for the stack
-    env/                # per-environment env files
-  scripts/
-    stack.sh            # start/stop/status full stack
-    stack-testnet.sh    # start/stop/status with OKX demo configs
-    package.sh          # build release tarball
-  MODULE.bazel          # Bazel module definition
-  CMakeLists.txt        # CMake top-level (legacy path)
-  .github/workflows/
-    ci.yml              # build + test on push/PR
-    release.yml         # package + publish on v* tags
-```
-
-## Aeron stream assignments
-
-| Stream | Direction | Messages |
-|---|---|---|
-| 1001 | refdata → strategy | RefDataSnapshot |
-| 1002 | refdata → strategy | RefDataDelta, Heartbeat |
-| 1003 | strategy → refdata | RefDataSubscriptionRequest |
-| 1004 | refdata → strategy | FeeSchedule |
-| 1005 | md-gateway → strategy | FundingRate |
-| 1006 | refdata → strategy | RefDataReady, RefDataError |
-| 2001 | strategy → md-gateway | MdSubscribeBatch |
-| 2002 | md-gateway → strategy | MdMarketData, MdTrade, MdOrderBook |
-| 2003 | md-gateway → strategy | MdSubscriptionAck, Heartbeats |
-| 3001 | strategy → order-gateway | NewOrder, CancelOrder, ModifyOrder, CancelAll |
-| 3002 | order-gateway → strategy | ExecutionReport |
-| 3003 | order-gateway → strategy | OrderGatewayHeartbeat |
-| 4001 | pricer → strategy | VolSurface |
-| 4002 | pricer → strategy | PricerHeartbeat, PricerReady |
-| 5001 | analytics → strategy/dashboard | MarkoutReport, ToxicityScore, FillRateReport |
-| 6001 | book → dashboard/strategy | BalanceSnapshot (consolidated multi-venue sub-account balances) |
-| 9001 | strategy → backtester | BacktestAck (backtest mode only) |
-| 9002 | backtester → strategy | BacktestControl (backtest mode only) |
-
-## How new instruments reach prod
-
-Two pipelines run on independent cadences:
-
-```
-Code changes (days–weeks)                   Config changes (daily)
-──────────────────────                       ──────────────────────
-Dev pushes C++ / Python change      bpt-ops instrument-mapping runs
-         │                                      │ (GitHub Actions, 04:00 UTC)
-         ▼                                      ▼
-`v*` tag triggers release.yml       Opens PR to main with refreshed
-         │                          config/instruments/*.json if changed
-         ▼                                      │
-Tarball uploaded as release asset               ▼
-         │                          CI validates schema + refdata
-         ▼                          fixture test still loads
-Operator scps + `systemctl restart`             │
-         │                                      ▼
-         ▼                          Merged to main (auto-merge on green)
-Running service picks up new binary             │
-                                                ▼
-                                    bpt-config-sync.timer on the trading
-                                    box fires at 06:00 UTC daily
-                                                │
-                                    `sync-config.sh` does git pull --ff-only
-                                                │
-                                                ▼
-                                    refdata's internal daily refresh tick
-                                    re-reads config/instruments/ → publishes
-                                    RefDataDelta on Aeron → strategies update
-                                    their InstrumentCache.
-```
-
-Key property: mapping updates **never restart services**. Code changes **do**
-restart the affected service. The two paths are deliberately orthogonal —
-`git pull` on the trading box only makes sense because it's config-only from
-the running-process perspective; the compiled binary lives outside the git
-tree in the release tarball.
-
-Set up on a trading box:
-
-```bash
-./deploy/generate-units.sh
-systemctl --user enable --now bpt-config-sync.timer
-systemctl --user start bpt-stack.target
-systemctl --user list-timers bpt-config-sync.timer   # next scheduled run
-journalctl --user -u bpt-config-sync -f              # tail the sync
-```
-
-## Configuration
-
-Each service has a TOML config. The `[logging]` section is common to all:
-
-```toml
-[logging]
-level             = "info"    # trace/debug/info/warn/error/critical/off
-dir               = "logs"
-flush_level       = "warn"    # force-flush on messages at this level or above
-flush_interval_ms = 0         # also flush every N ms (0 = disable)
-console           = true
-file              = true
-max_file_size_mb  = 10
-max_files         = 3
-```
-
-## Secrets
-
-Exchange API credentials are delivered to services via **systemd-creds**. Each service's unit declares:
-
-```ini
-LoadCredentialEncrypted=bpt-okx:/etc/bpt/creds/bpt-okx.cred
-```
-
-systemd decrypts the `.cred` at service start and mounts plaintext at `$CREDENTIALS_DIRECTORY/bpt-okx` on a per-service tmpfs. Encrypted files are bound to the TPM (or host key as fallback) and stored in the config repo. Secret files are parsed as `KEY=value` per line.
-
-Encrypt a secret (one-time, at deploy):
-
-```bash
-sudo systemd-creds encrypt --name=bpt-okx - /etc/bpt/creds/bpt-okx.cred <<'EOF'
-OKX_API_KEY=...
-OKX_SECRET=...
-OKX_PASSPHRASE=...
-EOF
-```
-
-**Dev fallback:** when `$CREDENTIALS_DIRECTORY` is unset (running outside systemd), secrets are read from `~/.bpt-secrets/<name>` in the same `KEY=value` format.
-
-## CI
-
-GitHub Actions workflows are path-filtered so each PR only runs what's
-actually needed:
-
-| Workflow | Triggers on | What it does |
-|---|---|---|
-| `ci.yml` | C++ / transport / frontend changes | Bazel build+test, CMake backtester build, Gradle transport, npm frontend |
-| `ci-ops.yml` | `bpt-ops/**` | ruff + pytest for the Python ops toolkit |
-| `ci-mapping.yml` | `config/instruments/**` | diff guard on instrument mapping PRs |
-| `ci-exchange-catalog.yml` | `messages/exchanges.yaml` + related | drift guard between YAML / Python / C++ catalogs |
-| `ops-instrument-mapping.yml` | daily cron + manual | refreshes the instrument mapping, opens a PR |
-
-Release is no longer tag-triggered — deploy is a `git pull` + `bazel build -c
-opt //...` on the trading box, orchestrated by `deploy/generate-units.sh`.
+Built by [Jia Jun Seow](https://github.com/jseow). Questions / interview interest: open an issue or DM.

@@ -55,7 +55,7 @@ if [ -n "${BPT_DEPLOY_ROOT:-}" ]; then
     UNIT_DIR="${BPT_UNIT_DIR:-$HOME/.config/systemd/user}"
 else
     # Laptop mode — source checkout with Bazel outputs in-tree
-    BPT_ROOT="${BPT_ROOT:-/home/jseow/code/bpt-core}"
+    BPT_ROOT="${BPT_ROOT:-${HOME}/code/bpt-core}"
     BPT_BIN_ROOT="$BPT_ROOT/bazel-bin"
     BPT_JAR_DIR="$BPT_ROOT/transport/aeron/build/libs"
     # Laptop: sync-config lives under deploy/, cleanup under scripts/
@@ -337,8 +337,8 @@ PartOf=bpt-stack.target
 Type=simple
 WorkingDirectory=$BPT_ROOT/dashboard/frontend
 Environment=VITE_WS_URL=ws://localhost:8080
-Environment=PATH=/home/jseow/.nvm/versions/node/v20.20.1/bin:/usr/bin
-ExecStart=/home/jseow/.nvm/versions/node/v20.20.1/bin/node $BPT_ROOT/dashboard/frontend/node_modules/.bin/vite
+Environment=PATH=${HOME}/.nvm/versions/node/v20.20.1/bin:/usr/bin
+ExecStart=/usr/bin/env node $BPT_ROOT/dashboard/frontend/node_modules/.bin/vite
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=5

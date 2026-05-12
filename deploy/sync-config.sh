@@ -16,7 +16,7 @@
 # that blocks the pull — which is what fires the systemd OnFailure= action.
 set -euo pipefail
 
-BPT_ROOT="${BPT_ROOT:-/home/jseow/code/bpt-core}"
+BPT_ROOT="${BPT_ROOT:-${HOME}/code/bpt-core}"
 BRANCH="${BPT_SYNC_BRANCH:-main}"
 
 log() { printf '[sync-config] %s\n' "$*"; }

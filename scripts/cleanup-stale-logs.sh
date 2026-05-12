@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-BPT_ROOT="${BPT_ROOT:-/home/jseow/code/bpt-core}"
+BPT_ROOT="${BPT_ROOT:-${HOME}/code/bpt-core}"
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
 
 LOG_DIRS=(

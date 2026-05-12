@@ -14,7 +14,7 @@
 #      equivalent only makes sense for unattended prod hosts.
 set -euo pipefail
 
-BPT_ROOT="/home/jseow/code/bpt-core"
+BPT_ROOT="${HOME}/code/bpt-core"
 UNIT_DIR="$HOME/.config/systemd/user"
 ENV_FILE="$BPT_ROOT/deploy/env/dev.env"
 
