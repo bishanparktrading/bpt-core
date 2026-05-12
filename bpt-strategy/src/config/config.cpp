@@ -1,6 +1,8 @@
 #include "strategy/config/config.h"
 
 #include <bpt_app/base_settings.h>
+#include <bpt_common/aeron/streams_map.h>
+#include <bpt_common/logging.h>
 #include <filesystem>
 #include <fmt/format.h>
 #include <stdexcept>
@@ -8,23 +10,6 @@
 
 namespace bpt::strategy {
 namespace config {
-
-namespace {
-
-bpt::common::config::StreamConfig load_stream(const toml::table* t,
-                                              std::string default_channel,
-                                              int32_t default_stream_id) {
-    bpt::common::config::StreamConfig s{std::move(default_channel), default_stream_id};
-    if (!t)
-        return s;
-    if (auto v = (*t)["channel"].value<std::string>())
-        s.channel = *v;
-    if (auto v = (*t)["stream_id"].value<int64_t>())
-        s.stream_id = static_cast<int32_t>(*v);
-    return s;
-}
-
-}  // namespace
 
 AppConfig AppConfig::load(const std::string& path) {
     AppConfig app_cfg;
@@ -38,30 +23,36 @@ AppConfig AppConfig::load(const std::string& path) {
 
     bpt::app::load_base_settings(cfg, app_cfg.base);
 
-    const auto* a = cfg["aeron"].as_table();
-    if (!a)
-        throw std::runtime_error("Missing 'aeron' block in config");
+    bpt::common::config::AeronStreamMap shared_streams;
+    if (auto v = cfg["aeron_config"].value<std::string>()) {
+        shared_streams = bpt::common::config::load_shared_streams(*v);
+        bpt::common::log::info("Loaded shared aeron stream map from {} ({} streams)",
+                               *v, shared_streams.stream_ids.size());
+        if (!shared_streams.media_driver_dir.empty())
+            app_cfg.base.media_driver_dir = shared_streams.media_driver_dir;
+    }
 
-    app_cfg.aeron.refdata_control = load_stream((*a)["refdata_control"].as_table(), "aeron:ipc", 1003);
-    app_cfg.aeron.refdata_snapshot = load_stream((*a)["refdata_snapshot"].as_table(), "aeron:ipc", 1001);
-    app_cfg.aeron.refdata_delta = load_stream((*a)["refdata_delta"].as_table(), "aeron:ipc", 1002);
-    app_cfg.aeron.fee_schedule = load_stream((*a)["fee_schedule"].as_table(), "aeron:ipc", 1004);
-    app_cfg.aeron.funding_rate = load_stream((*a)["funding_rate"].as_table(), "aeron:ipc", 1005);
-    app_cfg.aeron.refdata_status = load_stream((*a)["refdata_status"].as_table(), "aeron:ipc", 1006);
-    app_cfg.aeron.md_control = load_stream((*a)["md_control"].as_table(), "aeron:ipc", 0);
-    app_cfg.aeron.md_data = load_stream((*a)["md_data"].as_table(), "aeron:ipc", 0);
-    app_cfg.aeron.md_ack_hb = load_stream((*a)["md_ack_hb"].as_table(), "aeron:ipc", 0);
-    app_cfg.aeron.order = load_stream((*a)["order"].as_table(), "aeron:ipc", 0);
-    app_cfg.aeron.exec_report = load_stream((*a)["exec_report"].as_table(), "aeron:ipc", 0);
-    app_cfg.aeron.heartbeat = load_stream((*a)["heartbeat"].as_table(), "aeron:ipc", 0);
-    app_cfg.aeron.account_snapshot = load_stream((*a)["account_snapshot"].as_table(), "aeron:ipc", 0);
-    app_cfg.aeron.vol_surface = load_stream((*a)["vol_surface"].as_table(), "aeron:ipc", 0);
-    app_cfg.aeron.pricer_status = load_stream((*a)["pricer_status"].as_table(), "aeron:ipc", 0);
-    app_cfg.aeron.toxicity = load_stream((*a)["toxicity"].as_table(), "aeron:ipc", 0);
-    app_cfg.aeron.backtest_control = load_stream((*a)["backtest_control"].as_table(), "aeron:ipc", 9002);
-    app_cfg.aeron.backtest_ack = load_stream((*a)["backtest_ack"].as_table(), "aeron:ipc", 9001);
-    app_cfg.aeron.dashboard_control = load_stream((*a)["dashboard_control"].as_table(), "aeron:ipc", 9003);
-    app_cfg.aeron.dashboard_snapshot = load_stream((*a)["dashboard_snapshot"].as_table(), "aeron:ipc", 9004);
+    using bpt::common::config::resolve_stream;
+    app_cfg.aeron.refdata_control   = resolve_stream(shared_streams, "refdata_control",   1003);
+    app_cfg.aeron.refdata_snapshot  = resolve_stream(shared_streams, "refdata_snapshot",  1001);
+    app_cfg.aeron.refdata_delta     = resolve_stream(shared_streams, "refdata_delta",     1002);
+    app_cfg.aeron.fee_schedule      = resolve_stream(shared_streams, "fee_schedule",      1004);
+    app_cfg.aeron.funding_rate      = resolve_stream(shared_streams, "funding_rate",      1005);
+    app_cfg.aeron.refdata_status    = resolve_stream(shared_streams, "refdata_status",    1006);
+    app_cfg.aeron.md_control        = resolve_stream(shared_streams, "md_control",        0);
+    app_cfg.aeron.md_data           = resolve_stream(shared_streams, "md_data",           0);
+    app_cfg.aeron.md_ack_hb         = resolve_stream(shared_streams, "md_ack_hb",         0);
+    app_cfg.aeron.order             = resolve_stream(shared_streams, "order",             0);
+    app_cfg.aeron.exec_report       = resolve_stream(shared_streams, "exec_report",       0);
+    app_cfg.aeron.heartbeat         = resolve_stream(shared_streams, "heartbeat",         0);
+    app_cfg.aeron.account_snapshot  = resolve_stream(shared_streams, "account_snapshot",  0);
+    app_cfg.aeron.vol_surface       = resolve_stream(shared_streams, "vol_surface",       0);
+    app_cfg.aeron.pricer_status     = resolve_stream(shared_streams, "pricer_status",     0);
+    app_cfg.aeron.toxicity          = resolve_stream(shared_streams, "toxicity",          0);
+    app_cfg.aeron.backtest_control  = resolve_stream(shared_streams, "backtest_control",  9002);
+    app_cfg.aeron.backtest_ack      = resolve_stream(shared_streams, "backtest_ack",      9001);
+    app_cfg.aeron.dashboard_control = resolve_stream(shared_streams, "dashboard_control", 9003);
+    app_cfg.aeron.portfolio         = resolve_stream(shared_streams, "portfolio",         9004);
 
     const auto* f = cfg["fenrir"].as_table();
     if (!f)

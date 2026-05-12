@@ -86,8 +86,8 @@ StrategyBus StrategyAeronBus::build(std::shared_ptr<aeron::Aeron> aeron, const c
 
     if (!cfg.backtest_mode) {
         bus.portfolio_snap = std::make_unique<dashboard::PortfolioSnapshotPublisher>(aeron,
-                                                                                     ac.dashboard_snapshot.channel,
-                                                                                     ac.dashboard_snapshot.stream_id);
+                                                                                     ac.portfolio.channel,
+                                                                                     ac.portfolio.stream_id);
     }
 
     return bus;

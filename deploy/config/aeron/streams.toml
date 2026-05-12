@@ -32,12 +32,20 @@ exec_report      = 3002
 heartbeat        = 3003
 account_snapshot = 3004
 
-# Analytics → bridge
+# Pricer → strategy
+vol_surface      = 4001
+pricer_status    = 4002
+
+# Analytics → strategy / bridge
 toxicity         = 5001
 
-# Bridge / backtester
-portfolio        = 9004
-backtest_control = 9003
+# Backtester ↔ strategy
+backtest_ack     = 9001
+backtest_control = 9002
+
+# Bridge ↔ strategy
+dashboard_control = 9003   # bridge → strategy (kill-switch)
+portfolio         = 9004   # strategy → bridge (portfolio snapshot)
 
 [channels]
 # Per-stream channel override. Default for everything is "aeron:ipc"

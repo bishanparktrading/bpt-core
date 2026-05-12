@@ -45,7 +45,7 @@ struct AeronConfig {
     // Dashboard control (optional — stream_id 0 disables; bridge → Strategy)
     bpt::common::config::StreamConfig dashboard_control{"aeron:ipc", 9003};
     // Portfolio snapshot (optional — Strategy → bridge; published every ~100ms)
-    bpt::common::config::StreamConfig dashboard_snapshot{"aeron:ipc", 9004};
+    bpt::common::config::StreamConfig portfolio{"aeron:ipc", 9004};
 };
 
 // Per-venue execution parameters.

@@ -1,0 +1,77 @@
+# Strategy params — BACKTEST mode, PassiveMakerStrategy on HL APE.
+#
+# Calibrated for APE-perp's actual market microstructure (5.5 bps median
+# spread, ~275 trades/day, 4500 ob updates/day):
+#   - half_spread_bps = 15  → quote 30 bps wide, well outside the 6 bps natural
+#                              spread. Captures large directional moves on the
+#                              tail of the spread distribution.
+#   - requote_threshold_bps = 50  → only requote when fair value moves >50 bps.
+#                              On APE that's ~3-5× per day, vs AS's 3000+ reprices.
+#   - inventory_penalty = 0.0001  → each unit long shifts r down by $0.0001.
+#                              At qty_per_quote=50 / max_inventory=500, the
+#                              skew at full inventory ≈ 5 bps of $0.16 mid.
+
+[fenrir.strategy]
+type = "PassiveMakerStrategy"
+enabled = true
+instruments = ["AAVE/USD:PERPETUAL"]
+md_exchanges = ["HYPERLIQUID"]
+
+[fenrir.strategy.venue_exec.HYPERLIQUID]
+enabled = true
+latency_budget_us = 5000
+order_type = "LIMIT"
+tif = "GTC"               # GTC LIMIT → translated to Alo (POST_ONLY) by HL adapter
+max_retries = 3
+
+[fenrir.strategy.risk]
+max_position_usd = 1000.0
+max_order_size_usd = 100.0
+max_daily_loss_usd = 200.0
+max_open_orders = 10
+
+[fenrir.strategy.schedule]
+require_refdata_ready = true
+md_staleness_threshold_ms = 10000
+max_refdata_staleness_ns = 300000000000
+configured_exchanges = ["HYPERLIQUID"]
+
+[fenrir.strategy.params]
+# Core knobs — three params define the strategy.
+half_spread_bps        = 25.0
+requote_threshold_bps  = 50.0
+inventory_penalty      = 0.0001
+
+# Sizing.
+qty_per_quote          = 50      # APE per side (~$8 notional at $0.16)
+max_inventory          = 500     # ~$80 notional max long or short
+
+# ── Linear vol scaling (legacy path) ────────────────────────────────
+# Disabled when regime_gating_enabled=true. Kept available for A/B vs
+# the regime classifier. mult=0 → no scaling.
+spread_vol_mult        = 0.0
+requote_vol_mult       = 0.0
+vol_window_size        = 60
+vol_sample_interval_ms = 1000.0
+
+# ── Regime classifier (primary gate) ────────────────────────────────
+# 2-axis: realized vol × trend strength. CHOPPY = high vol + low trend
+# = pause. Empirically separates the 6 APE days into the 3 winners
+# (04-25, 04-27, 05-08) and 3 losers (05-05/06/07).
+regime_gating_enabled       = true
+# Longer window: 60 samples × 10s = 10-minute lookback. Captures
+# day-scale trend rather than minute-scale wiggle. The first attempt with
+# a 60s window pinned 04-25 (big winning trend day) as CHOPPY because
+# minute-level retracements kept dipping the trend_z below threshold.
+regime_window_size          = 60       # 60 samples
+regime_sample_interval_ms   = 10000.0  # 10-second nominal → 10min window
+regime_quiet_vol_bps_per_min = 5.0
+regime_trend_threshold_z    = 0.5      # lowered from 1.0 — trending days
+                                       # have z fluctuating around 0.5–2.0
+regime_chop_cooldown_s      = 30.0     # shorter hysteresis
+
+# Volatility gate — hard halt during flash moves. Different from the
+# scaling above: this is a step-function pause, not a continuous widen.
+vol_gate_max_bps    = 100.0
+vol_gate_window_ms  = 1000
+vol_gate_halt_ms    = 0

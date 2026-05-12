@@ -4,7 +4,7 @@
 
 environment    = "dev"
 backtest_mode  = true
-strategy_config = "strategies/avellaneda_stoikov.backtest-xmr.toml"
+strategy_config = "strategies/regime_switch.backtest.toml"
 
 # Shared aeron stream registry — see deploy/config/aeron/streams.toml.
 aeron_config = "../deploy/config/aeron/streams.toml"
@@ -17,4 +17,4 @@ media_driver_dir = "/dev/shm/aeron-bpt"
 correlation_id = 1006
 
 [metrics]
-port = 9104
+port = 9134
