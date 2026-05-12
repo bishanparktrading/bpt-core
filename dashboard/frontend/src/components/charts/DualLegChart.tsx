@@ -32,6 +32,18 @@ const CHART_THEME = {
 // this chart owns the full main-row slot.
 const MAX_POINTS = 3600
 
+// Pick a price-axis precision that fits the magnitude. lightweight-
+// charts defaults to 2 dp (good for stocks); FundingArb commonly runs
+// on long-tail tokens priced under $1 (PURR ~$0.07), where 2 dp
+// flattens the entire chart to one horizontal line.
+function precisionFor(price: number): { precision: number; minMove: number } {
+    if (price <= 0) return { precision: 4, minMove: 0.0001 }
+    if (price >= 1000) return { precision: 2, minMove: 0.01 }
+    if (price >= 1) return { precision: 4, minMove: 0.0001 }
+    if (price >= 0.01) return { precision: 6, minMove: 0.000001 }
+    return { precision: 8, minMove: 0.00000001 }
+}
+
 export function DualLegChart() {
   const strategyState = useStore((s) => s.strategyState)
   // Only render leg history when the active strategy is funding-arb
@@ -45,6 +57,7 @@ export function DualLegChart() {
   const perpRef = useRef<ISeriesApi<'Line'> | null>(null)
   const lastTsRef = useRef<number>(0)
   const pointCountRef = useRef<number>(0)
+  const precisionSetRef = useRef<boolean>(false)
 
   useEffect(() => {
     if (!hostRef.current) return
@@ -107,6 +120,18 @@ export function DualLegChart() {
     const spot = spotRef.current
     const perp = perpRef.current
     if (!spot || !perp) return
+
+    // First-frame: derive price-axis precision from the spot mid so
+    // the chart shows enough decimals for low-priced tokens (PURR at
+    // $0.07 needs 6 dp to surface the basis). Set once on each series
+    // — lightweight-charts honours the format for the whole y-axis.
+    if (!precisionSetRef.current && fa.spotPx > 0) {
+      const fmt = precisionFor(fa.spotPx)
+      spot.applyOptions({ priceFormat: { type: 'price', ...fmt } })
+      perp.applyOptions({ priceFormat: { type: 'price', ...fmt } })
+      precisionSetRef.current = true
+    }
+
     let ts = Math.floor(Date.now() / 1000)
     if (ts <= lastTsRef.current) ts = lastTsRef.current + 1
     lastTsRef.current = ts
