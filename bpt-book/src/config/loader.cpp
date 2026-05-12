@@ -2,6 +2,7 @@
 
 #include <bpt_app/base_settings.h>
 #include <bpt_common/aeron/streams_map.h>
+#include <bpt_common/config/profile_config.h>
 #include <bpt_common/logging.h>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
@@ -14,14 +15,25 @@ namespace bpt::book::config {
 Settings load(const std::string& path) {
     toml::table root = toml::parse_file(path);
 
-    // Match OG's pattern: shared exchange_config file holds per-adapter
-    // endpoints + secret_name; the instance file narrows via an
-    // `exchanges = [...]` filter.
-    std::string exchange_config_path;
-    toml::array adapters_arr;
-    if (auto v = root["exchange_config"].value<std::string>()) {
+    bpt::common::config::ProfileConfig profile;
+    bool have_profile = false;
+    if (auto v = root["profile_config"].value<std::string>()) {
+        profile = bpt::common::config::load_profile_config(*v);
+        have_profile = true;
+        bpt::common::log::info("Loaded deployment profile from {} (env={}, exchanges=[{}])",
+                               *v,
+                               bpt::common::to_string(profile.environment),
+                               fmt::join(profile.exchanges, ", "));
+        if (!root.contains("environment"))
+            root.insert("environment", std::string(bpt::common::to_string(profile.environment)));
+    }
+
+    std::string exchange_config_path = profile.exchange_config;
+    if (auto v = root["exchange_config"].value<std::string>())
         exchange_config_path = *v;
-        toml::table exchange = toml::parse_file(*v);
+    toml::array adapters_arr;
+    if (!exchange_config_path.empty()) {
+        toml::table exchange = toml::parse_file(exchange_config_path);
         if (auto* arr = exchange["adapters"].as_array())
             adapters_arr = *arr;
     } else if (auto* arr = root["adapters"].as_array()) {
@@ -39,8 +51,13 @@ Settings load(const std::string& path) {
             if (auto v = elem.value<std::string>())
                 exchange_filter.insert(*v);
         s.exchanges = {exchange_filter.begin(), exchange_filter.end()};
-        bpt::common::log::info("Exchange filter: [{}]", fmt::join(s.exchanges, ", "));
+    } else if (have_profile) {
+        for (const auto& ex : profile.exchanges)
+            exchange_filter.insert(ex);
+        s.exchanges = profile.exchanges;
     }
+    if (!s.exchanges.empty())
+        bpt::common::log::info("Exchange filter: [{}]", fmt::join(s.exchanges, ", "));
 
     bpt::common::config::AeronStreamMap shared_streams;
     if (auto v = root["aeron_config"].value<std::string>()) {
