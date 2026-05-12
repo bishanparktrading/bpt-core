@@ -33,18 +33,19 @@ Settings load(const std::string& path) {
     if (auto v = root["aeron_config"].value<std::string>()) {
         shared_streams = bpt::common::config::load_shared_streams(*v);
         bpt::common::log::info("Loaded shared aeron stream map from {} ({} streams)",
-                               *v, shared_streams.stream_ids.size());
+                               *v,
+                               shared_streams.stream_ids.size());
         if (!shared_streams.media_driver_dir.empty())
             s.base.media_driver_dir = shared_streams.media_driver_dir;
     }
 
     using bpt::common::config::resolve_stream;
-    s.md_data          = resolve_stream(shared_streams, "md_data",          2002);
+    s.md_data = resolve_stream(shared_streams, "md_data", 2002);
     s.refdata_snapshot = resolve_stream(shared_streams, "refdata_snapshot", 1001);
-    s.refdata_delta    = resolve_stream(shared_streams, "refdata_delta",    1002);
-    s.refdata_control  = resolve_stream(shared_streams, "refdata_control",  1003);
-    s.vol_surface      = resolve_stream(shared_streams, "vol_surface",      4001);
-    s.pricer_status    = resolve_stream(shared_streams, "pricer_status",    4002);
+    s.refdata_delta = resolve_stream(shared_streams, "refdata_delta", 1002);
+    s.refdata_control = resolve_stream(shared_streams, "refdata_control", 1003);
+    s.vol_surface = resolve_stream(shared_streams, "vol_surface", 4001);
+    s.pricer_status = resolve_stream(shared_streams, "pricer_status", 4002);
 
     if (auto* arr = root["exchanges"].as_array()) {
         for (auto& elem : *arr)

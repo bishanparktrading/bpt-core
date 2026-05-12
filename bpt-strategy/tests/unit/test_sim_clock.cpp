@@ -67,6 +67,7 @@ TEST_F(SimClockTest, ConcurrentReadersSeeConsistentValue) {
             }
         });
     }
-    for (auto& t : ts) t.join();
+    for (auto& t : ts)
+        t.join();
     EXPECT_TRUE(ok.load());
 }

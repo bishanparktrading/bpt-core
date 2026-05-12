@@ -62,12 +62,9 @@ port = 9105
     EXPECT_EQ(s.simulation.end, "2026-01-31T23:59:59Z");
     EXPECT_FALSE(s.simulation.allow_partial_data);
     // Legacy ms fields parse forward into per-venue submit_to_match_base_ns.
-    EXPECT_EQ(s.simulation.latency.per_venue["OKX"].submit_to_match_base_ns,
-              2 * 1'000'000ULL);
-    EXPECT_EQ(s.simulation.latency.per_venue["HYPERLIQUID"].submit_to_match_base_ns,
-              200 * 1'000'000ULL);
-    EXPECT_EQ(s.simulation.latency.per_venue["HYPERLIQUID"].submit_to_match_jitter_ns,
-              50 * 1'000'000ULL);
+    EXPECT_EQ(s.simulation.latency.per_venue["OKX"].submit_to_match_base_ns, 2 * 1'000'000ULL);
+    EXPECT_EQ(s.simulation.latency.per_venue["HYPERLIQUID"].submit_to_match_base_ns, 200 * 1'000'000ULL);
+    EXPECT_EQ(s.simulation.latency.per_venue["HYPERLIQUID"].submit_to_match_jitter_ns, 50 * 1'000'000ULL);
 
     EXPECT_EQ(s.data.local_cache, "/opt/bpt/data/backtest-cache");
 
@@ -129,9 +126,9 @@ end   = "2026-01-01T23:59:59Z"
     auto s = bpt::backtester::config::load(path.string());
     ASSERT_EQ(s.simulation.windows.size(), 1u);
     EXPECT_EQ(s.simulation.windows[0].start, "2026-01-01T00:00:00Z");
-    EXPECT_EQ(s.simulation.windows[0].end,   "2026-01-01T23:59:59Z");
+    EXPECT_EQ(s.simulation.windows[0].end, "2026-01-01T23:59:59Z");
     EXPECT_EQ(s.simulation.start, "2026-01-01T00:00:00Z");
-    EXPECT_EQ(s.simulation.end,   "2026-01-01T23:59:59Z");
+    EXPECT_EQ(s.simulation.end, "2026-01-01T23:59:59Z");
 }
 
 TEST(BacktesterConfigTest, ParsesMultipleWindows) {
@@ -153,7 +150,7 @@ end   = "2026-01-01T14:00:00Z"
     EXPECT_EQ(s.simulation.windows[0].start, "2026-01-01T13:00:00Z");
     EXPECT_EQ(s.simulation.windows[1].start, "2026-01-03T13:00:00Z");
     EXPECT_EQ(s.simulation.start, "2026-01-01T13:00:00Z");  // span min
-    EXPECT_EQ(s.simulation.end,   "2026-01-03T14:00:00Z");  // span max
+    EXPECT_EQ(s.simulation.end, "2026-01-03T14:00:00Z");    // span max
 }
 
 TEST(BacktesterConfigTest, RejectsBothTopLevelAndWindowsArray) {
@@ -191,9 +188,9 @@ dates = ["2026-05-08", "2026-05-09"]
     auto s = bpt::backtester::config::load(path.string());
     ASSERT_EQ(s.simulation.windows.size(), 2u);
     EXPECT_EQ(s.simulation.windows[0].start, "2026-05-08T13:00:00Z");
-    EXPECT_EQ(s.simulation.windows[0].end,   "2026-05-08T15:00:00Z");
+    EXPECT_EQ(s.simulation.windows[0].end, "2026-05-08T15:00:00Z");
     EXPECT_EQ(s.simulation.windows[1].start, "2026-05-09T13:00:00Z");
-    EXPECT_EQ(s.simulation.windows[1].end,   "2026-05-09T15:00:00Z");
+    EXPECT_EQ(s.simulation.windows[1].end, "2026-05-09T15:00:00Z");
 }
 
 TEST(BacktesterConfigTest, RejectsMixingSessionsWithOtherForms) {
@@ -239,14 +236,14 @@ submit_to_match_jitter_ns = 1000000
     EXPECT_EQ(s.simulation.latency.default_spec.submit_to_match_base_ns, 1'000'000u);
 
     auto& hl = s.simulation.latency.per_venue["HYPERLIQUID"];
-    EXPECT_EQ(hl.submit_to_match_base_ns,   200'000'000u);
-    EXPECT_EQ(hl.submit_to_match_jitter_ns,  50'000'000u);
-    EXPECT_EQ(hl.match_to_report_base_ns,   200'000'000u);
+    EXPECT_EQ(hl.submit_to_match_base_ns, 200'000'000u);
+    EXPECT_EQ(hl.submit_to_match_jitter_ns, 50'000'000u);
+    EXPECT_EQ(hl.match_to_report_base_ns, 200'000'000u);
     EXPECT_EQ(hl.match_to_report_jitter_ns, 0u);
 
     auto& okx = s.simulation.latency.per_venue["OKX"];
-    EXPECT_EQ(okx.submit_to_match_base_ns,    2'000'000u);
-    EXPECT_EQ(okx.submit_to_match_jitter_ns,  1'000'000u);
+    EXPECT_EQ(okx.submit_to_match_base_ns, 2'000'000u);
+    EXPECT_EQ(okx.submit_to_match_jitter_ns, 1'000'000u);
 }
 
 TEST(BacktesterConfigTest, LegacyLatencyFieldsTranslateForward) {
@@ -264,12 +261,8 @@ hyperliquid_base_ms   = 200
 hyperliquid_jitter_ms = 50
 )");
     auto s = bpt::backtester::config::load(path.string());
-    EXPECT_EQ(s.simulation.latency.per_venue["BINANCE"].submit_to_match_base_ns,
-              2 * 1'000'000ULL);
-    EXPECT_EQ(s.simulation.latency.per_venue["OKX"].submit_to_match_base_ns,
-              2 * 1'000'000ULL);
-    EXPECT_EQ(s.simulation.latency.per_venue["HYPERLIQUID"].submit_to_match_base_ns,
-              200 * 1'000'000ULL);
-    EXPECT_EQ(s.simulation.latency.per_venue["HYPERLIQUID"].submit_to_match_jitter_ns,
-              50 * 1'000'000ULL);
+    EXPECT_EQ(s.simulation.latency.per_venue["BINANCE"].submit_to_match_base_ns, 2 * 1'000'000ULL);
+    EXPECT_EQ(s.simulation.latency.per_venue["OKX"].submit_to_match_base_ns, 2 * 1'000'000ULL);
+    EXPECT_EQ(s.simulation.latency.per_venue["HYPERLIQUID"].submit_to_match_base_ns, 200 * 1'000'000ULL);
+    EXPECT_EQ(s.simulation.latency.per_venue["HYPERLIQUID"].submit_to_match_jitter_ns, 50 * 1'000'000ULL);
 }

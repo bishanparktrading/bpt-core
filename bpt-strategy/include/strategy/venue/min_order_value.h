@@ -53,10 +53,7 @@ inline double min_notional_usd(const std::string& venue) {
 /// or two — at $10.01, a single 0.1% mark drift drops us under). 5%
 /// covers that window comfortably without inflating the order much
 /// beyond the operator's intent.
-inline double bump_qty_for_min_notional(double qty,
-                                        double price,
-                                        double lot_size,
-                                        double min_notional_usd) {
+inline double bump_qty_for_min_notional(double qty, double price, double lot_size, double min_notional_usd) {
     if (min_notional_usd <= 0.0 || price <= 0.0 || lot_size <= 0.0)
         return qty;
     constexpr double kHeadroom = 1.05;

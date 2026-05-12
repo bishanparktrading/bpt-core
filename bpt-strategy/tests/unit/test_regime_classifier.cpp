@@ -1,7 +1,7 @@
 #include "strategy/strategy/regime_classifier.h"
 
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
 
 using bpt::strategy::strategy::RegimeClassifier;
 

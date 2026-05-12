@@ -1,11 +1,11 @@
 #pragma once
 
+#include <bpt_app/base_settings.h>
+#include <bpt_common/aeron/stream_config.h>
 #include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <bpt_app/base_settings.h>
-#include <bpt_common/aeron/stream_config.h>
 
 namespace bpt::backtester::config {
 

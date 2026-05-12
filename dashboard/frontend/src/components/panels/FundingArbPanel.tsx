@@ -56,7 +56,8 @@ export function FundingArbPanel({ state: ss }: { state: FundingArbStrategyState 
           <tr>
             <td style={{ color: SPOT_COLOUR, width: 55 }}>SPOT</td>
             <td className="num">
-              {fmt(ss.spotPx, 4)} <span className="stat-value--muted">× {fmtSigned(ss.spotQty)}</span>
+              {fmt(ss.spotPx, 4)}{' '}
+              <span className="stat-value--muted">× {fmtSigned(ss.spotQty)}</span>
             </td>
             <td style={{ color: 'var(--text-muted)', width: 60 }}>FUND</td>
             <td className="num">{fmtPct(ss.fundingRate)}</td>
@@ -64,7 +65,8 @@ export function FundingArbPanel({ state: ss }: { state: FundingArbStrategyState 
           <tr>
             <td style={{ color: PERP_COLOUR }}>PERP</td>
             <td className="num">
-              {fmt(ss.perpPx, 4)} <span className="stat-value--muted">× {fmtSigned(ss.perpQty)}</span>
+              {fmt(ss.perpPx, 4)}{' '}
+              <span className="stat-value--muted">× {fmtSigned(ss.perpQty)}</span>
             </td>
             <td style={{ color: 'var(--text-muted)' }}>FUND-APR</td>
             <td className="num">{fmt(ss.fundingApr * 100, 2)}%</td>

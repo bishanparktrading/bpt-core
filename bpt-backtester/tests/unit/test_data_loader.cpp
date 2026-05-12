@@ -122,10 +122,11 @@ protected:
     SimulationConfig sim_cfg_windows(std::vector<TimeWindow> ws, bool partial = false) const {
         SimulationConfig cfg;
         cfg.windows = std::move(ws);
-        std::sort(cfg.windows.begin(), cfg.windows.end(),
-                  [](const TimeWindow& a, const TimeWindow& b) { return a.start < b.start; });
+        std::sort(cfg.windows.begin(), cfg.windows.end(), [](const TimeWindow& a, const TimeWindow& b) {
+            return a.start < b.start;
+        });
         cfg.start = cfg.windows.front().start;
-        cfg.end   = cfg.windows.back().end;
+        cfg.end = cfg.windows.back().end;
         cfg.allow_partial_data = partial;
         return cfg;
     }
@@ -136,8 +137,8 @@ protected:
 // filters every event against [start_ns, end_ns), so test fixtures must use
 // timestamps that fall within their configured date.
 
-static constexpr uint64_t kJan1_2026_NsUtc = 1767225600000000000ULL;          // 00:00:00Z
-static constexpr uint64_t kDayNs           = 86'400ULL * 1'000'000'000ULL;
+static constexpr uint64_t kJan1_2026_NsUtc = 1767225600000000000ULL;  // 00:00:00Z
+static constexpr uint64_t kDayNs = 86'400ULL * 1'000'000'000ULL;
 static constexpr uint64_t epoch_ns_for_jan_2026(int day_of_month) {
     return kJan1_2026_NsUtc + static_cast<uint64_t>(day_of_month - 1) * kDayNs;
 }
@@ -317,14 +318,17 @@ TEST_F(DataLoaderTest, FullDayWindowEmitsAllEvents) {
     auto tp = make_dir("trades", "HYPERLIQUID", "APE", "2026-01-01");
     auto op = make_dir("orderbook", "HYPERLIQUID", "APE", "2026-01-01");
     write_trades_parquet(tp,
-        {kJan1_2026_NsUtc + 1, kJan1_2026_13h_NsUtc + 5, kJan1_2026_14h_NsUtc + 10},
-        {1.0, 1.0, 1.0}, {0.1, 0.1, 0.1}, {0, 0, 0});
+                         {kJan1_2026_NsUtc + 1, kJan1_2026_13h_NsUtc + 5, kJan1_2026_14h_NsUtc + 10},
+                         {1.0, 1.0, 1.0},
+                         {0.1, 0.1, 0.1},
+                         {0, 0, 0});
     write_orderbook_parquet(op, {});
 
     InstrumentConfig inst{"HYPERLIQUID", "APE"};
     DataLoader loader(data_cfg(), sim_cfg("2026-01-01", "2026-01-01"), {inst});
     int count = 0;
-    while (loader.next()) ++count;
+    while (loader.next())
+        ++count;
     EXPECT_EQ(count, 3);
 }
 
@@ -333,27 +337,26 @@ TEST_F(DataLoaderTest, IntraDayWindowFiltersOutsideEvents) {
     auto tp = make_dir("trades", "HYPERLIQUID", "APE", "2026-01-01");
     auto op = make_dir("orderbook", "HYPERLIQUID", "APE", "2026-01-01");
     write_trades_parquet(tp,
-        {
-            kJan1_2026_NsUtc + 1,                     // 00:00 — out (before)
-            kJan1_2026_13h_NsUtc - 1,                 // 12:59:59.999... — out
-            kJan1_2026_13h_NsUtc,                     // 13:00:00 — in (inclusive)
-            kJan1_2026_13h_NsUtc + 30LL * 60 * 1'000'000'000LL,  // 13:30 — in
-            kJan1_2026_14h_NsUtc - 1,                 // 13:59:59.999... — in
-            kJan1_2026_14h_NsUtc,                     // 14:00:00 — out (exclusive)
-            kJan1_2026_14h_NsUtc + 1,                 // 14:00:00.000... — out
-        },
-        {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0},
-        {0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1},
-        {0, 0, 0, 0, 0, 0, 0});
+                         {
+                             kJan1_2026_NsUtc + 1,                                // 00:00 — out (before)
+                             kJan1_2026_13h_NsUtc - 1,                            // 12:59:59.999... — out
+                             kJan1_2026_13h_NsUtc,                                // 13:00:00 — in (inclusive)
+                             kJan1_2026_13h_NsUtc + 30LL * 60 * 1'000'000'000LL,  // 13:30 — in
+                             kJan1_2026_14h_NsUtc - 1,                            // 13:59:59.999... — in
+                             kJan1_2026_14h_NsUtc,                                // 14:00:00 — out (exclusive)
+                             kJan1_2026_14h_NsUtc + 1,                            // 14:00:00.000... — out
+                         },
+                         {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0},
+                         {0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1},
+                         {0, 0, 0, 0, 0, 0, 0});
     write_orderbook_parquet(op, {});
 
     InstrumentConfig inst{"HYPERLIQUID", "APE"};
-    DataLoader loader(data_cfg(),
-                      sim_cfg("2026-01-01T13:00:00Z", "2026-01-01T14:00:00Z"),
-                      {inst});
+    DataLoader loader(data_cfg(), sim_cfg("2026-01-01T13:00:00Z", "2026-01-01T14:00:00Z"), {inst});
 
     std::vector<uint64_t> tss;
-    while (auto ev = loader.next()) tss.push_back(ev->timestamp_ns);
+    while (auto ev = loader.next())
+        tss.push_back(ev->timestamp_ns);
     ASSERT_EQ(tss.size(), 3u);
     EXPECT_EQ(tss[0], kJan1_2026_13h_NsUtc);
     EXPECT_EQ(tss[1], kJan1_2026_13h_NsUtc + 30LL * 60 * 1'000'000'000LL);
@@ -362,26 +365,24 @@ TEST_F(DataLoaderTest, IntraDayWindowFiltersOutsideEvents) {
 
 TEST_F(DataLoaderTest, SubSecondWindowIsRespected) {
     // 100 µs window starting at 13:00:00.000 100µs.
-    const uint64_t window_start = kJan1_2026_13h_NsUtc + 100'000ULL;       // +100 µs
-    const uint64_t window_end   = kJan1_2026_13h_NsUtc + 200'000ULL;       // +200 µs
+    const uint64_t window_start = kJan1_2026_13h_NsUtc + 100'000ULL;  // +100 µs
+    const uint64_t window_end = kJan1_2026_13h_NsUtc + 200'000ULL;    // +200 µs
 
     auto tp = make_dir("trades", "HYPERLIQUID", "APE", "2026-01-01");
     auto op = make_dir("orderbook", "HYPERLIQUID", "APE", "2026-01-01");
     write_trades_parquet(tp,
-        {window_start - 1, window_start, window_start + 50'000ULL, window_end - 1, window_end},
-        {1.0, 1.0, 1.0, 1.0, 1.0},
-        {0.1, 0.1, 0.1, 0.1, 0.1},
-        {0, 0, 0, 0, 0});
+                         {window_start - 1, window_start, window_start + 50'000ULL, window_end - 1, window_end},
+                         {1.0, 1.0, 1.0, 1.0, 1.0},
+                         {0.1, 0.1, 0.1, 0.1, 0.1},
+                         {0, 0, 0, 0, 0});
     write_orderbook_parquet(op, {});
 
     InstrumentConfig inst{"HYPERLIQUID", "APE"};
-    DataLoader loader(data_cfg(),
-                      sim_cfg("2026-01-01T13:00:00.000100000Z",
-                              "2026-01-01T13:00:00.000200000Z"),
-                      {inst});
+    DataLoader loader(data_cfg(), sim_cfg("2026-01-01T13:00:00.000100000Z", "2026-01-01T13:00:00.000200000Z"), {inst});
 
     int count = 0;
-    while (loader.next()) ++count;
+    while (loader.next())
+        ++count;
     EXPECT_EQ(count, 3);  // window_start, +50µs, window_end - 1
 }
 
@@ -399,27 +400,26 @@ TEST_F(DataLoaderTest, MultiDayWindowSkipsEmptyFirstDay) {
     {
         const uint64_t kJan2_2026_NsUtc = kJan1_2026_NsUtc + 86'400ULL * 1'000'000'000ULL;
         auto tp = make_dir("trades", "HYPERLIQUID", "APE", "2026-01-02");
-        write_trades_parquet(tp,
-            {kJan2_2026_NsUtc + 5LL * 3600 * 1'000'000'000LL,
-             kJan2_2026_NsUtc + 6LL * 3600 * 1'000'000'000LL},
-            {1.0, 1.0}, {0.1, 0.1}, {0, 0});
+        write_trades_parquet(
+            tp,
+            {kJan2_2026_NsUtc + 5LL * 3600 * 1'000'000'000LL, kJan2_2026_NsUtc + 6LL * 3600 * 1'000'000'000LL},
+            {1.0, 1.0},
+            {0.1, 0.1},
+            {0, 0});
     }
 
     InstrumentConfig inst{"HYPERLIQUID", "APE"};
-    DataLoader loader(data_cfg(),
-                      sim_cfg("2026-01-02T05:00:00Z", "2026-01-02T07:00:00Z"),
-                      {inst});
+    DataLoader loader(data_cfg(), sim_cfg("2026-01-02T05:00:00Z", "2026-01-02T07:00:00Z"), {inst});
 
     int count = 0;
-    while (loader.next()) ++count;
+    while (loader.next())
+        ++count;
     EXPECT_EQ(count, 2);
 }
 
 TEST_F(DataLoaderTest, RejectsInvertedWindow) {
     InstrumentConfig inst{"BINANCE", "BTCUSDT"};
-    EXPECT_THROW(DataLoader(data_cfg(),
-                            sim_cfg("2026-01-02T00:00:00Z", "2026-01-01T00:00:00Z"),
-                            {inst}),
+    EXPECT_THROW(DataLoader(data_cfg(), sim_cfg("2026-01-02T00:00:00Z", "2026-01-01T00:00:00Z"), {inst}),
                  std::runtime_error);
 }
 
@@ -435,10 +435,10 @@ TEST_F(DataLoaderTest, TwoDisjointWindowsSameDayDropsBetween) {
         return base + (uint64_t(hh) * 3600 + uint64_t(mm) * 60) * 1'000'000'000ULL;
     };
     write_trades_parquet(tp,
-        {at(8), at(9), at(10), at(11), at(12), at(13), at(14)},
-        {1, 1, 1, 1, 1, 1, 1},
-        {0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1},
-        {0, 0, 0, 0, 0, 0, 0});
+                         {at(8), at(9), at(10), at(11), at(12), at(13), at(14)},
+                         {1, 1, 1, 1, 1, 1, 1},
+                         {0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1},
+                         {0, 0, 0, 0, 0, 0, 0});
 
     InstrumentConfig inst{"HYPERLIQUID", "APE"};
     DataLoader loader(data_cfg(),
@@ -449,7 +449,8 @@ TEST_F(DataLoaderTest, TwoDisjointWindowsSameDayDropsBetween) {
                       {inst});
 
     std::vector<uint64_t> tss;
-    while (auto ev = loader.next()) tss.push_back(ev->timestamp_ns);
+    while (auto ev = loader.next())
+        tss.push_back(ev->timestamp_ns);
     // 09:00 in window 1; 10:00 excluded (window 1 is half-open); 11/12 dropped;
     // 13:00 in window 2; 14:00 excluded.
     ASSERT_EQ(tss.size(), 2u);
@@ -466,11 +467,9 @@ TEST_F(DataLoaderTest, TwoWindowsAcrossDifferentDays) {
     }
     // One event 13:30 on each of 01, 02, 03.
     for (int dom = 1; dom <= 3; ++dom) {
-        auto tp = make_dir("trades", "HYPERLIQUID", "APE",
-                           "2026-01-0" + std::to_string(dom));
-        const uint64_t ts = epoch_ns_for_jan_2026(dom)
-            + 13ULL * 3600 * 1'000'000'000ULL
-            + 30ULL * 60 * 1'000'000'000ULL;
+        auto tp = make_dir("trades", "HYPERLIQUID", "APE", "2026-01-0" + std::to_string(dom));
+        const uint64_t ts =
+            epoch_ns_for_jan_2026(dom) + 13ULL * 3600 * 1'000'000'000ULL + 30ULL * 60 * 1'000'000'000ULL;
         write_trades_parquet(tp, {ts}, {1.0}, {0.1}, {0});
     }
 
@@ -484,7 +483,8 @@ TEST_F(DataLoaderTest, TwoWindowsAcrossDifferentDays) {
                       {inst});
 
     int count = 0;
-    while (loader.next()) ++count;
+    while (loader.next())
+        ++count;
     EXPECT_EQ(count, 2);  // day 2 event filtered out even though file is loaded
 }
 
@@ -504,7 +504,8 @@ TEST_F(DataLoaderTest, OverlappingWindowsDoNotDoubleEmit) {
                       }),
                       {inst});
     int count = 0;
-    while (loader.next()) ++count;
+    while (loader.next())
+        ++count;
     EXPECT_EQ(count, 1);  // single event emitted once even though both windows match
 }
 

@@ -1,12 +1,11 @@
 #include "strategy/app/strategy_app.h"
-
 #include "strategy/clock/sim_clock.h"
 
 #include <messages/BacktestCommand.h>
 
+#include <bpt_common/signal.h>
 #include <chrono>
 #include <thread>
-#include <bpt_common/signal.h>
 
 // Backtest-mode tick-gating loop. Extracted from strategy_app.cpp —
 // the live and backtest main loops share no polling state (backtest

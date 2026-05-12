@@ -33,16 +33,15 @@ public:
     enum class Regime { QUIET, TRENDING, CHOPPY };
 
     struct Config {
-        std::size_t window_size = 60;        // # samples in rolling window
+        std::size_t window_size = 60;                         // # samples in rolling window
         std::uint64_t sample_interval_ns = 1'000'000'000ULL;  // 1 s nominal
-        double quiet_vol_bps_per_min = 5.0;  // RV below this → QUIET regardless of trend
-        double trend_threshold_z = 1.0;      // |trend_z| ≥ this → TRENDING
+        double quiet_vol_bps_per_min = 5.0;                   // RV below this → QUIET regardless of trend
+        double trend_threshold_z = 1.0;                       // |trend_z| ≥ this → TRENDING
         std::uint64_t chop_cooldown_ns = 120'000'000'000ULL;  // 2 min hysteresis
     };
 
     RegimeClassifier() : RegimeClassifier(Config{}) {}
-    explicit RegimeClassifier(Config cfg)
-        : cfg_(cfg), returns_(cfg.window_size, 0.0) {}
+    explicit RegimeClassifier(Config cfg) : cfg_(cfg), returns_(cfg.window_size, 0.0) {}
 
     // Feed a new mid-price observation. Returns true once the window has
     // enough samples to classify (≥ window_size / 2).
@@ -51,30 +50,28 @@ public:
             return ready();
         // Throttle: only sample once per sample_interval_ns. Lets the caller
         // fire update() on every tick without inflating the sample rate.
-        if (last_sample_ns_ != 0 &&
-            timestamp_ns - last_sample_ns_ < cfg_.sample_interval_ns) {
+        if (last_sample_ns_ != 0 && timestamp_ns - last_sample_ns_ < cfg_.sample_interval_ns) {
             return ready();
         }
 
         if (last_price_ > 0.0) {
             const double r = std::log(mid_price / last_price_);
             // Pop the oldest from running sums, then write new one.
-            sum_     -= returns_[head_];
-            sum_sq_  -= returns_[head_] * returns_[head_];
+            sum_ -= returns_[head_];
+            sum_sq_ -= returns_[head_] * returns_[head_];
             returns_[head_] = r;
-            sum_     += r;
-            sum_sq_  += r * r;
+            sum_ += r;
+            sum_sq_ += r * r;
             head_ = (head_ + 1) % cfg_.window_size;
-            if (count_ < cfg_.window_size) ++count_;
+            if (count_ < cfg_.window_size)
+                ++count_;
         }
         last_price_ = mid_price;
         last_sample_ns_ = timestamp_ns;
         return ready();
     }
 
-    [[nodiscard]] bool ready() const {
-        return count_ >= cfg_.window_size / 2;
-    }
+    [[nodiscard]] bool ready() const { return count_ >= cfg_.window_size / 2; }
 
     // Per-minute realized vol in bps. Conversion assumes the configured
     // sample_interval_ns matches reality.
@@ -83,13 +80,12 @@ public:
             return 0.0;
         const double n = static_cast<double>(count_);
         const double mean = sum_ / n;
-        const double var  = (sum_sq_ - n * mean * mean) / (n - 1.0);
+        const double var = (sum_sq_ - n * mean * mean) / (n - 1.0);
         if (var <= 0.0)
             return 0.0;
         const double sd_per_sample = std::sqrt(var);
         // Convert to per-minute. samples_per_minute = 60 sec/min × (1e9 ns/s / sample_interval_ns)
-        const double samples_per_minute =
-            60.0 * 1e9 / static_cast<double>(cfg_.sample_interval_ns);
+        const double samples_per_minute = 60.0 * 1e9 / static_cast<double>(cfg_.sample_interval_ns);
         const double sd_per_minute = sd_per_sample * std::sqrt(samples_per_minute);
         return sd_per_minute * 1e4;  // fraction → bps
     }
@@ -107,7 +103,7 @@ public:
             return 0.0;
         const double n = static_cast<double>(count_);
         const double mean = sum_ / n;
-        const double var  = (sum_sq_ - n * mean * mean) / (n - 1.0);
+        const double var = (sum_sq_ - n * mean * mean) / (n - 1.0);
         if (var <= 0.0) {
             return std::abs(sum_) > 0.0 ? 1e6 : 0.0;
         }
@@ -163,9 +159,12 @@ private:
 
 inline const char* regime_name(RegimeClassifier::Regime r) {
     switch (r) {
-        case RegimeClassifier::Regime::QUIET:    return "QUIET";
-        case RegimeClassifier::Regime::TRENDING: return "TRENDING";
-        case RegimeClassifier::Regime::CHOPPY:   return "CHOPPY";
+        case RegimeClassifier::Regime::QUIET:
+            return "QUIET";
+        case RegimeClassifier::Regime::TRENDING:
+            return "TRENDING";
+        case RegimeClassifier::Regime::CHOPPY:
+            return "CHOPPY";
     }
     return "?";
 }

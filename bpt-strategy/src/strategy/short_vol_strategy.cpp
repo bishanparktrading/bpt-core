@@ -97,9 +97,9 @@ void ShortVolStrategy::start() {
                 if (inst) {
                     subs.push_back({state.perp_instrument_id, inst->exchange, inst->symbol});
                     bpt::common::log::info("[ShortVol] Subscribing perp BBO: {} id={} symbol={}",
-                                   state.underlying,
-                                   state.perp_instrument_id,
-                                   inst->symbol);
+                                           state.underlying,
+                                           state.perp_instrument_id,
+                                           inst->symbol);
                 }
             }
         }
@@ -179,11 +179,11 @@ void ShortVolStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
         instrument_to_key_[inst.instrument_id] = key;
 
         bpt::common::log::info("[ShortVol] Discovered perp for {}: id={} exchange={} tick={} lot={}",
-                       inst.base_currency,
-                       inst.instrument_id,
-                       inst.exchange,
-                       inst.tick_size,
-                       inst.lot_size);
+                               inst.base_currency,
+                               inst.instrument_id,
+                               inst.exchange,
+                               inst.tick_size,
+                               inst.lot_size);
     }
 
     // Also discover option instruments for our lookups.
@@ -298,18 +298,18 @@ void ShortVolStrategy::on_vol_surface(bpt::messages::VolSurface& surface) {
     }
 
     bpt::common::log::info("[ShortVol] VolSurface {} options={} rv_ready={} perp_bid={:.2f}",
-                   state.underlying,
-                   point_count,
-                   state.rv_estimator.ready(),
-                   state.perp_bid);
+                           state.underlying,
+                           point_count,
+                           state.rv_estimator.ready(),
+                           state.perp_bid);
 
     recompute_greeks(state);
 
     const uint64_t now_ns = surface.timestampNs();
     if (now_ns - state.last_eval_ns >= eval_interval_ns_) {
         bpt::common::log::info("[ShortVol] Evaluating {} rv={:.4f}",
-                       state.underlying,
-                       state.rv_estimator.ready() ? state.rv_estimator.realized_vol() : 0.0);
+                               state.underlying,
+                               state.rv_estimator.ready() ? state.rv_estimator.realized_vol() : 0.0);
         evaluate(state, now_ns);
         state.last_eval_ns = now_ns;
     }
@@ -340,11 +340,11 @@ void ShortVolStrategy::on_exec_report(const bpt::messages::ExecutionReport& rpt)
         if (is_perp) {
             state.perp_position_qty += signed_qty;
             bpt::common::log::info("[ShortVol] Perp fill: {} {} qty={:.6f} price={:.2f} pos={:.6f}",
-                           state.underlying,
-                           is_buy ? "BUY" : "SELL",
-                           fill_qty,
-                           fill_price,
-                           state.perp_position_qty);
+                                   state.underlying,
+                                   is_buy ? "BUY" : "SELL",
+                                   fill_qty,
+                                   fill_price,
+                                   state.perp_position_qty);
         } else {
             const uint64_t inst_id = rpt.instrumentId();
             auto opt_it = state.options.find(inst_id);
@@ -353,12 +353,12 @@ void ShortVolStrategy::on_exec_report(const bpt::messages::ExecutionReport& rpt)
                 leg.position_qty += signed_qty;
                 leg.entry_price = fill_price;
                 bpt::common::log::info("[ShortVol] Option fill: {} {} K={:.0f} qty={:.6f} price={:.4f} pos={:.6f}",
-                               state.underlying,
-                               is_buy ? "BUY" : "SELL",
-                               leg.strike,
-                               fill_qty,
-                               fill_price,
-                               leg.position_qty);
+                                       state.underlying,
+                                       is_buy ? "BUY" : "SELL",
+                                       leg.strike,
+                                       fill_qty,
+                                       fill_price,
+                                       leg.position_qty);
             }
 
             recompute_greeks(state);
@@ -371,16 +371,16 @@ void ShortVolStrategy::on_exec_report(const bpt::messages::ExecutionReport& rpt)
         const bool gateway_reject = (src == RejectSource::GATEWAY || src == RejectSource::RISK);
         if (gateway_reject)
             bpt::common::log::error("[ShortVol] {} order_id={} REJECTED reason={} source={}",
-                            state.underlying,
-                            oid,
-                            bpt::messages::RejectReason::c_str(rpt.rejectReason()),
-                            bpt::messages::RejectSource::c_str(src));
+                                    state.underlying,
+                                    oid,
+                                    bpt::messages::RejectReason::c_str(rpt.rejectReason()),
+                                    bpt::messages::RejectSource::c_str(src));
         else
             bpt::common::log::warn("[ShortVol] {} order_id={} REJECTED reason={} source={}",
-                           state.underlying,
-                           oid,
-                           bpt::messages::RejectReason::c_str(rpt.rejectReason()),
-                           bpt::messages::RejectSource::c_str(src));
+                                   state.underlying,
+                                   oid,
+                                   bpt::messages::RejectReason::c_str(rpt.rejectReason()),
+                                   bpt::messages::RejectSource::c_str(src));
     }
 
     if (status == ExecStatus::FILLED || status == ExecStatus::CANCELLED || status == ExecStatus::REJECTED) {
@@ -422,10 +422,10 @@ void ShortVolStrategy::evaluate(UnderlyingState& state, uint64_t now_ns) {
         if (leg.time_to_expiry < min_time_to_expiry_ || leg.time_to_expiry > max_time_to_expiry_) {
             if (log_detail)
                 bpt::common::log::info("[ShortVol] eval skip {}: T={:.2f}d outside [{:.1f},{:.1f}]",
-                               inst_id,
-                               leg.time_to_expiry * 365.0,
-                               min_time_to_expiry_ * 365.0,
-                               max_time_to_expiry_ * 365.0);
+                                       inst_id,
+                                       leg.time_to_expiry * 365.0,
+                                       min_time_to_expiry_ * 365.0,
+                                       max_time_to_expiry_ * 365.0);
             continue;
         }
 
@@ -433,10 +433,10 @@ void ShortVolStrategy::evaluate(UnderlyingState& state, uint64_t now_ns) {
         if (abs_delta < min_abs_delta_ || abs_delta > max_abs_delta_) {
             if (log_detail)
                 bpt::common::log::info("[ShortVol] eval skip {}: delta={:.4f} outside [{:.2f},{:.2f}]",
-                               inst_id,
-                               leg.delta,
-                               min_abs_delta_,
-                               max_abs_delta_);
+                                       inst_id,
+                                       leg.delta,
+                                       min_abs_delta_,
+                                       max_abs_delta_);
             continue;
         }
 
@@ -631,7 +631,7 @@ PortfolioState ShortVolStrategy::get_portfolio_state() {
         // Aggregate Greeks
         ps.portfolio_delta += state.portfolio_delta;
         ps.portfolio_gamma += state.portfolio_gamma;
-        ps.portfolio_vega  += state.portfolio_vega;
+        ps.portfolio_vega += state.portfolio_vega;
         ps.portfolio_theta += state.portfolio_theta;
 
         // Option legs

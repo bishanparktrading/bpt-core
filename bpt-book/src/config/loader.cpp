@@ -63,7 +63,8 @@ Settings load(const std::string& path) {
     if (auto v = root["aeron_config"].value<std::string>()) {
         shared_streams = bpt::common::config::load_shared_streams(*v);
         bpt::common::log::info("Loaded shared aeron stream map from {} ({} streams)",
-                               *v, shared_streams.stream_ids.size());
+                               *v,
+                               shared_streams.stream_ids.size());
         if (!shared_streams.media_driver_dir.empty())
             s.base.media_driver_dir = shared_streams.media_driver_dir;
     }

@@ -16,16 +16,16 @@ using bpt::strategy::strategy::PassiveMakerStrategy;
 
 TEST(PassiveMakerFairValue, BalancedBookEqualsMid) {
     // bid=100, ask=101, sizes equal → microprice = mid = 100.5
-    EXPECT_DOUBLE_EQ(PassiveMakerStrategy::compute_fair_value(100.0, 101.0, 50.0, 50.0),
-                     100.5);
+    EXPECT_DOUBLE_EQ(PassiveMakerStrategy::compute_fair_value(100.0, 101.0, 50.0, 50.0), 100.5);
 }
 
 TEST(PassiveMakerFairValue, HeavyBidLeansTowardAsk) {
     // Large bid size → microprice leans toward ask.
     // (100*10 + 101*100) / (100+10) = (1000 + 10100) / 110 = 11100/110 ≈ 100.909
-    const double fv = PassiveMakerStrategy::compute_fair_value(100.0, 101.0,
-                                                                /*bid_sz=*/100.0,
-                                                                /*ask_sz=*/10.0);
+    const double fv = PassiveMakerStrategy::compute_fair_value(100.0,
+                                                               101.0,
+                                                               /*bid_sz=*/100.0,
+                                                               /*ask_sz=*/10.0);
     EXPECT_GT(fv, 100.5);
     EXPECT_LT(fv, 101.0);
     EXPECT_NEAR(fv, 100.909, 0.001);
@@ -33,16 +33,16 @@ TEST(PassiveMakerFairValue, HeavyBidLeansTowardAsk) {
 
 TEST(PassiveMakerFairValue, HeavyAskLeansTowardBid) {
     // Large ask size → microprice leans toward bid.
-    const double fv = PassiveMakerStrategy::compute_fair_value(100.0, 101.0,
-                                                                /*bid_sz=*/10.0,
-                                                                /*ask_sz=*/100.0);
+    const double fv = PassiveMakerStrategy::compute_fair_value(100.0,
+                                                               101.0,
+                                                               /*bid_sz=*/10.0,
+                                                               /*ask_sz=*/100.0);
     EXPECT_LT(fv, 100.5);
     EXPECT_GT(fv, 100.0);
 }
 
 TEST(PassiveMakerFairValue, ZeroSizesFallsBackToMid) {
-    EXPECT_DOUBLE_EQ(PassiveMakerStrategy::compute_fair_value(100.0, 101.0, 0.0, 0.0),
-                     100.5);
+    EXPECT_DOUBLE_EQ(PassiveMakerStrategy::compute_fair_value(100.0, 101.0, 0.0, 0.0), 100.5);
 }
 
 TEST(PassiveMakerFairValue, NoBookReturnsZero) {
@@ -59,8 +59,8 @@ TEST(PassiveMakerRoundToTick, RoundDownForBidStaysAtOrBelow) {
     // place_side guard further pulls back if we'd cross.
     const double tick = 0.00001;
     const double v = PassiveMakerStrategy::round_to_tick(0.163875, tick, /*round_down=*/true);
-    EXPECT_LE(v, 0.163875 + 1e-12);          // never above input
-    EXPECT_GE(v, 0.163875 - 2 * tick);       // within two ticks (FP slack)
+    EXPECT_LE(v, 0.163875 + 1e-12);     // never above input
+    EXPECT_GE(v, 0.163875 - 2 * tick);  // within two ticks (FP slack)
 }
 
 TEST(PassiveMakerRoundToTick, RoundUpForAskStaysAtOrAbove) {
@@ -72,9 +72,9 @@ TEST(PassiveMakerRoundToTick, RoundUpForAskStaysAtOrAbove) {
 
 TEST(PassiveMakerRoundToTick, IntegerTickIsExact) {
     // Integer tick avoids FP gymnastics — exact behaviour can be asserted.
-    EXPECT_DOUBLE_EQ(PassiveMakerStrategy::round_to_tick(123.4, 1.0, true),  123.0);
+    EXPECT_DOUBLE_EQ(PassiveMakerStrategy::round_to_tick(123.4, 1.0, true), 123.0);
     EXPECT_DOUBLE_EQ(PassiveMakerStrategy::round_to_tick(123.4, 1.0, false), 124.0);
-    EXPECT_DOUBLE_EQ(PassiveMakerStrategy::round_to_tick(125.0, 1.0, true),  125.0);
+    EXPECT_DOUBLE_EQ(PassiveMakerStrategy::round_to_tick(125.0, 1.0, true), 125.0);
     EXPECT_DOUBLE_EQ(PassiveMakerStrategy::round_to_tick(125.0, 1.0, false), 125.0);
 }
 
@@ -95,7 +95,7 @@ TEST(PassiveMakerRegimeGating, ZeroVolLeavesBaseUnchanged) {
 
 TEST(PassiveMakerRegimeGating, LinearScaling) {
     // The whole point: out = base + mult × vol_bps. Direct check.
-    EXPECT_DOUBLE_EQ(PassiveMakerStrategy::scale_with_vol(25.0, 1.0, 5.0),  30.0);
+    EXPECT_DOUBLE_EQ(PassiveMakerStrategy::scale_with_vol(25.0, 1.0, 5.0), 30.0);
     EXPECT_DOUBLE_EQ(PassiveMakerStrategy::scale_with_vol(25.0, 1.0, 30.0), 55.0);
     EXPECT_DOUBLE_EQ(PassiveMakerStrategy::scale_with_vol(50.0, 0.5, 30.0), 65.0);
 }
@@ -120,6 +120,5 @@ TEST(PassiveMakerRegimeGating, AnnualToPerMinuteBpsHandlesZeroAndNegative) {
 TEST(PassiveMakerRoundToTick, ZeroTickPassThrough) {
     // Unknown tick (0.0) — leave price untouched. Caller's responsibility
     // to avoid misalignment.
-    EXPECT_DOUBLE_EQ(PassiveMakerStrategy::round_to_tick(0.16387, 0.0, true),
-                     0.16387);
+    EXPECT_DOUBLE_EQ(PassiveMakerStrategy::round_to_tick(0.16387, 0.0, true), 0.16387);
 }

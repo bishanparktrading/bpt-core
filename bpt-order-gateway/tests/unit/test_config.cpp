@@ -265,7 +265,8 @@ account_snapshot = 5004
     auto path = write_toml(R"(
 environment = "dev"
 exchanges = []
-aeron_config = ")" + streams_path.string() + R"("
+aeron_config = ")" + streams_path.string() +
+                           R"("
 )");
 
     auto s = bpt::order_gateway::config::load(path.string());

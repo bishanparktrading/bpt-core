@@ -84,9 +84,7 @@ private:
     // Look up resting volume at a given price level on a given side.
     // Returns 0.0 if the price isn't found in the L5 snapshot. Used to
     // seed queue_ahead at submit_order time.
-    static double book_qty_at_price(const data::OrderBookRecord& book,
-                                    OrderSide side,
-                                    double price);
+    static double book_qty_at_price(const data::OrderBookRecord& book, OrderSide side, double price);
 
     // Synchronously enqueued at submit_order, drained at on_market_event
     // when current_ts_ catches up to scheduled_match_ts. The order's

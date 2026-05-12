@@ -268,18 +268,22 @@ export default function App() {
   // Per-strategy state panel — picks the right component for the active
   // strategy's `kind`. Unknown kinds (or no state yet) fall back to the
   // generic JSON-dump panel.
-  const strategyPanelNode = strategyState
-    ? (() => {
-        const Panel = STRATEGY_PANELS[strategyState.kind] ?? GenericStrategyPanel
-        return <Panel state={strategyState} />
-      })()
-    : <GenericStrategyPanel state={null} />
+  const strategyPanelNode = strategyState ? (
+    (() => {
+      const Panel = STRATEGY_PANELS[strategyState.kind] ?? GenericStrategyPanel
+      return <Panel state={strategyState} />
+    })()
+  ) : (
+    <GenericStrategyPanel state={null} />
+  )
 
   // Per-strategy main chart. AS keeps the candlestick PriceChart;
   // FundingArb gets the dual-leg DualLegChart. Unknown kinds default
   // to PriceChart (works for any single-instrument feed).
   function MainChart() {
-    const Chart = strategyState ? (STRATEGY_CHARTS[strategyState.kind] ?? DefaultChart) : DefaultChart
+    const Chart = strategyState
+      ? (STRATEGY_CHARTS[strategyState.kind] ?? DefaultChart)
+      : DefaultChart
     return <Chart />
   }
 

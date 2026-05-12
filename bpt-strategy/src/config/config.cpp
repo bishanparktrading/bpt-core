@@ -43,32 +43,33 @@ AppConfig AppConfig::load(const std::string& path) {
     if (auto v = cfg["aeron_config"].value<std::string>()) {
         shared_streams = bpt::common::config::load_shared_streams(*v);
         bpt::common::log::info("Loaded shared aeron stream map from {} ({} streams)",
-                               *v, shared_streams.stream_ids.size());
+                               *v,
+                               shared_streams.stream_ids.size());
         if (!shared_streams.media_driver_dir.empty())
             app_cfg.base.media_driver_dir = shared_streams.media_driver_dir;
     }
 
     using bpt::common::config::resolve_stream;
-    app_cfg.aeron.refdata_control   = resolve_stream(shared_streams, "refdata_control",   1003);
-    app_cfg.aeron.refdata_snapshot  = resolve_stream(shared_streams, "refdata_snapshot",  1001);
-    app_cfg.aeron.refdata_delta     = resolve_stream(shared_streams, "refdata_delta",     1002);
-    app_cfg.aeron.fee_schedule      = resolve_stream(shared_streams, "fee_schedule",      1004);
-    app_cfg.aeron.funding_rate      = resolve_stream(shared_streams, "funding_rate",      1005);
-    app_cfg.aeron.refdata_status    = resolve_stream(shared_streams, "refdata_status",    1006);
-    app_cfg.aeron.md_control        = resolve_stream(shared_streams, "md_control",        0);
-    app_cfg.aeron.md_data           = resolve_stream(shared_streams, "md_data",           0);
-    app_cfg.aeron.md_ack_hb         = resolve_stream(shared_streams, "md_ack_hb",         0);
-    app_cfg.aeron.order             = resolve_stream(shared_streams, "order",             0);
-    app_cfg.aeron.exec_report       = resolve_stream(shared_streams, "exec_report",       0);
-    app_cfg.aeron.heartbeat         = resolve_stream(shared_streams, "heartbeat",         0);
-    app_cfg.aeron.account_snapshot  = resolve_stream(shared_streams, "account_snapshot",  0);
-    app_cfg.aeron.vol_surface       = resolve_stream(shared_streams, "vol_surface",       0);
-    app_cfg.aeron.pricer_status     = resolve_stream(shared_streams, "pricer_status",     0);
-    app_cfg.aeron.toxicity          = resolve_stream(shared_streams, "toxicity",          0);
-    app_cfg.aeron.backtest_control  = resolve_stream(shared_streams, "backtest_control",  9002);
-    app_cfg.aeron.backtest_ack      = resolve_stream(shared_streams, "backtest_ack",      9001);
+    app_cfg.aeron.refdata_control = resolve_stream(shared_streams, "refdata_control", 1003);
+    app_cfg.aeron.refdata_snapshot = resolve_stream(shared_streams, "refdata_snapshot", 1001);
+    app_cfg.aeron.refdata_delta = resolve_stream(shared_streams, "refdata_delta", 1002);
+    app_cfg.aeron.fee_schedule = resolve_stream(shared_streams, "fee_schedule", 1004);
+    app_cfg.aeron.funding_rate = resolve_stream(shared_streams, "funding_rate", 1005);
+    app_cfg.aeron.refdata_status = resolve_stream(shared_streams, "refdata_status", 1006);
+    app_cfg.aeron.md_control = resolve_stream(shared_streams, "md_control", 0);
+    app_cfg.aeron.md_data = resolve_stream(shared_streams, "md_data", 0);
+    app_cfg.aeron.md_ack_hb = resolve_stream(shared_streams, "md_ack_hb", 0);
+    app_cfg.aeron.order = resolve_stream(shared_streams, "order", 0);
+    app_cfg.aeron.exec_report = resolve_stream(shared_streams, "exec_report", 0);
+    app_cfg.aeron.heartbeat = resolve_stream(shared_streams, "heartbeat", 0);
+    app_cfg.aeron.account_snapshot = resolve_stream(shared_streams, "account_snapshot", 0);
+    app_cfg.aeron.vol_surface = resolve_stream(shared_streams, "vol_surface", 0);
+    app_cfg.aeron.pricer_status = resolve_stream(shared_streams, "pricer_status", 0);
+    app_cfg.aeron.toxicity = resolve_stream(shared_streams, "toxicity", 0);
+    app_cfg.aeron.backtest_control = resolve_stream(shared_streams, "backtest_control", 9002);
+    app_cfg.aeron.backtest_ack = resolve_stream(shared_streams, "backtest_ack", 9001);
     app_cfg.aeron.dashboard_control = resolve_stream(shared_streams, "dashboard_control", 9003);
-    app_cfg.aeron.portfolio         = resolve_stream(shared_streams, "portfolio",         9004);
+    app_cfg.aeron.portfolio = resolve_stream(shared_streams, "portfolio", 9004);
 
     const auto* f = cfg["fenrir"].as_table();
     if (!f)

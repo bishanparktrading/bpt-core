@@ -33,11 +33,11 @@ const CHART_THEME = {
 // on long-tail tokens priced under $1 (PURR ~$0.07), where 2 dp
 // flattens the entire chart to one horizontal line.
 function precisionFor(price: number): { precision: number; minMove: number } {
-    if (price <= 0) return { precision: 4, minMove: 0.0001 }
-    if (price >= 1000) return { precision: 2, minMove: 0.01 }
-    if (price >= 1) return { precision: 4, minMove: 0.0001 }
-    if (price >= 0.01) return { precision: 6, minMove: 0.000001 }
-    return { precision: 8, minMove: 0.00000001 }
+  if (price <= 0) return { precision: 4, minMove: 0.0001 }
+  if (price >= 1000) return { precision: 2, minMove: 0.01 }
+  if (price >= 1) return { precision: 4, minMove: 0.0001 }
+  if (price >= 0.01) return { precision: 6, minMove: 0.000001 }
+  return { precision: 8, minMove: 0.00000001 }
 }
 
 export function DualLegChart() {
@@ -148,8 +148,12 @@ export function DualLegChart() {
       // Fresh chart (or remount after HMR / strategy switch): replay
       // the whole buffer so the operator sees the same history they
       // had before.
-      spot.setData(fundingHistory.map((p: FundingSample) => ({ time: p.ts as UTCTimestamp, value: p.spot })))
-      perp.setData(fundingHistory.map((p: FundingSample) => ({ time: p.ts as UTCTimestamp, value: p.perp })))
+      spot.setData(
+        fundingHistory.map((p: FundingSample) => ({ time: p.ts as UTCTimestamp, value: p.spot }))
+      )
+      perp.setData(
+        fundingHistory.map((p: FundingSample) => ({ time: p.ts as UTCTimestamp, value: p.perp }))
+      )
     } else {
       // Steady-state: append the points whose ts is newer than the
       // last one we drew.
@@ -172,13 +176,9 @@ export function DualLegChart() {
   return (
     <div className="panel">
       <div className="panel-header">
-        <span className="panel-title">
-          {fa ? `${fa.symbol} · spot vs perp` : 'spot vs perp'}
-        </span>
+        <span className="panel-title">{fa ? `${fa.symbol} · spot vs perp` : 'spot vs perp'}</span>
         <span className="panel-badge">
-          {fa
-            ? `basis ${fa.basisBps >= 0 ? '+' : ''}${fa.basisBps.toFixed(1)} bps`
-            : '—'}
+          {fa ? `basis ${fa.basisBps >= 0 ? '+' : ''}${fa.basisBps.toFixed(1)} bps` : '—'}
         </span>
       </div>
       <div ref={hostRef} style={{ width: '100%', height: '100%', flex: 1 }} />

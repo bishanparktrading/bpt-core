@@ -11,7 +11,15 @@ export function GenericStrategyPanel({ state }: { state: StrategyStateMsg | null
         <span className="panel-badge">{state?.kind ?? '—'}</span>
       </div>
       {state ? (
-        <pre style={{ padding: '8px 12px', margin: 0, fontSize: 11, color: 'var(--text-muted)', overflow: 'auto' }}>
+        <pre
+          style={{
+            padding: '8px 12px',
+            margin: 0,
+            fontSize: 11,
+            color: 'var(--text-muted)',
+            overflow: 'auto',
+          }}
+        >
           {JSON.stringify(state, null, 2)}
         </pre>
       ) : (

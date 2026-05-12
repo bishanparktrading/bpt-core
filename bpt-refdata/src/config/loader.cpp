@@ -89,7 +89,8 @@ Settings load(const std::string& path) {
     if (auto v = root["aeron_config"].value<std::string>()) {
         shared_streams = bpt::common::config::load_shared_streams(*v);
         bpt::common::log::info("Loaded shared aeron stream map from {} ({} streams)",
-                               *v, shared_streams.stream_ids.size());
+                               *v,
+                               shared_streams.stream_ids.size());
         // streams.toml is the source of truth for media_driver_dir too —
         // overrides whatever bpt::app::load_base_settings populated.
         if (!shared_streams.media_driver_dir.empty())
@@ -98,10 +99,10 @@ Settings load(const std::string& path) {
 
     using bpt::common::config::resolve_stream;
     settings.refdata_snapshot = resolve_stream(shared_streams, "refdata_snapshot", 1001);
-    settings.refdata_delta    = resolve_stream(shared_streams, "refdata_delta",    1002);
-    settings.refdata_control  = resolve_stream(shared_streams, "refdata_control",  1003);
-    settings.fee_schedule     = resolve_stream(shared_streams, "fee_schedule",     1004);
-    settings.refdata_status   = resolve_stream(shared_streams, "refdata_status",   1006);
+    settings.refdata_delta = resolve_stream(shared_streams, "refdata_delta", 1002);
+    settings.refdata_control = resolve_stream(shared_streams, "refdata_control", 1003);
+    settings.fee_schedule = resolve_stream(shared_streams, "fee_schedule", 1004);
+    settings.refdata_status = resolve_stream(shared_streams, "refdata_status", 1006);
     // Note: stream 1005 (funding_rate) is published by MdGateway, not consumed here.
 
     if (auto v = root["instrument_poll_interval_s"].value<int64_t>())

@@ -47,20 +47,18 @@ StreamConfig resolve_stream(const AeronStreamMap& shared,
                             std::string_view fallback_channel) {
     StreamConfig s{std::string(fallback_channel), fallback_id};
 
-    if (auto it = shared.stream_ids.find(std::string(global_name));
-        it != shared.stream_ids.end()) {
+    if (auto it = shared.stream_ids.find(std::string(global_name)); it != shared.stream_ids.end()) {
         s.stream_id = it->second;
     } else if (!shared.stream_ids.empty()) {
         // Shared file was loaded but didn't contain this name — likely a
         // missing entry the operator forgot to add. Loud but non-fatal.
-        bpt::common::log::warn(
-            "aeron stream '{}' missing from shared streams.toml — using fallback id={}",
-            global_name, fallback_id);
+        bpt::common::log::warn("aeron stream '{}' missing from shared streams.toml — using fallback id={}",
+                               global_name,
+                               fallback_id);
     }
     // shared.stream_ids.empty() == "aeron_config wasn't set on this service" — silent fallback.
 
-    if (auto it = shared.channels.find(std::string(global_name));
-        it != shared.channels.end()) {
+    if (auto it = shared.channels.find(std::string(global_name)); it != shared.channels.end()) {
         s.channel = it->second;
     }
     return s;

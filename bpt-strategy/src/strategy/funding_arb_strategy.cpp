@@ -10,11 +10,10 @@
 #include <messages/RejectSource.h>
 #include <messages/TimeInForce.h>
 
-#include <nlohmann/json.hpp>
-
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <nlohmann/json.hpp>
 
 using bpt::messages::ExchangeId;
 using bpt::messages::ExecStatus;
@@ -99,8 +98,8 @@ FundingArbStrategy::FundingArbStrategy(uint64_t correlation_id,
         max_basis_loss_bps_,
         order_timeout_ns_ / 1'000'000'000ULL);
     bpt::common::log::info("[FA] risk: max_position_usd={} max_order_size_usd={}",
-                   cfg.risk.max_position_usd,
-                   cfg.risk.max_order_size_usd);
+                           cfg.risk.max_position_usd,
+                           cfg.risk.max_order_size_usd);
     for (const auto& b : base_assets_)
         bpt::common::log::info("[FA] base asset: {}", b);
     bpt::common::log::info("[FA] order_id seed={}", next_order_id_.load(std::memory_order_relaxed));
@@ -188,26 +187,26 @@ void FundingArbStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
 
         if (pair.spot.instrument_id == 0 || pair.perp.instrument_id == 0) {
             bpt::common::log::warn("[FA] {} — missing leg (spot_id={} perp_id={}), skipping",
-                           base,
-                           pair.spot.instrument_id,
-                           pair.perp.instrument_id);
+                                   base,
+                                   pair.spot.instrument_id,
+                                   pair.perp.instrument_id);
             continue;
         }
 
         bpt::common::log::info("[FA] {} pair: spot=[{}] {} @ {} tick={} lot={}",
-                       base,
-                       pair.spot.instrument_id,
-                       pair.spot.symbol,
-                       pair.spot.exchange,
-                       pair.spot.tick_size,
-                       pair.spot.lot_size);
+                               base,
+                               pair.spot.instrument_id,
+                               pair.spot.symbol,
+                               pair.spot.exchange,
+                               pair.spot.tick_size,
+                               pair.spot.lot_size);
         bpt::common::log::info("[FA] {} pair: perp=[{}] {} @ {} tick={} lot={}",
-                       base,
-                       pair.perp.instrument_id,
-                       pair.perp.symbol,
-                       pair.perp.exchange,
-                       pair.perp.tick_size,
-                       pair.perp.lot_size);
+                               base,
+                               pair.perp.instrument_id,
+                               pair.perp.symbol,
+                               pair.perp.exchange,
+                               pair.perp.tick_size,
+                               pair.perp.lot_size);
 
         instrument_to_base_[pair.spot.instrument_id] = base;
         instrument_to_base_[pair.perp.instrument_id] = base;
@@ -318,26 +317,26 @@ void FundingArbStrategy::on_exec_report(const bpt::messages::ExecutionReport& rp
         const bool gateway_reject = (src == RejectSource::GATEWAY || src == RejectSource::RISK);
         if (gateway_reject)
             bpt::common::log::error("[FA] {} {} REJECTED reason={} source={} order_id={}",
-                            pair.base_asset,
-                            leg->symbol,
-                            bpt::messages::RejectReason::c_str(rpt.rejectReason()),
-                            bpt::messages::RejectSource::c_str(src),
-                            order_id);
+                                    pair.base_asset,
+                                    leg->symbol,
+                                    bpt::messages::RejectReason::c_str(rpt.rejectReason()),
+                                    bpt::messages::RejectSource::c_str(src),
+                                    order_id);
         else
             bpt::common::log::warn("[FA] {} {} REJECTED reason={} source={} order_id={}",
-                           pair.base_asset,
-                           leg->symbol,
-                           bpt::messages::RejectReason::c_str(rpt.rejectReason()),
-                           bpt::messages::RejectSource::c_str(src),
-                           order_id);
+                                   pair.base_asset,
+                                   leg->symbol,
+                                   bpt::messages::RejectReason::c_str(rpt.rejectReason()),
+                                   bpt::messages::RejectSource::c_str(src),
+                                   order_id);
     } else {
         bpt::common::log::info("[FA] {} {} status={} filled={:.6f} price={:.2f} order_id={}",
-                       pair.base_asset,
-                       leg->symbol,
-                       bpt::messages::ExecStatus::c_str(status),
-                       static_cast<double>(rpt.filledQty()) / kPriceScale,
-                       static_cast<double>(rpt.price()) / kPriceScale,
-                       order_id);
+                               pair.base_asset,
+                               leg->symbol,
+                               bpt::messages::ExecStatus::c_str(status),
+                               static_cast<double>(rpt.filledQty()) / kPriceScale,
+                               static_cast<double>(rpt.price()) / kPriceScale,
+                               order_id);
     }
 
     if (status == ExecStatus::FILLED || status == ExecStatus::PARTIAL) {
@@ -360,7 +359,9 @@ void FundingArbStrategy::evaluate_pair(ArbPair& pair, uint64_t now_ns) {
 
     if (pair.state == PairState::IDLE) {
         if (!fr) {
-            bpt::common::log::info("[FA] {} IDLE — no funding rate for perp_id={}", pair.base_asset, pair.perp.instrument_id);
+            bpt::common::log::info("[FA] {} IDLE — no funding rate for perp_id={}",
+                                   pair.base_asset,
+                                   pair.perp.instrument_id);
             return;
         }
 
@@ -381,22 +382,22 @@ void FundingArbStrategy::evaluate_pair(ArbPair& pair, uint64_t now_ns) {
             (fr->next_funding_ts == 0) || (fr->next_funding_ts > now_ns + min_time_before_funding_ns_);
 
         bpt::common::log::info("[FA] {} IDLE: rate={}bps |rate|>={}? {} stable={}/{} time_ok={}",
-                       pair.base_asset,
-                       fr->rate_bps,
-                       min_funding_rate_bps_,
-                       rate_ok ? "Y" : "N",
-                       pair.stable_sign_count,
-                       min_stable_periods_,
-                       not_too_close ? "Y" : "N");
+                               pair.base_asset,
+                               fr->rate_bps,
+                               min_funding_rate_bps_,
+                               rate_ok ? "Y" : "N",
+                               pair.stable_sign_count,
+                               min_stable_periods_,
+                               not_too_close ? "Y" : "N");
 
         if (rate_ok && stable && not_too_close) {
             // direction: +1 if funding positive (longs pay shorts → go long spot / short perp)
             const int direction = (fr->rate_bps > 0) ? 1 : -1;
             bpt::common::log::info("[FA] {} ENTRY signal: rate={}bps stable={} direction={}",
-                           pair.base_asset,
-                           fr->rate_bps,
-                           pair.stable_sign_count,
-                           direction > 0 ? "long_spot/short_perp" : "short_spot/long_perp");
+                                   pair.base_asset,
+                                   fr->rate_bps,
+                                   pair.stable_sign_count,
+                                   direction > 0 ? "long_spot/short_perp" : "short_spot/long_perp");
             enter_position(pair, direction, now_ns);
         }
     } else if (pair.state == PairState::ACTIVE) {
@@ -428,25 +429,25 @@ void FundingArbStrategy::evaluate_pair(ArbPair& pair, uint64_t now_ns) {
 
         if (should_exit) {
             bpt::common::log::info("[FA] {} EXIT signal: reason={} rate={}bps basis_move={:.1f}bps",
-                           pair.base_asset,
-                           reason,
-                           fr ? fr->rate_bps : 0,
-                           basis_move_bps);
+                                   pair.base_asset,
+                                   reason,
+                                   fr ? fr->rate_bps : 0,
+                                   basis_move_bps);
             exit_position(pair, now_ns);
         } else {
             bpt::common::log::debug("[FA] {} ACTIVE: rate={}bps basis_move={:.1f}bps",
-                            pair.base_asset,
-                            fr ? fr->rate_bps : 0,
-                            basis_move_bps);
+                                    pair.base_asset,
+                                    fr ? fr->rate_bps : 0,
+                                    basis_move_bps);
         }
     } else if (pair.state == PairState::ENTERING_FIRST_LEG || pair.state == PairState::ENTERING_SECOND_LEG) {
         // Check for order timeout.
         LegState& active_leg = (pair.state == PairState::ENTERING_FIRST_LEG) ? pair.spot : pair.perp;
         if (active_leg.order_id != 0 && now_ns - pair.entry_ts > order_timeout_ns_) {
             bpt::common::log::warn("[FA] {} order timeout in state {} — cancelling order_id={}",
-                           pair.base_asset,
-                           state_name(pair.state),
-                           active_leg.order_id);
+                                   pair.base_asset,
+                                   state_name(pair.state),
+                                   active_leg.order_id);
             if (order_gw_)
                 order_gw_->send_cancel(active_leg.order_id, active_leg.exchange_id, active_leg.instrument_id);
         }
@@ -526,13 +527,13 @@ void FundingArbStrategy::send_leg_order(ArbPair& pair,
     const uint64_t order_id = next_order_id_.fetch_add(1, std::memory_order_relaxed);
 
     bpt::common::log::info("[FA] {} {} {} {} @ {:.2f} qty={} → order_id={}",
-                   pair.base_asset,
-                   (side == OrderSide::BUY ? "BUY" : "SELL"),
-                   leg.symbol,
-                   leg.exchange,
-                   price,
-                   qty,
-                   order_id);
+                           pair.base_asset,
+                           (side == OrderSide::BUY ? "BUY" : "SELL"),
+                           leg.symbol,
+                           leg.exchange,
+                           price,
+                           qty,
+                           order_id);
 
     leg.order_id = order_id;
     order_to_base_[order_id] = pair.base_asset;
@@ -552,9 +553,7 @@ void FundingArbStrategy::send_leg_order(ArbPair& pair,
     }
 }
 
-void FundingArbStrategy::handle_fill(ArbPair& pair,
-                                     const LegState& leg,
-                                     const bpt::messages::ExecutionReport& rpt) {
+void FundingArbStrategy::handle_fill(ArbPair& pair, const LegState& leg, const bpt::messages::ExecutionReport& rpt) {
     // Track filled qty per leg.
     const int64_t fill_qty = static_cast<int64_t>(rpt.filledQty());
     const bool is_spot = (leg.instrument_id == pair.spot.instrument_id);
@@ -573,10 +572,10 @@ void FundingArbStrategy::handle_fill(ArbPair& pair,
 
     if (const auto pos = positions_.get(leg.instrument_id, leg.exchange_id)) {
         bpt::common::log::info("[FA] {} Position {} net_qty={:.6f} rpnl={:.4f}",
-                       pair.base_asset,
-                       leg.symbol,
-                       static_cast<double>(pos->net_qty) / kPriceScale,
-                       pos->realized_pnl);
+                               pair.base_asset,
+                               leg.symbol,
+                               static_cast<double>(pos->net_qty) / kPriceScale,
+                               pos->realized_pnl);
     }
 }
 
@@ -595,8 +594,8 @@ void FundingArbStrategy::handle_terminal(ArbPair& pair, LegState& leg, bpt::mess
             } else {
                 // First leg cancelled/rejected — back to IDLE.
                 bpt::common::log::warn("[FA] {} first leg {} — returning to IDLE",
-                               pair.base_asset,
-                               bpt::messages::ExecStatus::c_str(status));
+                                       pair.base_asset,
+                                       bpt::messages::ExecStatus::c_str(status));
                 pair.state = PairState::IDLE;
                 pair.direction = 0;
             }
@@ -607,15 +606,15 @@ void FundingArbStrategy::handle_terminal(ArbPair& pair, LegState& leg, bpt::mess
                 // Both legs filled — position is active.
                 pair.state = PairState::ACTIVE;
                 bpt::common::log::info("[FA] {} ACTIVE: direction={} spot_qty={} perp_qty={}",
-                               pair.base_asset,
-                               pair.direction > 0 ? "long_spot/short_perp" : "short_spot/long_perp",
-                               pair.spot_filled_qty,
-                               pair.perp_filled_qty);
+                                       pair.base_asset,
+                                       pair.direction > 0 ? "long_spot/short_perp" : "short_spot/long_perp",
+                                       pair.spot_filled_qty,
+                                       pair.perp_filled_qty);
             } else {
                 // Second leg failed — must unwind the first leg.
                 bpt::common::log::warn("[FA] {} second leg {} — unwinding first leg",
-                               pair.base_asset,
-                               bpt::messages::ExecStatus::c_str(status));
+                                       pair.base_asset,
+                                       bpt::messages::ExecStatus::c_str(status));
                 pair.state = PairState::UNWINDING;
                 const auto unwind_side = (pair.direction > 0) ? bpt::messages::OrderSide::SELL  // close long spot
                                                               : bpt::messages::OrderSide::BUY;  // close short spot
@@ -635,8 +634,8 @@ void FundingArbStrategy::handle_terminal(ArbPair& pair, LegState& leg, bpt::mess
             } else {
                 // Exit first leg failed — retry on next eval.
                 bpt::common::log::warn("[FA] {} exit first leg {} — will retry",
-                               pair.base_asset,
-                               bpt::messages::ExecStatus::c_str(status));
+                                       pair.base_asset,
+                                       bpt::messages::ExecStatus::c_str(status));
                 pair.state = PairState::ACTIVE;
             }
             break;
@@ -644,8 +643,8 @@ void FundingArbStrategy::handle_terminal(ArbPair& pair, LegState& leg, bpt::mess
         case PairState::EXITING_SECOND_LEG:
             // Second exit leg terminal — back to IDLE regardless.
             bpt::common::log::info("[FA] {} fully exited: status={}",
-                           pair.base_asset,
-                           bpt::messages::ExecStatus::c_str(status));
+                                   pair.base_asset,
+                                   bpt::messages::ExecStatus::c_str(status));
             pair.state = PairState::IDLE;
             pair.direction = 0;
             pair.spot_filled_qty = 0;
@@ -692,13 +691,17 @@ std::string FundingArbStrategy::get_strategy_state_json() {
 
     auto leg_status_str = [](PairState s) -> std::string {
         switch (s) {
-            case PairState::IDLE:                return "flat";
+            case PairState::IDLE:
+                return "flat";
             case PairState::ENTERING_FIRST_LEG:
-            case PairState::ENTERING_SECOND_LEG: return "entering";
-            case PairState::ACTIVE:              return "open";
+            case PairState::ENTERING_SECOND_LEG:
+                return "entering";
+            case PairState::ACTIVE:
+                return "open";
             case PairState::EXITING_FIRST_LEG:
             case PairState::EXITING_SECOND_LEG:
-            case PairState::UNWINDING:           return "exiting";
+            case PairState::UNWINDING:
+                return "exiting";
         }
         return "flat";
     };
@@ -711,8 +714,7 @@ std::string FundingArbStrategy::get_strategy_state_json() {
     // gives a nonsense -10000 bps that pollutes the dashboard. Show 0
     // until both legs warm up; the dashboard differentiates by the
     // perp_mid being 0.
-    const double basis_bps =
-        (spot_mid > 0 && perp_mid > 0) ? (perp_mid - spot_mid) / spot_mid * 1e4 : 0.0;
+    const double basis_bps = (spot_mid > 0 && perp_mid > 0) ? (perp_mid - spot_mid) / spot_mid * 1e4 : 0.0;
     const double funding_rate = p->last_funding_rate_bps / 1e4;  // bps → decimal
     // Hyperliquid funding is hourly (24/day, 8760/year). OKX is 8-hourly
     // (3/day, 1095/year). Strategy doesn't track which schedule; use the

@@ -7,13 +7,13 @@
 #include <messages/ExecStatus.h>
 #include <messages/RejectReason.h>
 
+#include <bpt_common/signal.h>
+#include <bpt_common/util/thread_pin.h>
 #include <chrono>
 #include <cstring>
 #include <filesystem>
 #include <thread>
 #include <unistd.h>
-#include <bpt_common/signal.h>
-#include <bpt_common/util/thread_pin.h>
 
 using namespace std::chrono_literals;
 using bpt::messages::ExchangeId;
@@ -23,9 +23,7 @@ using bpt::messages::RejectReason;
 
 namespace bpt::strategy {
 
-StrategyApp::StrategyApp(config::AppConfig cfg,
-                         messaging::StrategyBus bus,
-                         const bpt::common::util::Topology& topology)
+StrategyApp::StrategyApp(config::AppConfig cfg, messaging::StrategyBus bus, const bpt::common::util::Topology& topology)
     : cfg_(std::move(cfg)),
       metrics_(cfg_.base.metrics_port),
       bus_(std::move(bus)),
@@ -67,8 +65,9 @@ void StrategyApp::run() {
     bpt::common::signal::install_flatten_handler();
 
     bpt::common::log::info("Polling... waiting for RefDataReady before subscribing");
-    bpt::common::log::info("Emergency flatten: `kill -USR1 {}` (or systemctl --user kill --signal=SIGUSR1 bpt-strategy)",
-                   ::getpid());
+    bpt::common::log::info(
+        "Emergency flatten: `kill -USR1 {}` (or systemctl --user kill --signal=SIGUSR1 bpt-strategy)",
+        ::getpid());
 
     // Anchor for the refdata startup timeout. If no heartbeat arrives
     // within startup_refdata_timeout_ns, check_service_liveness() will
@@ -94,8 +93,9 @@ void StrategyApp::run() {
                 metrics_.trading_halted->Set(1.0);
             }
             shutdown_flatten();
-            bpt::common::log::warn("EMERGENCY FLATTEN complete — strategy stays halted. "
-                           "To resume, restart the process (no resume path by design).");
+            bpt::common::log::warn(
+                "EMERGENCY FLATTEN complete — strategy stays halted. "
+                "To resume, restart the process (no resume path by design).");
         }
 
         int frags = bus_.refdata->poll();
@@ -183,7 +183,6 @@ void StrategyApp::run() {
         if (frags == 0)
             __builtin_ia32_pause();
     }
-
 }
 
 void StrategyApp::stop() {
@@ -194,7 +193,6 @@ void StrategyApp::stop() {
     shutdown_flatten();
     metrics_.shutdown();
 }
-
 
 void StrategyApp::check_service_liveness() {
     const uint64_t now_ns = static_cast<uint64_t>(
@@ -213,8 +211,8 @@ void StrategyApp::check_service_liveness() {
         const uint64_t age_ns = now_ns - last_md_hb_recv_ns_;
         if (age_ns > threshold_ns) {
             bpt::common::log::warn("MD Gateway heartbeat stale ({:.1f}s, threshold={:.1f}s) — pausing trading",
-                           age_ns / 1e9,
-                           threshold_ns / 1e9);
+                                   age_ns / 1e9,
+                                   threshold_ns / 1e9);
             stale = true;
         }
     }
@@ -223,8 +221,8 @@ void StrategyApp::check_service_liveness() {
         const uint64_t age_ns = now_ns - last_gw_hb_recv_ns_;
         if (age_ns > threshold_ns) {
             bpt::common::log::warn("OrderGateway heartbeat stale ({:.1f}s, threshold={:.1f}s) — pausing trading",
-                           age_ns / 1e9,
-                           threshold_ns / 1e9);
+                                   age_ns / 1e9,
+                                   threshold_ns / 1e9);
             stale = true;
         }
     }
@@ -277,10 +275,9 @@ void StrategyApp::check_refdata_watchdog() {
             // Metric set + strategy hook are idempotent.
             if (!refdata_stale_logged_) {
                 const double age_s = (now_ns - hb) / 1e9;
-                bpt::common::log::warn(
-                    "Refdata heartbeat stale ({:.1f}s, threshold={:.1f}s) — pausing strategy quotes",
-                    age_s,
-                    cfg_.strat.strategy.schedule.refdata_heartbeat_timeout_ns / 1e9);
+                bpt::common::log::warn("Refdata heartbeat stale ({:.1f}s, threshold={:.1f}s) — pausing strategy quotes",
+                                       age_s,
+                                       cfg_.strat.strategy.schedule.refdata_heartbeat_timeout_ns / 1e9);
                 refdata_stale_logged_ = true;
             }
             metrics_.refdata_stale->Set(1.0);
@@ -343,6 +340,5 @@ void StrategyApp::report_latency_stats() {
         bpt::common::log::info("[Latency] No orders placed in last 30s");
     }
 }
-
 
 }  // namespace bpt::strategy

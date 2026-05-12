@@ -29,9 +29,7 @@ public:
         return wall_now_ns();
     }
 
-    static bool active() noexcept {
-        return active_.load(std::memory_order_relaxed);
-    }
+    static bool active() noexcept { return active_.load(std::memory_order_relaxed); }
 
     // Reset to wall-clock fallback. Tests use this to isolate state across
     // cases; production code should never call it.
@@ -43,8 +41,7 @@ public:
 private:
     static uint64_t wall_now_ns() noexcept {
         return static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::system_clock::now().time_since_epoch())
+            std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
                 .count());
     }
 

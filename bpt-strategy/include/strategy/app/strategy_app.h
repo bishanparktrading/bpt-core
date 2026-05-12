@@ -8,20 +8,18 @@
 #include "strategy/strategy/i_strategy.h"
 #include "strategy/strategy/refdata_stale_gate.h"
 
-#include <cstdint>
-#include <memory>
 #include <bpt_app/app.h>
 #include <bpt_common/util/latency_histogram.h>
 #include <bpt_common/util/topology.h>
 #include <bpt_common/util/tsc_clock.h>
+#include <cstdint>
+#include <memory>
 
 namespace bpt::strategy {
 
 class StrategyApp : public bpt::app::IService {
 public:
-    StrategyApp(config::AppConfig cfg,
-                messaging::StrategyBus bus,
-                const bpt::common::util::Topology& topology);
+    StrategyApp(config::AppConfig cfg, messaging::StrategyBus bus, const bpt::common::util::Topology& topology);
     void run() override;
     void stop() override;
 
@@ -65,7 +63,7 @@ private:
     // off cached fees that go stale and silently ships zero-fee-buffer
     // trades (item #16, prod hardening backlog).
     strategy::RefdataStaleGate refdata_stale_gate_;
-    uint64_t startup_anchor_ns_{0};   // steady_clock @ run() entry — feeds startup timeout
+    uint64_t startup_anchor_ns_{0};      // steady_clock @ run() entry — feeds startup timeout
     uint64_t last_refdata_check_ns_{0};  // 1Hz rate limit for check_refdata_watchdog
     bool refdata_stale_logged_{false};   // edge-trigger for the GoneStale WARN log
 

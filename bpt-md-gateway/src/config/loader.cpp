@@ -84,15 +84,16 @@ Settings load(const std::string& path) {
     if (auto v = root["aeron_config"].value<std::string>()) {
         shared_streams = bpt::common::config::load_shared_streams(*v);
         bpt::common::log::info("Loaded shared aeron stream map from {} ({} streams)",
-                               *v, shared_streams.stream_ids.size());
+                               *v,
+                               shared_streams.stream_ids.size());
         if (!shared_streams.media_driver_dir.empty())
             s.base.media_driver_dir = shared_streams.media_driver_dir;
     }
 
     using bpt::common::config::resolve_stream;
-    s.aeron.md_control   = resolve_stream(shared_streams, "md_control",   2001);
-    s.aeron.md_data      = resolve_stream(shared_streams, "md_data",      2002);
-    s.aeron.md_ack_hb    = resolve_stream(shared_streams, "md_ack_hb",    2003);
+    s.aeron.md_control = resolve_stream(shared_streams, "md_control", 2001);
+    s.aeron.md_data = resolve_stream(shared_streams, "md_data", 2002);
+    s.aeron.md_ack_hb = resolve_stream(shared_streams, "md_ack_hb", 2003);
     s.aeron.funding_rate = resolve_stream(shared_streams, "funding_rate", 1005);
 
     for (auto& elem : adapters_arr) {

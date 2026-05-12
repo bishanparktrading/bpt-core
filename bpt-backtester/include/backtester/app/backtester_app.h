@@ -15,8 +15,8 @@
 #include "backtester/messaging/aeron_bus.h"
 #include "backtester/results/results_collector.h"
 
-#include <memory>
 #include <bpt_app/app.h>
+#include <memory>
 
 namespace bpt::backtester {
 

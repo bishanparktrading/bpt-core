@@ -333,9 +333,12 @@ TEST(MatchingEngineTest, CrossingLimitResidualRestsAsMaker) {
     ob.timestamp_ns = 1000;
     ob.exchange = "BINANCE";
     ob.symbol = "BTCUSDT";
-    ob.bid_px[0] = 99.0;  ob.bid_sz[0] = 10.0;
-    ob.ask_px[0] = 100.0; ob.ask_sz[0] = 2.0;
-    ob.ask_px[1] = 102.0; ob.ask_sz[1] = 10.0;  // gap; out of cross range
+    ob.bid_px[0] = 99.0;
+    ob.bid_sz[0] = 10.0;
+    ob.ask_px[0] = 100.0;
+    ob.ask_sz[0] = 2.0;
+    ob.ask_px[1] = 102.0;
+    ob.ask_sz[1] = 10.0;  // gap; out of cross range
     eng.on_market_event(MarketEvent::from_orderbook(ob));
 
     // BUY 5 @ 100 crosses → fills 2 at 100 (TAKER), 3 residual rests at 100.
@@ -494,8 +497,10 @@ TEST(MatchingEngineLatencyTest, CancelDuringSubmitToMatchPreventsFill) {
 // follow the make_book pattern so unrelated tests work.
 static MarketEvent make_book_l1(const std::string& exchange,
                                 const std::string& symbol,
-                                double bid, double ask,
-                                double bid_sz_l1, double ask_sz_l1,
+                                double bid,
+                                double ask,
+                                double bid_sz_l1,
+                                double ask_sz_l1,
                                 uint64_t ts = 1000) {
     OrderBookRecord ob;
     ob.timestamp_ns = ts;

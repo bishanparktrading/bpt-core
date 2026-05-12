@@ -9,16 +9,17 @@
 namespace bpt::backtester {
 
 BacktesterApp::BacktesterApp(config::Settings settings, messaging::BacktesterBus bus)
-    : settings_(std::move(settings)), bus_(std::move(bus)) {
+    : settings_(std::move(settings)),
+      bus_(std::move(bus)) {
     bpt::common::log::info("Initialising — window: {} → {}, {} instrument(s)",
-                   settings_.simulation.start,
-                   settings_.simulation.end,
-                   settings_.instruments.size());
+                           settings_.simulation.start,
+                           settings_.simulation.end,
+                           settings_.instruments.size());
 
     const auto& ac = settings_.aeron;
     bpt::common::log::info("Backtest tick-gating ready: ctrl_pub=stream:{} ack_sub=stream:{}",
-                   ac.backtest_control.stream_id,
-                   ac.backtest_ack.stream_id);
+                           ac.backtest_control.stream_id,
+                           ac.backtest_ack.stream_id);
 
     // ── DataLoader ─────────────────────────────────────────────────────────
     loader_ = std::make_unique<data::DataLoader>(settings_.data, settings_.simulation, settings_.instruments);
@@ -31,18 +32,17 @@ BacktesterApp::BacktesterApp(config::Settings settings, messaging::BacktesterBus
     okx_md_server_ = std::make_unique<exchange::OkxMdServer>(settings_.endpoints.okx_md_port);
     okx_md_server_->start();
 
-    hyperliquid_md_server_ =
-        std::make_unique<exchange::HyperliquidMdServer>(settings_.endpoints.hyperliquid_md_port);
+    hyperliquid_md_server_ = std::make_unique<exchange::HyperliquidMdServer>(settings_.endpoints.hyperliquid_md_port);
     hyperliquid_md_server_->start();
 
     // HL REST /info simulator. Loads refdata snapshot from disk and serves it
     // to bpt-refdata + bpt-order-gateway in backtest mode. Asset universe
     // populated from the snapshot is used to initialize HyperliquidOrderServer
     // so asset_idx → coin lookup works.
-    hyperliquid_info_server_ = std::make_unique<exchange::HyperliquidInfoServer>(
-        settings_.endpoints.hyperliquid_info_port,
-        settings_.data.hyperliquid_refdata_snapshot,
-        settings_.results.starting_capital);
+    hyperliquid_info_server_ =
+        std::make_unique<exchange::HyperliquidInfoServer>(settings_.endpoints.hyperliquid_info_port,
+                                                          settings_.data.hyperliquid_refdata_snapshot,
+                                                          settings_.results.starting_capital);
     hyperliquid_info_server_->start();
 
     // ── Latency model ──────────────────────────────────────────────────────
@@ -52,29 +52,30 @@ BacktesterApp::BacktesterApp(config::Settings settings, messaging::BacktesterBus
     // pre-Phase-3 behaviour.
     {
         const auto& lcfg = settings_.simulation.latency;
-        bool any_spec = !lcfg.per_venue.empty()
-                     || lcfg.default_spec.submit_to_match_base_ns > 0
-                     || lcfg.default_spec.submit_to_match_jitter_ns > 0
-                     || lcfg.default_spec.match_to_report_base_ns > 0
-                     || lcfg.default_spec.match_to_report_jitter_ns > 0;
+        bool any_spec = !lcfg.per_venue.empty() || lcfg.default_spec.submit_to_match_base_ns > 0 ||
+                        lcfg.default_spec.submit_to_match_jitter_ns > 0 ||
+                        lcfg.default_spec.match_to_report_base_ns > 0 ||
+                        lcfg.default_spec.match_to_report_jitter_ns > 0;
         if (any_spec) {
             latency_model_ = std::make_unique<latency::ParametricLatencyModel>(lcfg.seed);
             using Leg = latency::LatencyLeg;
-            latency_model_->set_default(Leg::SUBMIT_TO_MATCH,
-                {lcfg.default_spec.submit_to_match_base_ns,
-                 lcfg.default_spec.submit_to_match_jitter_ns});
-            latency_model_->set_default(Leg::MATCH_TO_REPORT,
-                {lcfg.default_spec.match_to_report_base_ns,
-                 lcfg.default_spec.match_to_report_jitter_ns});
+            latency_model_->set_default(
+                Leg::SUBMIT_TO_MATCH,
+                {lcfg.default_spec.submit_to_match_base_ns, lcfg.default_spec.submit_to_match_jitter_ns});
+            latency_model_->set_default(
+                Leg::MATCH_TO_REPORT,
+                {lcfg.default_spec.match_to_report_base_ns, lcfg.default_spec.match_to_report_jitter_ns});
             for (const auto& [venue, spec] : lcfg.per_venue) {
-                latency_model_->set_spec(venue, Leg::SUBMIT_TO_MATCH,
-                    {spec.submit_to_match_base_ns, spec.submit_to_match_jitter_ns});
-                latency_model_->set_spec(venue, Leg::MATCH_TO_REPORT,
-                    {spec.match_to_report_base_ns, spec.match_to_report_jitter_ns});
+                latency_model_->set_spec(venue,
+                                         Leg::SUBMIT_TO_MATCH,
+                                         {spec.submit_to_match_base_ns, spec.submit_to_match_jitter_ns});
+                latency_model_->set_spec(venue,
+                                         Leg::MATCH_TO_REPORT,
+                                         {spec.match_to_report_base_ns, spec.match_to_report_jitter_ns});
             }
-            bpt::common::log::info(
-                "[BacktesterApp] LatencyModel installed (seed={}, {} venue overrides)",
-                lcfg.seed, lcfg.per_venue.size());
+            bpt::common::log::info("[BacktesterApp] LatencyModel installed (seed={}, {} venue overrides)",
+                                   lcfg.seed,
+                                   lcfg.per_venue.size());
         }
     }
 
@@ -101,15 +102,17 @@ BacktesterApp::BacktesterApp(config::Settings settings, messaging::BacktesterBus
             if (inst.exchange == "HYPERLIQUID")
                 hl_universe.push_back(inst.symbol);
         }
-        bpt::common::log::warn("[BacktesterApp] HL asset universe empty from snapshot — "
-                               "fell back to [[instruments]] config ({} entries)",
-                               hl_universe.size());
+        bpt::common::log::warn(
+            "[BacktesterApp] HL asset universe empty from snapshot — "
+            "fell back to [[instruments]] config ({} entries)",
+            hl_universe.size());
     } else {
-        bpt::common::log::info("[BacktesterApp] HL asset universe: {} coins from snapshot",
-                               hl_universe.size());
+        bpt::common::log::info("[BacktesterApp] HL asset universe: {} coins from snapshot", hl_universe.size());
     }
-    hyperliquid_order_server_ = std::make_unique<exchange::HyperliquidOrderServer>(
-        settings_.endpoints.hyperliquid_order_port, *matching_engine_, std::move(hl_universe));
+    hyperliquid_order_server_ =
+        std::make_unique<exchange::HyperliquidOrderServer>(settings_.endpoints.hyperliquid_order_port,
+                                                           *matching_engine_,
+                                                           std::move(hl_universe));
     hyperliquid_order_server_->start();
 
     // ── Results collector ──────────────────────────────────────────────────
@@ -123,17 +126,17 @@ BacktesterApp::BacktesterApp(config::Settings settings, messaging::BacktesterBus
     for (const auto& inst : settings_.instruments)
         metadata.instruments.push_back(inst.exchange + ":" + inst.symbol);
     metadata.strategy_name = settings_.results.strategy_name;
-    metadata.params_hash   = settings_.results.params_hash;
-    metadata.git_sha       = settings_.results.git_sha;
-    metadata.params_file   = settings_.results.params_file;
+    metadata.params_hash = settings_.results.params_hash;
+    metadata.git_sha = settings_.results.git_sha;
+    metadata.params_file = settings_.results.params_file;
 
-    const std::string run_id =
-        results::ResultsCollector::compose_run_id(metadata, start_tag, end_tag);
+    const std::string run_id = results::ResultsCollector::compose_run_id(metadata, start_tag, end_tag);
     const std::string out_dir = std::format("{}/{}", settings_.results.output_dir, run_id);
 
-    results_ = std::make_unique<results::ResultsCollector>(
-        settings_.results.starting_capital, out_dir, std::move(metadata),
-        settings_.results.fees_by_venue);
+    results_ = std::make_unique<results::ResultsCollector>(settings_.results.starting_capital,
+                                                           out_dir,
+                                                           std::move(metadata),
+                                                           settings_.results.fees_by_venue);
 
     matching_engine_->set_fill_callback([this](matching::FillReport fill) {
         results_->on_fill(fill);
@@ -153,7 +156,8 @@ BacktesterApp::BacktesterApp(config::Settings settings, messaging::BacktesterBus
                 hyperliquid_order_server_->push_fill(fill);
                 break;
             default:
-                bpt::common::log::warn("[BacktesterApp] No order server for exchange '{}' — fill dropped", fill.exchange);
+                bpt::common::log::warn("[BacktesterApp] No order server for exchange '{}' — fill dropped",
+                                       fill.exchange);
                 break;
         }
     });
@@ -181,8 +185,10 @@ void BacktesterApp::run() {
     uint32_t waited = 0;
     auto md_session_count = [this]() -> std::size_t {
         std::size_t n = 0;
-        if (okx_md_server_) n += okx_md_server_->session_count();
-        if (hyperliquid_md_server_) n += hyperliquid_md_server_->session_count();
+        if (okx_md_server_)
+            n += okx_md_server_->session_count();
+        if (hyperliquid_md_server_)
+            n += hyperliquid_md_server_->session_count();
         return n;
     };
     while (md_session_count() == 0) {

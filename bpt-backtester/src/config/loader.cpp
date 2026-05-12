@@ -1,12 +1,11 @@
+#include "backtester/calendar/session_calendar.h"
 #include "backtester/config/settings.h"
 
-#include "backtester/calendar/session_calendar.h"
-
 #include <algorithm>
-#include <stdexcept>
-#include <toml++/toml.hpp>
 #include <bpt_app/base_settings.h>
 #include <bpt_common/logging.h>
+#include <stdexcept>
+#include <toml++/toml.hpp>
 
 namespace bpt::backtester::config {
 
@@ -34,13 +33,13 @@ Settings load(const std::string& path) {
     bpt::app::load_base_settings(root, s.base);
 
     if (auto* sim = root["simulation"].as_table()) {
-        auto top_start  = (*sim)["start"].value<std::string>();
-        auto top_end    = (*sim)["end"].value<std::string>();
-        auto* win_arr   = (*sim)["windows"].as_array();
-        auto* sess_arr  = (*sim)["sessions"].as_array();
+        auto top_start = (*sim)["start"].value<std::string>();
+        auto top_end = (*sim)["end"].value<std::string>();
+        auto* win_arr = (*sim)["windows"].as_array();
+        auto* sess_arr = (*sim)["sessions"].as_array();
 
-        const bool has_top  = top_start.has_value() || top_end.has_value();
-        const bool has_arr  = win_arr != nullptr;
+        const bool has_top = top_start.has_value() || top_end.has_value();
+        const bool has_arr = win_arr != nullptr;
         const bool has_sess = sess_arr != nullptr;
 
         const int set_count = (has_top ? 1 : 0) + (has_arr ? 1 : 0) + (has_sess ? 1 : 0);
@@ -55,11 +54,12 @@ Settings load(const std::string& path) {
                 if (!t)
                     continue;
                 TimeWindow w;
-                if (auto v = (*t)["start"].value<std::string>()) w.start = *v;
-                if (auto v = (*t)["end"].value<std::string>())   w.end   = *v;
+                if (auto v = (*t)["start"].value<std::string>())
+                    w.start = *v;
+                if (auto v = (*t)["end"].value<std::string>())
+                    w.end = *v;
                 if (w.start.empty() || w.end.empty())
-                    throw std::runtime_error(
-                        "simulation.windows: every entry must have non-empty start and end");
+                    throw std::runtime_error("simulation.windows: every entry must have non-empty start and end");
                 s.simulation.windows.push_back(std::move(w));
             }
             if (s.simulation.windows.empty())
@@ -73,8 +73,7 @@ Settings load(const std::string& path) {
                 auto name = (*t)["name"].value<std::string>();
                 auto* dates = (*t)["dates"].as_array();
                 if (!name || !dates)
-                    throw std::runtime_error(
-                        "simulation.sessions: each entry needs name and dates[]");
+                    throw std::runtime_error("simulation.sessions: each entry needs name and dates[]");
                 std::vector<std::string> dlist;
                 for (auto& dv : *dates)
                     if (auto sv = dv.value<std::string>())
@@ -95,12 +94,11 @@ Settings load(const std::string& path) {
         // Sort by start so .start / .end (back-compat scalars) describe the
         // span correctly. Sorting is stable so user-supplied order is
         // preserved between equal starts.
-        std::stable_sort(s.simulation.windows.begin(), s.simulation.windows.end(),
-                         [](const TimeWindow& a, const TimeWindow& b) {
-                             return a.start < b.start;
-                         });
+        std::stable_sort(s.simulation.windows.begin(),
+                         s.simulation.windows.end(),
+                         [](const TimeWindow& a, const TimeWindow& b) { return a.start < b.start; });
         s.simulation.start = s.simulation.windows.front().start;
-        s.simulation.end   = s.simulation.windows.back().end;
+        s.simulation.end = s.simulation.windows.back().end;
 
         if (auto v = (*sim)["allow_partial_data"].value<bool>())
             s.simulation.allow_partial_data = *v;

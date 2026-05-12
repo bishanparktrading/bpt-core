@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <arrow/api.h>
 #include <arrow/io/api.h>
+#include <bpt_common/logging.h>
 #include <cctype>
 #include <chrono>
 #include <filesystem>
@@ -10,7 +11,6 @@
 #include <parquet/arrow/reader.h>
 #include <stdexcept>
 #include <vector>
-#include <bpt_common/logging.h>
 
 namespace bpt::backtester::data {
 
@@ -36,9 +36,9 @@ static uint64_t parse_iso_ns(const std::string& s) {
     if (s.size() < 10)
         throw std::runtime_error("Invalid ISO 8601 timestamp: " + s);
 
-    int y  = std::stoi(s.substr(0, 4));
+    int y = std::stoi(s.substr(0, 4));
     int mo = std::stoi(s.substr(5, 2));
-    int d  = std::stoi(s.substr(8, 2));
+    int d = std::stoi(s.substr(8, 2));
 
     sys_days day_tp = sys_days{year{y} / month{static_cast<unsigned>(mo)} / day{static_cast<unsigned>(d)}};
     int64_t day_ns = duration_cast<nanoseconds>(day_tp.time_since_epoch()).count();
@@ -55,8 +55,7 @@ static uint64_t parse_iso_ns(const std::string& s) {
     int mm = std::stoi(s.substr(14, 2));
     int ss = std::stoi(s.substr(17, 2));
     int64_t time_ns =
-        (static_cast<int64_t>(hh) * 3600 + static_cast<int64_t>(mm) * 60 + static_cast<int64_t>(ss))
-        * 1'000'000'000LL;
+        (static_cast<int64_t>(hh) * 3600 + static_cast<int64_t>(mm) * 60 + static_cast<int64_t>(ss)) * 1'000'000'000LL;
 
     std::size_t i = 19;
     int64_t frac_ns = 0;
@@ -69,7 +68,8 @@ static uint64_t parse_iso_ns(const std::string& s) {
             ++digits;
         }
         // Pad to 9 digits (ns precision).
-        for (int k = digits; k < 9; ++k) frac_ns *= 10;
+        for (int k = digits; k < 9; ++k)
+            frac_ns *= 10;
         // Truncate any further digits.
         while (i < s.size() && std::isdigit(static_cast<unsigned char>(s[i])))
             ++i;
@@ -169,12 +169,14 @@ DataLoader::DataLoader(const config::DataConfig& data_cfg,
     for (const auto& tw : sim_cfg.windows)
         windows_.push_back(window_from_strings(tw.start, tw.end));
 
-    std::sort(windows_.begin(), windows_.end(),
-              [](const Window& a, const Window& b) { return a.start_ns < b.start_ns; });
+    std::sort(windows_.begin(), windows_.end(), [](const Window& a, const Window& b) {
+        return a.start_ns < b.start_ns;
+    });
 
     const uint64_t min_start = windows_.front().start_ns;
     uint64_t max_end = 0;
-    for (const auto& w : windows_) max_end = std::max(max_end, w.end_ns);
+    for (const auto& w : windows_)
+        max_end = std::max(max_end, w.end_ns);
 
     start_day_ = day_of_ns(min_start);
     end_day_ = day_of_ns(max_end - 1);
@@ -354,10 +356,11 @@ void DataLoader::load_day(InstrumentReader& reader) {
     // at the mid-price with unit quantity.  This gives trade-dependent strategies
     // (e.g. VWAP) a price stream equivalent to a mid-price moving average.
     if (!has_real_trades && !reader.day_events.empty()) {
-        bpt::common::log::debug(kLog(), "No trades for {}/{} on {} — synthesising from orderbook mid",
-                        ex,
-                        sym,
-                        format_date(d));
+        bpt::common::log::debug(kLog(),
+                                "No trades for {}/{} on {} — synthesising from orderbook mid",
+                                ex,
+                                sym,
+                                format_date(d));
         std::vector<MarketEvent> synthetic;
         synthetic.reserve(reader.day_events.size());
         for (const auto& ev : reader.day_events) {
@@ -385,7 +388,12 @@ void DataLoader::load_day(InstrumentReader& reader) {
         return a.timestamp_ns < b.timestamp_ns;
     });
 
-    bpt::common::log::debug(kLog(), "Loaded {} events for {}/{} on {}", reader.day_events.size(), ex, sym, format_date(d));
+    bpt::common::log::debug(kLog(),
+                            "Loaded {} events for {}/{} on {}",
+                            reader.day_events.size(),
+                            ex,
+                            sym,
+                            format_date(d));
 }
 
 bool DataLoader::InstrumentReader::advance() {

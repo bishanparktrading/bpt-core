@@ -83,15 +83,16 @@ Settings load(const std::string& path) {
     if (auto v = root["aeron_config"].value<std::string>()) {
         shared_streams = bpt::common::config::load_shared_streams(*v);
         bpt::common::log::info("Loaded shared aeron stream map from {} ({} streams)",
-                               *v, shared_streams.stream_ids.size());
+                               *v,
+                               shared_streams.stream_ids.size());
         if (!shared_streams.media_driver_dir.empty())
             s.base.media_driver_dir = shared_streams.media_driver_dir;
     }
 
     using bpt::common::config::resolve_stream;
-    s.aeron.order            = resolve_stream(shared_streams, "order",            3001);
-    s.aeron.exec_report      = resolve_stream(shared_streams, "exec_report",      3002);
-    s.aeron.heartbeat        = resolve_stream(shared_streams, "heartbeat",        3003);
+    s.aeron.order = resolve_stream(shared_streams, "order", 3001);
+    s.aeron.exec_report = resolve_stream(shared_streams, "exec_report", 3002);
+    s.aeron.heartbeat = resolve_stream(shared_streams, "heartbeat", 3003);
     s.aeron.account_snapshot = resolve_stream(shared_streams, "account_snapshot", 3004);
 
     // TOML section is [order-gateway] / [order-gateway.risk] across every

@@ -14,15 +14,13 @@ ProfileConfig load_profile_config(const std::string& path) {
     try {
         root = toml::parse_file(path);
     } catch (const toml::parse_error& e) {
-        throw std::runtime_error(
-            fmt::format("profile_config: failed to parse '{}': {}", path, e.description()));
+        throw std::runtime_error(fmt::format("profile_config: failed to parse '{}': {}", path, e.description()));
     }
 
     if (auto v = root["environment"].value<std::string>()) {
         out.environment = bpt::common::env_from_string(*v);
     } else {
-        throw std::runtime_error(
-            fmt::format("profile_config '{}' missing required `environment` field", path));
+        throw std::runtime_error(fmt::format("profile_config '{}' missing required `environment` field", path));
     }
 
     if (auto* arr = root["exchanges"].as_array()) {

@@ -60,18 +60,19 @@ Settings load(const std::string& path, const std::string& profile_override) {
     if (auto v = root["aeron_config"].value<std::string>()) {
         shared_streams = bpt::common::config::load_shared_streams(*v);
         bpt::common::log::info("Loaded shared aeron stream map from {} ({} streams)",
-                               *v, shared_streams.stream_ids.size());
+                               *v,
+                               shared_streams.stream_ids.size());
         if (!shared_streams.media_driver_dir.empty())
             s.base.media_driver_dir = shared_streams.media_driver_dir;
     }
 
     using bpt::common::config::resolve_stream;
-    s.md_data           = resolve_stream(shared_streams, "md_data",           2002);
-    s.exec_report       = resolve_stream(shared_streams, "exec_report",       3002);
+    s.md_data = resolve_stream(shared_streams, "md_data", 2002);
+    s.exec_report = resolve_stream(shared_streams, "exec_report", 3002);
     s.dashboard_control = resolve_stream(shared_streams, "dashboard_control", 9003);
-    s.portfolio         = resolve_stream(shared_streams, "portfolio",         9004);
-    s.account_snapshot  = resolve_stream(shared_streams, "account_snapshot",  3004);
-    s.toxicity          = resolve_stream(shared_streams, "toxicity",          0);
+    s.portfolio = resolve_stream(shared_streams, "portfolio", 9004);
+    s.account_snapshot = resolve_stream(shared_streams, "account_snapshot", 3004);
+    s.toxicity = resolve_stream(shared_streams, "toxicity", 0);
 
     // WebSocket
     if (auto* ws = root["ws"].as_table()) {

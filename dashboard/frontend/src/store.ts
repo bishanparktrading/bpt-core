@@ -13,13 +13,7 @@ if (import.meta.hot) {
 }
 
 import { create } from 'zustand'
-import type {
-  ConnectionStatus,
-  InstrumentType,
-  Msg,
-  OrderMsg,
-  RunMode,
-} from './types/messages'
+import type { ConnectionStatus, InstrumentType, Msg, OrderMsg, RunMode } from './types/messages'
 import type { Fill } from './components/Blotter'
 import type { OptionLeg, PortfolioGreeks, VolSmileSlice, VolSurfacePoint } from './types/options'
 import { sendCommand } from './ws/client'

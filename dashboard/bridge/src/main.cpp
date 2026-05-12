@@ -46,11 +46,10 @@ int main(int argc, char** argv) {
                            instrument_type_override,
                            "Override session.instrument_type (SPOT|PERP|FUTURE|OPTION)");
             cli.add_option("--instrument-id", instrument_id_override, "Override session.instrument_id");
-            cli.add_option(
-                "--profile",
-                profile_override,
-                "Path to deployment profile TOML; overrides profile_config in the instance TOML. "
-                "Wired through the systemd env file so bridge labels its env from the active stack.");
+            cli.add_option("--profile",
+                           profile_override,
+                           "Path to deployment profile TOML; overrides profile_config in the instance TOML. "
+                           "Wired through the systemd env file so bridge labels its env from the active stack.");
         });
 
     // Initialise logging before config::load so the profile / aeron stream

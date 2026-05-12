@@ -7,12 +7,12 @@
 #include <messages/DeltaUpdateType.h>
 #include <messages/ExchangeId.h>
 #include <messages/ExecStatus.h>
-#include <messages/exec_inst.h>
 #include <messages/InstrumentType.h>
 #include <messages/OrderType.h>
 #include <messages/RejectSource.h>
 #include <messages/TimeInForce.h>
 #include <messages/TradeSide.h>
+#include <messages/exec_inst.h>
 
 #include <algorithm>
 #include <bpt_common/logging.h>
@@ -49,17 +49,21 @@ FairValueEstimator::Config parse_fair_value_config(const toml::table& params) {
     if (!fv)
         return c;  // No table → keep defaults (Mode::kMid).
     const std::string mode = fv["mode"].value<std::string>().value_or("mid");
-    if (mode == "mid")                c.mode = FairValueEstimator::Mode::kMid;
-    else if (mode == "micro")         c.mode = FairValueEstimator::Mode::kMicro;
-    else if (mode == "micro_capped")  c.mode = FairValueEstimator::Mode::kMicroSizeCapped;
-    else if (mode == "l2_weighted")   c.mode = FairValueEstimator::Mode::kL2WeightedMicro;
-    else if (mode == "ewma_micro")    c.mode = FairValueEstimator::Mode::kEwmaMicro;
+    if (mode == "mid")
+        c.mode = FairValueEstimator::Mode::kMid;
+    else if (mode == "micro")
+        c.mode = FairValueEstimator::Mode::kMicro;
+    else if (mode == "micro_capped")
+        c.mode = FairValueEstimator::Mode::kMicroSizeCapped;
+    else if (mode == "l2_weighted")
+        c.mode = FairValueEstimator::Mode::kL2WeightedMicro;
+    else if (mode == "ewma_micro")
+        c.mode = FairValueEstimator::Mode::kEwmaMicro;
     else
-        bpt::common::log::warn(kLog(),
-            "[fair_value] unknown mode='{}' — falling back to 'mid'", mode);
+        bpt::common::log::warn(kLog(), "[fair_value] unknown mode='{}' — falling back to 'mid'", mode);
     c.size_cap_qty = fv["size_cap_qty"].value<double>().value_or(c.size_cap_qty);
-    c.ladder_depth = static_cast<std::size_t>(
-        fv["ladder_depth"].value<int64_t>().value_or(static_cast<int64_t>(c.ladder_depth)));
+    c.ladder_depth =
+        static_cast<std::size_t>(fv["ladder_depth"].value<int64_t>().value_or(static_cast<int64_t>(c.ladder_depth)));
     c.ladder_decay = fv["ladder_decay"].value<double>().value_or(c.ladder_decay);
     c.ewma_alpha = fv["ewma_alpha"].value<double>().value_or(c.ewma_alpha);
     return c;
@@ -98,8 +102,7 @@ AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
       post_fill_markout_threshold_bps_(cfg.params["post_fill_markout_threshold_bps"].value<double>().value_or(0.0)),
       post_fill_markout_cooldown_s_(cfg.params["post_fill_markout_cooldown_s"].value<double>().value_or(30.0)),
       drift_halflife_s_(cfg.params["drift_halflife_s"].value<double>().value_or(30.0)),
-      drift_warmup_ticks_(static_cast<std::size_t>(
-          cfg.params["drift_warmup_ticks"].value<int64_t>().value_or(50))),
+      drift_warmup_ticks_(static_cast<std::size_t>(cfg.params["drift_warmup_ticks"].value<int64_t>().value_or(50))),
       max_drift_skew_bps_(cfg.params["max_drift_skew_bps"].value<double>().value_or(10.0)),
       drift_suppress_bps_(cfg.params["drift_suppress_bps"].value<double>().value_or(0.0)),
       drift_suppress_sigma_mult_(cfg.params["drift_suppress_sigma_mult"].value<double>().value_or(0.0)),
@@ -128,15 +131,13 @@ AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
           static_cast<uint64_t>(cfg.params["vol_gate_halt_ms"].value<double>().value_or(5000.0) * 1e6),
       },
       vol_gate_sigma_mult_(cfg.params["vol_gate_sigma_mult"].value<double>().value_or(0.0)),
-      gamma_pnl_window_n_(static_cast<std::size_t>(
-          cfg.params["gamma_pnl_window_n"].value<int64_t>().value_or(0))),
+      gamma_pnl_window_n_(static_cast<std::size_t>(cfg.params["gamma_pnl_window_n"].value<int64_t>().value_or(0))),
       gamma_pnl_loss_threshold_usd_(cfg.params["gamma_pnl_loss_threshold_usd"].value<double>().value_or(0.0)),
       gamma_pnl_profit_threshold_usd_(cfg.params["gamma_pnl_profit_threshold_usd"].value<double>().value_or(0.0)),
       gamma_pnl_widen_mult_(cfg.params["gamma_pnl_widen_mult"].value<double>().value_or(1.0)),
       gamma_pnl_tighten_mult_(cfg.params["gamma_pnl_tighten_mult"].value<double>().value_or(1.0)),
       ofi_weight_bps_(cfg.params["ofi_weight_bps"].value<double>().value_or(0.0)),
-      ofi_window_ns_(static_cast<uint64_t>(
-          cfg.params["ofi_window_ms"].value<double>().value_or(1000.0) * 1e6)),
+      ofi_window_ns_(static_cast<uint64_t>(cfg.params["ofi_window_ms"].value<double>().value_or(1000.0) * 1e6)),
       instruments_(cfg.instruments),
       md_exchanges_(cfg.md_exchanges),
       venue_exec_(cfg.venue_exec),
@@ -181,19 +182,30 @@ AvellanedaStoikovStrategy::AvellanedaStoikovStrategy(uint64_t correlation_id,
     {
         const char* fv_mode_str = "mid";
         switch (fv_cfg_.mode) {
-            case FairValueEstimator::Mode::kMid:             fv_mode_str = "mid"; break;
-            case FairValueEstimator::Mode::kMicro:           fv_mode_str = "micro"; break;
-            case FairValueEstimator::Mode::kMicroSizeCapped: fv_mode_str = "micro_capped"; break;
-            case FairValueEstimator::Mode::kL2WeightedMicro: fv_mode_str = "l2_weighted"; break;
-            case FairValueEstimator::Mode::kEwmaMicro:       fv_mode_str = "ewma_micro"; break;
+            case FairValueEstimator::Mode::kMid:
+                fv_mode_str = "mid";
+                break;
+            case FairValueEstimator::Mode::kMicro:
+                fv_mode_str = "micro";
+                break;
+            case FairValueEstimator::Mode::kMicroSizeCapped:
+                fv_mode_str = "micro_capped";
+                break;
+            case FairValueEstimator::Mode::kL2WeightedMicro:
+                fv_mode_str = "l2_weighted";
+                break;
+            case FairValueEstimator::Mode::kEwmaMicro:
+                fv_mode_str = "ewma_micro";
+                break;
         }
-        bpt::common::log::info(kLog(),
-                               "fair_value: mode={} size_cap={:.4f} ladder_depth={} ladder_decay={:.2f} ewma_alpha={:.2f}",
-                               fv_mode_str,
-                               fv_cfg_.size_cap_qty,
-                               fv_cfg_.ladder_depth,
-                               fv_cfg_.ladder_decay,
-                               fv_cfg_.ewma_alpha);
+        bpt::common::log::info(
+            kLog(),
+            "fair_value: mode={} size_cap={:.4f} ladder_depth={} ladder_decay={:.2f} ewma_alpha={:.2f}",
+            fv_mode_str,
+            fv_cfg_.size_cap_qty,
+            fv_cfg_.ladder_depth,
+            fv_cfg_.ladder_decay,
+            fv_cfg_.ewma_alpha);
     }
     if (pause_below_rpnl_usd_ < 0.0) {
         bpt::common::log::info(kLog(),
@@ -279,20 +291,20 @@ void AvellanedaStoikovStrategy::on_snapshot(const refdata::InstrumentCache& cach
             ex_id = ExchangeId::HYPERLIQUID;
 
         auto [it, inserted] = state_.emplace(id,
-                       InstrumentState{.symbol = inst->symbol,
-                                       .exchange = inst->exchange,
-                                       .exchange_id = ex_id,
-                                       .instrument_type = inst->type,
-                                       .base_ccy = inst->base_currency,
-                                       .tick_size = inst->tick_size,
-                                       .lot_size = inst->lot_size,
-                                       .vol_gate = VolatilityGate(vol_gate_cfg_),
-                                       .regime = RegimeDetector(regime_cfg_)});
+                                             InstrumentState{.symbol = inst->symbol,
+                                                             .exchange = inst->exchange,
+                                                             .exchange_id = ex_id,
+                                                             .instrument_type = inst->type,
+                                                             .base_ccy = inst->base_currency,
+                                                             .tick_size = inst->tick_size,
+                                                             .lot_size = inst->lot_size,
+                                                             .vol_gate = VolatilityGate(vol_gate_cfg_),
+                                                             .regime = RegimeDetector(regime_cfg_)});
         if (inserted) {
             it->second.fv = FairValueEstimator{fv_cfg_};
             it->second.ofi = OFICalculator{OFICalculator::Config{
                 .max_levels = static_cast<int>(order_book_depth_ > 0 ? order_book_depth_ : 5),
-                .window_ns  = ofi_window_ns_,
+                .window_ns = ofi_window_ns_,
             }};
         }
         bpt::common::log::info("  [{}] {} @ {} tick={} lot={}",
@@ -337,20 +349,20 @@ void AvellanedaStoikovStrategy::on_delta(const refdata::Instrument& inst,
             ex_id = EX::HYPERLIQUID;
 
         auto [it, inserted] = state_.emplace(inst.instrument_id,
-                       InstrumentState{.symbol = inst.symbol,
-                                       .exchange = inst.exchange,
-                                       .exchange_id = ex_id,
-                                       .instrument_type = inst.type,
-                                       .base_ccy = inst.base_currency,
-                                       .tick_size = inst.tick_size,
-                                       .lot_size = inst.lot_size,
-                                       .vol_gate = VolatilityGate(vol_gate_cfg_),
-                                       .regime = RegimeDetector(regime_cfg_)});
+                                             InstrumentState{.symbol = inst.symbol,
+                                                             .exchange = inst.exchange,
+                                                             .exchange_id = ex_id,
+                                                             .instrument_type = inst.type,
+                                                             .base_ccy = inst.base_currency,
+                                                             .tick_size = inst.tick_size,
+                                                             .lot_size = inst.lot_size,
+                                                             .vol_gate = VolatilityGate(vol_gate_cfg_),
+                                                             .regime = RegimeDetector(regime_cfg_)});
         if (inserted) {
             it->second.fv = FairValueEstimator{fv_cfg_};
             it->second.ofi = OFICalculator{OFICalculator::Config{
                 .max_levels = static_cast<int>(order_book_depth_ > 0 ? order_book_depth_ : 5),
-                .window_ns  = ofi_window_ns_,
+                .window_ns = ofi_window_ns_,
             }};
         }
         bpt::common::log::info(kLog(),
@@ -391,8 +403,10 @@ void AvellanedaStoikovStrategy::on_order_book(const bpt::messages::MdOrderBook& 
         std::vector<OFICalculator::Level> ofi_bids, ofi_asks;
         ofi_bids.reserve(top_b.size());
         ofi_asks.reserve(top_a.size());
-        for (const auto& l : top_b) ofi_bids.emplace_back(l.price, l.qty);
-        for (const auto& l : top_a) ofi_asks.emplace_back(l.price, l.qty);
+        for (const auto& l : top_b)
+            ofi_bids.emplace_back(l.price, l.qty);
+        for (const auto& l : top_a)
+            ofi_asks.emplace_back(l.price, l.qty);
         st.ofi.update(ofi_bids, ofi_asks, book.timestampNs());
     }
 
@@ -488,33 +502,31 @@ void AvellanedaStoikovStrategy::on_bbo(const bpt::messages::MdMarketData& tick) 
     // window. Cooldown timestamps are in simulation time (ts_ns) so
     // they translate consistently between live and backtest.
     if (st.pending_buy_fill_price > 0.0) {
-        const double markout_bps =
-            (mid - st.pending_buy_fill_price) / st.pending_buy_fill_price * 1e4;
+        const double markout_bps = (mid - st.pending_buy_fill_price) / st.pending_buy_fill_price * 1e4;
         if (markout_bps < post_fill_markout_threshold_bps_) {
-            const uint64_t cooldown_ns =
-                static_cast<uint64_t>(post_fill_markout_cooldown_s_ * 1e9);
+            const uint64_t cooldown_ns = static_cast<uint64_t>(post_fill_markout_cooldown_s_ * 1e9);
             st.post_fill_suspend_until_bid = ts_ns + cooldown_ns;
-            bpt::common::log::warn(
-                kLog(),
-                "{} post-fill BUY markout {:.2f} bps < {:.2f} — suspending bid for {:.1f}s",
-                st.symbol, markout_bps,
-                post_fill_markout_threshold_bps_, post_fill_markout_cooldown_s_);
+            bpt::common::log::warn(kLog(),
+                                   "{} post-fill BUY markout {:.2f} bps < {:.2f} — suspending bid for {:.1f}s",
+                                   st.symbol,
+                                   markout_bps,
+                                   post_fill_markout_threshold_bps_,
+                                   post_fill_markout_cooldown_s_);
         }
         st.pending_buy_fill_price = 0.0;
     }
     if (st.pending_sell_fill_price > 0.0) {
         // SELL favorable = mid moved DOWN, so flip sign vs BUY case.
-        const double markout_bps =
-            (st.pending_sell_fill_price - mid) / st.pending_sell_fill_price * 1e4;
+        const double markout_bps = (st.pending_sell_fill_price - mid) / st.pending_sell_fill_price * 1e4;
         if (markout_bps < post_fill_markout_threshold_bps_) {
-            const uint64_t cooldown_ns =
-                static_cast<uint64_t>(post_fill_markout_cooldown_s_ * 1e9);
+            const uint64_t cooldown_ns = static_cast<uint64_t>(post_fill_markout_cooldown_s_ * 1e9);
             st.post_fill_suspend_until_ask = ts_ns + cooldown_ns;
-            bpt::common::log::warn(
-                kLog(),
-                "{} post-fill SELL markout {:.2f} bps < {:.2f} — suspending ask for {:.1f}s",
-                st.symbol, markout_bps,
-                post_fill_markout_threshold_bps_, post_fill_markout_cooldown_s_);
+            bpt::common::log::warn(kLog(),
+                                   "{} post-fill SELL markout {:.2f} bps < {:.2f} — suspending ask for {:.1f}s",
+                                   st.symbol,
+                                   markout_bps,
+                                   post_fill_markout_threshold_bps_,
+                                   post_fill_markout_cooldown_s_);
         }
         st.pending_sell_fill_price = 0.0;
     }
@@ -534,8 +546,7 @@ void AvellanedaStoikovStrategy::on_bbo(const bpt::messages::MdMarketData& tick) 
         }
     }
     if (st.slow_drift_window_start_mid > 0.0) {
-        st.slow_drift_bps =
-            (mid - st.slow_drift_window_start_mid) / st.slow_drift_window_start_mid * 1e4;
+        st.slow_drift_bps = (mid - st.slow_drift_window_start_mid) / st.slow_drift_window_start_mid * 1e4;
     }
 
     // ── Update EWMA volatility ─────────────────────────────────────────────
@@ -597,8 +608,7 @@ void AvellanedaStoikovStrategy::on_bbo(const bpt::messages::MdMarketData& tick) 
         const double sigma_bps = std::sqrt(st.ewma_var) * 1e4;
         const double window_s = static_cast<double>(vol_gate_cfg_.window_ns) * 1e-9;
         const double adaptive_bps = vol_gate_sigma_mult_ * sigma_bps * std::sqrt(window_s);
-        st.vol_gate.set_max_bps_per_window(
-            std::max(vol_gate_cfg_.max_bps_per_window, adaptive_bps));
+        st.vol_gate.set_max_bps_per_window(std::max(vol_gate_cfg_.max_bps_per_window, adaptive_bps));
     }
     const bool was_halted = st.vol_gate.is_halted(ts_ns);
     const bool now_halted = st.vol_gate.update_and_check(mid, ts_ns);
@@ -718,10 +728,10 @@ void AvellanedaStoikovStrategy::on_exec_report(const bpt::messages::ExecutionRep
             const double fill_px = static_cast<double>(rpt.price()) / 1e8;
             if (rpt.side() == bpt::messages::TradeSide::BUY) {
                 st.pending_buy_fill_price = fill_px;
-                st.pending_buy_fill_ts    = st.last_tick_ns;
+                st.pending_buy_fill_ts = st.last_tick_ns;
             } else {
                 st.pending_sell_fill_price = fill_px;
-                st.pending_sell_fill_ts    = st.last_tick_ns;
+                st.pending_sell_fill_ts = st.last_tick_ns;
             }
         }
 
@@ -755,15 +765,17 @@ void AvellanedaStoikovStrategy::on_exec_report(const bpt::messages::ExecutionRep
             // (Same pattern as the vol_halted cancel block in on_bbo:
             // suppression alone doesn't pull live orders, only stops
             // requotes; explicit cancel is required.)
-            if (pause_below_rpnl_usd_ < 0.0 &&
-                pos->realized_pnl < pause_below_rpnl_usd_ &&
+            if (pause_below_rpnl_usd_ < 0.0 && pos->realized_pnl < pause_below_rpnl_usd_ &&
                 prior_rpnl >= pause_below_rpnl_usd_) {
                 const uint64_t now_ns = bpt::common::util::TscClock::now_epoch_ns();
                 st.pause_until_ns = now_ns + static_cast<uint64_t>(pause_cooldown_s_ * 1e9);
                 bpt::common::log::warn(kLog(),
-                    "{} PAUSE TRIGGERED rpnl={:.4f} crossed below threshold={:.4f} — "
-                    "halting both sides for {:.0f}s",
-                    st.symbol, pos->realized_pnl, pause_below_rpnl_usd_, pause_cooldown_s_);
+                                       "{} PAUSE TRIGGERED rpnl={:.4f} crossed below threshold={:.4f} — "
+                                       "halting both sides for {:.0f}s",
+                                       st.symbol,
+                                       pos->realized_pnl,
+                                       pause_below_rpnl_usd_,
+                                       pause_cooldown_s_);
                 if (order_mgr_) {
                     if (st.bid_order_id != 0 && !st.bid_cancel_pending) {
                         order_mgr_->cancel_order(st.bid_order_id, st.exchange_id, canonical_id);
@@ -882,8 +894,7 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
     //   2. PnL feedback multiplier (widen on recent loss streak)
     // Both default to 1.0 when their respective features are disabled,
     // so static γ behavior is unchanged unless operator opts in.
-    const double effective_gamma =
-        gamma_ * st.regime.gamma_multiplier() * gamma_pnl_mult(st);
+    const double effective_gamma = gamma_ * st.regime.gamma_multiplier() * gamma_pnl_mult(st);
     const double gamma_sigma_sq_T = effective_gamma * sigma_sq * T_minus_t;
 
     // Drift-adjusted reservation price (Cartea-Jaimungal extension).
@@ -906,9 +917,7 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
     // (harder to get filled short), bids move up (easier to get filled long).
     // This counteracts the core AS weakness of accumulating adverse inventory
     // in momentum regimes.
-    const double q_normalized = (max_inventory_ > 0.0)
-                                    ? std::clamp(net_qty / max_inventory_, -1.0, 1.0)
-                                    : 0.0;
+    const double q_normalized = (max_inventory_ > 0.0) ? std::clamp(net_qty / max_inventory_, -1.0, 1.0) : 0.0;
     const double inventory_skew_frac = q_normalized * gamma_sigma_sq_T;
     // Drift contribution to reservation. ewma_drift is the EWMA of
     // log_ret/√dt — units of log-returns per √second. Integrating that
@@ -925,9 +934,7 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
     // noisy enough to push reservation through the touch. After
     // drift_warmup_ticks_ BBO updates, the EWMA has settled enough that
     // its sqrt(T - t) projection is a meaningful directional bias.
-    double drift_skew_frac = (st.drift_ticks >= drift_warmup_ticks_)
-                                 ? st.ewma_drift * std::sqrt(T_minus_t)
-                                 : 0.0;
+    double drift_skew_frac = (st.drift_ticks >= drift_warmup_ticks_) ? st.ewma_drift * std::sqrt(T_minus_t) : 0.0;
     // Hard cap on drift skew magnitude. Without it, strong intraday
     // trends amplified by √(T-t) at session start drive reservation
     // 50+ bps from mid, putting quotes deeper than any realistic book
@@ -980,17 +987,16 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
         half_spread = max_half_spread;
         static std::size_t clamp_count = 0;
         if (++clamp_count <= 5 || clamp_count % 1000 == 0) {
-            bpt::common::log::warn(
-                kLog(),
-                "half-spread clamp: formula={:.2f} bps → clamped to {:.2f} bps "
-                "(σ²={:.2e} κ={:.4f} ticks={} {}; {} clamps so far)",
-                raw_half_spread / mid * 10000,
-                max_half_spread_bps_,
-                sigma_sq,
-                kappa,
-                st.ewma_ticks,
-                (st.ewma_ticks < vol_warmup_ticks_ * 3) ? "WARMUP" : "σ-SPIKE",
-                clamp_count);
+            bpt::common::log::warn(kLog(),
+                                   "half-spread clamp: formula={:.2f} bps → clamped to {:.2f} bps "
+                                   "(σ²={:.2e} κ={:.4f} ticks={} {}; {} clamps so far)",
+                                   raw_half_spread / mid * 10000,
+                                   max_half_spread_bps_,
+                                   sigma_sq,
+                                   kappa,
+                                   st.ewma_ticks,
+                                   (st.ewma_ticks < vol_warmup_ticks_ * 3) ? "WARMUP" : "σ-SPIKE",
+                                   clamp_count);
         }
     }
 
@@ -1018,8 +1024,10 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
     if (st.tick_size > 0.0 && st.last_market_bid > 0.0 && st.last_market_ask > 0.0) {
         const double bid_cap = st.last_market_ask - st.tick_size;
         const double ask_floor = st.last_market_bid + st.tick_size;
-        if (out_bid > bid_cap) out_bid = bid_cap;
-        if (out_ask < ask_floor) out_ask = ask_floor;
+        if (out_bid > bid_cap)
+            out_bid = bid_cap;
+        if (out_ask < ask_floor)
+            out_ask = ask_floor;
         // Defensive: if the clamp inverts the spread (only possible on
         // a crossed market, which shouldn't happen but might in
         // transient feed states), treat as "don't quote this tick."
@@ -1046,19 +1054,18 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
         if (out_bid < lo || out_ask > hi || out_bid <= 0.0) {
             static std::size_t skip_count = 0;
             if (++skip_count <= 5 || skip_count % 1000 == 0) {
-                bpt::common::log::warn(
-                    kLog(),
-                    "{} quote out of sanity range — skipping tick: "
-                    "bid={:.6f} ask={:.6f} mid={:.6f} reservation={:.6f} "
-                    "half_spread={:.6f} (sanity_bps={:.1f}; {} skips so far)",
-                    st.symbol,
-                    out_bid,
-                    out_ask,
-                    st.last_mid,
-                    reservation,
-                    half_spread,
-                    quote_sanity_bps_,
-                    skip_count);
+                bpt::common::log::warn(kLog(),
+                                       "{} quote out of sanity range — skipping tick: "
+                                       "bid={:.6f} ask={:.6f} mid={:.6f} reservation={:.6f} "
+                                       "half_spread={:.6f} (sanity_bps={:.1f}; {} skips so far)",
+                                       st.symbol,
+                                       out_bid,
+                                       out_ask,
+                                       st.last_mid,
+                                       reservation,
+                                       half_spread,
+                                       quote_sanity_bps_,
+                                       skip_count);
             }
             return false;
         }
@@ -1090,9 +1097,10 @@ double AvellanedaStoikovStrategy::effective_order_qty(const InstrumentState& st)
     // chosen qty (fixed or equity-fractional) doesn't clear. HL has a
     // venue-wide $10 floor; without this, equity-fractional sizing on
     // a small account would emit orders that always reject.
-    return bpt::strategy::venue::bump_qty_for_min_notional(
-        qty, st.last_mid, st.lot_size,
-        bpt::strategy::venue::min_notional_usd(st.exchange));
+    return bpt::strategy::venue::bump_qty_for_min_notional(qty,
+                                                           st.last_mid,
+                                                           st.lot_size,
+                                                           bpt::strategy::venue::min_notional_usd(st.exchange));
 }
 
 double AvellanedaStoikovStrategy::effective_max_inventory(const InstrumentState& st) const {
@@ -1110,19 +1118,21 @@ double AvellanedaStoikovStrategy::gamma_pnl_mult(const InstrumentState& st) cons
     if (gamma_pnl_window_n_ == 0 || st.recent_rpnl.empty())
         return 1.0;
     double sum = 0.0;
-    for (double r : st.recent_rpnl) sum += r;
-    if (sum < gamma_pnl_loss_threshold_usd_)   return gamma_pnl_widen_mult_;
-    if (sum > gamma_pnl_profit_threshold_usd_) return gamma_pnl_tighten_mult_;
+    for (double r : st.recent_rpnl)
+        sum += r;
+    if (sum < gamma_pnl_loss_threshold_usd_)
+        return gamma_pnl_widen_mult_;
+    if (sum > gamma_pnl_profit_threshold_usd_)
+        return gamma_pnl_tighten_mult_;
     return 1.0;
 }
 
 // ── Suppression state — single source of truth for both runtime
 //    (maybe_requote) and dashboard (get_strategy_state_json) ────────────────
-AvellanedaStoikovStrategy::SuppressionState
-AvellanedaStoikovStrategy::compute_suppression(const InstrumentState& st,
-                                               double net_qty,
-                                               double new_bid,
-                                               double new_ask) const {
+AvellanedaStoikovStrategy::SuppressionState AvellanedaStoikovStrategy::compute_suppression(const InstrumentState& st,
+                                                                                           double net_qty,
+                                                                                           double new_bid,
+                                                                                           double new_ask) const {
     SuppressionState s;
 
     // Inventory cap — hardest blocker (we never want to add beyond max).
@@ -1137,10 +1147,8 @@ AvellanedaStoikovStrategy::compute_suppression(const InstrumentState& st,
     // which compress 11h of sim time into a few seconds of wall clock —
     // honor the cooldown window correctly.
     if (post_fill_markout_threshold_bps_ < 0.0) {
-        s.post_fill_bid = st.post_fill_suspend_until_bid > 0
-                       && st.last_tick_ns < st.post_fill_suspend_until_bid;
-        s.post_fill_ask = st.post_fill_suspend_until_ask > 0
-                       && st.last_tick_ns < st.post_fill_suspend_until_ask;
+        s.post_fill_bid = st.post_fill_suspend_until_bid > 0 && st.last_tick_ns < st.post_fill_suspend_until_bid;
+        s.post_fill_ask = st.post_fill_suspend_until_ask > 0 && st.last_tick_ns < st.post_fill_suspend_until_ask;
     }
 
     // Intra-tick realized-vol gate — blocks BOTH sides during fast moves.
@@ -1164,8 +1172,7 @@ AvellanedaStoikovStrategy::compute_suppression(const InstrumentState& st,
     // Threshold = max(fixed_floor, sigma_mult × σ_bps). With sigma_mult
     // = 3, this fires on ~3-SD-per-√s moves regardless of asset.
     const double drift_bps = std::abs(st.ewma_drift) * 1e4;
-    const double drift_threshold_bps =
-        std::max(drift_suppress_bps_, drift_suppress_sigma_mult_ * sigma_bps);
+    const double drift_threshold_bps = std::max(drift_suppress_bps_, drift_suppress_sigma_mult_ * sigma_bps);
     const bool drift_on = drift_threshold_bps > 0.0 && drift_bps > drift_threshold_bps;
     s.drift_ask = drift_on && st.ewma_drift > 0.0;  // uptrend → don't sell
     s.drift_bid = drift_on && st.ewma_drift < 0.0;  // downtrend → don't buy
@@ -1176,9 +1183,9 @@ AvellanedaStoikovStrategy::compute_suppression(const InstrumentState& st,
     // window time-scale √window_s. Setting sigma_mult = 3 ≈ "3-SD
     // cumulative move over the window."
     const double trend_bps = std::abs(st.slow_drift_bps);
-    const double trend_threshold_bps = std::max(
-        slow_drift_suppress_bps_,
-        slow_drift_suppress_sigma_mult_ * sigma_bps * std::sqrt(slow_drift_window_s_));
+    const double trend_threshold_bps =
+        std::max(slow_drift_suppress_bps_,
+                 slow_drift_suppress_sigma_mult_ * sigma_bps * std::sqrt(slow_drift_window_s_));
     const bool trend_on = trend_threshold_bps > 0.0 && trend_bps > trend_threshold_bps;
     s.trend_ask = trend_on && st.slow_drift_bps > 0.0;
     s.trend_bid = trend_on && st.slow_drift_bps < 0.0;
@@ -1257,28 +1264,38 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
     if (supp.tox_bid) {
         bpt::common::log::info(kLog(),
                                "{} tox suppress bids: score={:.2f} < {:.2f}",
-                               st.symbol, st.tox_bid_toxicity, tox_suppress_threshold_);
+                               st.symbol,
+                               st.tox_bid_toxicity,
+                               tox_suppress_threshold_);
     }
     if (supp.tox_ask) {
         bpt::common::log::info(kLog(),
                                "{} tox suppress asks: score={:.2f} < {:.2f}",
-                               st.symbol, st.tox_ask_toxicity, tox_suppress_threshold_);
+                               st.symbol,
+                               st.tox_ask_toxicity,
+                               tox_suppress_threshold_);
     }
     if (supp.queue_bid) {
         bpt::common::log::info(kLog(),
                                "{} queue suppress bids: fp={:.5f} < {:.5f} at px={:.4f}",
-                               st.symbol, supp.fp_bid, queue_suppress_fill_prob_min_, new_bid);
+                               st.symbol,
+                               supp.fp_bid,
+                               queue_suppress_fill_prob_min_,
+                               new_bid);
     }
     if (supp.queue_ask) {
         bpt::common::log::info(kLog(),
                                "{} queue suppress asks: fp={:.5f} < {:.5f} at px={:.4f}",
-                               st.symbol, supp.fp_ask, queue_suppress_fill_prob_min_, new_ask);
+                               st.symbol,
+                               supp.fp_ask,
+                               queue_suppress_fill_prob_min_,
+                               new_ask);
     }
 
     // Legacy variable names retained for the side-decision blocks below
     // — match existing log-message key naming (`max_inv` vs `suppress`)
     // so the operational log format is unchanged by the refactor.
-    const bool at_max_long  = supp.inventory_bid;
+    const bool at_max_long = supp.inventory_bid;
     const bool at_max_short = supp.inventory_ask;
     const bool final_suppress_bids = supp.bid_signal();
     const bool final_suppress_asks = supp.ask_signal();
@@ -1432,10 +1449,14 @@ uint64_t AvellanedaStoikovStrategy::send_limit_order(uint64_t instrument_id,
             price = std::ceil(price / st.tick_size) * st.tick_size;
     }
 
-    const uint64_t order_id =
-        order_mgr_
-            ->place_order(instrument_id, st.exchange_id, side, OrderType::LIMIT, TimeInForce::GTC, price, qty,
-                          bpt::messages::kExecInstPostOnly);
+    const uint64_t order_id = order_mgr_->place_order(instrument_id,
+                                                      st.exchange_id,
+                                                      side,
+                                                      OrderType::LIMIT,
+                                                      TimeInForce::GTC,
+                                                      price,
+                                                      qty,
+                                                      bpt::messages::kExecInstPostOnly);
     if (order_id == 0)
         return 0;
 
@@ -1541,8 +1562,7 @@ void AvellanedaStoikovStrategy::on_refdata_stale_changed(bool stale) {
     refdata_stale_ = stale;
 
     if (stale) {
-        bpt::common::log::warn(kLog(),
-            "Refdata heartbeat stale — pausing new quotes, cancelling resting orders");
+        bpt::common::log::warn(kLog(), "Refdata heartbeat stale — pausing new quotes, cancelling resting orders");
         // Cancel every live bid/ask. Without this, existing orders keep
         // filling at prices computed before the pause — which is exactly
         // the silent-bleed failure mode this gate is designed to prevent.
@@ -1560,8 +1580,7 @@ void AvellanedaStoikovStrategy::on_refdata_stale_changed(bool stale) {
             }
         }
     } else {
-        bpt::common::log::info(kLog(),
-            "Refdata heartbeat resumed — quoting re-enabled");
+        bpt::common::log::info(kLog(), "Refdata heartbeat resumed — quoting re-enabled");
     }
 }
 
@@ -1647,7 +1666,8 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     j["gammaPnlWindow"] = static_cast<int>(gamma_pnl_window_n_);
     j["gammaPnlRecentSum"] = [&]() {
         double s = 0.0;
-        for (double r : st.recent_rpnl) s += r;
+        for (double r : st.recent_rpnl)
+            s += r;
         return s;
     }();
 
@@ -1737,7 +1757,8 @@ void AvellanedaStoikovStrategy::on_shutdown_flatten() {
     for (const auto& [instrument_id, st] : state_) {
         bpt::common::log::warn(kLog(),
                                "SHUTDOWN FLATTEN {} {} cancel_all (exchange-authoritative sweep)",
-                               st.symbol, st.exchange);
+                               st.symbol,
+                               st.exchange);
         order_mgr_->cancel_all(st.exchange_id, instrument_id);
         ++cancel_alls;
     }
@@ -1812,11 +1833,12 @@ void AvellanedaStoikovStrategy::on_shutdown_flatten() {
     }
 
     if (cancels > 0 || unwinds > 0 || cancel_alls > 0)
-        bpt::common::log::warn(kLog(),
-                               "shutdown flatten: cancel_all swept {} venue(s), cancelled {} tracked order(s), fired {} unwind IOC(s)",
-                               cancel_alls,
-                               cancels,
-                               unwinds);
+        bpt::common::log::warn(
+            kLog(),
+            "shutdown flatten: cancel_all swept {} venue(s), cancelled {} tracked order(s), fired {} unwind IOC(s)",
+            cancel_alls,
+            cancels,
+            unwinds);
 }
 
 std::size_t AvellanedaStoikovStrategy::on_account_snapshot(bpt::messages::AccountSnapshot& snap) {
@@ -1948,15 +1970,15 @@ std::size_t AvellanedaStoikovStrategy::on_account_snapshot(bpt::messages::Accoun
         // which produces wrong realized_pnl on any close of the
         // seeded portion but avoids fabricating an entry.
         double seed_avg_px = 0.0;
-        if (const auto it = exchange_row_by_symbol.find(d.exchange_symbol);
-            it != exchange_row_by_symbol.end()) {
+        if (const auto it = exchange_row_by_symbol.find(d.exchange_symbol); it != exchange_row_by_symbol.end()) {
             seed_avg_px = it->second.avg_entry_price;
         }
         positions_.seed(d.instrument_id, exchange_id, d.exchange_net_qty_e8, seed_avg_px);
         bpt::common::log::info(kLog(),
                                "reconciler: seeded position instrument_id={} symbol='{}' "
                                "to exchange view net_qty={:.8f} avg_price={:.4f}",
-                               d.instrument_id, d.exchange_symbol,
+                               d.instrument_id,
+                               d.exchange_symbol,
                                static_cast<double>(d.exchange_net_qty_e8) / 1e8,
                                seed_avg_px);
     }

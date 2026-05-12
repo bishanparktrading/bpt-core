@@ -30,7 +30,6 @@ Parquet schema (matches bpt-backtester DataLoader):
 import argparse
 import io
 import json
-import sys
 import tarfile
 import time
 from datetime import date, timedelta
@@ -43,14 +42,15 @@ import requests
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
-CDN_BASE  = "https://static.okx.com/cdn/okx/match/orderbook/L2/400lv/daily"
-DEPTH     = 5    # bpt-backtester kOrderBookDepth
+CDN_BASE = "https://static.okx.com/cdn/okx/match/orderbook/L2/400lv/daily"
+DEPTH = 5  # bpt-backtester kOrderBookDepth
 SAMPLE_MS = 100  # Keep one snapshot per this many milliseconds (0 = keep all)
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
+
 def build_url(symbol: str, day: date) -> str:
-    folder   = day.strftime("%Y%m%d")
+    folder = day.strftime("%Y%m%d")
     filename = f"{symbol}-L2orderbook-400lv-{day.strftime('%Y-%m-%d')}.tar.gz"
     return f"{CDN_BASE}/{folder}/{filename}"
 
@@ -67,7 +67,7 @@ def download_bytes(url: str, retries: int = 3) -> bytes:
             if attempt == retries:
                 raise
             print(f"    attempt {attempt} failed ({e}), retrying…")
-            time.sleep(2 ** attempt)
+            time.sleep(2**attempt)
     raise RuntimeError("unreachable")
 
 
@@ -90,11 +90,11 @@ def emit_row(ts_ms: int, bids: dict, asks: dict) -> dict | None:
         return None
     row = {"timestamp_ns": ts_ms * 1_000_000}
     for i in range(DEPTH):
-        row[f"bid_px_{i+1}"] = sorted_bids[i][0]
-        row[f"bid_sz_{i+1}"] = sorted_bids[i][1]
+        row[f"bid_px_{i + 1}"] = sorted_bids[i][0]
+        row[f"bid_sz_{i + 1}"] = sorted_bids[i][1]
     for i in range(DEPTH):
-        row[f"ask_px_{i+1}"] = sorted_asks[i][0]
-        row[f"ask_sz_{i+1}"] = sorted_asks[i][1]
+        row[f"ask_px_{i + 1}"] = sorted_asks[i][0]
+        row[f"ask_sz_{i + 1}"] = sorted_asks[i][1]
     return row
 
 
@@ -159,33 +159,42 @@ def extract_and_parse(data: bytes, sample_ms: int) -> pd.DataFrame:
 
 def write_parquet(df: pd.DataFrame, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    schema = pa.schema([
-        ("timestamp_ns", pa.int64()),
-        *[(f"bid_px_{i}", pa.float64()) for i in range(1, DEPTH + 1)],
-        *[(f"bid_sz_{i}", pa.float64()) for i in range(1, DEPTH + 1)],
-        *[(f"ask_px_{i}", pa.float64()) for i in range(1, DEPTH + 1)],
-        *[(f"ask_sz_{i}", pa.float64()) for i in range(1, DEPTH + 1)],
-    ])
+    schema = pa.schema(
+        [
+            ("timestamp_ns", pa.int64()),
+            *[(f"bid_px_{i}", pa.float64()) for i in range(1, DEPTH + 1)],
+            *[(f"bid_sz_{i}", pa.float64()) for i in range(1, DEPTH + 1)],
+            *[(f"ask_px_{i}", pa.float64()) for i in range(1, DEPTH + 1)],
+            *[(f"ask_sz_{i}", pa.float64()) for i in range(1, DEPTH + 1)],
+        ]
+    )
     table = pa.Table.from_pandas(df, schema=schema, preserve_index=False)
     pq.write_table(table, path, compression="snappy")
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Download OKX L2 orderbook → bpt-backtester Parquet")
-    parser.add_argument("--symbol",   default="BTC-USDT-SWAP", help="OKX instrument ID")
-    parser.add_argument("--start",    required=True,            help="Start date YYYY-MM-DD (inclusive)")
-    parser.add_argument("--end",      required=True,            help="End date   YYYY-MM-DD (inclusive)")
-    parser.add_argument("--output",   required=True,            help="Root output directory")
-    parser.add_argument("--exchange", default="OKX",            help="Exchange label in output path")
-    parser.add_argument("--sample-ms", type=int, default=SAMPLE_MS,
-                        help=f"Downsample to one row per N ms (default {SAMPLE_MS}, 0=keep all)")
+    parser = argparse.ArgumentParser(
+        description="Download OKX L2 orderbook → bpt-backtester Parquet"
+    )
+    parser.add_argument("--symbol", default="BTC-USDT-SWAP", help="OKX instrument ID")
+    parser.add_argument("--start", required=True, help="Start date YYYY-MM-DD (inclusive)")
+    parser.add_argument("--end", required=True, help="End date   YYYY-MM-DD (inclusive)")
+    parser.add_argument("--output", required=True, help="Root output directory")
+    parser.add_argument("--exchange", default="OKX", help="Exchange label in output path")
+    parser.add_argument(
+        "--sample-ms",
+        type=int,
+        default=SAMPLE_MS,
+        help=f"Downsample to one row per N ms (default {SAMPLE_MS}, 0=keep all)",
+    )
     args = parser.parse_args()
 
     sample_ms = args.sample_ms
-    start  = date.fromisoformat(args.start)
-    end    = date.fromisoformat(args.end)
+    start = date.fromisoformat(args.start)
+    end = date.fromisoformat(args.end)
     outdir = Path(args.output)
 
     day = start

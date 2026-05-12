@@ -41,8 +41,7 @@ void BridgeApp::run() {
         snapshot_sub = bpt::common::aeron::wait_for_subscription(aeron_,
                                                                  settings_.portfolio.channel,
                                                                  settings_.portfolio.stream_id);
-        bpt::common::log::info("portfolio snapshot subscription ready on stream {}",
-                               settings_.portfolio.stream_id);
+        bpt::common::log::info("portfolio snapshot subscription ready on stream {}", settings_.portfolio.stream_id);
     }
 
     std::shared_ptr<aeron::Subscription> tyr_sub;

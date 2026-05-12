@@ -69,8 +69,7 @@ public:
     // Falls back to mid when sizes are zero. Microprice has the well-known
     // property of leaning toward the side with thinner depth, which is the
     // fair direction for an inventory-neutral maker.
-    static inline double compute_fair_value(double bid, double ask,
-                                             double bid_sz, double ask_sz) {
+    static inline double compute_fair_value(double bid, double ask, double bid_sz, double ask_sz) {
         if (bid <= 0.0 || ask <= 0.0)
             return 0.0;
         const double total_sz = bid_sz + ask_sz;
@@ -91,9 +90,7 @@ public:
     // Pure function to keep the regime-gating math unit-testable without the
     // RealizedVolEstimator state. Caller plumbs in vol_bps (1-minute realized
     // vol in bps; 0 if estimator not warm).
-    static inline double scale_with_vol(double base, double mult, double vol_bps) {
-        return base + mult * vol_bps;
-    }
+    static inline double scale_with_vol(double base, double mult, double vol_bps) { return base + mult * vol_bps; }
 
     // Convert annualized realized vol (fractional, e.g. 0.50 for 50% APR)
     // to a 1-minute-horizon stdev in bps. Constant 525600 = minutes/year.
@@ -160,9 +157,11 @@ private:
         std::unordered_map<uint64_t, uint64_t> last_filled_qty_e8;
 
         InstrumentState(VolatilityGate::Config vol_cfg,
-                        std::size_t rv_window, std::uint64_t rv_interval_ns,
+                        std::size_t rv_window,
+                        std::uint64_t rv_interval_ns,
                         RegimeClassifier::Config regime_cfg)
-            : vol_gate(vol_cfg), vol_est(rv_window, rv_interval_ns),
+            : vol_gate(vol_cfg),
+              vol_est(rv_window, rv_interval_ns),
               regime(regime_cfg) {}
     };
 
@@ -175,24 +174,22 @@ private:
     bool drift_exceeds_threshold(const InstrumentState& st, double fv_now) const;
 
     // Place a single side (bid or ask). Returns 0 on rejection.
-    uint64_t place_side(InstrumentState& st,
-                        bpt::messages::OrderSide::Value side,
-                        double price);
+    uint64_t place_side(InstrumentState& st, bpt::messages::OrderSide::Value side, double price);
 
     uint64_t correlation_id_;
 
     // Strategy params
-    double half_spread_bps_;            // H — base half-spread (vol scales on top)
-    double inventory_penalty_;          // c — price units per inventory unit
-    double requote_threshold_bps_;      // base requote threshold (vol scales on top)
-    double qty_per_quote_;              // size on each side, in instrument units
-    double max_inventory_;              // hard cap; pause one side past this
+    double half_spread_bps_;        // H — base half-spread (vol scales on top)
+    double inventory_penalty_;      // c — price units per inventory unit
+    double requote_threshold_bps_;  // base requote threshold (vol scales on top)
+    double qty_per_quote_;          // size on each side, in instrument units
+    double max_inventory_;          // hard cap; pause one side past this
 
     // Regime-gating params. Both default to 0.0 (no scaling), so a vanilla
     // config falls back to the fixed-param baseline. Real deployment uses
     // mult ≈ 1.0 to widen quotes proportional to recent realized vol.
-    double spread_vol_mult_;            // bps added to half-spread per bps/min vol
-    double requote_vol_mult_;           // bps added to threshold per bps/min vol
+    double spread_vol_mult_;   // bps added to half-spread per bps/min vol
+    double requote_vol_mult_;  // bps added to threshold per bps/min vol
 
     // RealizedVolEstimator window. window_size × sample_interval should
     // span a regime-relevant horizon — minutes, not seconds, so the

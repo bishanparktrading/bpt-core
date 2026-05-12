@@ -279,12 +279,12 @@ export interface FundingArbStrategyState extends BaseStrategyState {
   kind: 'FundingArb'
   spotPx: number
   perpPx: number
-  basisBps: number       // (perp - spot) / spot * 1e4
-  fundingRate: number    // annualised, decimal (0.0001 = 1 bp/funding-window)
-  fundingApr: number     // human-readable APR
-  spotQty: number        // signed; + = long spot
-  perpQty: number        // signed; + = long perp
-  hedgedDelta: number    // spotQty + perpQty; ~0 when balanced
+  basisBps: number // (perp - spot) / spot * 1e4
+  fundingRate: number // annualised, decimal (0.0001 = 1 bp/funding-window)
+  fundingApr: number // human-readable APR
+  spotQty: number // signed; + = long spot
+  perpQty: number // signed; + = long perp
+  hedgedDelta: number // spotQty + perpQty; ~0 when balanced
   legStatus: 'flat' | 'entering' | 'open' | 'exiting'
 }
 

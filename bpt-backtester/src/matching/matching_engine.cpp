@@ -4,10 +4,10 @@
 #include "backtester/data/trade_record.h"
 
 #include <algorithm>
+#include <bpt_common/logging.h>
 #include <cmath>
 #include <format>
 #include <limits>
-#include <bpt_common/logging.h>
 
 namespace bpt::backtester::matching {
 
@@ -83,53 +83,56 @@ OpenOrder MatchingEngine::submit_order(OpenOrder order) {
     std::vector<FillReport> deliveries;
 
     {
-    std::lock_guard lock(mutex_);
-    order.submitted_ts = current_ts_;
+        std::lock_guard lock(mutex_);
+        order.submitted_ts = current_ts_;
 
-    // Synchronous POST_ONLY-cross rejection: real exchanges return this
-    // in the ack frame (HL Alo, OKX post_only, Binance LIMIT_MAKER), so
-    // the order server's HTTP response can carry the error string. The
-    // check uses the current book — slightly optimistic vs. checking at
-    // scheduled_match_ts, but POST_ONLY-cross is rare in normal AS
-    // quoting and the synchronous-ack contract is more important.
-    if (order.type == OrderType::POST_ONLY) {
-        auto it = books_.find(key(order.exchange, order.symbol));
-        if (it != books_.end()) {
-            const auto& book = it->second;
-            const bool crosses =
-                (order.side == OrderSide::BUY  && book.ask_px[0] > 0.0 && order.price >= book.ask_px[0] - 1e-9) ||
-                (order.side == OrderSide::SELL && book.bid_px[0] > 0.0 && order.price <= book.bid_px[0] + 1e-9);
-            if (crosses) {
-                order.rejected = true;
-                bpt::common::log::debug(
-                    "[MatchingEngine] POST_ONLY rejected (would cross): {} {} {} @ {} touch=({:.6f}/{:.6f})",
-                    order.symbol,
-                    (order.side == OrderSide::BUY ? "BUY" : "SELL"),
-                    order.quantity, order.price, book.bid_px[0], book.ask_px[0]);
-                return order;
+        // Synchronous POST_ONLY-cross rejection: real exchanges return this
+        // in the ack frame (HL Alo, OKX post_only, Binance LIMIT_MAKER), so
+        // the order server's HTTP response can carry the error string. The
+        // check uses the current book — slightly optimistic vs. checking at
+        // scheduled_match_ts, but POST_ONLY-cross is rare in normal AS
+        // quoting and the synchronous-ack contract is more important.
+        if (order.type == OrderType::POST_ONLY) {
+            auto it = books_.find(key(order.exchange, order.symbol));
+            if (it != books_.end()) {
+                const auto& book = it->second;
+                const bool crosses =
+                    (order.side == OrderSide::BUY && book.ask_px[0] > 0.0 && order.price >= book.ask_px[0] - 1e-9) ||
+                    (order.side == OrderSide::SELL && book.bid_px[0] > 0.0 && order.price <= book.bid_px[0] + 1e-9);
+                if (crosses) {
+                    order.rejected = true;
+                    bpt::common::log::debug(
+                        "[MatchingEngine] POST_ONLY rejected (would cross): {} {} {} @ {} touch=({:.6f}/{:.6f})",
+                        order.symbol,
+                        (order.side == OrderSide::BUY ? "BUY" : "SELL"),
+                        order.quantity,
+                        order.price,
+                        book.bid_px[0],
+                        book.ask_px[0]);
+                    return order;
+                }
             }
         }
-    }
 
-    // Defer the actual match by submit_to_match latency. If no model is
-    // installed, scheduled_match_ts == current_ts_ and the order will drain
-    // on the very next on_market_event, preserving pre-Phase-3 timing.
-    uint64_t latency_ns = 0;
-    if (latency_)
-        latency_ns = latency_->draw(order.exchange, latency::LatencyLeg::SUBMIT_TO_MATCH);
+        // Defer the actual match by submit_to_match latency. If no model is
+        // installed, scheduled_match_ts == current_ts_ and the order will drain
+        // on the very next on_market_event, preserving pre-Phase-3 timing.
+        uint64_t latency_ns = 0;
+        if (latency_)
+            latency_ns = latency_->draw(order.exchange, latency::LatencyLeg::SUBMIT_TO_MATCH);
 
-    PendingSubmit ps;
-    ps.order = order;
-    ps.scheduled_match_ts = current_ts_ + latency_ns;
-    pending_submits_.push_back(std::move(ps));
+        PendingSubmit ps;
+        ps.order = order;
+        ps.scheduled_match_ts = current_ts_ + latency_ns;
+        pending_submits_.push_back(std::move(ps));
 
-    // Drain any submits / fills whose scheduled times are already ≤ current_ts_.
-    // With a null latency model (or zero latency for this venue) this fires the
-    // just-queued order's match synchronously, preserving pre-Phase-3 semantics
-    // where submit_order's fill_cb fired before return. With non-zero latency
-    // this is a no-op — the order waits for a market event to advance time.
-    drain_pending_submits(current_ts_);
-    drain_pending_fills(current_ts_, deliveries);
+        // Drain any submits / fills whose scheduled times are already ≤ current_ts_.
+        // With a null latency model (or zero latency for this venue) this fires the
+        // just-queued order's match synchronously, preserving pre-Phase-3 semantics
+        // where submit_order's fill_cb fired before return. With non-zero latency
+        // this is a no-op — the order waits for a market event to advance time.
+        drain_pending_submits(current_ts_);
+        drain_pending_fills(current_ts_, deliveries);
     }  // unlock
 
     for (auto& fill : deliveries)
@@ -145,8 +148,7 @@ bool MatchingEngine::cancel_order(const std::string& exchange, const std::string
     // Resting orders.
     if (auto it = pending_.find(key(exchange, symbol)); it != pending_.end()) {
         auto& v = it->second;
-        auto pos = std::find_if(v.begin(), v.end(),
-                                [&](const OpenOrder& o) { return o.order_id == order_id; });
+        auto pos = std::find_if(v.begin(), v.end(), [&](const OpenOrder& o) { return o.order_id == order_id; });
         if (pos != v.end()) {
             v.erase(pos);
             return true;
@@ -154,12 +156,9 @@ bool MatchingEngine::cancel_order(const std::string& exchange, const std::string
     }
 
     // Orders still in the submit-to-match latency window.
-    auto it = std::find_if(pending_submits_.begin(), pending_submits_.end(),
-                           [&](const PendingSubmit& ps) {
-                               return ps.order.exchange == exchange &&
-                                      ps.order.symbol == symbol &&
-                                      ps.order.order_id == order_id;
-                           });
+    auto it = std::find_if(pending_submits_.begin(), pending_submits_.end(), [&](const PendingSubmit& ps) {
+        return ps.order.exchange == exchange && ps.order.symbol == symbol && ps.order.order_id == order_id;
+    });
     if (it != pending_submits_.end()) {
         pending_submits_.erase(it);
         return true;
@@ -176,10 +175,10 @@ void MatchingEngine::drain_pending_submits(uint64_t upto_ts) {
 
     // Sort by scheduled_match_ts; stable to preserve submission order
     // among orders with identical scheduled times.
-    std::stable_sort(pending_submits_.begin(), pending_submits_.end(),
-                     [](const PendingSubmit& a, const PendingSubmit& b) {
-                         return a.scheduled_match_ts < b.scheduled_match_ts;
-                     });
+    std::stable_sort(
+        pending_submits_.begin(),
+        pending_submits_.end(),
+        [](const PendingSubmit& a, const PendingSubmit& b) { return a.scheduled_match_ts < b.scheduled_match_ts; });
 
     std::vector<FillReport> fills;
     auto it = pending_submits_.begin();
@@ -208,7 +207,8 @@ void MatchingEngine::process_pending_submit(PendingSubmit& ps, std::vector<FillR
             fill_market(order, it->second, out);
         } else {
             bpt::common::log::warn("[MatchingEngine] No book for {}/{} — market order unfilled",
-                           order.exchange, order.symbol);
+                                   order.exchange,
+                                   order.symbol);
         }
         return;
     }
@@ -223,7 +223,7 @@ void MatchingEngine::process_pending_submit(PendingSubmit& ps, std::vector<FillR
     const auto& book = it->second;
 
     const bool crosses =
-        (order.side == OrderSide::BUY  && book.ask_px[0] > 0.0 && order.price >= book.ask_px[0] - 1e-9) ||
+        (order.side == OrderSide::BUY && book.ask_px[0] > 0.0 && order.price >= book.ask_px[0] - 1e-9) ||
         (order.side == OrderSide::SELL && book.bid_px[0] > 0.0 && order.price <= book.bid_px[0] + 1e-9);
 
     // Crossing-LIMIT: TAKER fill against the book at scheduled_match_ts.
@@ -241,12 +241,12 @@ void MatchingEngine::process_pending_submit(PendingSubmit& ps, std::vector<FillR
         order.queue_seeded = true;
         pending_[key(order.exchange, order.symbol)].push_back(order);
         bpt::common::log::debug("[MatchingEngine] Queued LIMIT {} {} {} @ {} queue_ahead={:.4f} cross_filled={:.4f}",
-                        order.symbol,
-                        (order.side == OrderSide::BUY ? "BUY" : "SELL"),
-                        order.quantity - order.filled_qty,
-                        order.price,
-                        order.queue_ahead,
-                        order.filled_qty);
+                                order.symbol,
+                                (order.side == OrderSide::BUY ? "BUY" : "SELL"),
+                                order.quantity - order.filled_qty,
+                                order.price,
+                                order.queue_ahead,
+                                order.filled_qty);
     }
 }
 
@@ -260,8 +260,7 @@ void MatchingEngine::schedule_fill(FillReport fill) {
     pending_fills_.push_back(std::move(pf));
 }
 
-void MatchingEngine::apply_queue_regen(const std::string& book_key,
-                                       const data::OrderBookRecord& new_book) {
+void MatchingEngine::apply_queue_regen(const std::string& book_key, const data::OrderBookRecord& new_book) {
     // First book event for this instrument — nothing to compare against.
     auto old_it = books_.find(book_key);
     if (old_it == books_.end()) {
@@ -325,10 +324,9 @@ void MatchingEngine::apply_queue_regen(const std::string& book_key,
 void MatchingEngine::drain_pending_fills(uint64_t upto_ts, std::vector<FillReport>& out) {
     if (pending_fills_.empty())
         return;
-    std::stable_sort(pending_fills_.begin(), pending_fills_.end(),
-                     [](const PendingFill& a, const PendingFill& b) {
-                         return a.scheduled_report_ts < b.scheduled_report_ts;
-                     });
+    std::stable_sort(pending_fills_.begin(), pending_fills_.end(), [](const PendingFill& a, const PendingFill& b) {
+        return a.scheduled_report_ts < b.scheduled_report_ts;
+    });
     auto it = pending_fills_.begin();
     for (; it != pending_fills_.end(); ++it) {
         if (it->scheduled_report_ts > upto_ts)
@@ -342,16 +340,14 @@ void MatchingEngine::drain_pending_fills(uint64_t upto_ts, std::vector<FillRepor
 
 void MatchingEngine::fill_market(OpenOrder& order, const data::OrderBookRecord& book, std::vector<FillReport>& out) {
     // MARKET = no price cap. BUY accepts any ask; SELL accepts any bid.
-    const double cap = (order.side == OrderSide::BUY)
-                           ? std::numeric_limits<double>::infinity()
-                           : 0.0;
+    const double cap = (order.side == OrderSide::BUY) ? std::numeric_limits<double>::infinity() : 0.0;
     fill_book_until(order, book, cap, OrderType::MARKET, out);
 
     if (order.filled_qty < order.quantity - 1e-12) {
         bpt::common::log::warn("[MatchingEngine] Market order {} partially filled: {}/{} — book too thin",
-                       order.order_id,
-                       order.filled_qty,
-                       order.quantity);
+                               order.order_id,
+                               order.filled_qty,
+                               order.quantity);
     }
 }
 
@@ -378,9 +374,8 @@ void MatchingEngine::fill_book_until(OpenOrder& order,
         // Stop once the level is worse than our price cap. BUY tops out
         // when the ask rises above price_limit; SELL stops when the bid
         // drops below price_limit.
-        const bool acceptable = (order.side == OrderSide::BUY)
-                                    ? (level_px <= price_limit + 1e-9)
-                                    : (level_px >= price_limit - 1e-9);
+        const bool acceptable =
+            (order.side == OrderSide::BUY) ? (level_px <= price_limit + 1e-9) : (level_px >= price_limit - 1e-9);
         if (!acceptable)
             break;
 
@@ -486,9 +481,7 @@ void MatchingEngine::fill_crossing_limits(const std::string& book_key, std::vect
                  orders.end());
 }
 
-double MatchingEngine::book_qty_at_price(const data::OrderBookRecord& book,
-                                         OrderSide side,
-                                         double price) {
+double MatchingEngine::book_qty_at_price(const data::OrderBookRecord& book, OrderSide side, double price) {
     constexpr double kPriceTol = 1e-9;
     if (side == OrderSide::BUY) {
         // BUY → joins the bid queue at our price. Look for matching bid level.
@@ -510,8 +503,7 @@ double MatchingEngine::book_qty_at_price(const data::OrderBookRecord& book,
     return 0.0;
 }
 
-void MatchingEngine::fill_against_trade(const data::TradeRecord& trade,
-                                        std::vector<FillReport>& out) {
+void MatchingEngine::fill_against_trade(const data::TradeRecord& trade, std::vector<FillReport>& out) {
     // Phase 5: accumulate trade volume by level. apply_queue_regen reads
     // this on each book update to subtract trade-attributable size before
     // attributing the rest of the level decrease to cancels. Tracked
@@ -551,8 +543,9 @@ void MatchingEngine::fill_against_trade(const data::TradeRecord& trade,
             continue;
 
         const bool eligible =
-            (order.side == OrderSide::BUY  && trade.side == data::TradeSide::SELL && order.price >= trade.price - 1e-9) ||
-            (order.side == OrderSide::SELL && trade.side == data::TradeSide::BUY  && order.price <= trade.price + 1e-9);
+            (order.side == OrderSide::BUY && trade.side == data::TradeSide::SELL &&
+             order.price >= trade.price - 1e-9) ||
+            (order.side == OrderSide::SELL && trade.side == data::TradeSide::BUY && order.price <= trade.price + 1e-9);
         if (!eligible)
             continue;
 
@@ -570,7 +563,7 @@ void MatchingEngine::fill_against_trade(const data::TradeRecord& trade,
             continue;
 
         order.filled_qty += fill_qty;
-        remaining_print  -= fill_qty;
+        remaining_print -= fill_qty;
 
         FillReport r;
         r.order_id = order.order_id;
@@ -596,11 +589,9 @@ void MatchingEngine::fill_against_trade(const data::TradeRecord& trade,
     // Erase fully-filled queue-seeded orders. Non-seeded orders are
     // managed by fill_crossing_limits.
     orders.erase(
-        std::remove_if(orders.begin(), orders.end(),
-                       [](const OpenOrder& o) {
-                           return o.queue_seeded &&
-                                  o.filled_qty >= o.quantity - 1e-12;
-                       }),
+        std::remove_if(orders.begin(),
+                       orders.end(),
+                       [](const OpenOrder& o) { return o.queue_seeded && o.filled_qty >= o.quantity - 1e-12; }),
         orders.end());
 }
 

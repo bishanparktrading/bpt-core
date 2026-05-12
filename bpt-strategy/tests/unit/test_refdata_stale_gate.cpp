@@ -39,9 +39,9 @@ TEST(RefdataStaleGateTest, StartupOkBeforeTimeout) {
     RefdataStaleGate gate({.startup_timeout_ns = 60 * SEC, .stale_threshold_ns = 25 * SEC});
     gate.set_started_at(T0);
 
-    EXPECT_EQ(gate.evaluate(T0,             0), State::Ok);
-    EXPECT_EQ(gate.evaluate(T0 + 30 * SEC,  0), State::Ok);
-    EXPECT_EQ(gate.evaluate(T0 + 59 * SEC,  0), State::Ok);
+    EXPECT_EQ(gate.evaluate(T0, 0), State::Ok);
+    EXPECT_EQ(gate.evaluate(T0 + 30 * SEC, 0), State::Ok);
+    EXPECT_EQ(gate.evaluate(T0 + 59 * SEC, 0), State::Ok);
 }
 
 TEST(RefdataStaleGateTest, StartupTimedOutAfterThreshold) {
@@ -49,7 +49,7 @@ TEST(RefdataStaleGateTest, StartupTimedOutAfterThreshold) {
     gate.set_started_at(T0);
 
     // Just past the threshold — should fire StartupTimedOut.
-    EXPECT_EQ(gate.evaluate(T0 + 61 * SEC,  0), State::StartupTimedOut);
+    EXPECT_EQ(gate.evaluate(T0 + 61 * SEC, 0), State::StartupTimedOut);
     // Continues firing every call until a heartbeat arrives.
     EXPECT_EQ(gate.evaluate(T0 + 120 * SEC, 0), State::StartupTimedOut);
 }
@@ -118,7 +118,7 @@ TEST(RefdataStaleGateTest, FlapResistance) {
     RefdataStaleGate gate({.stale_threshold_ns = 25 * SEC});
 
     EXPECT_EQ(gate.evaluate(100 * SEC, 70 * SEC), State::GoneStale);
-    EXPECT_EQ(gate.evaluate(101 * SEC, 70 * SEC), State::GoneStale);  // still stale
+    EXPECT_EQ(gate.evaluate(101 * SEC, 70 * SEC), State::GoneStale);   // still stale
     EXPECT_EQ(gate.evaluate(101 * SEC, 100 * SEC), State::Recovered);  // fresh hb
     EXPECT_EQ(gate.evaluate(102 * SEC, 100 * SEC), State::Ok);
     EXPECT_EQ(gate.evaluate(103 * SEC, 100 * SEC), State::Ok);
