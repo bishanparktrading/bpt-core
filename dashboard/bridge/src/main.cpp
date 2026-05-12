@@ -34,6 +34,7 @@ int main(int argc, char** argv) {
     std::string mode_override;
     std::string instrument_type_override;
     uint64_t instrument_id_override = 0;
+    std::string profile_override;
 
     auto args =
         bpt::app::parse_cli(argc, argv, "bpt-bridge", "Aeron → WebSocket forwarder for dashboard", [&](CLI::App& cli) {
@@ -45,11 +46,16 @@ int main(int argc, char** argv) {
                            instrument_type_override,
                            "Override session.instrument_type (SPOT|PERP|FUTURE|OPTION)");
             cli.add_option("--instrument-id", instrument_id_override, "Override session.instrument_id");
+            cli.add_option(
+                "--profile",
+                profile_override,
+                "Path to deployment profile TOML; overrides profile_config in the instance TOML. "
+                "Wired through the systemd env file so bridge labels its env from the active stack.");
         });
 
     bridge::config::Settings settings;
     try {
-        settings = bridge::config::load(args.config_path);
+        settings = bridge::config::load(args.config_path, profile_override);
     } catch (const std::exception& e) {
         bpt::common::logging::init("bridge");
         bpt::common::log::error("Failed to load config: {}", e.what());

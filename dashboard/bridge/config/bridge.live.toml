@@ -1,7 +1,8 @@
 # Dashboard bridge — subscribes to Aeron MD + exec report streams and
 # broadcasts JSON messages over WebSocket to the dashboard frontend.
-
-environment = "qa"
+#
+# Bridge has a single TOML reused across all stacks; the per-stack
+# `environment` comes from `--profile` (set in the active env file).
 
 # Shared aeron stream registry — see deploy/config/aeron/streams.toml.
 # Bridge's systemd unit runs from the repo root, so this resolves directly.

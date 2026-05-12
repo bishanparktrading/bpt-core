@@ -2,14 +2,16 @@
 
 #include <bpt_app/base_settings.h>
 #include <bpt_common/aeron/streams_map.h>
+#include <bpt_common/config/profile_config.h>
 #include <bpt_common/logging.h>
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 #include <stdexcept>
 #include <toml++/toml.hpp>
 
 namespace bridge::config {
 
-Settings load(const std::string& path) {
+Settings load(const std::string& path, const std::string& profile_override) {
     Settings s;
 
     // Give base.media_driver_dir a bridge-specific default. The shared
@@ -23,6 +25,24 @@ Settings load(const std::string& path) {
     } catch (const toml::parse_error& e) {
         throw std::runtime_error(
             fmt::format("Failed to load bridge config {}: {}", path, std::string(e.description())));
+    }
+
+    // Profile path: CLI --profile wins, else read profile_config from TOML.
+    std::string profile_path = profile_override;
+    if (profile_path.empty()) {
+        if (auto v = root["profile_config"].value<std::string>())
+            profile_path = *v;
+    }
+    if (!profile_path.empty()) {
+        auto profile = bpt::common::config::load_profile_config(profile_path);
+        bpt::common::log::info("Loaded deployment profile from {} (env={}, exchanges=[{}])",
+                               profile_path,
+                               bpt::common::to_string(profile.environment),
+                               fmt::join(profile.exchanges, ", "));
+        // Profile wins over the TOML's hardcoded `environment` — that's the
+        // point of plumbing --profile through systemd, so prod-* unit files
+        // make bridge log "prod" instead of "qa".
+        root.insert_or_assign("environment", std::string(bpt::common::to_string(profile.environment)));
     }
 
     bpt::app::load_base_settings(root, s.base);

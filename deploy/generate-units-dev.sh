@@ -127,7 +127,7 @@ PartOf=bpt-dev-stack.target bpt-dev-transport.service
 Type=simple
 EnvironmentFile=$ENV_FILE
 WorkingDirectory=$BPT_ROOT
-ExecStart=${BIN[bpt-bridge]} --config \${BPT_BRIDGE_CONFIG} --mode \${BPT_BRIDGE_MODE} --strategy-name \${BPT_BRIDGE_STRATEGY} --symbol \${BPT_BRIDGE_SYMBOL} --exchange \${BPT_BRIDGE_EXCHANGE} --instrument-type \${BPT_BRIDGE_INST_TYPE}
+ExecStart=${BIN[bpt-bridge]} --config \${BPT_BRIDGE_CONFIG} --profile \${BPT_BRIDGE_PROFILE} --mode \${BPT_BRIDGE_MODE} --strategy-name \${BPT_BRIDGE_STRATEGY} --symbol \${BPT_BRIDGE_SYMBOL} --exchange \${BPT_BRIDGE_EXCHANGE} --instrument-type \${BPT_BRIDGE_INST_TYPE}
 Restart=no
 TimeoutStopSec=10
 

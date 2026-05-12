@@ -40,6 +40,12 @@ struct Settings {
     uint64_t instrument_id{0};
 };
 
-Settings load(const std::string& path);
+/// \brief Load bridge settings from `path`.
+///
+/// `profile_override`, when non-empty, supersedes any `profile_config`
+/// in the TOML. Use it from the systemd unit (`--profile`) so bridge
+/// labels its env from the same deployment profile as the rest of the
+/// stack instead of the hardcoded value baked into `bridge.live.toml`.
+Settings load(const std::string& path, const std::string& profile_override = "");
 
 }  // namespace bridge::config
