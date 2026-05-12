@@ -4,20 +4,12 @@
 
 environment = "dev"
 
+# Shared aeron stream registry — see deploy/config/aeron/streams.toml.
+aeron_config = "../deploy/config/aeron/streams.toml"
+
 [aeron]
+# Fallback only — shared file wins when present.
 media_driver_dir = "/dev/shm/aeron-bpt"
-
-[aeron.exec_report]
-channel = "aeron:ipc"
-stream_id = 3002
-
-[aeron.md_data]
-channel = "aeron:ipc"
-stream_id = 2002
-
-[aeron.toxicity]
-channel = "aeron:ipc"
-stream_id = 5001
 
 [tyr]
 markout_max_pending   = 64

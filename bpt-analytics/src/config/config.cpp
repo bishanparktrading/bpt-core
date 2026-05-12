@@ -1,6 +1,8 @@
 #include "analytics/config/settings.h"
 
 #include <bpt_app/base_settings.h>
+#include <bpt_common/aeron/streams_map.h>
+#include <bpt_common/logging.h>
 #include <toml++/toml.hpp>
 
 namespace bpt::analytics::config {
@@ -10,17 +12,19 @@ Settings load(const std::string& path) {
     Settings s;
     bpt::app::load_base_settings(tbl, s.base);
 
-    auto aeron = [&](const char* section) -> bpt::common::config::StreamConfig {
-        auto node = tbl["aeron"][section];
-        return {
-            .channel = node["channel"].value_or(std::string{"aeron:ipc"}),
-            .stream_id = node["stream_id"].value_or(0),
-        };
-    };
+    bpt::common::config::AeronStreamMap shared_streams;
+    if (auto v = tbl["aeron_config"].value<std::string>()) {
+        shared_streams = bpt::common::config::load_shared_streams(*v);
+        bpt::common::log::info("Loaded shared aeron stream map from {} ({} streams)",
+                               *v, shared_streams.stream_ids.size());
+        if (!shared_streams.media_driver_dir.empty())
+            s.base.media_driver_dir = shared_streams.media_driver_dir;
+    }
 
-    s.exec_report = aeron("exec_report");
-    s.md_data = aeron("md_data");
-    s.toxicity = aeron("toxicity");
+    using bpt::common::config::resolve_stream;
+    s.exec_report = resolve_stream(shared_streams, "exec_report", 3002);
+    s.md_data     = resolve_stream(shared_streams, "md_data",     2002);
+    s.toxicity    = resolve_stream(shared_streams, "toxicity",    5001);
 
     if (auto t = tbl["tyr"]) {
         s.markout_max_pending = t["markout_max_pending"].value_or(std::size_t{64});
