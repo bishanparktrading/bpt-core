@@ -24,7 +24,7 @@ void BridgeApp::run() {
     bpt::common::log::info("md_data stream={}  exec_report stream={}  control stream={}",
                            settings_.md_data.stream_id,
                            settings_.exec_report.stream_id,
-                           settings_.control_command.stream_id);
+                           settings_.dashboard_control.stream_id);
     bpt::common::log::info("mode={} strategy={} symbol={}@{} instrument_filter={}",
                            settings_.mode,
                            settings_.strategy,
@@ -37,12 +37,12 @@ void BridgeApp::run() {
     AccountSubscriber account_sub(aeron_, settings_.account_snapshot.channel, settings_.account_snapshot.stream_id);
 
     std::shared_ptr<aeron::Subscription> snapshot_sub;
-    if (settings_.portfolio_snapshot.stream_id != 0) {
+    if (settings_.portfolio.stream_id != 0) {
         snapshot_sub = bpt::common::aeron::wait_for_subscription(aeron_,
-                                                                 settings_.portfolio_snapshot.channel,
-                                                                 settings_.portfolio_snapshot.stream_id);
+                                                                 settings_.portfolio.channel,
+                                                                 settings_.portfolio.stream_id);
         bpt::common::log::info("portfolio snapshot subscription ready on stream {}",
-                               settings_.portfolio_snapshot.stream_id);
+                               settings_.portfolio.stream_id);
     }
 
     std::shared_ptr<aeron::Subscription> tyr_sub;
@@ -54,11 +54,11 @@ void BridgeApp::run() {
 
     // Control publication (bridge → Strategy): 1-byte commands 0x00=HALT, 0x01=RESUME.
     std::shared_ptr<aeron::Publication> ctrl_pub;
-    if (settings_.control_command.stream_id != 0) {
+    if (settings_.dashboard_control.stream_id != 0) {
         ctrl_pub = bpt::common::aeron::wait_for_publication(aeron_,
-                                                            settings_.control_command.channel,
-                                                            settings_.control_command.stream_id);
-        bpt::common::log::info("control publication ready on stream {}", settings_.control_command.stream_id);
+                                                            settings_.dashboard_control.channel,
+                                                            settings_.dashboard_control.stream_id);
+        bpt::common::log::info("control publication ready on stream {}", settings_.dashboard_control.stream_id);
     }
 
     WsServer ws(settings_.ws_port);

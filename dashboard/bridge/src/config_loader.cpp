@@ -1,37 +1,20 @@
 #include "bridge/settings.h"
 
 #include <bpt_app/base_settings.h>
+#include <bpt_common/aeron/streams_map.h>
+#include <bpt_common/logging.h>
 #include <fmt/format.h>
 #include <stdexcept>
 #include <toml++/toml.hpp>
 
 namespace bridge::config {
 
-namespace {
-
-bpt::common::config::StreamConfig load_stream(const toml::table* t,
-                                              std::string default_channel,
-                                              int32_t default_stream_id) {
-    bpt::common::config::StreamConfig s{std::move(default_channel), default_stream_id};
-    if (!t)
-        return s;
-    if (auto v = (*t)["channel"].value<std::string>())
-        s.channel = *v;
-    if (auto v = (*t)["stream_id"].value<int64_t>())
-        s.stream_id = static_cast<int32_t>(*v);
-    return s;
-}
-
-}  // namespace
-
 Settings load(const std::string& path) {
     Settings s;
 
-    // Give base.media_driver_dir a bridge-specific default (matches the
-    // previous behaviour where Settings::media_driver_dir defaulted to
-    // /dev/shm/aeron-bpt). load_base_settings only overrides from
-    // [aeron].media_driver_dir, so the pre-set default survives unless
-    // the TOML says otherwise.
+    // Give base.media_driver_dir a bridge-specific default. The shared
+    // streams.toml may override; load_base_settings reads [aeron].media_driver_dir
+    // for the no-shared-file path.
     s.base.media_driver_dir = "/dev/shm/aeron-bpt";
 
     toml::table root;
@@ -44,20 +27,22 @@ Settings load(const std::string& path) {
 
     bpt::app::load_base_settings(root, s.base);
 
-    // Aeron stream IDs (media_driver_dir loaded above).
-    if (auto* aeron = root["aeron"].as_table()) {
-        s.md_data = load_stream((*aeron)["md_data"].as_table(), s.md_data.channel, s.md_data.stream_id);
-        s.exec_report = load_stream((*aeron)["exec_report"].as_table(), s.exec_report.channel, s.exec_report.stream_id);
-        s.control_command =
-            load_stream((*aeron)["control_command"].as_table(), s.control_command.channel, s.control_command.stream_id);
-        s.portfolio_snapshot = load_stream((*aeron)["portfolio_snapshot"].as_table(),
-                                           s.portfolio_snapshot.channel,
-                                           s.portfolio_snapshot.stream_id);
-        s.account_snapshot = load_stream((*aeron)["account_snapshot"].as_table(),
-                                         s.account_snapshot.channel,
-                                         s.account_snapshot.stream_id);
-        s.toxicity = load_stream((*aeron)["toxicity"].as_table(), s.toxicity.channel, s.toxicity.stream_id);
+    bpt::common::config::AeronStreamMap shared_streams;
+    if (auto v = root["aeron_config"].value<std::string>()) {
+        shared_streams = bpt::common::config::load_shared_streams(*v);
+        bpt::common::log::info("Loaded shared aeron stream map from {} ({} streams)",
+                               *v, shared_streams.stream_ids.size());
+        if (!shared_streams.media_driver_dir.empty())
+            s.base.media_driver_dir = shared_streams.media_driver_dir;
     }
+
+    using bpt::common::config::resolve_stream;
+    s.md_data           = resolve_stream(shared_streams, "md_data",           2002);
+    s.exec_report       = resolve_stream(shared_streams, "exec_report",       3002);
+    s.dashboard_control = resolve_stream(shared_streams, "dashboard_control", 9003);
+    s.portfolio         = resolve_stream(shared_streams, "portfolio",         9004);
+    s.account_snapshot  = resolve_stream(shared_streams, "account_snapshot",  3004);
+    s.toxicity          = resolve_stream(shared_streams, "toxicity",          0);
 
     // WebSocket
     if (auto* ws = root["ws"].as_table()) {

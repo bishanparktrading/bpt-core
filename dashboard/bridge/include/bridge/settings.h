@@ -14,12 +14,14 @@ struct Settings {
 
     // Aeron stream IDs (channel lives on each StreamConfig; media driver
     // dir lives in base.media_driver_dir).
-    bpt::common::config::StreamConfig md_data{"aeron:ipc", 2002};             // MdGateway → everyone
-    bpt::common::config::StreamConfig exec_report{"aeron:ipc", 3002};         // OrderGateway → Strategy/dashboard
-    bpt::common::config::StreamConfig control_command{"aeron:ipc", 9003};     // bridge → Strategy (halt/resume)
-    bpt::common::config::StreamConfig portfolio_snapshot{"aeron:ipc", 9004};  // Strategy → bridge (portfolio state)
-    bpt::common::config::StreamConfig account_snapshot{"aeron:ipc", 3004};    // OrderGateway → bridge (live balance)
-    bpt::common::config::StreamConfig toxicity{"aeron:ipc", 0};               // Analytics → bridge (ToxicityUpdate)
+    // Field names match the global vocabulary in deploy/config/aeron/streams.toml —
+    // a typo fails at load rather than silently wiring the wrong stream.
+    bpt::common::config::StreamConfig md_data{"aeron:ipc", 2002};            // MdGateway → everyone
+    bpt::common::config::StreamConfig exec_report{"aeron:ipc", 3002};        // OrderGateway → Strategy/bridge
+    bpt::common::config::StreamConfig dashboard_control{"aeron:ipc", 9003};  // bridge → Strategy (halt/resume)
+    bpt::common::config::StreamConfig portfolio{"aeron:ipc", 9004};          // Strategy → bridge (portfolio state)
+    bpt::common::config::StreamConfig account_snapshot{"aeron:ipc", 3004};   // OrderGateway → bridge (live balance)
+    bpt::common::config::StreamConfig toxicity{"aeron:ipc", 0};              // Analytics → bridge (ToxicityUpdate)
 
     // WebSocket
     uint16_t ws_port{8080};
