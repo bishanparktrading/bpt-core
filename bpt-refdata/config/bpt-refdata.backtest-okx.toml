@@ -21,7 +21,7 @@ media_driver_dir = "/dev/shm/aeron-bpt"
 local_path = "/opt/bpt/data/instrument_mapping.json"
 
 [instrument_mapping.sources]
-hyperliquid = "../config/instruments/instrument_mapping.hyperliquid.json"
+hyperliquid = "../config/instruments/instrument_mapping.hyperliquid-mainnet.json"
 
 [metrics]
 port = 9101

@@ -2092,5 +2092,6 @@
         }
     },
     "exported_at": 1778167912849,
-    "instrument_count": 232
+    "instrument_count": 232,
+    "network": "testnet"
 }
