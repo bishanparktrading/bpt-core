@@ -122,6 +122,27 @@ ln -sf "$ENV_FILE" "$ENV_DIR/active.env"
 echo "Active environment: $ENV_NAME"
 echo "  $(readlink -f "$ENV_DIR/active.env")"
 echo
-echo "Reload and restart:"
-echo "  systemctl --user daemon-reload"
-echo "  systemctl --user restart bpt-stack.target"
+
+# Reload + restart the stack. Every service reads the env file once at
+# startup (BPT_BRIDGE_SYMBOL, BPT_*_CONFIG, …), so flipping the symlink
+# without restarting leaves caches stale — last hit was bridge keeping
+# the old BPT_BRIDGE_SYMBOL after the env was edited.
+#
+# `--no-block` returns as soon as the restart is queued so this script
+# doesn't hang on slow-to-stop services. The stack typically settles
+# in <10s; check `journalctl --user -fu bpt-strategy` to watch boot.
+#
+# Set BPT_SWITCH_ENV_NO_RESTART=1 to suppress (useful when scripting
+# multiple env edits before a single restart, or when running this in
+# a deploy-host context where systemd-user isn't available).
+if [ "${BPT_SWITCH_ENV_NO_RESTART:-}" = "1" ]; then
+    echo "BPT_SWITCH_ENV_NO_RESTART=1 — skipping reload+restart."
+    echo "Run manually when ready:"
+    echo "  systemctl --user daemon-reload && systemctl --user restart bpt-stack.target"
+else
+    echo "Reloading systemd + restarting bpt-stack.target..."
+    systemctl --user daemon-reload
+    systemctl --user restart --no-block bpt-stack.target
+    echo "Restart queued. Watch with:"
+    echo "  journalctl --user -fu bpt-strategy"
+fi
