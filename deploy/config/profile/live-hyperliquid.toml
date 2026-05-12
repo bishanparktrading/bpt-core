@@ -1,0 +1,5 @@
+# Deployment profile — LIVE / Hyperliquid mainnet (real capital).
+# See qa-hyperliquid.toml for shape.
+environment     = "prod"
+exchanges       = ["HYPERLIQUID"]
+exchange_config = "config/exchanges/live.toml"

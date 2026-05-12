@@ -1,0 +1,4 @@
+# Deployment profile — QA / Deribit testnet. See qa-hyperliquid.toml for shape.
+environment     = "qa"
+exchanges       = ["DERIBIT"]
+exchange_config = "config/exchanges/testnet.toml"

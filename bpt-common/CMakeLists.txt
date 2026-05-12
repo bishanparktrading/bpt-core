@@ -7,6 +7,7 @@ project(bpt-common VERSION 0.1.0 LANGUAGES CXX)
 
 add_library(bpt-common STATIC
     src/aeron/streams_map.cpp
+    src/config/profile_config.cpp
     src/env.cpp
     src/logging.cpp
     src/util/openssl_helpers.cpp

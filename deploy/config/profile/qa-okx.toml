@@ -1,0 +1,4 @@
+# Deployment profile — QA / OKX testnet. See qa-hyperliquid.toml for shape.
+environment     = "dev"
+exchanges       = ["OKX"]
+exchange_config = "config/exchanges/testnet.toml"

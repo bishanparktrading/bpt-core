@@ -1,0 +1,8 @@
+# Deployment profile — BACKTEST against HL mainnet refdata.
+#
+# `exchange_config` deliberately omitted: services use different
+# backtest exchange-config filenames (refdata reads mainnet for
+# instrument discovery; md-gateway/order-gateway read backtest local
+# replay endpoints). Each service's own TOML keeps its `exchange_config`.
+environment = "dev"
+exchanges   = ["HYPERLIQUID"]

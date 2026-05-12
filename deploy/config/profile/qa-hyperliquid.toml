@@ -1,0 +1,15 @@
+# Deployment profile — QA / Hyperliquid testnet.
+#
+# Each service's TOML references this file via `profile_config = "..."`.
+# Its loader copies these fields into the service's settings, so the
+# stack can't boot with mismatched exchanges / environment across
+# services.
+#
+# Changing a value here updates every service simultaneously on the
+# next restart — no per-service drift.
+
+environment     = "dev"
+exchanges       = ["HYPERLIQUID"]
+# Service-relative path; each service has its own
+# `config/exchanges/testnet.toml` with the per-adapter endpoints.
+exchange_config = "config/exchanges/testnet.toml"

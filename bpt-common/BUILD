@@ -8,6 +8,7 @@ cc_library(
     name = "bpt-common",
     srcs = [
         "src/aeron/streams_map.cpp",
+        "src/config/profile_config.cpp",
         "src/env.cpp",
         "src/logging.cpp",
         "src/secrets/secrets_client.cpp",
