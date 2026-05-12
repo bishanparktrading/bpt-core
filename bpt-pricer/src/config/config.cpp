@@ -2,7 +2,10 @@
 
 #include <bpt_app/base_settings.h>
 #include <bpt_common/aeron/streams_map.h>
+#include <bpt_common/config/profile_config.h>
 #include <bpt_common/logging.h>
+#include <fmt/format.h>
+#include <fmt/ranges.h>
 #include <toml++/toml.hpp>
 
 namespace bpt::pricer::config {
@@ -10,6 +13,20 @@ namespace bpt::pricer::config {
 Settings load(const std::string& path) {
     Settings s;
     toml::table root = toml::parse_file(path);
+
+    bpt::common::config::ProfileConfig profile;
+    bool have_profile = false;
+    if (auto v = root["profile_config"].value<std::string>()) {
+        profile = bpt::common::config::load_profile_config(*v);
+        have_profile = true;
+        bpt::common::log::info("Loaded deployment profile from {} (env={}, exchanges=[{}])",
+                               *v,
+                               bpt::common::to_string(profile.environment),
+                               fmt::join(profile.exchanges, ", "));
+        if (!root.contains("environment"))
+            root.insert("environment", std::string(bpt::common::to_string(profile.environment)));
+    }
+
     bpt::app::load_base_settings(root, s.base);
 
     bpt::common::config::AeronStreamMap shared_streams;
@@ -29,10 +46,13 @@ Settings load(const std::string& path) {
     s.vol_surface      = resolve_stream(shared_streams, "vol_surface",      4001);
     s.pricer_status    = resolve_stream(shared_streams, "pricer_status",    4002);
 
-    if (auto* arr = root["exchanges"].as_array())
+    if (auto* arr = root["exchanges"].as_array()) {
         for (auto& elem : *arr)
             if (auto v = elem.value<std::string>())
                 s.exchanges.push_back(*v);
+    } else if (have_profile) {
+        s.exchanges = profile.exchanges;
+    }
 
     if (auto* arr = root["underlyings"].as_array())
         for (auto& elem : *arr)

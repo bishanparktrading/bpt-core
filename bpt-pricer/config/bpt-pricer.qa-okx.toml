@@ -1,5 +1,6 @@
-environment = "qa"
-exchanges = ["OKX"]
+# Deployment profile (env + exchange filter).
+profile_config = "../deploy/config/profile/qa-okx.toml"
+
 underlyings = ["BTC", "ETH"]
 publish_interval_ms = 2000
 risk_free_rate = 0.05
