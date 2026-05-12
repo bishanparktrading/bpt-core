@@ -7,25 +7,12 @@
 #include <bpt_app/app.h>
 #include <bpt_app/cli.h>
 #include <bpt_common/logging.h>
-#include <bpt_common/util/strings.h>
+#include <bpt_common/util/service_name.h>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
-
-namespace {
-
-// Role-qualified service name: "bpt-bridge-<exchange>" when bound to a
-// single venue (typical per-dashboard deploy), else generic "bpt-bridge".
-// Multiple bridges can run side-by-side for separate dashboard sessions,
-// so the exchange axis is the most useful disambiguator.
-std::string derive_service_name(const std::string& exchange) {
-    if (exchange.empty())
-        return "bpt-bridge";
-    return "bpt-bridge-" + bpt::common::util::to_lower(exchange);
-}
-
-}  // namespace
+#include <vector>
 
 int main(int argc, char** argv) {
     std::string strategy_override;
@@ -80,7 +67,9 @@ int main(int argc, char** argv) {
     if (instrument_id_override > 0)
         settings.instrument_id = instrument_id_override;
 
-    const std::string service_name = derive_service_name(settings.exchange);
+    const std::vector<std::string> venues =
+        settings.exchange.empty() ? std::vector<std::string>{} : std::vector<std::string>{settings.exchange};
+    const std::string service_name = bpt::common::util::derive_service_name("bridge", venues);
     bpt::common::logging::init(service_name);
 
     try {

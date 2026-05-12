@@ -2,35 +2,14 @@
 #include "md_gateway/config/settings.h"
 #include "md_gateway/messaging/aeron_bus.h"
 
-#include <algorithm>
 #include <bpt_app/app.h>
 #include <bpt_app/cli.h>
 #include <bpt_common/aeron/chaos_config.h>
 #include <bpt_common/env.h>
 #include <bpt_common/logging.h>
-#include <cctype>
+#include <bpt_common/util/service_name.h>
 #include <memory>
 #include <string>
-
-namespace {
-
-// Role-qualified service name: "bpt-mdgw-<venue>" when exactly one
-// exchange is active, else the generic "bpt-mdgw". Feeds comm
-// (via bpt::app::run → prctl), log filename, [logger] prefix, and
-// quill backend thread name — one identity string across all four.
-// Matches the "bpt-ogw" compact form used by bpt-order-gateway so
-// operators see a consistent abbreviation pattern across services.
-std::string derive_service_name(const std::vector<std::string>& exchanges) {
-    std::string name = "bpt-mdgw";
-    if (exchanges.size() == 1) {
-        std::string venue = exchanges[0];
-        std::transform(venue.begin(), venue.end(), venue.begin(), [](unsigned char c) { return std::tolower(c); });
-        name += "-" + venue;
-    }
-    return name;
-}
-
-}  // namespace
 
 int main(int argc, char* argv[]) {
     auto args = bpt::app::parse_cli(argc, argv, "bpt-md-gateway", "market data aggregator");
@@ -39,7 +18,7 @@ int main(int argc, char* argv[]) {
 
     try {
         auto cfg = bpt::md_gateway::config::load(args.config_path);
-        const std::string service_name = derive_service_name(cfg.exchanges);
+        const std::string service_name = bpt::common::util::derive_service_name("mdgw", cfg.exchanges);
         bpt::common::logging::init(service_name);
 
         // Optional fault injection (dev/qa only). Must run before
