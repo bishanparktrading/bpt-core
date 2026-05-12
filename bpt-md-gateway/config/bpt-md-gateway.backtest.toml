@@ -7,20 +7,12 @@ exchanges      = ["BINANCE", "OKX", "HYPERLIQUID"]
 subscription_heartbeat_interval_ms = 5000
 service_heartbeat_interval_ms      = 5000
 
+# Shared aeron stream registry — see deploy/config/aeron/streams.toml.
+aeron_config = "../deploy/config/aeron/streams.toml"
+
 [aeron]
+# Fallback only — shared file wins when present.
 media_driver_dir = "/dev/shm/aeron-bpt"
-
-[aeron.control]
-channel   = "aeron:ipc"
-stream_id = 2001    # Fenrir → bpt-md-gateway  (MdSubscribeBatch)
-
-[aeron.data]
-channel   = "aeron:ipc"
-stream_id = 2002    # bpt-md-gateway → Fenrir  (MdMarketData, MdTrade, MdOrderBook)
-
-[aeron.ack_hb]
-channel   = "aeron:ipc"
-stream_id = 2003    # bpt-md-gateway → Fenrir  (MdSubscriptionAck, heartbeats)
 
 [metrics]
 host = "127.0.0.1"

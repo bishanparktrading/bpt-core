@@ -5,7 +5,7 @@
 ///
 /// Three message types share this port because they are all small,
 /// low-frequency notifications strategy needs to know about and they
-/// all ride the same Aeron stream (`settings.aeron.ack_hb.stream_id`).
+/// all ride the same Aeron stream (`settings.aeron.md_ack_hb.stream_id`).
 /// Implementations: AckPublisher (Aeron-backed) in prod;
 /// FakeAckPublisher in component tests.
 

@@ -69,7 +69,7 @@ MdGatewayApp::MdGatewayApp(config::Settings cfg,
         sub_mgr_.add_adapter(std::move(adapter));
     }
 
-    bpt::common::log::info("MdGateway ready — polling control stream {}", cfg_.aeron.control.stream_id);
+    bpt::common::log::info("MdGateway ready — polling control stream {}", cfg_.aeron.md_control.stream_id);
 }
 
 void MdGatewayApp::run() {

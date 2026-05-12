@@ -4,7 +4,7 @@
 /// \brief Inbound port: SBE `MdSubscribeBatch` control fragments from strategy.
 ///
 /// Strategy publishes subscribe / unsubscribe batches on the control
-/// channel (`settings.aeron.control.stream_id`). MdGatewayApp::run()
+/// channel (`settings.aeron.md_control.stream_id`). MdGatewayApp::run()
 /// drains them every iteration of its main loop by calling poll();
 /// each decoded batch is handed off to SubscriptionManager.
 ///

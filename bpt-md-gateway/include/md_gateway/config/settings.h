@@ -22,11 +22,13 @@ namespace bpt::md_gateway::config {
 /// \brief Aeron stream IDs the gateway publishes / subscribes on.
 ///
 /// `media_driver_dir` is owned by `BaseSettings` (process-shared);
-/// only the per-stream channel + ID lives here.
+/// only the per-stream channel + ID lives here. Field names match the
+/// global vocabulary in deploy/config/aeron/streams.toml — a typo
+/// fails at load time rather than silently wiring to the wrong stream.
 struct AeronConfig {
-    bpt::common::config::StreamConfig control{"aeron:ipc", 2001};       ///< Strategy → MdGateway: subscription control
-    bpt::common::config::StreamConfig data{"aeron:ipc", 2002};          ///< MdGateway → Strategy: market data
-    bpt::common::config::StreamConfig ack_hb{"aeron:ipc", 2003};        ///< MdGateway → Strategy: acks + heartbeats
+    bpt::common::config::StreamConfig md_control{"aeron:ipc", 2001};    ///< Strategy → MdGateway: subscription control
+    bpt::common::config::StreamConfig md_data{"aeron:ipc", 2002};       ///< MdGateway → Strategy: market data
+    bpt::common::config::StreamConfig md_ack_hb{"aeron:ipc", 2003};     ///< MdGateway → Strategy: acks + heartbeats
     bpt::common::config::StreamConfig funding_rate{"aeron:ipc", 1005};  ///< MdGateway → Strategy: funding rates
 };
 
