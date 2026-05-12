@@ -58,6 +58,22 @@ const BAR_SEC = 60
 // few hundred bars anyway; unbounded growth is a leak.
 const MAX_CANDLES = 600
 
+// One sample per strategyState frame (~2 Hz). 1800 = 15 min of history
+// — long enough to see basis dynamics, bounded to keep the store light.
+// Mirrors MAX_CANDLES for the candlestick chart; both serve as the
+// "data is in the store, not the chart instance" anti-HMR-reset pattern.
+const MAX_FUNDING_SAMPLES = 1800
+
+// Time-series sample of a funding-arb pair's two legs. Persisted in the
+// store so DualLegChart survives HMR / panel remounts — without this,
+// the chart instance loses all history on every re-render.
+export interface FundingSample {
+  ts: number // unix seconds, monotonic (clamped so the chart's time
+  //          axis is strictly increasing even if Date.now() doesn't move)
+  spot: number
+  perp: number
+}
+
 interface State {
   // Session
   status: ConnectionStatus
@@ -107,6 +123,13 @@ interface State {
 
   // Strategy state — updated by 'strategyState' messages from fenrir via bridge.
   strategyState: import('./types/messages').StrategyStateMsg | null
+
+  // Rolling spot+perp history for the funding-arb dual-leg chart.
+  // Appended on every FundingArb strategyState frame; reset when the
+  // active strategy switches away. DualLegChart reads this on every
+  // render and calls setData(...) so chart-instance state losses don't
+  // wipe visible history.
+  fundingHistory: FundingSample[]
 
   // Tyr toxicity scores — updated by 'toxicity' messages from the bridge.
   toxicity: {
@@ -167,6 +190,7 @@ const initialState = {
   portfolioGreeks: null as PortfolioGreeks | null,
   volSurface: [] as VolSmileSlice[],
   strategyState: null as State['strategyState'],
+  fundingHistory: [] as FundingSample[],
   toxicity: null as State['toxicity'],
   preHaltStatus: null as ConnectionStatus | null,
 }
@@ -334,8 +358,24 @@ export const useStore = create<State>((set) => ({
           return { optionLegs: legs, portfolioGreeks: greeks, volSurface: surface }
         }
 
-        case 'strategyState':
-          return { strategyState: msg }
+        case 'strategyState': {
+          // Append a funding sample when the active strategy is FundingArb
+          // and both legs have a real mid (zero would be one-sided BBO
+          // filtered upstream by MdValidator). Sample ts is clamped to
+          // monotonic seconds so lightweight-charts' time scale is happy.
+          if (msg.kind !== 'FundingArb' || msg.spotPx <= 0 || msg.perpPx <= 0) {
+            return { strategyState: msg }
+          }
+          const wallTs = Math.floor(Date.now() / 1000)
+          const last = state.fundingHistory[state.fundingHistory.length - 1]
+          const ts = last && wallTs <= last.ts ? last.ts + 1 : wallTs
+          const sample: FundingSample = { ts, spot: msg.spotPx, perp: msg.perpPx }
+          const nextHistory =
+            state.fundingHistory.length >= MAX_FUNDING_SAMPLES
+              ? [...state.fundingHistory.slice(-(MAX_FUNDING_SAMPLES - 1)), sample]
+              : [...state.fundingHistory, sample]
+          return { strategyState: msg, fundingHistory: nextHistory }
+        }
 
         case 'toxicity':
           return {

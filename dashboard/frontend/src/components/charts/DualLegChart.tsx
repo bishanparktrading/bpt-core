@@ -8,7 +8,7 @@ import {
   type ISeriesApi,
   type UTCTimestamp,
 } from 'lightweight-charts'
-import { useStore } from '../../store'
+import { useStore, type FundingSample } from '../../store'
 
 // Mainchart for FundingArb-style strategies. Plots both legs (spot in
 // blue, perp in orange) on the same axis so the visual gap matches the
@@ -28,10 +28,6 @@ const CHART_THEME = {
   perp: '#e89436',
 }
 
-// 30 minutes at 2 Hz. Bigger than the in-panel version (5 min) since
-// this chart owns the full main-row slot.
-const MAX_POINTS = 3600
-
 // Pick a price-axis precision that fits the magnitude. lightweight-
 // charts defaults to 2 dp (good for stocks); FundingArb commonly runs
 // on long-tail tokens priced under $1 (PURR ~$0.07), where 2 dp
@@ -46,17 +42,21 @@ function precisionFor(price: number): { precision: number; minMove: number } {
 
 export function DualLegChart() {
   const strategyState = useStore((s) => s.strategyState)
-  // Only render leg history when the active strategy is funding-arb
-  // shaped. Anything else feeds zero into the series and would skew
-  // the price scale.
+  // The store accumulates a rolling sample buffer on every FundingArb
+  // strategyState frame. Reading from the store (instead of accumulating
+  // inside the chart instance) means the chart can be remounted at any
+  // time — HMR, parent re-render, strategy swap — and replay the full
+  // history via setData on mount. The candlestick PriceChart has the
+  // same property via store.candles; this is the symmetry.
+  const fundingHistory = useStore((s) => s.fundingHistory)
   const fa = strategyState?.kind === 'FundingArb' ? strategyState : null
 
   const hostRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const spotRef = useRef<ISeriesApi<'Line'> | null>(null)
   const perpRef = useRef<ISeriesApi<'Line'> | null>(null)
-  const lastTsRef = useRef<number>(0)
-  const pointCountRef = useRef<number>(0)
+  const lastSeenTsRef = useRef<number>(0)
+  const didFitRef = useRef<boolean>(false)
   const precisionSetRef = useRef<boolean>(false)
 
   useEffect(() => {
@@ -123,36 +123,51 @@ export function DualLegChart() {
     }
   }, [])
 
+  // Drive the chart from the store buffer. On mount (including HMR-
+  // triggered remounts) replay the entire buffer via setData. On
+  // subsequent ticks, append only the new tail via update(). This
+  // keeps the chart-instance memory in sync with the store without
+  // resending the whole array every frame.
   useEffect(() => {
-    if (!fa) return
     const spot = spotRef.current
     const perp = perpRef.current
     if (!spot || !perp) return
+    if (fundingHistory.length === 0) return
 
-    // First-frame: derive price-axis precision from the spot mid so
-    // the chart shows enough decimals for low-priced tokens (PURR at
-    // $0.07 needs 6 dp to surface the basis). Set once on each series
-    // — lightweight-charts honours the format for the whole y-axis.
-    if (!precisionSetRef.current && fa.spotPx > 0) {
-      const fmt = precisionFor(fa.spotPx)
+    // First-data event: derive y-axis precision from the first valid
+    // spot price (lightweight-charts defaults to 2 dp, useless for
+    // tokens under $1).
+    if (!precisionSetRef.current) {
+      const fmt = precisionFor(fundingHistory[0].spot)
       spot.applyOptions({ priceFormat: { type: 'price', ...fmt } })
       perp.applyOptions({ priceFormat: { type: 'price', ...fmt } })
       precisionSetRef.current = true
     }
 
-    let ts = Math.floor(Date.now() / 1000)
-    if (ts <= lastTsRef.current) ts = lastTsRef.current + 1
-    lastTsRef.current = ts
-    const t = ts as UTCTimestamp
-    if (fa.spotPx > 0) spot.update({ time: t, value: fa.spotPx })
-    if (fa.perpPx > 0) perp.update({ time: t, value: fa.perpPx })
-    pointCountRef.current += 1
-    // Auto-fit only on the first MAX_POINTS frames so the operator can
-    // pan/zoom freely afterwards without the view snapping back.
-    if (pointCountRef.current < MAX_POINTS && chartRef.current) {
-      chartRef.current.timeScale().fitContent()
+    if (lastSeenTsRef.current === 0) {
+      // Fresh chart (or remount after HMR / strategy switch): replay
+      // the whole buffer so the operator sees the same history they
+      // had before.
+      spot.setData(fundingHistory.map((p: FundingSample) => ({ time: p.ts as UTCTimestamp, value: p.spot })))
+      perp.setData(fundingHistory.map((p: FundingSample) => ({ time: p.ts as UTCTimestamp, value: p.perp })))
+    } else {
+      // Steady-state: append the points whose ts is newer than the
+      // last one we drew.
+      for (const p of fundingHistory) {
+        if (p.ts <= lastSeenTsRef.current) continue
+        spot.update({ time: p.ts as UTCTimestamp, value: p.spot })
+        perp.update({ time: p.ts as UTCTimestamp, value: p.perp })
+      }
     }
-  }, [fa, fa?.spotPx, fa?.perpPx])
+    lastSeenTsRef.current = fundingHistory[fundingHistory.length - 1].ts
+
+    // Auto-fit once (initial load); the operator can pan/zoom freely
+    // after that without the view snapping back.
+    if (!didFitRef.current && chartRef.current) {
+      chartRef.current.timeScale().fitContent()
+      didFitRef.current = true
+    }
+  }, [fundingHistory])
 
   return (
     <div className="panel">
