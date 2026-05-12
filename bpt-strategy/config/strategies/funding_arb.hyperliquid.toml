@@ -1,4 +1,9 @@
-# Hyperliquid testnet — funding arb on PURR/USDC spot + PURR perp.
+# Hyperliquid testnet — funding arb on BTC/USDC spot + BTC perp.
+# Switched from PURR to BTC: PURR perp on testnet has one-sided BBO
+# (ask=0) which MdValidator filters, leaving the perp leg of the panel
+# permanently blank. BTC has the most active testnet liquidity on both
+# legs, but requires the BTC spot pair (HL spot index @50) to be
+# present in the canonical mapping — see config/instruments/.
 #
 # Plumbing-validation config: thresholds + sizing tuned so the strategy
 # attempts entry frequently rather than profitably. Testnet liquidity is
@@ -14,7 +19,7 @@ enabled = true
 # PERP leg quote = USD (HL's synthetic USD-margined perp).
 # CanonicalResolver matches each leg independently; pair-up happens by
 # base_asset name.
-instruments = ["PURR/USDC:SPOT", "PURR/USD:PERPETUAL"]
+instruments = ["BTC/USDC:SPOT", "BTC/USD:PERPETUAL"]
 md_exchanges = ["HYPERLIQUID"]
 
 [fenrir.strategy.venue_exec.HYPERLIQUID]
@@ -42,7 +47,7 @@ max_refdata_staleness_ns = 300000000000
 configured_exchanges = ["HYPERLIQUID"]
 
 [fenrir.strategy.params]
-base_assets = ["PURR"]
+base_assets = ["BTC"]
 
 # ── Funding rate thresholds ──────────────────────────────────────────
 # Aggressive thresholds to trigger entry quickly on testnet, where
