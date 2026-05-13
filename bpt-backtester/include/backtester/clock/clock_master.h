@@ -1,9 +1,9 @@
 #pragma once
 
 #include "backtester/data/data_loader.h"
-#include "backtester/exchange/binance_md_server.h"
-#include "backtester/exchange/hyperliquid_md_server.h"
-#include "backtester/exchange/okx_md_server.h"
+#include "backtester/exchange/binance/binance_md_server.h"
+#include "backtester/exchange/hyperliquid/hyperliquid_md_server.h"
+#include "backtester/exchange/okx/okx_md_server.h"
 #include "backtester/matching/matching_engine.h"
 #include "backtester/messaging/backtest_ack_subscriber.h"
 #include "backtester/messaging/backtest_control_publisher.h"

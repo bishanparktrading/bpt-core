@@ -2,7 +2,7 @@
 
 #include "backtester/data/orderbook_record.h"
 #include "backtester/data/trade_record.h"
-#include "backtester/exchange/okx_md_server.h"
+#include "backtester/exchange/okx/okx_md_server.h"
 #include "backtester/results/results_collector.h"
 
 #include <messages/BacktestCommand.h>

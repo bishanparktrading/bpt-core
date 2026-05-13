@@ -5,7 +5,7 @@
 // Usage:
 //   info_smoke --snapshot /opt/bpt/data/raw/hyperliquid/2026-04-25/meta.json [--port 18113]
 
-#include "backtester/exchange/hyperliquid_info_server.h"
+#include "backtester/exchange/hyperliquid/hyperliquid_info_server.h"
 
 #include <CLI/CLI.hpp>
 #include <boost/asio/connect.hpp>

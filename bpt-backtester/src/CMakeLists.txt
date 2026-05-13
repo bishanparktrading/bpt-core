@@ -3,13 +3,13 @@ add_library(backtester_lib
     clock/clock_master.cpp
     config/loader.cpp
     data/data_loader.cpp
-    exchange/binance_md_server.cpp
-    exchange/binance_order_server.cpp
-    exchange/hyperliquid_info_server.cpp
-    exchange/hyperliquid_md_server.cpp
-    exchange/hyperliquid_order_server.cpp
-    exchange/okx_md_server.cpp
-    exchange/okx_order_server.cpp
+    exchange/binance/binance_md_server.cpp
+    exchange/binance/binance_order_server.cpp
+    exchange/hyperliquid/hyperliquid_info_server.cpp
+    exchange/hyperliquid/hyperliquid_md_server.cpp
+    exchange/hyperliquid/hyperliquid_order_server.cpp
+    exchange/okx/okx_md_server.cpp
+    exchange/okx/okx_order_server.cpp
     matching/matching_engine.cpp
     messaging/aeron_bus.cpp
     messaging/backtest_ack_subscriber.cpp
