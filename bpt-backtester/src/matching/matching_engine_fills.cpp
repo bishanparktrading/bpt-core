@@ -56,33 +56,37 @@ void MatchingEngine::process_pending_submit(PendingSubmit& ps, std::vector<FillR
     }
 
     if (order.filled_qty < order.quantity - 1e-12) {
-        order.queue_ahead = book_qty_at_price(book, order.side, order.price);
-        // Sum remaining qty of our already-resting orders at the same
-        // (price, side). They sit in front of this new order in FIFO; the
-        // total "stuff in front of me" is venue + our earlier orders.
-        order.our_qty_ahead = 0.0;
-        if (auto pit = pending_.find(key(order.exchange, order.symbol)); pit != pending_.end()) {
-            for (const auto& o : pit->second) {
-                if (o.side != order.side)
-                    continue;
-                if (std::abs(o.price - order.price) > 1e-9)
-                    continue;
-                if (!o.queue_seeded)
-                    continue;  // backstop-pathway orders don't share the FIFO model
-                order.our_qty_ahead += (o.quantity - o.filled_qty);
-            }
+        const double remaining = order.quantity - order.filled_qty;
+        const double venue_size = book_qty_at_price(book, order.side, order.price);
+        const std::string bk = key(order.exchange, order.symbol);
+
+        // Synthetic L3: append a slot for this order at the back of the
+        // level deque. If we have venue volume to seed and no venue slot
+        // exists yet, seed one too. Even when venue_size==0 we still add
+        // our slot — orders at a brand-new price level (between bid and
+        // ask) should fill on the first trade print at our price.
+        auto& q = level_queue(bk, order.side, order.price);
+        if (venue_size > 0.0) {
+            bool has_venue_slot = false;
+            for (const auto& s : q)
+                if (!s.is_ours) {
+                    has_venue_slot = true;
+                    break;
+                }
+            if (!has_venue_slot)
+                q.push_back(Slot{venue_size, /*is_ours=*/false, /*our_order_id=*/{}, current_ts_});
         }
+        q.push_back(Slot{remaining, /*is_ours=*/true, order.order_id, current_ts_});
         order.queue_seeded = true;
-        pending_[key(order.exchange, order.symbol)].push_back(order);
-        bpt::common::log::debug(
-            "[MatchingEngine] Queued LIMIT {} {} {} @ {} queue_ahead={:.4f} our_qty_ahead={:.4f} cross_filled={:.4f}",
-            order.symbol,
-            (order.side == OrderSide::BUY ? "BUY" : "SELL"),
-            order.quantity - order.filled_qty,
-            order.price,
-            order.queue_ahead,
-            order.our_qty_ahead,
-            order.filled_qty);
+        pending_[bk].push_back(order);
+
+        bpt::common::log::debug("[MatchingEngine] Queued LIMIT {} {} {} @ {} venue_in_front={:.4f} cross_filled={:.4f}",
+                                order.symbol,
+                                (order.side == OrderSide::BUY ? "BUY" : "SELL"),
+                                remaining,
+                                order.price,
+                                venue_size,
+                                order.filled_qty);
     }
 }
 
@@ -183,20 +187,15 @@ void MatchingEngine::fill_crossing_limits(const std::string& book_key, std::vect
                                     if (order.type != OrderType::LIMIT)
                                         return false;
 
-                                    // Queue-seeded orders fill via the
+                                    // Queue-seeded orders have a slot in the
+                                    // synthetic L3 deque and fill via the
                                     // trade-print path (fill_against_trade);
                                     // skip them here to avoid double-counting.
-                                    // Exception: queue_ahead == 0 means the
-                                    // book lookup at submit time didn't find
-                                    // a level matching our price (depth-1 BBO
-                                    // book, or order deeper than L5). Those
-                                    // orders have no useful queue info and
-                                    // should fall through to the book-cross
-                                    // backstop — otherwise they're never
-                                    // fillable, which is wrong for orders
-                                    // that the book legitimately walks
-                                    // through.
-                                    if (order.queue_seeded && order.queue_ahead > 0.0)
+                                    // The backstop fires only for orders that
+                                    // couldn't get a slot — typically because
+                                    // the book wasn't seeded yet at submit
+                                    // time (no L2 snapshot received).
+                                    if (order.queue_seeded)
                                         return false;
 
                                     double fill_px = 0.0;
@@ -240,128 +239,68 @@ void MatchingEngine::fill_crossing_limits(const std::string& book_key, std::vect
 }
 
 void MatchingEngine::fill_against_trade(const data::TradeRecord& trade, std::vector<FillReport>& out) {
-    // Phase 5: accumulate trade volume by level. apply_queue_regen reads
-    // this on each book update to subtract trade-attributable size before
-    // attributing the rest of the level decrease to cancels. Tracked
-    // unconditionally — even when we currently hold no orders, a later
-    // order at this level benefits from the partial accounting.
-    traded_since_book_[key(trade.exchange, trade.symbol)][price_key(trade.price)] += trade.quantity;
-
-    auto pit = pending_.find(key(trade.exchange, trade.symbol));
-    if (pit == pending_.end())
-        return;
-    auto& orders = pit->second;
-
     // Counter-side semantics: a SELL trade (taker sold) consumed the bid
-    // book → only resting BUYs at price ≥ trade price participate. A BUY
-    // trade consumed the ask book → only resting SELLs at price ≤ trade
-    // price participate.
-    //
-    // Within the eligible orders, prints fan out FIFO across our own
-    // resting orders ordered by submitted_ts. We take a single trade and
-    // walk through orders in order — each consumes from its own queue
-    // first, then fills from the residual. The next order in line sees
-    // whatever volume is left after the previous order's queue+fill
-    // consumption.
-    //
-    // Note: this doesn't model trade-volume that hits orders ahead of
-    // the FIRST order in our pending list (those orders aren't ours).
-    // queue_ahead absorbs that — it's the volume between the touch and
-    // our first order. Correct as long as we trust the L5 snapshot.
-    // Walk orders in submission order (FIFO). Each iteration may consume
-    // some of the remaining trade volume. Index-iterate so we can propagate
-    // venue-drain and own-fill updates forward to trailing same-(price, side)
-    // orders without iterator invalidation.
-    //
-    // Propagation makes the model FIFO-correct when we have multiple orders
-    // at the same price: a print that drains 10 units of venue volume drains
-    // it for *every* later order at the same price (the venue queue is
-    // shared); a fill of our earlier order shrinks the our_qty_ahead of
-    // every later order at the same price (it's *our own* earlier qty in
-    // front of them).
-    auto same_level = [](const OpenOrder& a, const OpenOrder& b) {
-        return a.side == b.side && std::abs(a.price - b.price) < 1e-9;
-    };
+    // book → we walk the bid-side slot deque at the trade price. A BUY trade
+    // consumed the ask book → we walk the ask-side deque.
+    const OrderSide our_side = (trade.side == data::TradeSide::SELL) ? OrderSide::BUY : OrderSide::SELL;
+    const std::string bk = key(trade.exchange, trade.symbol);
+    auto* q = level_queue_if_exists(bk, our_side, trade.price);
+    if (q == nullptr || q->empty())
+        return;
+
+    auto orders_it = pending_.find(bk);
+
+    // Walk the slot deque from the front (FIFO), consuming as much qty as
+    // fits in the remaining print. Each consumed slot either represents a
+    // venue order (no FillReport emitted, just disappear) or one of our
+    // orders (emit FillReport, update OpenOrder.filled_qty).
     double remaining_print = trade.quantity;
-    for (std::size_t i = 0; i < orders.size(); ++i) {
-        if (remaining_print <= 0.0)
-            break;
-        OpenOrder& order = orders[i];
-        if (order.type != OrderType::LIMIT || !order.queue_seeded)
-            continue;
+    while (remaining_print > 0.0 && !q->empty()) {
+        Slot& slot = q->front();
+        const double take = std::min(remaining_print, slot.qty);
+        slot.qty -= take;
+        remaining_print -= take;
 
-        const bool eligible =
-            (order.side == OrderSide::BUY && trade.side == data::TradeSide::SELL &&
-             order.price >= trade.price - 1e-9) ||
-            (order.side == OrderSide::SELL && trade.side == data::TradeSide::BUY && order.price <= trade.price + 1e-9);
-        if (!eligible)
-            continue;
-
-        // (1) Drain venue queue first. The drained amount applies to every
-        // trailing same-level order — it's a shared pool, not per-order.
-        const double consumed_venue = std::min(remaining_print, order.queue_ahead);
-        order.queue_ahead -= consumed_venue;
-        remaining_print -= consumed_venue;
-        if (consumed_venue > 0.0) {
-            for (std::size_t j = i + 1; j < orders.size(); ++j) {
-                if (same_level(orders[j], order))
-                    orders[j].queue_ahead = std::max(0.0, orders[j].queue_ahead - consumed_venue);
+        if (slot.is_ours && orders_it != pending_.end()) {
+            // Find the OpenOrder. Pending vector is small; linear scan is fine.
+            for (auto& order : orders_it->second) {
+                if (order.order_id != slot.our_order_id)
+                    continue;
+                order.filled_qty += take;
+                FillReport r;
+                r.order_id = order.order_id;
+                r.client_order_id = order.client_order_id;
+                r.exchange = order.exchange;
+                r.symbol = order.symbol;
+                r.order_type = OrderType::LIMIT;
+                r.side = order.side;
+                r.liquidity_role = LiquidityRole::MAKER;  // resting LIMIT consumed by an incoming print.
+                r.original_qty = order.quantity;
+                r.order_price = order.price;
+                r.last_fill_qty = take;
+                r.last_fill_price = order.price;  // makers fill at their limit price, not the print's.
+                r.cumulative_fill_qty = order.filled_qty;
+                r.is_fully_filled = (order.filled_qty >= order.quantity - 1e-12);
+                r.simulation_ts = current_ts_;
+                out.push_back(r);
+                break;
             }
         }
-        if (remaining_print <= 0.0)
-            continue;
 
-        // (2) Drain our earlier orders ahead at this level (our_qty_ahead).
-        // No propagation needed: this counter tracks earlier orders'
-        // remaining qty, which already reflected previous iterations.
-        const double consumed_our = std::min(remaining_print, order.our_qty_ahead);
-        order.our_qty_ahead -= consumed_our;
-        remaining_print -= consumed_our;
-        if (remaining_print <= 0.0)
-            continue;
-
-        // (3) Fill this order from the residual print.
-        const double our_remaining = order.quantity - order.filled_qty;
-        const double fill_qty = std::min(remaining_print, our_remaining);
-        if (fill_qty <= 0.0)
-            continue;
-
-        order.filled_qty += fill_qty;
-        remaining_print -= fill_qty;
-        // Propagate: trailing same-level orders saw our qty in front shrink.
-        for (std::size_t j = i + 1; j < orders.size(); ++j) {
-            if (same_level(orders[j], order))
-                orders[j].our_qty_ahead = std::max(0.0, orders[j].our_qty_ahead - fill_qty);
-        }
-
-        FillReport r;
-        r.order_id = order.order_id;
-        r.client_order_id = order.client_order_id;
-        r.exchange = order.exchange;
-        r.symbol = order.symbol;
-        r.order_type = OrderType::LIMIT;
-        r.side = order.side;
-        // Resting LIMIT consumed by an incoming print = MAKER, by definition.
-        r.liquidity_role = LiquidityRole::MAKER;
-        r.original_qty = order.quantity;
-        r.order_price = order.price;
-        r.last_fill_qty = fill_qty;
-        // Real exchanges fill resting limits at the limit price (better
-        // than the trade print for the maker), not at the print price.
-        r.last_fill_price = order.price;
-        r.cumulative_fill_qty = order.filled_qty;
-        r.is_fully_filled = (order.filled_qty >= order.quantity - 1e-12);
-        r.simulation_ts = current_ts_;
-        out.push_back(r);
+        if (slot.qty <= 1e-12)
+            q->pop_front();
     }
 
-    // Erase fully-filled queue-seeded orders. Non-seeded orders are
-    // managed by fill_crossing_limits.
-    orders.erase(
-        std::remove_if(orders.begin(),
-                       orders.end(),
-                       [](const OpenOrder& o) { return o.queue_seeded && o.filled_qty >= o.quantity - 1e-12; }),
-        orders.end());
+    // Erase fully-filled queue-seeded orders from pending_. Non-seeded
+    // orders (backstop path) remain — fill_crossing_limits manages them.
+    if (orders_it != pending_.end()) {
+        auto& orders = orders_it->second;
+        orders.erase(
+            std::remove_if(orders.begin(),
+                           orders.end(),
+                           [](const OpenOrder& o) { return o.queue_seeded && o.filled_qty >= o.quantity - 1e-12; }),
+            orders.end());
+    }
 }
 
 }  // namespace bpt::backtester::matching

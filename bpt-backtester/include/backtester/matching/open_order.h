@@ -52,38 +52,18 @@ struct OpenOrder {
 
     // ── Queue position tracking (LIMIT orders only) ─────────────────────
     //
-    // Two parts to "how much volume is in front of me at this price level":
+    // Per-order queue counters (queue_ahead, our_qty_ahead) were superseded
+    // by a per-(book, side, price) slot deque in MatchingEngine. Queue
+    // position is now implicit in slot order: when this order rests, a
+    // Slot is appended to the level's deque and the order's qty in front
+    // = sum(slot.qty for slot in deque before us). See MatchingEngine for
+    // the slot mechanics.
     //
-    //   queue_ahead   — VENUE volume in front of us. Seeded at submit_order()
-    //                   from the L2 snapshot's bid_sz/ask_sz at our `price`.
-    //                   apply_queue_regen() decrements it across book updates
-    //                   to attribute level shrinkage to cancels.
-    //
-    //   our_qty_ahead — Aggregate remaining qty of OUR earlier resting orders
-    //                   at the same (price, side). Two of our orders at the
-    //                   same price both used to think the same venue volume
-    //                   was in front of them, which double-counted; this
-    //                   field encodes the FIFO relationship between our own
-    //                   orders explicitly.
-    //
-    // Total qty in front of us at the level = queue_ahead + our_qty_ahead.
-    //
-    // fill_against_trade drains queue_ahead first (venue is at the front of
-    // the queue by assumption — venue orders observed via L2 are taken to
-    // have been placed before our orders), then our_qty_ahead (our earlier
-    // orders), then fills this order from any residual print volume.
-    //
-    // queue_seeded is false when we couldn't find our price in the book
-    // at submit time (no L2 snapshot yet, or our price is deeper than
-    // L5). Such orders fall back to the legacy fill_crossing_limits
-    // path, which still over-fills — accepted limitation, logged once
-    // per order if it matters.
-    //
-    // This model still under-models cancellations from ahead of us (no
-    // L3 visibility, uniform-cancel prior in apply_queue_regen), so
-    // backtests are mildly optimistic vs live.
-    double queue_ahead{0.0};
-    double our_qty_ahead{0.0};
+    // queue_seeded stays as the backstop indicator: true means a slot was
+    // successfully added to the level deque (the price was visible in the
+    // L5 snapshot at submit time), false means the order falls back to
+    // fill_crossing_limits — the over-permissive legacy path retained for
+    // orders deeper than L5 or submitted before any L2 snapshot arrived.
     bool queue_seeded{false};
 
     /// True iff the matching engine refused the order at submit time

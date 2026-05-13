@@ -63,10 +63,13 @@ void MatchingEngine::on_market_event(const data::MarketEvent& event) {
             const auto& ob = std::get<data::OrderBookRecord>(event.payload);
             current_ts_ = ob.timestamp_ns;
             const std::string book_key = key(ob.exchange, ob.symbol);
-            // Phase 5: regen queue_ahead on resting orders before the book
-            // is overwritten. This lets us see the *previous* level sizes
-            // alongside the new ones to attribute the delta to cancels.
-            apply_queue_regen(book_key, ob);
+            // Synthetic L3: reconcile the per-level slot deques against
+            // the new snapshot — size growth becomes inferred venue adds,
+            // size shrink becomes cancels distributed across slots. Trade
+            // prints between snapshots already consumed slots during
+            // fill_against_trade, so the deque state going in already
+            // reflects post-trade reality.
+            reconcile_l2_snapshot(book_key, ob);
             books_[book_key] = ob;
             fill_crossing_limits(book_key, fills);
         } else {
@@ -158,17 +161,17 @@ bool MatchingEngine::cancel_order(const std::string& exchange, const std::string
         auto& v = it->second;
         auto pos = std::find_if(v.begin(), v.end(), [&](const OpenOrder& o) { return o.order_id == order_id; });
         if (pos != v.end()) {
-            // Decrement our_qty_ahead of trailing same-(price, side) orders
-            // by the cancelled order's remaining qty. Without this, orders
-            // submitted after the cancelled one would still think it sits
-            // in front of them in queue.
-            const double freed = pos->quantity - pos->filled_qty;
-            const double cancelled_price = pos->price;
-            const OrderSide cancelled_side = pos->side;
-            if (freed > 0.0) {
-                for (auto jit = std::next(pos); jit != v.end(); ++jit) {
-                    if (jit->side == cancelled_side && std::abs(jit->price - cancelled_price) < 1e-9)
-                        jit->our_qty_ahead = std::max(0.0, jit->our_qty_ahead - freed);
+            // Remove the order's slot from the synthetic L3 deque. Trailing
+            // slots in the same deque naturally close up — their queue
+            // position (which is implicit in the deque order) shrinks by
+            // the cancelled slot's qty.
+            if (pos->queue_seeded) {
+                auto* q = level_queue_if_exists(key(exchange, symbol), pos->side, pos->price);
+                if (q) {
+                    q->erase(std::remove_if(q->begin(),
+                                            q->end(),
+                                            [&](const Slot& s) { return s.is_ours && s.our_order_id == order_id; }),
+                             q->end());
                 }
             }
             v.erase(pos);

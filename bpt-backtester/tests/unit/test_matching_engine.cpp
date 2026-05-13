@@ -557,24 +557,23 @@ TEST(MatchingEngineQueueRegenTest, SubtractsTradeVolumeBeforeAttribution) {
 
     eng.on_market_event(make_book_l1("BINANCE", "BTCUSDT", 100.0, 101.0, 10, 100));
     eng.submit_order(make_order(OrderType::LIMIT, OrderSide::SELL, 5.0, 101.0, "sell-1"));
+    // Synthetic L3 deque now: [v100, ours5] at price 101 / SELL side.
 
-    // 30 units traded at 101 between the two book updates.
+    // 30 units traded at 101 → fill_against_trade consumes from the front of
+    // the deque. Slot v100 → v70. Our slot untouched. Deque: [v70, ours5].
     eng.on_market_event(make_trade("BINANCE", "BTCUSDT", TradeSide::BUY, 101.0, 30.0, 1500));
-    // queue_ahead now reduced by 30 from fill_against_trade → 70.
-
-    // Book drops to 50 (Δ=50). Trade-attributable=30 → cancels=20.
-    // End-weighted attribution: pos_frac = 70/100 = 0.7,
-    // cancel_share = 20 * 0.7² = 20 * 0.49 = 9.8.
-    // queue_ahead expected = 70 - 9.8 = 60.2.
-    eng.on_market_event(make_book_l1("BINANCE", "BTCUSDT", 100.0, 101.0, 10, 50, /*ts=*/2000));
-
-    // A 60-unit print at 101 leaves us unfilled — queue_ahead 60.2 still covers.
-    eng.on_market_event(make_trade("BINANCE", "BTCUSDT", TradeSide::BUY, 101.0, 60.0, 2500));
     EXPECT_EQ(fills.size(), 0u);
 
-    // A 5-unit print drains the residual ~0.2 queue and partially fills us.
-    eng.on_market_event(make_trade("BINANCE", "BTCUSDT", TradeSide::BUY, 101.0, 5.0, 3000));
+    // Book drops to 50. reconcile_l2_snapshot compares observed venue size
+    // (50) against the venue portion of our deque (70) → 20 cancels.
+    // distribute_cancels skips our slot, so all 20 fall on v70. Deque: [v50, ours5].
+    eng.on_market_event(make_book_l1("BINANCE", "BTCUSDT", 100.0, 101.0, 10, 50, /*ts=*/2000));
+
+    // A 55-unit BUY print at 101 drains v50 and fully fills our 5-unit order.
+    eng.on_market_event(make_trade("BINANCE", "BTCUSDT", TradeSide::BUY, 101.0, 55.0, 2500));
     ASSERT_EQ(fills.size(), 1u);
+    EXPECT_DOUBLE_EQ(fills[0].last_fill_qty, 5.0);
+    EXPECT_TRUE(fills[0].is_fully_filled);
 }
 
 TEST(MatchingEngineQueueRegenTest, NoRegenWhenLevelGrows) {
@@ -731,6 +730,41 @@ TEST(MatchingEngineTest, SamePriceFifo_SinglePrintConsumesVenueAFillsBStarts) {
     EXPECT_FALSE(fills[1].is_fully_filled);
 }
 
+TEST(MatchingEngineQueueRegenTest, VenueAddsBetweenSnapshotsAppendAtBack) {
+    // Synthetic L3 behaviour: when an L2 snapshot shows the level grew
+    // between updates, the added qty represents venue orders that joined
+    // AFTER ours (since ours has been sitting there). It should land at
+    // the back of the slot deque — *behind* our order — so subsequent
+    // trade prints fill us before the newly-arrived venue volume.
+    //
+    // Without this, the naive model would re-size queue_ahead upward when
+    // the level grew, pushing us toward the back of an enlarged queue.
+    // Real markets don't work that way.
+
+    MatchingEngine eng;
+    std::vector<FillReport> fills;
+    eng.set_fill_callback([&](FillReport r) { fills.push_back(r); });
+
+    // Submit our order when level is at 20. Deque: [v20, ours5].
+    eng.on_market_event(make_book_l1("BINANCE", "BTCUSDT", 100.0, 101.0, 10, 20));
+    eng.submit_order(make_order(OrderType::LIMIT, OrderSide::SELL, 5.0, 101.0, "sell-1"));
+
+    // Drain the 20 venue with a trade print. Deque: [ours5] (v20 fully consumed).
+    eng.on_market_event(make_trade("BINANCE", "BTCUSDT", TradeSide::BUY, 101.0, 20.0, 1500));
+    EXPECT_EQ(fills.size(), 0u);
+
+    // New snapshot shows level back at 30. expected_venue=0, observed=30 →
+    // delta=+30, append v30 at back. Deque: [ours5, v30_new].
+    // Our slot is now at the FRONT of the queue — the next print fills us.
+    eng.on_market_event(make_book_l1("BINANCE", "BTCUSDT", 100.0, 101.0, 10, 30, /*ts=*/2000));
+
+    // A 3-unit print at 101 → partial fill of our order (3 of 5).
+    eng.on_market_event(make_trade("BINANCE", "BTCUSDT", TradeSide::BUY, 101.0, 3.0, 2500));
+    ASSERT_EQ(fills.size(), 1u);
+    EXPECT_DOUBLE_EQ(fills[0].last_fill_qty, 3.0);
+    EXPECT_FALSE(fills[0].is_fully_filled);
+}
+
 TEST(MatchingEngineQueueRegenTest, EndWeightedFavoursFrontOfQueue) {
     // Demonstrates the key difference vs uniform attribution: an order at
     // venue position 30/100 sees materially fewer cancels in front of it
@@ -748,25 +782,32 @@ TEST(MatchingEngineQueueRegenTest, EndWeightedFavoursFrontOfQueue) {
     std::vector<FillReport> fills;
     eng.set_fill_callback([&](FillReport r) { fills.push_back(r); });
 
-    // Front-of-queue scenario: order placed when level was 100 sees 70
-    // units of venue volume drain via trade prints, leaving queue_ahead=30.
-    eng.on_market_event(make_book_l1("BINANCE", "BTCUSDT", 100.0, 101.0, 10, 100));
-    eng.submit_order(make_order(OrderType::LIMIT, OrderSide::SELL, 5.0, 101.0, "sell-front"));
-    eng.on_market_event(make_trade("BINANCE", "BTCUSDT", TradeSide::BUY, 101.0, 70.0, 1500));
-    EXPECT_EQ(fills.size(), 0u);  // not at the front yet — 30 venue still ahead
+    // Setup: 30 venue in front of us. Submit our SELL 5 → deque [v30, ours5].
+    eng.on_market_event(make_book_l1("BINANCE", "BTCUSDT", 100.0, 101.0, 10, 30));
+    eng.submit_order(make_order(OrderType::LIMIT, OrderSide::SELL, 5.0, 101.0, "sell-mid"));
 
-    // Now book shrinks to 22. Decrease = 100-22 = 78. Trade-attributable = 70.
-    // Cancels = 8.
-    //   Uniform would: queue_ahead -= 30 * (8/100) = 2.4 → queue_ahead = 27.6
-    //   End-weighted: queue_ahead -= 8 * (30/100)² = 8 * 0.09 = 0.72 → queue_ahead = 29.28
-    eng.on_market_event(make_book_l1("BINANCE", "BTCUSDT", 100.0, 101.0, 10, 22, /*ts=*/2000));
+    // More venue arrives behind us. Book grows to 60 → reconcile sees
+    // expected_venue=30, observed=60 → delta=+30, append v30_new at back.
+    // Deque: [v30_old, ours5, v30_new].
+    eng.on_market_event(make_book_l1("BINANCE", "BTCUSDT", 100.0, 101.0, 10, 60, /*ts=*/1500));
 
-    // A 28-unit print at 101: under uniform attribution, queue_ahead=27.6
-    // would be drained and we'd fill 0.4. Under end-weighted, queue_ahead=
-    // 29.28 absorbs the whole print — no fill yet, which is the more
-    // realistic outcome (the 8 cancels were mostly behind us, not ahead).
+    // Book shrinks to 50: expected_venue=60, observed=50 → cancels=10.
+    // End-weighted distribute_cancels:
+    //   v30_old at depth [0,30] ⇒ cancel share = 30²/65² ≈ 21% → ~2.13 cancelled
+    //   ours5 at depth [30,35] ⇒ skipped (is_ours)
+    //   v30_new at depth [35,65] ⇒ cancel share = (65²−35²)/65² ≈ 71% → ~7.10 cancelled
+    // Plus residual redistribution → roughly [v27.5, ours5, v22.5].
+    eng.on_market_event(make_book_l1("BINANCE", "BTCUSDT", 100.0, 101.0, 10, 50, /*ts=*/2000));
+
+    // A 28-unit BUY print: drains v27.5 then ~0.5 of us → tiny partial fill.
+    // Under uniform attribution the deque would be [v25, ours5, v25] and the
+    // same print would drain v25 + 3 of us → ~3-unit fill. End-weighted
+    // attribution protects our queue position by sending more cancels to
+    // the back slot.
     eng.on_market_event(make_trade("BINANCE", "BTCUSDT", TradeSide::BUY, 101.0, 28.0, 2500));
-    EXPECT_EQ(fills.size(), 0u) << "End-weighted attribution should keep this print from reaching the front order";
+    ASSERT_EQ(fills.size(), 1u);
+    EXPECT_LT(fills[0].last_fill_qty, 1.5)
+        << "End-weighted should keep our fill smaller than the ~3 uniform would produce";
 }
 
 TEST(MatchingEngineTest, SamePriceFifo_CancellingAClearsBQueue) {

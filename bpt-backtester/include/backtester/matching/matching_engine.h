@@ -7,6 +7,7 @@
 #include "backtester/latency/latency_model.h"
 #include "backtester/matching/open_order.h"
 
+#include <deque>
 #include <functional>
 #include <mutex>
 #include <string>
@@ -86,8 +87,8 @@ private:
     /// Caller must hold mutex_.
     void fill_crossing_limits(const std::string& book_key, std::vector<FillReport>& out);
 
-    /// \brief Drains queue_ahead from resting LIMITs at the trade price, then
-    ///        fills the residual against us in FIFO order.
+    /// \brief Walks the synthetic L3 slot deque at the trade price, consuming
+    ///        from the front in FIFO order until the print is exhausted.
     ///
     /// Caller must hold mutex_.
     /// Counter-side semantics:
@@ -143,15 +144,20 @@ private:
     /// Caller must hold mutex_; fill_cb_ fires outside the lock by the caller.
     void drain_pending_fills(uint64_t upto_ts, std::vector<FillReport>& out);
 
-    /// \brief Phase 5: when a book update arrives, attribute the volume drop at
-    ///        each price level to (cancels) = (Δ size) − (trade volume since last
-    ///        book update at that level).
+    /// \brief Synthetic-L3 reconciliation: walks each price level in the new
+    ///        L2 snapshot and adjusts the slot deque to match observed size.
     ///
-    /// Decrement queue_ahead on resting orders proportionally to the cancel
-    /// share, under the uniform-cancel approximation (each unit ahead has
-    /// equal probability of being a cancel). Caller must hold mutex_; called
-    /// between drain_pending_submits and the books_[key] write.
-    void apply_queue_regen(const std::string& book_key, const data::OrderBookRecord& new_book);
+    /// For every level present in the snapshot:
+    ///   - observed > expected (sum of slots): venue adds happened between
+    ///     snapshots — append a single new venue slot at the back.
+    ///   - observed < expected: cancels (trade prints already consumed slots
+    ///     in fill_against_trade). Distribute the shortfall across venue
+    ///     slots using end-weighted attribution — slots near the back of
+    ///     the queue are more likely to lose qty than slots near the front.
+    ///
+    /// Caller must hold mutex_; called between drain_pending_submits and the
+    /// books_[key] write.
+    void reconcile_l2_snapshot(const std::string& book_key, const data::OrderBookRecord& new_book);
 
     /// \brief Discrete key for a price level.
     ///
@@ -159,14 +165,46 @@ private:
     /// collision risk while keeping lookups exact for venue-tick-aligned prices.
     static int64_t price_key(double price);
 
+    /// \brief One unit in a price-level FIFO queue.
+    ///
+    /// is_ours==true means the slot is one of our OpenOrders, referenced by
+    /// our_order_id (matched against the OpenOrder in pending_). is_ours==
+    /// false means an inferred venue slot — qty came from an L2 add we
+    /// observed but we have no order-id and no further info about it.
+    struct Slot {
+        double qty{0.0};
+        bool is_ours{false};
+        std::string our_order_id;
+        uint64_t inferred_ts{0};
+    };
+    /// Per-(book_key, side, price) FIFO queue of slots. Synthetic L3
+    /// reconstruction from L2 snapshots + trade prints + our own order
+    /// events. Mutated by reconcile_l2_snapshot, fill_against_trade,
+    /// process_pending_submit, and cancel_order.
+    struct PriceQueues {
+        std::unordered_map<int64_t, std::deque<Slot>> bid;
+        std::unordered_map<int64_t, std::deque<Slot>> ask;
+    };
+    std::deque<Slot>& level_queue(const std::string& book_key, OrderSide side, double price);
+    std::deque<Slot>* level_queue_if_exists(const std::string& book_key, OrderSide side, double price);
+
+    /// \brief Distributes `cancels` qty across the venue slots in `queue` using
+    ///        linear end-weighted attribution (slots deeper in the queue are
+    ///        proportionally more likely to lose qty than slots near the front).
+    ///
+    /// Walks the queue front-to-back computing each slot's cancel share from
+    /// its position range [d_start, d_end] under the linear-weight CDF
+    /// (d² / N²). Our own slots are skipped — we don't model spontaneous
+    /// cancellation of our own orders.
+    static void distribute_cancels(std::deque<Slot>& queue, double cancels);
+
     std::mutex mutex_;
     std::unordered_map<std::string, data::OrderBookRecord> books_;
     std::unordered_map<std::string, std::vector<OpenOrder>> pending_;
     std::vector<PendingSubmit> pending_submits_;  ///< sorted by scheduled_match_ts when drained.
     std::vector<PendingFill> pending_fills_;      ///< sorted by scheduled_report_ts when drained.
-    /// Trade volume per (instrument, price) since the most recent book
-    /// snapshot. Drained on each book update after queue-regen attribution.
-    std::unordered_map<std::string, std::unordered_map<int64_t, double>> traded_since_book_;
+    /// Synthetic L3 — per-(book_key, side, price_key) FIFO slot queue.
+    std::unordered_map<std::string, PriceQueues> slot_queues_;
     uint64_t current_ts_{0};
     FillCallback fill_cb_;
     latency::LatencyModel* latency_{nullptr};
