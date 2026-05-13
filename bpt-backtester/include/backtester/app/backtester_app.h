@@ -28,6 +28,11 @@ public:
     void run() override;
 
 private:
+    // Routes a fill back to (a) the ResultsCollector and (b) the venue-specific
+    // OrderServer so its WS clients (the live order-gateway in backtest mode) see
+    // the matching exec report. Unknown venues are logged + dropped.
+    void on_fill(const matching::FillReport& fill);
+
     config::Settings settings_;
     messaging::BacktesterBus bus_;
 

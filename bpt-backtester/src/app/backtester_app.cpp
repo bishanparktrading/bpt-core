@@ -8,6 +8,40 @@
 
 namespace bpt::backtester {
 
+namespace {
+
+// Build the latency model if the [simulation.latency] block had any
+// non-zero field; otherwise return nullptr. Returning nullptr is the
+// signal MatchingEngine uses to fall back to its pre-Phase-3 zero-latency
+// path, so a config without a [simulation.latency] section keeps the old
+// behaviour unchanged.
+std::unique_ptr<latency::ParametricLatencyModel> build_latency_model(const config::SimLatencyConfig& cfg) {
+    auto has_nonzero = [](const config::VenueLatencySpec& s) {
+        return s.submit_to_match_base_ns > 0 || s.submit_to_match_jitter_ns > 0 || s.match_to_report_base_ns > 0 ||
+               s.match_to_report_jitter_ns > 0;
+    };
+    const bool any_spec = !cfg.per_venue.empty() || has_nonzero(cfg.default_spec);
+    if (!any_spec)
+        return nullptr;
+
+    auto model = std::make_unique<latency::ParametricLatencyModel>(cfg.seed);
+    using Leg = latency::LatencyLeg;
+    model->set_default(Leg::SUBMIT_TO_MATCH,
+                       {cfg.default_spec.submit_to_match_base_ns, cfg.default_spec.submit_to_match_jitter_ns});
+    model->set_default(Leg::MATCH_TO_REPORT,
+                       {cfg.default_spec.match_to_report_base_ns, cfg.default_spec.match_to_report_jitter_ns});
+    for (const auto& [venue, spec] : cfg.per_venue) {
+        model->set_spec(venue, Leg::SUBMIT_TO_MATCH, {spec.submit_to_match_base_ns, spec.submit_to_match_jitter_ns});
+        model->set_spec(venue, Leg::MATCH_TO_REPORT, {spec.match_to_report_base_ns, spec.match_to_report_jitter_ns});
+    }
+    bpt::common::log::info("[BacktesterApp] LatencyModel installed (seed={}, {} venue overrides)",
+                           cfg.seed,
+                           cfg.per_venue.size());
+    return model;
+}
+
+}  // namespace
+
 BacktesterApp::BacktesterApp(config::Settings settings, messaging::BacktesterBus bus)
     : settings_(std::move(settings)),
       bus_(std::move(bus)) {
@@ -45,41 +79,10 @@ BacktesterApp::BacktesterApp(config::Settings settings, messaging::BacktesterBus
                                                           settings_.results.starting_capital);
     hyperliquid_info_server_->start();
 
-    // ── Latency model ──────────────────────────────────────────────────────
-    // Built from settings.simulation.latency. Owned here so MatchingEngine
-    // can hold a non-owning pointer. Null when no [simulation.latency]
-    // section is set, in which case MatchingEngine reverts to zero-latency
-    // pre-Phase-3 behaviour.
-    {
-        const auto& lcfg = settings_.simulation.latency;
-        bool any_spec = !lcfg.per_venue.empty() || lcfg.default_spec.submit_to_match_base_ns > 0 ||
-                        lcfg.default_spec.submit_to_match_jitter_ns > 0 ||
-                        lcfg.default_spec.match_to_report_base_ns > 0 ||
-                        lcfg.default_spec.match_to_report_jitter_ns > 0;
-        if (any_spec) {
-            latency_model_ = std::make_unique<latency::ParametricLatencyModel>(lcfg.seed);
-            using Leg = latency::LatencyLeg;
-            latency_model_->set_default(
-                Leg::SUBMIT_TO_MATCH,
-                {lcfg.default_spec.submit_to_match_base_ns, lcfg.default_spec.submit_to_match_jitter_ns});
-            latency_model_->set_default(
-                Leg::MATCH_TO_REPORT,
-                {lcfg.default_spec.match_to_report_base_ns, lcfg.default_spec.match_to_report_jitter_ns});
-            for (const auto& [venue, spec] : lcfg.per_venue) {
-                latency_model_->set_spec(venue,
-                                         Leg::SUBMIT_TO_MATCH,
-                                         {spec.submit_to_match_base_ns, spec.submit_to_match_jitter_ns});
-                latency_model_->set_spec(venue,
-                                         Leg::MATCH_TO_REPORT,
-                                         {spec.match_to_report_base_ns, spec.match_to_report_jitter_ns});
-            }
-            bpt::common::log::info("[BacktesterApp] LatencyModel installed (seed={}, {} venue overrides)",
-                                   lcfg.seed,
-                                   lcfg.per_venue.size());
-        }
-    }
-
-    // ── Matching engine ────────────────────────────────────────────────────
+    // ── Latency model + matching engine ────────────────────────────────────
+    // latency_model_ must outlive matching_engine_ — engine holds a
+    // non-owning pointer. nullptr is the signal for "no latency simulation".
+    latency_model_ = build_latency_model(settings_.simulation.latency);
     matching_engine_ = std::make_unique<matching::MatchingEngine>();
     if (latency_model_)
         matching_engine_->set_latency_model(latency_model_.get());
@@ -116,8 +119,8 @@ BacktesterApp::BacktesterApp(config::Settings settings, messaging::BacktesterBus
     hyperliquid_order_server_->start();
 
     // ── Results collector ──────────────────────────────────────────────────
-    std::string start_tag = settings_.simulation.start.substr(0, 10);
-    std::string end_tag = settings_.simulation.end.substr(0, 10);
+    const std::string start_tag = settings_.simulation.start.substr(0, 10);
+    const std::string end_tag = settings_.simulation.end.substr(0, 10);
 
     results::ResultsCollector::RunMetadata metadata;
     metadata.simulation_start = settings_.simulation.start;
@@ -138,29 +141,7 @@ BacktesterApp::BacktesterApp(config::Settings settings, messaging::BacktesterBus
                                                            std::move(metadata),
                                                            settings_.results.fees_by_venue);
 
-    matching_engine_->set_fill_callback([this](matching::FillReport fill) {
-        results_->on_fill(fill);
-        const auto exch_id = bpt::messages::ExchangeRegistry::from_name(fill.exchange);
-        if (!exch_id) {
-            bpt::common::log::warn("[BacktesterApp] Unknown exchange '{}' on fill — dropped", fill.exchange);
-            return;
-        }
-        switch (*exch_id) {
-            case bpt::messages::ExchangeId::BINANCE:
-                binance_order_server_->push_fill(fill);
-                break;
-            case bpt::messages::ExchangeId::OKX:
-                okx_order_server_->push_fill(fill);
-                break;
-            case bpt::messages::ExchangeId::HYPERLIQUID:
-                hyperliquid_order_server_->push_fill(fill);
-                break;
-            default:
-                bpt::common::log::warn("[BacktesterApp] No order server for exchange '{}' — fill dropped",
-                                       fill.exchange);
-                break;
-        }
-    });
+    matching_engine_->set_fill_callback([this](matching::FillReport fill) { on_fill(fill); });
 
     // ── ClockMaster ────────────────────────────────────────────────────────
     clock_master_ = std::make_unique<clock::ClockMaster>(*loader_,
@@ -175,6 +156,29 @@ BacktesterApp::BacktesterApp(config::Settings settings, messaging::BacktesterBus
     bpt::common::log::info("Ready — results will be written to {}", out_dir);
 }
 
+void BacktesterApp::on_fill(const matching::FillReport& fill) {
+    results_->on_fill(fill);
+    const auto exch_id = bpt::messages::ExchangeRegistry::from_name(fill.exchange);
+    if (!exch_id) {
+        bpt::common::log::warn("[BacktesterApp] Unknown exchange '{}' on fill — dropped", fill.exchange);
+        return;
+    }
+    switch (*exch_id) {
+        case bpt::messages::ExchangeId::BINANCE:
+            binance_order_server_->push_fill(fill);
+            break;
+        case bpt::messages::ExchangeId::OKX:
+            okx_order_server_->push_fill(fill);
+            break;
+        case bpt::messages::ExchangeId::HYPERLIQUID:
+            hyperliquid_order_server_->push_fill(fill);
+            break;
+        default:
+            bpt::common::log::warn("[BacktesterApp] No order server for exchange '{}' — fill dropped", fill.exchange);
+            break;
+    }
+}
+
 void BacktesterApp::run() {
     // Wait for at least one MdGateway subscriber to connect before releasing data.
     // Without this gate, Backtester would exhaust all data before MdGateway has
@@ -182,15 +186,22 @@ void BacktesterApp::run() {
     const uint32_t timeout_s = settings_.simulation.subscriber_wait_timeout_s;
     bpt::common::log::info("Waiting for subscriber (timeout={}s)...", timeout_s);
 
-    uint32_t waited = 0;
+    // Sum subscribers across every venue's MD server — a single backtest can be
+    // driven by mdgw connected to any subset. Previously only OKX + HL were
+    // counted, which let Binance-only backtests proceed past the timeout
+    // without an actual subscriber attached.
     auto md_session_count = [this]() -> std::size_t {
         std::size_t n = 0;
+        if (binance_md_server_)
+            n += binance_md_server_->session_count();
         if (okx_md_server_)
             n += okx_md_server_->session_count();
         if (hyperliquid_md_server_)
             n += hyperliquid_md_server_->session_count();
         return n;
     };
+
+    uint32_t waited = 0;
     while (md_session_count() == 0) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
         if (++waited >= timeout_s) {

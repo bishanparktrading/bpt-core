@@ -4,6 +4,7 @@
 #include "strategy/strategy/strategy_factory.h"
 
 #include <messages/ExchangeId.h>
+#include <messages/ExchangeRegistry.h>
 
 #include <bpt_common/logging.h>
 #include <stdexcept>
@@ -21,21 +22,6 @@ bpt::strategy::refdata::InstrumentType map_inst_type(const std::string& t) {
     if (t == "OPTION")
         return bpt::strategy::refdata::InstrumentType::OPTION;
     return bpt::strategy::refdata::InstrumentType::SPOT;
-}
-
-std::string exchange_name(uint8_t id) {
-    switch (id) {
-        case 1:
-            return "BINANCE";
-        case 2:
-            return "OKX";
-        case 3:
-            return "HYPERLIQUID";
-        case 4:
-            return "DERIBIT";
-        default:
-            return "";
-    }
 }
 
 }  // namespace
@@ -65,13 +51,13 @@ void StrategyHarness::initialize() {
     mapping.load(opts_.instrument_mapping_path);
 
     std::vector<bpt::strategy::refdata::Instrument> seed;
-    for (uint8_t exch_id = 1; exch_id <= 4; ++exch_id) {
-        const auto entries = mapping.instruments_for_venue(exch_id);
+    for (const auto& venue : bpt::messages::ExchangeRegistry::kEntries) {
+        const auto entries = mapping.instruments_for_venue(static_cast<uint8_t>(venue.id));
         for (const auto& e : entries) {
             bpt::strategy::refdata::Instrument inst{};
             inst.instrument_id = e.canonical_id;
             inst.symbol = e.venue_symbol;
-            inst.exchange = exchange_name(exch_id);
+            inst.exchange = std::string{venue.name};
             inst.base_currency = e.info.base;
             // HL is USD-quoted natively (synthetic USD perpetuals — there
             // is no USDT pair on HL). The mapping JSON happens to record
@@ -79,7 +65,8 @@ void StrategyHarness::initialize() {
             // normalises that way; the live refdata service's HL adapter
             // emits quote="USD" so strategy configs use BASE/USD:PERPETUAL.
             // Mirror the live normalisation here.
-            inst.quote_currency = (exch_id == 3 /*HYPERLIQUID*/) ? std::string{"USD"} : e.info.quote;
+            inst.quote_currency =
+                (venue.id == bpt::messages::ExchangeId::HYPERLIQUID) ? std::string{"USD"} : e.info.quote;
             inst.type = map_inst_type(e.info.type);
             // tick_size / lot_size left at 0 — strategy treats 0 as
             // "unknown" and skips tick rounding. For full fidelity
