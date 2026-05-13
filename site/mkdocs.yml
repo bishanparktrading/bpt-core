@@ -81,7 +81,7 @@ nav:
     - bpt-strategy: services/strategy.md
     - bpt-analytics: services/analytics.md
     - bpt-pricer: services/pricer.md
-    - bpt-book: services/book.md
+    - bpt-pms: services/bpt-pms.md
     - bpt-refdata: services/refdata.md
     - bpt-tape: services/tape.md
   - Decisions:

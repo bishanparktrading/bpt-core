@@ -77,7 +77,7 @@ its right place.
 | `bpt-md-gateway` | Full — 4 ports + AeronBus + CRTP on hot path |
 | `bpt-order-gateway` | Full — 4 ports + AeronBus |
 | `bpt-strategy` | Pragmatic — AeronBus factory, but kept existing client classes concrete (already had `std::function` callbacks; no test-seam payoff yet) |
-| `bpt-pricer` / `bpt-analytics` / `bpt-book` / `bpt-backtester` | AeronBus factory + lifted concretes |
+| `bpt-pricer` / `bpt-analytics` / `bpt-pms` / `bpt-backtester` | AeronBus factory + lifted concretes |
 
 The pragmatic split — formal interfaces where a fake exists or chaos matters,
 concrete classes elsewhere — is the right call. Forcing every concrete to a

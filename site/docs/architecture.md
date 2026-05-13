@@ -26,7 +26,7 @@ flowchart TB
 
     MDGW -->|ticks| ANALYTICS[bpt-analytics]:::aux
     MDGW -->|ticks| PRICER[bpt-pricer]:::aux
-    MDGW -->|ticks| BOOK[bpt-book]:::aux
+    MDGW -->|ticks| BOOK[bpt-pms]:::aux
 
     OGW -->|account snap| BOOK
     OGW -->|exec reports| ANALYTICS

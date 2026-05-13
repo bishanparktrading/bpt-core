@@ -24,7 +24,7 @@ Deeper diagrams (tick→fill sequence, config topology) live in [`docs/architect
 | `bpt-refdata` | C++23 | Reference data — instrument catalog, fee schedules, per-venue REST adapters, canonical ID mapping |
 | `bpt-analytics` | C++23 | Live toxicity scoring, markouts, fill-rate analytics |
 | `bpt-pricer` | C++23 | Black-Scholes implied volatility surface computation |
-| `bpt-book` | C++23 | Multi-venue balance + position aggregator |
+| `bpt-pms` | C++23 | Multi-venue balance + position aggregator |
 | `bpt-tape` | C++23 | Market-data recorder (Parquet → S3) for backtest replay |
 | `bpt-backtester` | C++23 | Exchange simulator — replays orderbook tape against the strategy + order-gateway path |
 | `dashboard/bridge` | C++23 | Aeron → WebSocket forwarder for the live dashboard |

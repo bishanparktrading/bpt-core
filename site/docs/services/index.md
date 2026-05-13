@@ -10,7 +10,7 @@ under systemd. Wire-format contracts via [SBE](https://github.com/aeron-io/simpl
 | [bpt-strategy](strategy.md) | Strategy framework (AS, OFI, momentum, regime-switch, funding-arb) | Yes |
 | [bpt-analytics](analytics.md) | Markouts, toxicity scoring, fill-rate, TTF | No |
 | [bpt-pricer](pricer.md) | Vol surface fitting, options Greeks | No |
-| [bpt-book](book.md) | Multi-venue balance + position aggregator | No |
+| [bpt-pms](book.md) | Multi-venue balance + position aggregator | No |
 | [bpt-refdata](refdata.md) | Instrument catalog, fee schedules | No |
 | [bpt-tape](tape.md) | WS-frame recording for backtest replay | No (separate host) |
 

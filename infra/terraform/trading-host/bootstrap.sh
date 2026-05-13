@@ -61,7 +61,7 @@ bazel build \
     //bpt-order-gateway:bpt-order-gateway \
     //bpt-refdata:bpt-refdata \
     //bpt-analytics:bpt-analytics \
-    //bpt-book:bpt-book \
+    //bpt-pms:bpt-pms \
     //dashboard/bridge:bridge
 
 # ── Stage a default .env (HL testnet, funding-arb path) ──────────────────

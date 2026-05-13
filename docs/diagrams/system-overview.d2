@@ -32,7 +32,7 @@ core: "bpt-core  ·  C++23 services" {
   md: bpt-md-gateway
   og: bpt-order-gateway
   strategy: bpt-strategy
-  book: bpt-book
+  pms: bpt-pms
   analytics: bpt-analytics
   pricer: bpt-pricer
 
@@ -48,7 +48,7 @@ core: "bpt-core  ·  C++23 services" {
   md -> aeron
   og -> aeron
   strategy -> aeron
-  book -> aeron
+  pms -> aeron
   analytics -> aeron
   pricer -> aeron
 }

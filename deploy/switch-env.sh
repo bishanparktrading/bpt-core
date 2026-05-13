@@ -56,7 +56,7 @@ declare -A SERVICE_DIR=(
     [BPT_ORDER_GATEWAY_CONFIG]=bpt-order-gateway
     [BPT_STRATEGY_CONFIG]=bpt-strategy
     [BPT_ANALYTICS_CONFIG]=bpt-analytics
-    [BPT_BOOK_CONFIG]=bpt-book
+    [BPT_PMS_CONFIG]=bpt-pms
     [BPT_PRICER_CONFIG]=bpt-pricer
     [BPT_BRIDGE_CONFIG]=.
 )
