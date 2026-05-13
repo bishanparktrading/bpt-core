@@ -13,6 +13,8 @@ cc_library(
     srcs = [
         "src/config/loader.cpp",
         "src/matching/matching_engine.cpp",
+        "src/matching/matching_engine_book.cpp",
+        "src/matching/matching_engine_fills.cpp",
         "src/results/results_collector.cpp",
     ],
     hdrs = glob(["include/backtester/**/*.h"]),
