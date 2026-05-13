@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <bpt_common/logging.h>
+#include <cmath>
 
 namespace bpt::backtester::matching {
 
@@ -157,6 +158,19 @@ bool MatchingEngine::cancel_order(const std::string& exchange, const std::string
         auto& v = it->second;
         auto pos = std::find_if(v.begin(), v.end(), [&](const OpenOrder& o) { return o.order_id == order_id; });
         if (pos != v.end()) {
+            // Decrement our_qty_ahead of trailing same-(price, side) orders
+            // by the cancelled order's remaining qty. Without this, orders
+            // submitted after the cancelled one would still think it sits
+            // in front of them in queue.
+            const double freed = pos->quantity - pos->filled_qty;
+            const double cancelled_price = pos->price;
+            const OrderSide cancelled_side = pos->side;
+            if (freed > 0.0) {
+                for (auto jit = std::next(pos); jit != v.end(); ++jit) {
+                    if (jit->side == cancelled_side && std::abs(jit->price - cancelled_price) < 1e-9)
+                        jit->our_qty_ahead = std::max(0.0, jit->our_qty_ahead - freed);
+                }
+            }
             v.erase(pos);
             return true;
         }

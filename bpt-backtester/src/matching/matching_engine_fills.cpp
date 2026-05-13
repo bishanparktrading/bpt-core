@@ -6,10 +6,9 @@
 /// match-to-report leg, market-order walks across the book, crossing-limit
 /// scans on book updates, and resting-LIMIT consumption by trade prints.
 
-#include "backtester/matching/matching_engine.h"
-
 #include "backtester/data/orderbook_record.h"
 #include "backtester/data/trade_record.h"
+#include "backtester/matching/matching_engine.h"
 
 #include <algorithm>
 #include <bpt_common/logging.h>
@@ -58,15 +57,32 @@ void MatchingEngine::process_pending_submit(PendingSubmit& ps, std::vector<FillR
 
     if (order.filled_qty < order.quantity - 1e-12) {
         order.queue_ahead = book_qty_at_price(book, order.side, order.price);
+        // Sum remaining qty of our already-resting orders at the same
+        // (price, side). They sit in front of this new order in FIFO; the
+        // total "stuff in front of me" is venue + our earlier orders.
+        order.our_qty_ahead = 0.0;
+        if (auto pit = pending_.find(key(order.exchange, order.symbol)); pit != pending_.end()) {
+            for (const auto& o : pit->second) {
+                if (o.side != order.side)
+                    continue;
+                if (std::abs(o.price - order.price) > 1e-9)
+                    continue;
+                if (!o.queue_seeded)
+                    continue;  // backstop-pathway orders don't share the FIFO model
+                order.our_qty_ahead += (o.quantity - o.filled_qty);
+            }
+        }
         order.queue_seeded = true;
         pending_[key(order.exchange, order.symbol)].push_back(order);
-        bpt::common::log::debug("[MatchingEngine] Queued LIMIT {} {} {} @ {} queue_ahead={:.4f} cross_filled={:.4f}",
-                                order.symbol,
-                                (order.side == OrderSide::BUY ? "BUY" : "SELL"),
-                                order.quantity - order.filled_qty,
-                                order.price,
-                                order.queue_ahead,
-                                order.filled_qty);
+        bpt::common::log::debug(
+            "[MatchingEngine] Queued LIMIT {} {} {} @ {} queue_ahead={:.4f} our_qty_ahead={:.4f} cross_filled={:.4f}",
+            order.symbol,
+            (order.side == OrderSide::BUY ? "BUY" : "SELL"),
+            order.quantity - order.filled_qty,
+            order.price,
+            order.queue_ahead,
+            order.our_qty_ahead,
+            order.filled_qty);
     }
 }
 
@@ -253,12 +269,24 @@ void MatchingEngine::fill_against_trade(const data::TradeRecord& trade, std::vec
     // queue_ahead absorbs that — it's the volume between the touch and
     // our first order. Correct as long as we trust the L5 snapshot.
     // Walk orders in submission order (FIFO). Each iteration may consume
-    // some of the remaining trade volume. We index-iterate so we don't
-    // invalidate iterators when erasing fully-filled orders at the end.
+    // some of the remaining trade volume. Index-iterate so we can propagate
+    // venue-drain and own-fill updates forward to trailing same-(price, side)
+    // orders without iterator invalidation.
+    //
+    // Propagation makes the model FIFO-correct when we have multiple orders
+    // at the same price: a print that drains 10 units of venue volume drains
+    // it for *every* later order at the same price (the venue queue is
+    // shared); a fill of our earlier order shrinks the our_qty_ahead of
+    // every later order at the same price (it's *our own* earlier qty in
+    // front of them).
+    auto same_level = [](const OpenOrder& a, const OpenOrder& b) {
+        return a.side == b.side && std::abs(a.price - b.price) < 1e-9;
+    };
     double remaining_print = trade.quantity;
-    for (auto& order : orders) {
+    for (std::size_t i = 0; i < orders.size(); ++i) {
         if (remaining_print <= 0.0)
             break;
+        OpenOrder& order = orders[i];
         if (order.type != OrderType::LIMIT || !order.queue_seeded)
             continue;
 
@@ -269,14 +297,30 @@ void MatchingEngine::fill_against_trade(const data::TradeRecord& trade, std::vec
         if (!eligible)
             continue;
 
-        // Drain queue_ahead first.
-        const double consumed = std::min(remaining_print, order.queue_ahead);
-        order.queue_ahead -= consumed;
-        remaining_print -= consumed;
+        // (1) Drain venue queue first. The drained amount applies to every
+        // trailing same-level order — it's a shared pool, not per-order.
+        const double consumed_venue = std::min(remaining_print, order.queue_ahead);
+        order.queue_ahead -= consumed_venue;
+        remaining_print -= consumed_venue;
+        if (consumed_venue > 0.0) {
+            for (std::size_t j = i + 1; j < orders.size(); ++j) {
+                if (same_level(orders[j], order))
+                    orders[j].queue_ahead = std::max(0.0, orders[j].queue_ahead - consumed_venue);
+            }
+        }
         if (remaining_print <= 0.0)
             continue;
 
-        // Residual fills us, capped at our remaining qty.
+        // (2) Drain our earlier orders ahead at this level (our_qty_ahead).
+        // No propagation needed: this counter tracks earlier orders'
+        // remaining qty, which already reflected previous iterations.
+        const double consumed_our = std::min(remaining_print, order.our_qty_ahead);
+        order.our_qty_ahead -= consumed_our;
+        remaining_print -= consumed_our;
+        if (remaining_print <= 0.0)
+            continue;
+
+        // (3) Fill this order from the residual print.
         const double our_remaining = order.quantity - order.filled_qty;
         const double fill_qty = std::min(remaining_print, our_remaining);
         if (fill_qty <= 0.0)
@@ -284,6 +328,11 @@ void MatchingEngine::fill_against_trade(const data::TradeRecord& trade, std::vec
 
         order.filled_qty += fill_qty;
         remaining_print -= fill_qty;
+        // Propagate: trailing same-level orders saw our qty in front shrink.
+        for (std::size_t j = i + 1; j < orders.size(); ++j) {
+            if (same_level(orders[j], order))
+                orders[j].our_qty_ahead = std::max(0.0, orders[j].our_qty_ahead - fill_qty);
+        }
 
         FillReport r;
         r.order_id = order.order_id;

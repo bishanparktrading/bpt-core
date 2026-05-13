@@ -52,12 +52,26 @@ struct OpenOrder {
 
     // ── Queue position tracking (LIMIT orders only) ─────────────────────
     //
-    // Volume of resting orders ahead of us at our price level. Seeded at
-    // submit_order() time from the current book snapshot's bid_sz/ask_sz
-    // at our `price`. Drained by trade prints at our price (FIFO: prints
-    // consume queue-ahead before they reach us). Once `queue_ahead`
-    // reaches 0, subsequent prints fill us directly until the order is
-    // fully filled.
+    // Two parts to "how much volume is in front of me at this price level":
+    //
+    //   queue_ahead   — VENUE volume in front of us. Seeded at submit_order()
+    //                   from the L2 snapshot's bid_sz/ask_sz at our `price`.
+    //                   apply_queue_regen() decrements it across book updates
+    //                   to attribute level shrinkage to cancels.
+    //
+    //   our_qty_ahead — Aggregate remaining qty of OUR earlier resting orders
+    //                   at the same (price, side). Two of our orders at the
+    //                   same price both used to think the same venue volume
+    //                   was in front of them, which double-counted; this
+    //                   field encodes the FIFO relationship between our own
+    //                   orders explicitly.
+    //
+    // Total qty in front of us at the level = queue_ahead + our_qty_ahead.
+    //
+    // fill_against_trade drains queue_ahead first (venue is at the front of
+    // the queue by assumption — venue orders observed via L2 are taken to
+    // have been placed before our orders), then our_qty_ahead (our earlier
+    // orders), then fills this order from any residual print volume.
     //
     // queue_seeded is false when we couldn't find our price in the book
     // at submit time (no L2 snapshot yet, or our price is deeper than
@@ -65,11 +79,11 @@ struct OpenOrder {
     // path, which still over-fills — accepted limitation, logged once
     // per order if it matters.
     //
-    // This model under-models cancellations from ahead of us (we have
-    // no L3 visibility), so backtests are still mildly optimistic vs
-    // live, but materially less so than the previous "fill 100% on any
-    // cross" engine.
+    // This model still under-models cancellations from ahead of us (no
+    // L3 visibility, uniform-cancel prior in apply_queue_regen), so
+    // backtests are mildly optimistic vs live.
     double queue_ahead{0.0};
+    double our_qty_ahead{0.0};
     bool queue_seeded{false};
 
     /// True iff the matching engine refused the order at submit time

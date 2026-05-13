@@ -663,3 +663,92 @@ TEST(MatchingEngineLatencyTest, PostOnlyRejectionStaysSynchronous) {
     auto res = eng.submit_order(crossing);
     EXPECT_TRUE(res.rejected);
 }
+
+// ── FIFO between our own resting orders at the same price ───────────────────
+
+TEST(MatchingEngineTest, TwoOrdersSamePriceFifo_FirstFillsBeforeSecond) {
+    // Two LIMIT BUYs at 101, venue size 10. First print 12 drains venue and
+    // partially fills A. Second print 5 finishes A and starts filling B.
+    // Third print 3 finishes B. Before this fix, B would have been stuck
+    // behind a stale queue_ahead and missed fills it should have caught.
+    MatchingEngine eng;
+    std::vector<FillReport> fills;
+    eng.set_fill_callback([&](FillReport r) { fills.push_back(r); });
+
+    eng.on_market_event(make_book("BINANCE", "BTCUSDT", 101.0, 102.0, 10.0));
+    eng.submit_order(make_order(OrderType::LIMIT, OrderSide::BUY, 5.0, 101.0, "A", "cA"));
+    eng.submit_order(make_order(OrderType::LIMIT, OrderSide::BUY, 5.0, 101.0, "B", "cB"));
+    EXPECT_EQ(fills.size(), 0u);
+
+    // Print of 12: drains 10 venue (shared), fills A 2/5. B still has 5 of A in front.
+    eng.on_market_event(make_trade("BINANCE", "BTCUSDT", TradeSide::SELL, 101.0, 12.0));
+    ASSERT_EQ(fills.size(), 1u);
+    EXPECT_EQ(fills[0].order_id, "A");
+    EXPECT_DOUBLE_EQ(fills[0].last_fill_qty, 2.0);
+
+    // Print of 5: A consumes its remaining 3 (fully fills), B catches the
+    // residual 2. Before the fix B would have been gated by a stale
+    // queue_ahead=10 and missed this fill.
+    eng.on_market_event(make_trade("BINANCE", "BTCUSDT", TradeSide::SELL, 101.0, 5.0));
+    ASSERT_EQ(fills.size(), 3u);
+    EXPECT_EQ(fills[1].order_id, "A");
+    EXPECT_DOUBLE_EQ(fills[1].last_fill_qty, 3.0);
+    EXPECT_TRUE(fills[1].is_fully_filled);
+    EXPECT_EQ(fills[2].order_id, "B");
+    EXPECT_DOUBLE_EQ(fills[2].last_fill_qty, 2.0);
+    EXPECT_FALSE(fills[2].is_fully_filled);
+
+    // Print of 3: finishes B (which had 3 remaining).
+    eng.on_market_event(make_trade("BINANCE", "BTCUSDT", TradeSide::SELL, 101.0, 3.0));
+    ASSERT_EQ(fills.size(), 4u);
+    EXPECT_EQ(fills[3].order_id, "B");
+    EXPECT_DOUBLE_EQ(fills[3].last_fill_qty, 3.0);
+    EXPECT_TRUE(fills[3].is_fully_filled);
+}
+
+TEST(MatchingEngineTest, SamePriceFifo_SinglePrintConsumesVenueAFillsBStarts) {
+    // Single large print drains venue + walks both our orders. Tests the
+    // propagation logic inside one call: A's venue drain + fill must update
+    // B's counters mid-loop so B sees the right residual.
+    MatchingEngine eng;
+    std::vector<FillReport> fills;
+    eng.set_fill_callback([&](FillReport r) { fills.push_back(r); });
+
+    eng.on_market_event(make_book("BINANCE", "BTCUSDT", 100.0, 101.0, 10.0));
+    eng.submit_order(make_order(OrderType::LIMIT, OrderSide::BUY, 3.0, 100.0, "A", "cA"));
+    eng.submit_order(make_order(OrderType::LIMIT, OrderSide::BUY, 4.0, 100.0, "B", "cB"));
+
+    // Print of 14: drains 10 venue, fills A (3), starts filling B (1).
+    eng.on_market_event(make_trade("BINANCE", "BTCUSDT", TradeSide::SELL, 100.0, 14.0));
+    ASSERT_EQ(fills.size(), 2u);
+    EXPECT_EQ(fills[0].order_id, "A");
+    EXPECT_DOUBLE_EQ(fills[0].last_fill_qty, 3.0);
+    EXPECT_TRUE(fills[0].is_fully_filled);
+    EXPECT_EQ(fills[1].order_id, "B");
+    EXPECT_DOUBLE_EQ(fills[1].last_fill_qty, 1.0);
+    EXPECT_FALSE(fills[1].is_fully_filled);
+}
+
+TEST(MatchingEngineTest, SamePriceFifo_CancellingAClearsBQueue) {
+    // After A is cancelled, B should no longer carry A's qty in its
+    // our_qty_ahead. A print large enough to fill B but not (B + A) should
+    // succeed at filling B fully.
+    MatchingEngine eng;
+    std::vector<FillReport> fills;
+    eng.set_fill_callback([&](FillReport r) { fills.push_back(r); });
+
+    eng.on_market_event(make_book("BINANCE", "BTCUSDT", 100.0, 101.0, 10.0));
+    eng.submit_order(make_order(OrderType::LIMIT, OrderSide::BUY, 5.0, 100.0, "A", "cA"));
+    eng.submit_order(make_order(OrderType::LIMIT, OrderSide::BUY, 3.0, 100.0, "B", "cB"));
+
+    EXPECT_TRUE(eng.cancel_order("BINANCE", "BTCUSDT", "A"));
+
+    // Print of 13: drains 10 venue (B's queue_ahead = 0 already from cancel
+    // propagation NOT touching it — venue is shared so it still sees 10),
+    // then fills B fully (3).
+    eng.on_market_event(make_trade("BINANCE", "BTCUSDT", TradeSide::SELL, 100.0, 13.0));
+    ASSERT_EQ(fills.size(), 1u);
+    EXPECT_EQ(fills[0].order_id, "B");
+    EXPECT_DOUBLE_EQ(fills[0].last_fill_qty, 3.0);
+    EXPECT_TRUE(fills[0].is_fully_filled);
+}
