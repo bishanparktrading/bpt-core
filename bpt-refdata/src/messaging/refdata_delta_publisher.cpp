@@ -68,8 +68,14 @@ void RefdataDeltaPublisher::publish_heartbeat() {
     using namespace bpt::messages;
 
     constexpr std::size_t kBufSize = MessageHeader::encodedLength() + RefDataDelta::sbeBlockLength();
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
-    char buf[kBufSize];
+    // Zero-init: heartbeat only sets a handful of fields (updateType, seq,
+    // ts, instrumentId). Without zeroing, the SBE-encoded buffer leaks stack
+    // garbage into the unset fields — and the instrumentType field is an
+    // SBE enum that throws on any byte outside [0..3, 255]. Subscribers
+    // calling .instrumentType() on the heartbeat hit the throw and Aeron's
+    // error handler logs every 5 s. Caught by pricer once Deribit refdata
+    // started publishing heartbeats at non-zero cadence.
+    char buf[kBufSize] = {};
 
     uint64_t now_ns = bpt::common::util::TscClock::now_epoch_ns();
 
