@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-SERVICE=fenrir
+SERVICE=bpt-strategy
 PID_FILE="$PROJECT_DIR/.$SERVICE.pid"
 CONFIG="${1:-$PROJECT_DIR/config/momentum.yaml}"
 # Resolve to absolute path before cd'ing to PROJECT_DIR (caller may pass a relative path)

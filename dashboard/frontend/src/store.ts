@@ -110,12 +110,12 @@ interface State {
   openOrders: Map<number, OpenOrder>
 
   // Options portfolio state — populated by 'portfolio' messages from
-  // fenrir via the bridge. Null when no options strategy is running.
+  // bpt-strategy via the bridge. Null when no options strategy is running.
   optionLegs: OptionLeg[]
   portfolioGreeks: PortfolioGreeks | null
   volSurface: VolSmileSlice[]
 
-  // Strategy state — updated by 'strategyState' messages from fenrir via bridge.
+  // Strategy state — updated by 'strategyState' messages from bpt-strategy via bridge.
   strategyState: import('./types/messages').StrategyStateMsg | null
 
   // Rolling spot+perp history for the funding-arb dual-leg chart.

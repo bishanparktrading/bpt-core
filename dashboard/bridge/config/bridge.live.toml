@@ -21,7 +21,7 @@ exchange = "OKX"
 strategy = "unknown"                  # override at runtime via --strategy-name
 mode     = "paper"                    # "paper" | "live"; override via --mode
 # When set, bridge drops MD ticks and fills for other instruments.  Use when
-# Fenrir is trading a multi-instrument strategy but you only want one symbol
+# bpt-strategy is trading a multi-instrument strategy but you only want one symbol
 # on the dashboard.  0 = forward everything (safe for single-instrument runs).
 instrument_id = 0
 

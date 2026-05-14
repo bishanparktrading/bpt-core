@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Post-hoc adverse-selection analysis for OFI strategy fenrir logs.
+"""Post-hoc adverse-selection analysis for OFI strategy bpt-strategy logs.
 
 Links each ENTER log line (signal strength, mid, spread at decision time)
 to its corresponding ENTRY markout via the next FILLED order_id, then bins
@@ -12,11 +12,11 @@ patterns:
   - markout conditional on signal still being strong at t+1s
 
 Single-instrument assumption: ENTER lines and subsequent FILLED order_ids
-are paired in time order. Fenrir's OFI strategy serializes order flow
+are paired in time order. bpt-strategy's OFI strategy serializes order flow
 (one in-flight order at a time), so this is safe for the current config.
 
 Usage:
-    python3 fenrir/scripts/analyze_ofi_markouts.py [fenrir/logs/fenrir.log]
+    python3 bpt-strategy/scripts/analyze_ofi_markouts.py [bpt-strategy/logs/bpt-strategy.log]
 """
 
 import argparse
@@ -129,7 +129,7 @@ def bin_stats(label: str, buckets: dict, horizon: int = 1) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("log", nargs="?", default="fenrir/logs/fenrir.log")
+    ap.add_argument("log", nargs="?", default="bpt-strategy/logs/bpt-strategy.log")
     args = ap.parse_args()
 
     trades = parse_log(args.log)

@@ -5,7 +5,7 @@
 namespace bpt::analytics::messaging {
 
 // Plain-old-data struct published on Aeron stream 5001.
-// Both tyr (publisher) and fenrir (optional subscriber) link this header.
+// Both bpt-analytics (publisher) and bpt-strategy (optional subscriber) link this header.
 // No SBE — C++-to-C++ within the same codebase; we can add SBE
 // encoding later if cross-language consumers appear.
 //

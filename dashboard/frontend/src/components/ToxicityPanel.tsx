@@ -39,7 +39,7 @@ function ttfClass(v: Num): string {
 // Sample threshold below which markout / adverse / score are statistically
 // meaningless — they'd render as 0.0 which is indistinguishable from "flat
 // market" but actually means "we only have N<5 fills, trust nothing." The
-// number matches scorer_min_samples = 5 in bpt-analytics/config/tyr.*.toml.
+// number matches scorer_min_samples = 5 in bpt-analytics/config/bpt-analytics.*.toml.
 // Plumbing the exact threshold through the message would be more correct
 // but the config rarely changes; hardcoding keeps the panel self-contained.
 const MIN_SAMPLES = 5

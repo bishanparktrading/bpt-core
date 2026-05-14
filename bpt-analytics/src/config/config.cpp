@@ -41,7 +41,7 @@ Settings load(const std::string& path) {
     s.md_data = resolve_stream(shared_streams, "md_data", 2002);
     s.toxicity = resolve_stream(shared_streams, "toxicity", 5001);
 
-    if (auto t = tbl["tyr"]) {
+    if (auto t = tbl["analytics"]) {
         s.markout_max_pending = t["markout_max_pending"].value_or(std::size_t{64});
         s.scorer_window_size = t["scorer_window_size"].value_or(std::size_t{50});
         s.scorer_window_duration_ns = t["scorer_window_duration_ns"].value_or(uint64_t{0});

@@ -1,6 +1,6 @@
 // Unit tests for HyperliquidExecDecoder — the multi-slice fill tracker
 // that decides when to emit PARTIAL vs FILLED. This logic is load-bearing:
-// emitting FILLED too early on a multi-slice fill causes fenrir's
+// emitting FILLED too early on a multi-slice fill causes bpt-strategy's
 // inventory to diverge from the exchange.
 
 #include "order_gateway/adapter/hyperliquid/hyperliquid_exec_decoder.h"

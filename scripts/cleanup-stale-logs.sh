@@ -2,7 +2,7 @@
 # Prune stale log files (not modified in > RETENTION_DAYS) across all
 # bpt-* service log dirs. Quill handles rotation of actively-written
 # logs, but every service rename leaves behind orphan log families
-# that never rotate out (e.g. fenrir.log after the rename to
+# that never rotate out (e.g. bpt-strategy.log after the rename to
 # bpt-strategy, or bpt-strategy.log after the venue-qualification to
 # bpt-strat-as). This script catches them.
 #

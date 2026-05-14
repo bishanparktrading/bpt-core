@@ -1,6 +1,6 @@
-# Tyr — Toxic Flow Analyzer
+# bpt-analytics — Toxic Flow Analyzer
 # Passive observer: subscribes to exec reports + MD, publishes toxicity scores.
-# Does NOT interfere with trading — fenrir optionally subscribes to stream 5001.
+# Does NOT interfere with trading — bpt-strategy optionally subscribes to stream 5001.
 
 # Shared aeron stream registry — see deploy/config/aeron/streams.toml.
 # Deployment profile (env only; analytics doesn't open exchange conns).
@@ -12,7 +12,7 @@ aeron_config = "../deploy/config/aeron/streams.toml"
 # Fallback only — shared file wins when present.
 media_driver_dir = "/dev/shm/aeron-bpt"
 
-[tyr]
+[analytics]
 markout_max_pending   = 64
 scorer_window_size    = 50
 scorer_min_samples    = 5

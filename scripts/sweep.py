@@ -17,8 +17,8 @@ media-driver dirs + port windows; deferred until needed.
 Usage:
   scripts/sweep.py \
       --base bpt-strategy/config/avellaneda_stoikov.backtest.toml \
-      --param fenrir.strategy.params.gamma=0.01,0.05,0.1 \
-      --param fenrir.strategy.params.kappa=10,20
+      --param strategy.params.gamma=0.01,0.05,0.1 \
+      --param strategy.params.kappa=10,20
 
   # 3 × 2 = 6 runs.
 """
@@ -52,7 +52,7 @@ BACKTEST_SH = REPO / "scripts" / "backtest.sh"
 
 
 def parse_param(spec: str) -> tuple[list[str], list[Any]]:
-    """`fenrir.strategy.params.gamma=0.01,0.05` → (['fenrir', ...], [0.01, 0.05])"""
+    """`strategy.params.gamma=0.01,0.05` → (['bpt-strategy', ...], [0.01, 0.05])"""
     if "=" not in spec:
         raise SystemExit(f"--param expects KEY=v1,v2,...; got {spec!r}")
     key, raw_values = spec.split("=", 1)

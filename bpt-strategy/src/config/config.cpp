@@ -25,7 +25,7 @@ AppConfig AppConfig::load(const std::string& path) {
 
     // Profile sets `environment` so the strategy logs the same env as
     // refdata/md/og. Strategy keeps its own `md_exchanges` / `configured_exchanges`
-    // (intentionally per-strategy — see fenrir.strategy block — so a strategy
+    // (intentionally per-strategy — see [strategy] block — so a strategy
     // can subscribe to MD from venues it doesn't trade on for cross-venue signal).
     if (auto v = cfg["profile_config"].value<std::string>()) {
         auto profile = bpt::common::config::load_profile_config(*v);
@@ -71,13 +71,18 @@ AppConfig AppConfig::load(const std::string& path) {
     app_cfg.aeron.dashboard_control = resolve_stream(shared_streams, "dashboard_control", 9003);
     app_cfg.aeron.portfolio = resolve_stream(shared_streams, "portfolio", 9004);
 
-    const auto* f = cfg["fenrir"].as_table();
-    if (!f)
-        throw std::runtime_error("Missing 'fenrir' block in config");
+    // [strategy] in the parent config carries service-level fields (correlation_id).
+    // The strategy body — type / params / risk / etc. — lives either in the same
+    // [strategy] table or, when strategy_config is set, in a separate file whose
+    // root is [strategy]. Service-level and body fields share the table name; the
+    // parent's correlation_id is read here, the body is resolved below.
+    const auto* svc = cfg["strategy"].as_table();
+    if (!svc)
+        throw std::runtime_error("Missing 'strategy' block in config");
 
-    app_cfg.strat.correlation_id = static_cast<uint64_t>((*f)["correlation_id"].value<int64_t>().value_or(2001));
+    app_cfg.strat.correlation_id = static_cast<uint64_t>((*svc)["correlation_id"].value<int64_t>().value_or(2001));
 
-    // If strategy_config is set, load [fenrir.strategy] from that file.
+    // If strategy_config is set, load [strategy] from that file.
     // Path is resolved relative to the parent config's directory.
     toml::table strategy_file;
     if (auto sc_path = cfg["strategy_config"].value<std::string>()) {
@@ -91,10 +96,9 @@ AppConfig AppConfig::load(const std::string& path) {
     }
 
     const toml::table* strategy_root = strategy_file.empty() ? &cfg : &strategy_file;
-    const auto* strategy_fenrir = (*strategy_root)["fenrir"].as_table();
-    const auto* s = strategy_fenrir ? (*strategy_fenrir)["strategy"].as_table() : (*f)["strategy"].as_table();
+    const auto* s = (*strategy_root)["strategy"].as_table();
     if (!s)
-        throw std::runtime_error("Missing 'fenrir.strategy' block in config");
+        throw std::runtime_error("Missing 'strategy' block in strategy config");
 
     auto& sc = app_cfg.strat.strategy;
     sc.type = (*s)["type"].value<std::string>().value_or("");

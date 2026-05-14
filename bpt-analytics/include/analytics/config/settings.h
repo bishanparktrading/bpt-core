@@ -17,7 +17,7 @@ struct Settings {
     bpt::common::config::StreamConfig md_data;      // bpt-md-gateway → stream 2002
 
     // Output
-    bpt::common::config::StreamConfig toxicity;  // tyr → stream 5001
+    bpt::common::config::StreamConfig toxicity;  // bpt-analytics → stream 5001
 
     // Analysis parameters
     std::size_t markout_max_pending{64};

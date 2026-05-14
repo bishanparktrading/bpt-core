@@ -7,14 +7,11 @@ const fmtSci = (v: number) => v.toExponential(2)
 function SuppressIndicator({ suppressed, reason }: { suppressed: boolean; reason: string }) {
   if (!suppressed) return <span className="stat-value--green">LIVE</span>
   // Keys match bpt-strategy's bidSuppressReason / askSuppressReason
-  // strings. The "tyr" key is still the backend value pending the
-  // tier-2 C++ rename (see tyr→analytics cleanup in small-fix backlog);
-  // the display label is flipped to TOX now so the dashboard is
-  // coherent with the ToxicityPanel badge.
+  // strings (avellaneda_stoikov_strategy.h::bid_reason / ask_reason).
   const labels: Record<string, string> = {
     drift: 'DRIFT',
     trend: 'TREND',
-    tyr: 'TOX',
+    toxicity: 'TOX',
     inventory: 'INV',
     vol_gate: 'VHALT',
     queue: 'QUEUE',

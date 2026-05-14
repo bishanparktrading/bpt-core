@@ -1,29 +1,29 @@
-[fenrir.strategy]
+[strategy]
 type = "ShortVolStrategy"
 enabled = true
 instruments = []    # options discovered from VolSurface; perps resolved from Sindri snapshot
 md_exchanges = ["OKX"]
 
-[fenrir.strategy.venue_exec.OKX]
+[strategy.venue_exec.OKX]
 enabled = true
 latency_budget_us = 5000
 order_type = "LIMIT"
 tif = "IOC"
 max_retries = 3
 
-[fenrir.strategy.risk]
+[strategy.risk]
 max_position_usd = 5000.0
 max_order_size_usd = 2500.0
 max_daily_loss_usd = 200.0
 max_open_orders = 20
 
-[fenrir.strategy.schedule]
+[strategy.schedule]
 require_refdata_ready = true
 md_staleness_threshold_ms = 5000
 max_refdata_staleness_ns = 300000000000
 configured_exchanges = ["OKX"]
 
-[fenrir.strategy.params]
+[strategy.params]
 underlyings = ["BTC", "ETH"]
 
 iv_rv_threshold = 0.05

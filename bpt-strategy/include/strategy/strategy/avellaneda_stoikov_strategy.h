@@ -331,7 +331,7 @@ private:
                    pause_active;
         }
 
-        // "Signal-only" aggregate — drift/trend/tyr/queue/post_fill. Used by
+        // "Signal-only" aggregate — drift/trend/toxicity/queue/post_fill. Used by
         // maybe_requote for the "cancel + don't replace" logic; the
         // caller checks inventory + vol_gate separately because it
         // wants different log strings for those cases.
@@ -360,7 +360,7 @@ private:
             if (trend_bid)
                 return "trend";
             if (tox_bid)
-                return "tyr";
+                return "toxicity";
             if (queue_bid)
                 return "queue";
             return "";
@@ -379,7 +379,7 @@ private:
             if (trend_ask)
                 return "trend";
             if (tox_ask)
-                return "tyr";
+                return "toxicity";
             if (queue_ask)
                 return "queue";
             return "";
@@ -389,7 +389,7 @@ private:
     // Compute the full suppression snapshot. Pure function of the
     // instrument state + inventory + candidate quote prices; does not
     // mutate state or log. maybe_requote does its own info-level
-    // logging of drift/trend/tyr/queue triggers using the values on
+    // logging of drift/trend/toxicity/queue triggers using the values on
     // the returned struct.
     [[nodiscard]] SuppressionState compute_suppression(const InstrumentState& st,
                                                        double net_qty,

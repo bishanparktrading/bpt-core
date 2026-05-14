@@ -1,29 +1,29 @@
-[fenrir.strategy]
+[strategy]
 type = "ShortVolStrategy"
 enabled = true
 instruments = []    # options discovered from VolSurface; perps resolved from Sindri snapshot
 md_exchanges = ["DERIBIT"]
 
-[fenrir.strategy.venue_exec.DERIBIT]
+[strategy.venue_exec.DERIBIT]
 enabled = true
 latency_budget_us = 10000    # Deribit WS latency can be higher
 order_type = "LIMIT"
 tif = "IOC"
 max_retries = 3
 
-[fenrir.strategy.risk]
+[strategy.risk]
 max_position_usd = 100.0     # very conservative for testnet
 max_order_size_usd = 50.0
 max_daily_loss_usd = 50.0
 max_open_orders = 10
 
-[fenrir.strategy.schedule]
+[strategy.schedule]
 require_refdata_ready = true
 md_staleness_threshold_ms = 10000
 max_refdata_staleness_ns = 300000000000
 configured_exchanges = ["DERIBIT"]
 
-[fenrir.strategy.params]
+[strategy.params]
 underlyings = ["BTC", "ETH"]
 
 # Signal thresholds — wide for testnet to actually trigger trades

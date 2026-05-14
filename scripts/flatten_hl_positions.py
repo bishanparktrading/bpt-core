@@ -8,7 +8,7 @@ orders and closes every non-zero position with a market order.
 Read-only by default. Actually closes only after you type 'FLATTEN' at
 the prompt. Use this when the stack has been stopped with open state
 and you need to clean up before restarting — or as a manual kill switch
-when something has gone wrong and you don't trust fenrir's shutdown.
+when something has gone wrong and you don't trust bpt-strategy's shutdown.
 
 Usage:
     python3 scripts/flatten_hl_positions.py                  # testnet (default)

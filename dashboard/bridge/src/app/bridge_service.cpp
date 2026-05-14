@@ -44,11 +44,11 @@ void BridgeService::run() {
         bpt::common::log::info("portfolio snapshot subscription ready on stream {}", settings_.portfolio.stream_id);
     }
 
-    std::shared_ptr<aeron::Subscription> tyr_sub;
+    std::shared_ptr<aeron::Subscription> tox_sub;
     if (settings_.toxicity.stream_id != 0) {
-        tyr_sub =
+        tox_sub =
             bpt::common::aeron::wait_for_subscription(aeron_, settings_.toxicity.channel, settings_.toxicity.stream_id);
-        bpt::common::log::info("tyr toxicity subscription ready on stream {}", settings_.toxicity.stream_id);
+        bpt::common::log::info("toxicity subscription ready on stream {}", settings_.toxicity.stream_id);
     }
 
     // Control publication (bridge → Strategy): 1-byte commands 0x00=HALT, 0x01=RESUME.
@@ -201,8 +201,8 @@ void BridgeService::run() {
                 1);
         }
 
-        if (tyr_sub) {
-            work += tyr_sub->poll(
+        if (tox_sub) {
+            work += tox_sub->poll(
                 [&ws](aeron::AtomicBuffer& buffer,
                       aeron::util::index_t offset,
                       aeron::util::index_t length,

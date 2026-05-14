@@ -4,32 +4,32 @@
 # spread (~10 bps) wide enough to clear HL fees with margin for AS to make
 # spread profit. Most other HL perps run sub-2bp spreads — too tight.
 
-[fenrir.strategy]
+[strategy]
 type = "AvellanedaStoikovStrategy"
 enabled = true
 instruments = ["XMR/USD:PERPETUAL"]
 md_exchanges = ["HYPERLIQUID"]
 
-[fenrir.strategy.venue_exec.HYPERLIQUID]
+[strategy.venue_exec.HYPERLIQUID]
 enabled = true
 latency_budget_us = 5000
 order_type = "LIMIT"
 tif = "GTC"
 max_retries = 3
 
-[fenrir.strategy.risk]
+[strategy.risk]
 max_position_usd = 1000.0
 max_order_size_usd = 100.0
 max_daily_loss_usd = 200.0
 max_open_orders = 10
 
-[fenrir.strategy.schedule]
+[strategy.schedule]
 require_refdata_ready = true
 md_staleness_threshold_ms = 10000
 max_refdata_staleness_ns = 300000000000
 configured_exchanges = ["HYPERLIQUID"]
 
-[fenrir.strategy.params]
+[strategy.params]
 gamma = 0.05
 kappa = 15.0
 session_duration_s = 3600
@@ -97,5 +97,5 @@ gamma_pnl_tighten_mult         = 0.85
 pause_below_rpnl_usd = -1000.0
 pause_cooldown_s     = 300.0
 
-[fenrir.strategy.params.fair_value]
+[strategy.params.fair_value]
 mode = "micro"

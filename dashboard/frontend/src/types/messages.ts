@@ -122,7 +122,7 @@ export interface OrderMsg {
   status: OrderStatus
 }
 
-// Portfolio snapshot from fenrir via the bridge — contains all option
+// Portfolio snapshot from bpt-strategy via the bridge — contains all option
 // legs with Greeks, aggregated portfolio Greeks, and vol surface points.
 // Published at ~10Hz when an options strategy is running.
 export interface PortfolioMsg {
@@ -182,7 +182,7 @@ export interface ToxicityMsg {
   askTtfMs: number
 }
 
-// Live strategy state from fenrir. Each strategy implementing
+// Live strategy state from bpt-strategy. Each strategy implementing
 // IStrategy::get_strategy_state_json() emits its own shape; the `kind`
 // discriminator picks the matching panel on the dashboard
 // (components/panels/index.ts).

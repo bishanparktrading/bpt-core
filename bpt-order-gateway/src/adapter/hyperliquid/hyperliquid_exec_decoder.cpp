@@ -46,7 +46,7 @@ void HyperliquidExecDecoder::handle_fills(const json::array& fills, uint64_t rec
 
         PendingOrder& po = it->second;
         ev.order_id = po.client_order_id;
-        ev.instrument_id = 0;  // fenrir resolves via its own order_to_instrument_ map
+        ev.instrument_id = 0;  // bpt-strategy resolves via its own order_to_instrument_ map
 
         std::string side_str = std::string(fill.at("side").as_string());
         ev.side = (side_str == "B") ? bpt::messages::OrderSide::BUY : bpt::messages::OrderSide::SELL;

@@ -6,14 +6,14 @@
 # top bar (yellow "PAPER" instead of blue "BACKTEST").
 #
 # Usage:
-#   ./paper_run.sh start [fenrir-config] [--instrument-id N]
+#   ./paper_run.sh start [strategy-config] [--instrument-id N]
 #   ./paper_run.sh stop
 #   ./paper_run.sh status
 #
-# Default fenrir-config: fenrir/config/vwap_reversion.qa-okx.toml
+# Default strategy-config: bpt-strategy/config/vwap_reversion.qa-okx.toml
 #
 # --instrument-id restricts the dashboard to a single instrument when the
-# fenrir strategy trades multiple.  Without it, fills from every instrument
+# bpt-strategy strategy trades multiple.  Without it, fills from every instrument
 # get mixed into one blotter/position/equity view, which is visually wrong.
 # OKX instrument IDs:  BTC-USDT=200102  ETH-USDT=200202  SOL-USDT=200302
 #                      BNB-USDT=200402  XRP-USDT=200902
@@ -43,7 +43,7 @@ is_running() {
     [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null
 }
 
-# Extract a display name for the running strategy from the fenrir config
+# Extract a display name for the running strategy from the bpt-strategy config
 # filename.  vwap_reversion.qa-okx.toml → VwapReversionStrategy
 derive_strategy_name() {
     local cfg="$1"
@@ -57,7 +57,7 @@ derive_strategy_name() {
          { for (i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2); print $0 "Strategy" }' <<<"$base"
 }
 
-# Derive display metadata (symbol/exchange/instrument-type) from the fenrir
+# Derive display metadata (symbol/exchange/instrument-type) from the bpt-strategy
 # config filename so the bridge top-bar shows the right labels without
 # having to hand-pass --symbol / --exchange / --instrument-type every time.
 # These are display-only; they don't affect trading.
@@ -97,8 +97,8 @@ bridge_start() {
     mkdir -p "$BRIDGE_LOG_DIR"
 
     local strategy_name
-    strategy_name="$(derive_strategy_name "${FENRIR_CONFIG_OVERRIDE:-}")"
-    derive_display_info "${FENRIR_CONFIG_OVERRIDE:-}"
+    strategy_name="$(derive_strategy_name "${STRATEGY_CONFIG_OVERRIDE:-}")"
+    derive_display_info "${STRATEGY_CONFIG_OVERRIDE:-}"
 
     local extra_args=()
     if [ -n "${INSTRUMENT_ID:-}" ]; then
@@ -238,8 +238,8 @@ do_start() {
     echo "=== Dashboard paper trading run — starting ==="
     echo
 
-    if [ -n "${FENRIR_CONFIG_OVERRIDE:-}" ]; then
-        "$PAPER_SH" start "$FENRIR_CONFIG_OVERRIDE"
+    if [ -n "${STRATEGY_CONFIG_OVERRIDE:-}" ]; then
+        "$PAPER_SH" start "$STRATEGY_CONFIG_OVERRIDE"
     else
         "$PAPER_SH" start
     fi
@@ -260,7 +260,7 @@ do_start() {
 Logs:
   bridge   : $BRIDGE_LOG_DIR/bridge.stdout
   frontend : $FRONTEND_LOG
-  fenrir   : $STACK_DIR/fenrir/logs/fenrir.log
+  bpt-strategy   : $STACK_DIR/bpt-strategy/logs/bpt-strategy.log
 EOF
 }
 
@@ -276,15 +276,15 @@ do_stop() {
 SUBCMD="${1:-}"
 shift || true
 
-FENRIR_CONFIG_OVERRIDE=""
+STRATEGY_CONFIG_OVERRIDE=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --instrument-id)      INSTRUMENT_ID="$2"; shift 2 ;;
         --instrument-id=*)    INSTRUMENT_ID="${1#--instrument-id=}"; shift ;;
         -*)                   echo "Unknown flag: $1"; exit 1 ;;
         *)
-            if [ -z "$FENRIR_CONFIG_OVERRIDE" ]; then
-                FENRIR_CONFIG_OVERRIDE="$1"
+            if [ -z "$STRATEGY_CONFIG_OVERRIDE" ]; then
+                STRATEGY_CONFIG_OVERRIDE="$1"
             fi
             shift
             ;;
@@ -297,7 +297,7 @@ case "$SUBCMD" in
     stop)   do_stop ;;
     status) do_status ;;
     *)
-        echo "Usage: $0 {start|stop|status} [fenrir-config] [--instrument-id N]"
+        echo "Usage: $0 {start|stop|status} [strategy-config] [--instrument-id N]"
         exit 1
         ;;
 esac

@@ -98,7 +98,7 @@ PRIVATE_PATHS=(
     "bpt-strategy/config/avellaneda_stoikov.qa-hyperliquid.toml"
     "bpt-strategy/config/avellaneda_stoikov.qa-okx.toml"
     "bpt-strategy/config/avellaneda_stoikov.zec.backtest.toml"
-    "bpt-strategy/config/fenrir.qa-okx.toml"
+    "bpt-strategy/config/strategy.qa-okx.toml"
     "bpt-strategy/config/funding_arb.qa-hyperliquid.toml"
     "bpt-strategy/config/funding_arb.qa-okx.toml"
     "bpt-strategy/config/hmm.qa-okx.toml"

@@ -1,4 +1,4 @@
-[fenrir.strategy]
+[strategy]
 type = "AvellanedaStoikovStrategy"
 enabled = true
 # Paper-mode XMR on HL: AS is fee-starved on BTC spot/perp (pro-MM
@@ -10,26 +10,26 @@ enabled = true
 instruments = ["XMR/USD:PERPETUAL"]
 md_exchanges = ["HYPERLIQUID"]
 
-[fenrir.strategy.venue_exec.HYPERLIQUID]
+[strategy.venue_exec.HYPERLIQUID]
 enabled = true
 latency_budget_us = 5000
 order_type = "LIMIT"
 tif = "GTC"
 max_retries = 3
 
-[fenrir.strategy.risk]
+[strategy.risk]
 max_position_usd = 1000.0
 max_order_size_usd = 100.0
 max_daily_loss_usd = 200.0
 max_open_orders = 10
 
-[fenrir.strategy.schedule]
+[strategy.schedule]
 require_refdata_ready = true
 md_staleness_threshold_ms = 10000
 max_refdata_staleness_ns = 300000000000
 configured_exchanges = ["HYPERLIQUID"]
 
-[fenrir.strategy.params]
+[strategy.params]
 # MM-style rolling inventory horizon — 1h, not 24h. In AS the term
 # γ·σ²·(T-t)/2 dominates the half-spread; T=86400 blows quotes out
 # to 15x the market spread on any reasonable σ. 3600 scales quotes
@@ -57,7 +57,7 @@ kappa_min = 5.0
 # post an embarrassing quote. Originally 5 bps/side to sit inside the
 # ~7 bps XMR touch, but in an adverse-selection trend AS *wants* to
 # widen to protect, and the 5 bps clamp stops it. Bumped to 12 bps —
-# drift/tyr/vol_gate still cap real-world behaviour at saner levels;
+# drift/toxicity/vol_gate still cap real-world behaviour at saner levels;
 # this is just a last-resort ceiling, not the operating point.
 max_half_spread_bps = 12.0
 
@@ -246,7 +246,7 @@ gamma_pnl_tighten_mult     = 0.85
 # time to flip regime — short enough to resume quickly, long enough
 # that we're not just bleeding at half-rate.
 #
-# Must live BEFORE [fenrir.strategy.params.fair_value] table — TOML
+# Must live BEFORE [strategy.params.fair_value] table — TOML
 # scopes any bare keys appearing after a [table] header to that table.
 pause_below_rpnl_usd = -0.30
 pause_cooldown_s     = 300.0
@@ -256,5 +256,5 @@ pause_cooldown_s     = 300.0
 # Switched from mid → micro 2026-04-24: micro-price is closer to a true
 # martingale than mid (Stoikov 2017), reducing adverse-selection on
 # fills by weighting the price toward the thin side of the book.
-[fenrir.strategy.params.fair_value]
+[strategy.params.fair_value]
 mode = "micro"

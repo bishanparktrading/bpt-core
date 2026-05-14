@@ -6,7 +6,7 @@
 # to miss at a glance.
 #
 # Usage:
-#   ./live_run.sh start <fenrir-config> [--instrument-id N]
+#   ./live_run.sh start <strategy-config> [--instrument-id N]
 #   ./live_run.sh stop
 #   ./live_run.sh status
 
@@ -50,7 +50,7 @@ bridge_start() {
     mkdir -p "$BRIDGE_LOG_DIR"
 
     local strategy_name
-    strategy_name="$(derive_strategy_name "${FENRIR_CONFIG_OVERRIDE:-}")"
+    strategy_name="$(derive_strategy_name "${STRATEGY_CONFIG_OVERRIDE:-}")"
 
     local extra_args=()
     if [ -n "${INSTRUMENT_ID:-}" ]; then
@@ -101,9 +101,9 @@ do_status() {
 }
 
 do_start() {
-    if [ -z "$FENRIR_CONFIG_OVERRIDE" ]; then
-        echo "ERROR: live_run.sh requires an explicit fenrir config."
-        echo "Usage: $0 start <fenrir-config> [--instrument-id N]"
+    if [ -z "$STRATEGY_CONFIG_OVERRIDE" ]; then
+        echo "ERROR: live_run.sh requires an explicit bpt-strategy config."
+        echo "Usage: $0 start <strategy-config> [--instrument-id N]"
         exit 1
     fi
 
@@ -112,7 +112,7 @@ do_start() {
 
     # live.sh enforces its own confirmation prompt — if the user aborts it
     # there, nothing else starts.
-    "$LIVE_SH" start "$FENRIR_CONFIG_OVERRIDE"
+    "$LIVE_SH" start "$STRATEGY_CONFIG_OVERRIDE"
     echo
 
     bridge_start
@@ -131,7 +131,7 @@ blotter is a real trade against real money.
 
 Logs:
   bridge  : $BRIDGE_LOG_DIR/bridge.stdout
-  fenrir  : $STACK_DIR/fenrir/logs/fenrir.log
+  bpt-strategy  : $STACK_DIR/bpt-strategy/logs/bpt-strategy.log
 EOF
 }
 
@@ -146,15 +146,15 @@ do_stop() {
 SUBCMD="${1:-}"
 shift || true
 
-FENRIR_CONFIG_OVERRIDE=""
+STRATEGY_CONFIG_OVERRIDE=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --instrument-id)      INSTRUMENT_ID="$2"; shift 2 ;;
         --instrument-id=*)    INSTRUMENT_ID="${1#--instrument-id=}"; shift ;;
         -*)                   echo "Unknown flag: $1"; exit 1 ;;
         *)
-            if [ -z "$FENRIR_CONFIG_OVERRIDE" ]; then
-                FENRIR_CONFIG_OVERRIDE="$1"
+            if [ -z "$STRATEGY_CONFIG_OVERRIDE" ]; then
+                STRATEGY_CONFIG_OVERRIDE="$1"
             fi
             shift
             ;;
@@ -167,7 +167,7 @@ case "$SUBCMD" in
     stop)   do_stop ;;
     status) do_status ;;
     *)
-        echo "Usage: $0 start <fenrir-config> [--instrument-id N]"
+        echo "Usage: $0 start <strategy-config> [--instrument-id N]"
         echo "       $0 stop"
         echo "       $0 status"
         exit 1

@@ -1,5 +1,5 @@
 // Options data types — mirrors the shapes from bpt-pricer's VolSurface grid and
-// fenrir's refdata instruments. Mock data uses these directly; phase 2 will
+// bpt-strategy's refdata instruments. Mock data uses these directly; phase 2 will
 // wire them to a real PortfolioSnapshot Aeron stream via the bridge.
 
 export type OptionSide = 'CALL' | 'PUT'

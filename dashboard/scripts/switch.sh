@@ -8,14 +8,14 @@
 # the mode pill flips automatically without a manual refresh.
 #
 # Usage:
-#   ./switch.sh backtest [fenrir-config] [--starting-capital N] [--instrument-id N]
-#   ./switch.sh paper    [fenrir-config] [--starting-capital N] [--instrument-id N]
-#   ./switch.sh live     <fenrir-config> [--starting-capital N] [--instrument-id N]
+#   ./switch.sh backtest [strategy-config] [--starting-capital N] [--instrument-id N]
+#   ./switch.sh paper    [strategy-config] [--starting-capital N] [--instrument-id N]
+#   ./switch.sh live     <strategy-config> [--starting-capital N] [--instrument-id N]
 #
 # Examples:
-#   ./switch.sh backtest fenrir/config/momentum.backtest.toml
-#   ./switch.sh paper    fenrir/config/momentum.qa-okx.toml --instrument-id 200102
-#   ./switch.sh live     fenrir/config/momentum.live-okx.toml
+#   ./switch.sh backtest bpt-strategy/config/momentum.backtest.toml
+#   ./switch.sh paper    bpt-strategy/config/momentum.qa-okx.toml --instrument-id 200102
+#   ./switch.sh live     bpt-strategy/config/momentum.live-okx.toml
 #
 # Live mode inherits live_run.sh's "I UNDERSTAND" confirmation prompt — the
 # switch is aborted if the user doesn't confirm.
@@ -31,7 +31,7 @@ MODE="${1:-}"
 shift || true
 
 if [ -z "$MODE" ]; then
-    echo "Usage: $0 {backtest|paper|live} [fenrir-config] [--starting-capital N] [--instrument-id N]"
+    echo "Usage: $0 {backtest|paper|live} [strategy-config] [--starting-capital N] [--instrument-id N]"
     exit 1
 fi
 

@@ -42,7 +42,7 @@ const char* tif_str(bpt::messages::TimeInForce::Value tif) {
     }
 }
 
-// Convert fenrir's base-currency qty (base * 1e8) to OKX's wire size
+// Convert bpt-strategy's base-currency qty (base * 1e8) to OKX's wire size
 // (contracts). SWAP/FUTURES: sz = qty_base / ctVal. SPOT/MARGIN fall
 // through to ctVal = 1.0.
 std::string size_to_contracts(uint64_t quantity_e8, std::string_view inst_id, const ContractSizes& contract_sizes) {

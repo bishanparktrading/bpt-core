@@ -10,7 +10,7 @@ aeron_config = "../deploy/config/aeron/streams.toml"
 # Fallback only — shared file wins when present.
 media_driver_dir = "/dev/shm/aeron-bpt"
 
-[fenrir]
+[strategy]
 correlation_id = 1002
 
 [metrics]

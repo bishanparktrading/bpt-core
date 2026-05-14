@@ -23,7 +23,7 @@ enum class MsgKind : uint8_t {
     Fill,      // appended to rolling buffer
     Position,  // latest wins (per symbol)
     Order,     // not snapshotted — transient lifecycle events
-    Toxicity,  // latest wins — tyr toxicity scores
+    Toxicity,  // latest wins — analytics toxicity scores
 };
 
 // Minimal broadcast-style WebSocket server with session replay.

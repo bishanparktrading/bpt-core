@@ -137,8 +137,8 @@ private:
     // $1,000,000 of lifetime traded volume (error seen on testnet:
     // "Cannot set scheduled cancel time until enough volume traded.
     // Required: $1000000. Traded: $129582.4."). Until the wallet clears
-    // that threshold, there is no in-adapter crash-safety layer — fenrir's
-    // graceful SIGTERM handler (fenrir_app.cpp::shutdown_flatten) covers
+    // that threshold, there is no in-adapter crash-safety layer — bpt-strategy's
+    // graceful SIGTERM handler (strategy_service.cpp::shutdown_flatten) covers
     // the common case, and scripts/flatten_hl_positions.py is the manual
     // kill switch. The correct long-term fix is a separate watchdog
     // process with independent exchange connectivity that monitors

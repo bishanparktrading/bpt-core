@@ -11,32 +11,32 @@
 #                              At qty_per_quote=50 / max_inventory=500, the
 #                              skew at full inventory ≈ 5 bps of $0.16 mid.
 
-[fenrir.strategy]
+[strategy]
 type = "PassiveMakerStrategy"
 enabled = true
 instruments = ["AAVE/USD:PERPETUAL"]
 md_exchanges = ["HYPERLIQUID"]
 
-[fenrir.strategy.venue_exec.HYPERLIQUID]
+[strategy.venue_exec.HYPERLIQUID]
 enabled = true
 latency_budget_us = 5000
 order_type = "LIMIT"
 tif = "GTC"               # GTC LIMIT → translated to Alo (POST_ONLY) by HL adapter
 max_retries = 3
 
-[fenrir.strategy.risk]
+[strategy.risk]
 max_position_usd = 1000.0
 max_order_size_usd = 100.0
 max_daily_loss_usd = 200.0
 max_open_orders = 10
 
-[fenrir.strategy.schedule]
+[strategy.schedule]
 require_refdata_ready = true
 md_staleness_threshold_ms = 10000
 max_refdata_staleness_ns = 300000000000
 configured_exchanges = ["HYPERLIQUID"]
 
-[fenrir.strategy.params]
+[strategy.params]
 # Core knobs — three params define the strategy.
 half_spread_bps        = 25.0
 requote_threshold_bps  = 50.0

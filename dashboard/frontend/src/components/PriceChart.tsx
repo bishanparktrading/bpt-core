@@ -165,7 +165,7 @@ export function PriceChart() {
   //
   // Suppression styling: when bidSuppressed/askSuppressed is true, the
   // line stays visible but greys + dashes so the dashboard reflects
-  // that AS is deliberately quiet on that side (drift/tyr/inv/vol/queue
+  // that AS is deliberately quiet on that side (drift/toxicity/inv/vol/queue
   // reason shown in StrategyStatePanel). Disappearing would look like
   // a plumbing bug.
   useEffect(() => {

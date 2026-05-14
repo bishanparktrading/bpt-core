@@ -501,7 +501,7 @@ void RegimeSwitchStrategy::on_exec_report(const bpt::messages::ExecutionReport& 
         return;
 
     // Track consecutive rejections for backoff.
-    // Gateway rejects are fenrir bugs — don't count them toward the exchange backoff.
+    // Gateway rejects are bpt-strategy bugs — don't count them toward the exchange backoff.
     if (status == ExecStatus::REJECTED) {
         const auto src = rpt.rejectSource();
         const bool gateway_reject = (src == RejectSource::GATEWAY || src == RejectSource::RISK);

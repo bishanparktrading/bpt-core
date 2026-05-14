@@ -2,16 +2,16 @@
 # smoke_test.sh — End-to-end dashboard smoke test.
 #
 # Launches the full backtest stack (bpt-transport + bpt-refdata + bpt-md-gateway + order-gateway +
-# fenrir + bpt-backtester) via the existing backtest.sh, then starts the bridge
+# bpt-strategy + bpt-backtester) via the existing backtest.sh, then starts the bridge
 # on top and prints the command to run the frontend.
 #
 # Usage:
-#   ./smoke_test.sh start [fenrir-config] [--starting-capital N]
+#   ./smoke_test.sh start [strategy-config] [--starting-capital N]
 #   ./smoke_test.sh stop
 #   ./smoke_test.sh status
 #   ./smoke_test.sh verify
 #
-# The optional fenrir-config is forwarded to backtest.sh — use it to pick a
+# The optional strategy-config is forwarded to backtest.sh — use it to pick a
 # strategy config other than the default vwap_reversion.backtest.toml.
 #
 # --starting-capital N (default: 100000) is forwarded to BOTH bpt-backtester and
@@ -42,7 +42,7 @@ is_running() {
     [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null
 }
 
-# Extract a display name for the running strategy from the fenrir config
+# Extract a display name for the running strategy from the bpt-strategy config
 # filename.  momentum.backtest.toml  →  MomentumStrategy
 # vwap_reversion.backtest.toml       →  VwapReversionStrategy
 derive_strategy_name() {
@@ -77,7 +77,7 @@ bridge_start() {
     mkdir -p "$BRIDGE_LOG_DIR"
 
     local strategy_name
-    strategy_name="$(derive_strategy_name "${FENRIR_CONFIG_OVERRIDE:-}")"
+    strategy_name="$(derive_strategy_name "${STRATEGY_CONFIG_OVERRIDE:-}")"
 
     # NB: bridge no longer takes --starting-capital — it's a backtest concept
     # only forwarded to bpt-backtester via backtest.sh.
@@ -133,9 +133,9 @@ do_start() {
     echo "=== Dashboard smoke test — starting ==="
     echo
 
-    # Forward the optional fenrir-config override to backtest.sh
-    if [ -n "${FENRIR_CONFIG_OVERRIDE:-}" ]; then
-        "$BACKTEST_SH" start "$FENRIR_CONFIG_OVERRIDE"
+    # Forward the optional strategy-config override to backtest.sh
+    if [ -n "${STRATEGY_CONFIG_OVERRIDE:-}" ]; then
+        "$BACKTEST_SH" start "$STRATEGY_CONFIG_OVERRIDE"
     else
         "$BACKTEST_SH" start
     fi
@@ -157,8 +157,8 @@ should animate with real fills as bpt-backtester replays the data.
 
 Logs:
   bridge  : $BRIDGE_LOG_DIR/bridge.stdout
-  fenrir  : $STACK_DIR/fenrir/logs/fenrir.log
-  jormun. : $STACK_DIR/bpt-backtester/logs/backtest/bpt-backtester.log
+  bpt-strategy  : $STACK_DIR/bpt-strategy/logs/bpt-strategy.log
+  backtest : $STACK_DIR/bpt-backtester/logs/backtest/bpt-backtester.log
 
 After the backtest completes, run:
     $0 verify
@@ -208,13 +208,13 @@ PY
 }
 
 # ── Arg parsing ────────────────────────────────────────────────────────────
-# First positional: subcommand.  Second (optional): fenrir-config path.
+# First positional: subcommand.  Second (optional): strategy-config path.
 # --starting-capital N can appear anywhere after the subcommand and sets the
 # STARTING_CAPITAL env var consumed by bridge_start() and backtest.sh.
 SUBCMD="${1:-}"
 shift || true
 
-FENRIR_CONFIG_OVERRIDE=""
+STRATEGY_CONFIG_OVERRIDE=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --starting-capital)   STARTING_CAPITAL="$2"; shift 2 ;;
@@ -226,9 +226,9 @@ while [ $# -gt 0 ]; do
             exit 1
             ;;
         *)
-            # First positional after subcommand is the fenrir config
-            if [ -z "$FENRIR_CONFIG_OVERRIDE" ]; then
-                FENRIR_CONFIG_OVERRIDE="$1"
+            # First positional after subcommand is the bpt-strategy config
+            if [ -z "$STRATEGY_CONFIG_OVERRIDE" ]; then
+                STRATEGY_CONFIG_OVERRIDE="$1"
             fi
             shift
             ;;
@@ -242,7 +242,7 @@ case "$SUBCMD" in
     status) do_status ;;
     verify) do_verify ;;
     *)
-        echo "Usage: $0 {start|stop|status|verify} [fenrir-config] [--starting-capital N]"
+        echo "Usage: $0 {start|stop|status|verify} [strategy-config] [--starting-capital N]"
         exit 1
         ;;
 esac

@@ -9,7 +9,7 @@
 // Usage:
 //   #include <bpt_common/logging.h>
 //
-//   bpt::common::logging::init("fenrir");          // once at startup
+//   bpt::common::logging::init("bpt-strategy");          // once at startup
 //   bpt::common::log::info("tick {}", n);          // anywhere
 //
 // To load LogConfig from a TOML table, include <yggdrasil/logging_toml.h>.

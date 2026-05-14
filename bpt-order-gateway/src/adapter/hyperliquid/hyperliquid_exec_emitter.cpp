@@ -99,7 +99,7 @@ bool HyperliquidExecEmitter::emit_order_response(const std::string& resp,
             // Immediate fill-on-placement (IOC, crossing limit, or market).
             // We deliberately do NOT emit a FILLED ExecEvent here — the same
             // fill also comes through the userFills WS stream, and emitting
-            // from both paths would double-count the fill in fenrir. Only
+            // from both paths would double-count the fill in bpt-strategy. Only
             // the WS stream is authoritative; we just register the oid so
             // the parser can resolve userFills → client order_id (HL does
             // not echo a cloid).
@@ -149,7 +149,7 @@ bool HyperliquidExecEmitter::emit_cancel_response(const std::string& resp,
         //   - never placed / already canceled → safe to treat as cancelled
         //   - already FILLED → the real fill is about to arrive via userFills.
         //     If we emit CANCELLED here and erase the oid→client mapping, the
-        //     userFills event resolves to order_id=0 and fenrir loses the fill.
+        //     userFills event resolves to order_id=0 and bpt-strategy loses the fill.
         // When we can't distinguish, err on the side of "wait for userFills":
         // don't emit CANCELLED, don't erase maps. Strategy's cancel-pending flag
         // will be cleared by the FILLED event moments later.
