@@ -17,6 +17,8 @@ struct Settings {
     // Inputs (read-only subscriptions)
     bpt::common::config::StreamConfig vol_surface;       ///< bpt-pricer → stream 4001
     bpt::common::config::StreamConfig instrument_stats;  ///< bpt-md-gateway → stream 2004
+    bpt::common::config::StreamConfig funding_rate;      ///< bpt-md-gateway → stream 1005
+    bpt::common::config::StreamConfig refdata_snapshot;  ///< bpt-refdata → stream 1001 (perp lookup)
 
     // Output
     bpt::common::config::StreamConfig market_color;  ///< bpt-radar → stream 6002

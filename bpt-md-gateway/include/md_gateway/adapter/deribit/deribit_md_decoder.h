@@ -46,7 +46,7 @@ public:
     void decode(std::string_view payload,
                 uint64_t recv_ns,
                 Pub& pub,
-                messaging::FundingRateCallback& /*on_funding_rate*/,
+                messaging::FundingRateCallback& on_funding_rate,
                 messaging::InstrumentStatsCallback& on_instrument_stats) {
         const uint64_t parse_start_ns = bpt::common::util::TscClock::now_mono_ns();
         pad(payload);
@@ -301,6 +301,29 @@ public:
                 (void)stats_obj.find_field_unordered("volume").get_double().get(stats.volume_24h);
 
             on_instrument_stats(stats);
+
+            // Funding rate (perps only): the ticker channel for *-PERPETUAL
+            // instruments carries `funding_8h` — the 8-hour funding rate that
+            // would apply at the next settlement tick if accrual stopped now.
+            // Settlement is continuous but ticked at 00/08/16 UTC.
+            // Options + futures don't have funding; their ticker omits the
+            // field and the simdjson .get() leaves rate_8h at sentinel −1.
+            if (on_funding_rate) {
+                double rate_8h = -2.0;  // sentinel outside Deribit's expected ±0.05 range
+                if (data.find_field_unordered("funding_8h").get_double().get(rate_8h) == simdjson::SUCCESS &&
+                    rate_8h > -1.5) {
+                    messaging::FundingRateUpdate fr;
+                    fr.instrument_id = instrument_id;
+                    fr.exchange_id = bpt::messages::ExchangeId::DERIBIT;
+                    // rateBps stores rate × 1e6 (per FundingRate SBE field comment).
+                    fr.rate_bps = static_cast<int32_t>(rate_8h * 1'000'000.0);
+                    // Next funding ts: floor(now / 8h) + 8h, in nanoseconds.
+                    constexpr uint64_t kEightHoursNs = 8ULL * 3600ULL * 1'000'000'000ULL;
+                    fr.next_funding_ts_ns = ((recv_ns / kEightHoursNs) + 1) * kEightHoursNs;
+                    fr.collected_ts_ns = recv_ns;
+                    on_funding_rate(fr);
+                }
+            }
             return;
         }
     }

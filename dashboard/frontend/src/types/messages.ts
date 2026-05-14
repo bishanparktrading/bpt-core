@@ -317,13 +317,22 @@ export interface OptionsMarketColor {
   strikesWithOi: number
 }
 
+// Perp section — funding rate + next funding tick for the underlying's perp.
+// Fields are null when radar hasn't joined a perp to this underlying yet
+// (refdata snapshot hasn't arrived, no perp exists at this venue, etc.).
+export interface PerpMarketColor {
+  fundingRate8h: number | null   // decimal (e.g. 0.0001 = 1 bps)
+  nextFundingTs: number | null   // ns since epoch; null = not yet known
+}
+
 export interface MarketColorMsg {
   type: 'marketColor'
   ts: number // ns since epoch
   exchange: string // e.g. "DERIBIT"
   underlying: string // e.g. "BTC"
   options: OptionsMarketColor
-  // Future: perp?, flow?, regime? — sections light up as the corresponding
+  perp: PerpMarketColor
+  // Future: flow?, regime? — sections light up as the corresponding
   // radar analysis modules get built.
 }
 

@@ -181,7 +181,8 @@ std::string toxicity(double bid_markout_5s,
 std::string market_color(uint64_t ts_ns,
                          std::string_view exchange,
                          std::string_view underlying,
-                         const OptionsMarketColor& o) {
+                         const OptionsMarketColor& o,
+                         const PerpMarketColor& p) {
     json options = {
         {"frontExpiry", o.front_expiry_yyyymmdd},
         {"frontTimeToExpiryY", finite_or_null(o.front_time_to_expiry_y)},
@@ -200,12 +201,19 @@ std::string market_color(uint64_t ts_ns,
         {"expiryCount", o.expiry_count},
         {"strikesWithOi", o.strikes_with_oi},
     };
+    json perp = {
+        {"fundingRate8h", finite_or_null(p.funding_rate_8h)},
+        // nextFundingTs of 0 → "not yet known" → encode as null so the
+        // frontend can render "—" instead of "1970-01-01".
+        {"nextFundingTs", p.next_funding_ts == 0 ? json(nullptr) : json(p.next_funding_ts)},
+    };
     return json{
         {"type", "marketColor"},
         {"ts", ts_ns},
         {"exchange", exchange},
         {"underlying", underlying},
         {"options", std::move(options)},
+        {"perp", std::move(perp)},
     }
         .dump();
 }

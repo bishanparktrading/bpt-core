@@ -131,9 +131,17 @@ struct OptionsMarketColor {
     uint32_t strikes_with_oi;
 };
 
+// Perp section — funding rate + next funding tick for the underlying's perp.
+// NaN/0 when radar hasn't joined a perp to this underlying yet.
+struct PerpMarketColor {
+    double funding_rate_8h;     ///< NaN = not yet seen
+    uint64_t next_funding_ts;   ///< ns epoch; 0 = not yet known
+};
+
 std::string market_color(uint64_t ts_ns,
                          std::string_view exchange,
                          std::string_view underlying,
-                         const OptionsMarketColor& options);
+                         const OptionsMarketColor& options,
+                         const PerpMarketColor& perp);
 
 }  // namespace bpt::bridge::encode

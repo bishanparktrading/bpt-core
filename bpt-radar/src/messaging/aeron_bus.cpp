@@ -11,6 +11,12 @@ RadarBus RadarAeronBus::build(std::shared_ptr<aeron::Aeron> aeron, const config:
     bus.stats_sub = std::make_unique<InstrumentStatsSubscriber>(aeron,
                                                                 settings.instrument_stats.channel,
                                                                 settings.instrument_stats.stream_id);
+    bus.funding_sub = std::make_unique<FundingRateSubscriber>(aeron,
+                                                              settings.funding_rate.channel,
+                                                              settings.funding_rate.stream_id);
+    bus.refdata_perp_sub = std::make_unique<RefdataPerpSubscriber>(aeron,
+                                                                   settings.refdata_snapshot.channel,
+                                                                   settings.refdata_snapshot.stream_id);
     bus.color_pub =
         std::make_unique<MarketColorPublisher>(aeron, settings.market_color.channel, settings.market_color.stream_id);
     return bus;

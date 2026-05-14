@@ -39,6 +39,8 @@ Settings load(const std::string& path) {
     using bpt::common::config::resolve_stream;
     s.vol_surface = resolve_stream(shared_streams, "vol_surface", 4001);
     s.instrument_stats = resolve_stream(shared_streams, "instrument_stats", 2004);
+    s.funding_rate = resolve_stream(shared_streams, "funding_rate", 1005);
+    s.refdata_snapshot = resolve_stream(shared_streams, "refdata_snapshot", 1001);
     s.market_color = resolve_stream(shared_streams, "market_color", 6002);
 
     if (auto t = tbl["radar"])

@@ -134,20 +134,58 @@ export function CalendarPanel({ underlying }: { underlying?: string | null } = {
           )}
         </div>
 
-        {/* Funding countdown — placeholder. Lights up when radar publishes
-            perp_funding_rate_8h and perp_next_funding_ts (Phase B/C of the
-            calendar roadmap). */}
-        <div>
-          <div style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>
-            Next funding tick
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 4 }}>
-            <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-muted)' }}>—</span>
-            <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-              (waiting for radar to plumb funding rate from md-gateway)
-            </span>
-          </div>
-        </div>
+        {/* Funding countdown — perps only. Deribit settles funding every
+            8h at 00/08/16 UTC; the rate shown is the 8-hour rate that
+            would apply if accrual stopped now. */}
+        {(() => {
+          const perp = msg.perp
+          if (!perp || perp.nextFundingTs == null) {
+            return (
+              <div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>
+                  Next funding tick
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 4 }}>
+                  <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-muted)' }}>—</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                    waiting for funding update from md-gateway
+                  </span>
+                </div>
+              </div>
+            )
+          }
+          const nextFundingMs = perp.nextFundingTs / 1e6
+          const fundingDelta = nextFundingMs - now
+          const fundingFmt = formatCountdown(fundingDelta)
+          const rate = perp.fundingRate8h
+          const rateBps = rate != null && Number.isFinite(rate) ? rate * 10000 : null
+          const rateCls = rateBps == null ? 'stat-value--muted' : rateBps > 0 ? 'stat-value--green' : 'stat-value--red'
+          const rateText = rateBps == null ? '—' : `${rateBps >= 0 ? '+' : ''}${rateBps.toFixed(2)} bps`
+          const directionLabel =
+            rateBps == null
+              ? ''
+              : rateBps > 0
+                ? 'longs pay shorts'
+                : rateBps < 0
+                  ? 'shorts pay longs'
+                  : 'flat'
+          return (
+            <div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>
+                Next funding tick
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 4 }}>
+                <span style={{ fontSize: 22, fontWeight: 700 }} className={fundingFmt.cls}>
+                  {fundingFmt.text}
+                </span>
+                <span style={{ fontSize: 13 }} className={rateCls}>
+                  {rateText}
+                </span>
+                <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{directionLabel}</span>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Macro events placeholder — separate scope (ICS feed integration). */}
         <div>

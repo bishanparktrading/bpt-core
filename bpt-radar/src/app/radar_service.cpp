@@ -20,12 +20,18 @@ RadarService::RadarService(config::Settings settings, messaging::RadarBus bus)
       bus_(std::move(bus)) {
     bus_.surface_sub->on_vol_surface = [this](bpt::messages::VolSurface& s) { on_vol_surface(s); };
     bus_.stats_sub->on_stats = [this](bpt::messages::InstrumentStats& s) { on_instrument_stats(s); };
+    bus_.funding_sub->on_funding = [this](bpt::messages::FundingRate& fr) { on_funding(fr); };
+    bus_.refdata_perp_sub->on_perp =
+        [this](const messaging::RefdataPerpSubscriber::PerpInfo& p) { on_refdata_perp(p.instrument_id, p.underlying, p.exchange_id); };
 
-    bpt::common::log::info("[RadarService] ready — surface stream={} stats stream={} color stream={} publish={}ms",
-                           settings_.vol_surface.stream_id,
-                           settings_.instrument_stats.stream_id,
-                           settings_.market_color.stream_id,
-                           settings_.publish_interval_ms);
+    bpt::common::log::info(
+        "[RadarService] ready — surface={} stats={} funding={} refdata={} color={} publish={}ms",
+        settings_.vol_surface.stream_id,
+        settings_.instrument_stats.stream_id,
+        settings_.funding_rate.stream_id,
+        settings_.refdata_snapshot.stream_id,
+        settings_.market_color.stream_id,
+        settings_.publish_interval_ms);
 }
 
 void RadarService::on_vol_surface(bpt::messages::VolSurface& surface) {
@@ -67,6 +73,18 @@ void RadarService::on_instrument_stats(bpt::messages::InstrumentStats& stats) {
     const double oi = stats.openInterest();
     if (std::isfinite(oi))
         oi_by_instrument_[stats.instrumentId()] = oi;
+}
+
+void RadarService::on_funding(bpt::messages::FundingRate& fr) {
+    FundingState s;
+    // rateBps stores rate × 1e6 (per FundingRate SBE field convention).
+    s.rate_8h = static_cast<double>(fr.rateBps()) / 1'000'000.0;
+    s.next_funding_ts_ns = fr.nextFundingTs();
+    funding_by_instrument_[fr.instrumentId()] = s;
+}
+
+void RadarService::on_refdata_perp(uint64_t instrument_id, const std::string& underlying, uint8_t exchange_id) {
+    perp_id_by_key_[SurfaceKey{exchange_id, underlying}] = instrument_id;
 }
 
 void RadarService::publish_all() {
@@ -146,6 +164,18 @@ void RadarService::publish_for(const SurfaceKey& key, std::vector<analysis::Surf
     color.options_strike_count = static_cast<uint32_t>(cached.size());
     color.options_expiry_count = static_cast<uint32_t>(buckets.size());
 
+    // Attach perp funding state if refdata gave us a perp_id for this
+    // (exchange, underlying) AND md-gateway has pushed a FundingRate update
+    // for that perp. Leaves NaN / 0 defaults otherwise — frontend renders "—".
+    auto pid_it = perp_id_by_key_.find(key);
+    if (pid_it != perp_id_by_key_.end()) {
+        auto fr_it = funding_by_instrument_.find(pid_it->second);
+        if (fr_it != funding_by_instrument_.end()) {
+            color.perp_funding_rate_8h = fr_it->second.rate_8h;
+            color.perp_next_funding_ts_ns = fr_it->second.next_funding_ts_ns;
+        }
+    }
+
     bus_.color_pub->publish(color);
 }
 
@@ -159,6 +189,8 @@ void RadarService::run() {
         int frags = 0;
         frags += bus_.surface_sub->poll();
         frags += bus_.stats_sub->poll();
+        frags += bus_.funding_sub->poll();
+        frags += bus_.refdata_perp_sub->poll();
 
         auto now = std::chrono::steady_clock::now();
         if (now - last_publish >= interval) {

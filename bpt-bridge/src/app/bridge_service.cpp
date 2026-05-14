@@ -268,6 +268,11 @@ void BridgeService::run() {
                         .strikes_with_oi = mc.options_strikes_with_oi,
                     };
 
+                    encode::PerpMarketColor perp{
+                        .funding_rate_8h = mc.perp_funding_rate_8h,
+                        .next_funding_ts = mc.perp_next_funding_ts_ns,
+                    };
+
                     // ExchangeId -> short label. Could go through ExchangeId::c_str
                     // but bridge already labels via settings.exchange for the
                     // session message; for market_color the venue can differ per
@@ -278,7 +283,7 @@ void BridgeService::run() {
 
                     // underlying is null-padded in the POD; treat as C-string.
                     const char* under = mc.underlying;
-                    ws.publish(MsgKind::MarketColor, encode::market_color(mc.timestamp_ns, venue, under, opts));
+                    ws.publish(MsgKind::MarketColor, encode::market_color(mc.timestamp_ns, venue, under, opts, perp));
                 },
                 4);
         }

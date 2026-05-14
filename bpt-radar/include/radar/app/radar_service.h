@@ -17,6 +17,7 @@
 #include "radar/messaging/aeron_bus.h"
 
 #include <messages/ExchangeId.h>
+#include <messages/FundingRate.h>
 #include <messages/InstrumentStats.h>
 #include <messages/VolSurface.h>
 
@@ -58,6 +59,8 @@ private:
 
     void on_vol_surface(bpt::messages::VolSurface& surface);
     void on_instrument_stats(bpt::messages::InstrumentStats& stats);
+    void on_funding(bpt::messages::FundingRate& fr);
+    void on_refdata_perp(uint64_t instrument_id, const std::string& underlying, uint8_t exchange_id);
 
     void publish_all();
     void publish_for(const SurfaceKey& key, std::vector<analysis::SurfacePoint>& cached);
@@ -72,6 +75,19 @@ private:
     /// strike (gone from the surface for a tick) doesn't immediately drop
     /// OI to NaN.
     std::unordered_map<uint64_t, double> oi_by_instrument_;
+
+    /// Funding rate state per perp instrument_id. Populated by FundingRate
+    /// stream; joined to MarketColor entries via perp_id_by_key_ below.
+    struct FundingState {
+        double rate_8h{0.0};        ///< decimal (rate_bps from wire ÷ 1e6)
+        uint64_t next_funding_ts_ns{0};
+    };
+    std::unordered_map<uint64_t, FundingState> funding_by_instrument_;
+
+    /// (exchange_id, underlying) → perp instrument_id. Populated by refdata
+    /// snapshot; consulted during publish_for() to attach funding rate to
+    /// the right MarketColor entry.
+    std::unordered_map<SurfaceKey, uint64_t, SurfaceKeyHash> perp_id_by_key_;
 
     uint64_t last_publish_ns_{0};
 };

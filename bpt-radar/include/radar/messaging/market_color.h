@@ -65,10 +65,13 @@ struct __attribute__((packed)) MarketColor {
     uint32_t options_strikes_with_oi{0};    ///< strikes that had matched OI from InstrumentStats
 
     // ─── Perp / futures ─────────────────────────────────────────────────
-    // (not yet computed — reserved for future analysis modules)
-    // double perp_basis_bps{kNan};         ///< (perp_mark − spot_mid) / spot_mid * 1e4
-    // double perp_funding_rate_8h{kNan};
-    // uint64_t perp_next_funding_ts_ns{0};
+    // Populated from md-gateway's FundingRate stream joined to this
+    // underlying's perp instrument via the refdata snapshot mapping.
+    // Funding-related fields are NaN/0 if no perp exists for this
+    // underlying or the venue hasn't yet published a funding update.
+    double perp_funding_rate_8h{kNan};      ///< 8-hour funding rate, decimal (e.g. 0.0001 = 1 bp)
+    uint64_t perp_next_funding_ts_ns{0};    ///< wall-time ns of next funding tick (0 = unknown)
+    // Future: perp_basis_bps, perp_mark_price, etc. when we wire pricer-side basis math
 
     // ─── Flow ───────────────────────────────────────────────────────────
     // (not yet computed)
