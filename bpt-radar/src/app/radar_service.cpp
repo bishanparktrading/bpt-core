@@ -116,35 +116,35 @@ void RadarService::publish_for(const SurfaceKey& key, std::vector<analysis::Surf
     color.underlying[copy_len] = '\0';
 
     const auto& front = buckets.front();
-    color.front_expiry_yyyymmdd = front.expiry_yyyymmdd;
-    color.front_time_to_expiry_y = front.time_to_expiry_y;
+    color.options_front_expiry_yyyymmdd = front.expiry_yyyymmdd;
+    color.options_front_time_to_expiry_y = front.time_to_expiry_y;
     if (!front.pts.empty())
-        color.front_forward_price = front.pts.front().forward_price;
-    color.front_atm_iv = analysis::atm_iv(front.pts);
-    color.front_rr_25d = analysis::risk_reversal_25d(front.pts);
-    color.front_skew_slope = analysis::atm_skew_slope(front.pts);
+        color.options_front_forward_price = front.pts.front().forward_price;
+    color.options_front_atm_iv = analysis::atm_iv(front.pts);
+    color.options_front_rr_25d = analysis::risk_reversal_25d(front.pts);
+    color.options_front_skew_slope = analysis::atm_skew_slope(front.pts);
 
     const auto& back = buckets.back();
-    color.back_expiry_yyyymmdd = back.expiry_yyyymmdd;
-    color.back_time_to_expiry_y = back.time_to_expiry_y;
-    color.back_atm_iv = analysis::atm_iv(back.pts);
+    color.options_back_expiry_yyyymmdd = back.expiry_yyyymmdd;
+    color.options_back_time_to_expiry_y = back.time_to_expiry_y;
+    color.options_back_atm_iv = analysis::atm_iv(back.pts);
 
-    if (std::isfinite(color.front_atm_iv) && std::isfinite(color.back_atm_iv))
-        color.term_spread = color.back_atm_iv - color.front_atm_iv;
+    if (std::isfinite(color.options_front_atm_iv) && std::isfinite(color.options_back_atm_iv))
+        color.options_term_spread = color.options_back_atm_iv - color.options_front_atm_iv;
 
     // GEX is computed across the whole surface (all expiries, weighted equally).
     // Some shops weight by 1/T or 1/√T to reflect dealer-hedging focus on
     // near-dated gamma; we keep the raw sum for now and let consumers reweight.
     const auto gex_res = analysis::compute_gex(cached);
-    color.gex = gex_res.gex;
-    color.total_oi = gex_res.total_oi;
-    color.strikes_with_oi = gex_res.strikes;
+    color.options_gex = gex_res.gex;
+    color.options_total_oi = gex_res.total_oi;
+    color.options_strikes_with_oi = gex_res.strikes;
 
     // Max pain is per-expiry; the dominant signal is the front expiry's pin.
-    color.max_pain_strike = analysis::max_pain_strike(front.pts);
+    color.options_max_pain_strike = analysis::max_pain_strike(front.pts);
 
-    color.strike_count = static_cast<uint32_t>(cached.size());
-    color.expiry_count = static_cast<uint32_t>(buckets.size());
+    color.options_strike_count = static_cast<uint32_t>(cached.size());
+    color.options_expiry_count = static_cast<uint32_t>(buckets.size());
 
     bus_.color_pub->publish(color);
 }
