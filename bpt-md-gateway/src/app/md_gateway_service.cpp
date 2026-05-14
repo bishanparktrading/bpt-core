@@ -18,11 +18,13 @@ MdGatewayService::MdGatewayService(config::Settings cfg,
                            std::shared_ptr<messaging::MdPublisher> md_sink,
                            std::unique_ptr<messaging::IAckPublisher> ack_sink,
                            std::shared_ptr<messaging::IFundingRatePublisher> funding_sink,
+                           std::shared_ptr<messaging::IInstrumentStatsPublisher> stats_sink,
                            const bpt::common::util::Topology& topology)
     : cfg_(std::move(cfg)),
       metrics_(cfg_.metrics_host, cfg_.base.metrics_port),
       md_pub_(std::move(md_sink)),
       funding_pub_(std::move(funding_sink)),
+      stats_pub_(std::move(stats_sink)),
       ack_pub_(std::move(ack_sink)),
       ctrl_sub_(std::move(control_source)) {
     for (const auto& a_cfg : cfg_.adapters) {
@@ -44,6 +46,10 @@ MdGatewayService::MdGatewayService(config::Settings cfg,
 
         adapter->on_funding_rate = [this](const messaging::FundingRateUpdate& fr) {
             funding_pub_->publish(fr);
+        };
+
+        adapter->on_instrument_stats = [this](const messaging::InstrumentStatsUpdate& oi) {
+            stats_pub_->publish(oi);
         };
 
         // Use raw pointers into the metrics families — these are stable for the

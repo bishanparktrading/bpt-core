@@ -25,6 +25,7 @@
 #include "md_gateway/messaging/i_ack_publisher.h"
 #include "md_gateway/messaging/i_funding_rate_publisher.h"
 #include "md_gateway/messaging/i_md_control_source.h"
+#include "md_gateway/messaging/i_instrument_stats_publisher.h"
 #include "md_gateway/messaging/md_publisher.h"
 
 #include <Aeron.h>
@@ -68,7 +69,14 @@ struct AeronBus {
     /// adapter threads call publish() directly off their IO thread.
     std::shared_ptr<IFundingRatePublisher> funding_sink;
 
-    /// \brief Construct the prod (Aeron-backed) implementations of all four ports.
+    /// \brief Outbound: per-instrument open-interest updates on stream 2004.
+    ///
+    /// Wired into each adapter's `on_instrument_stats` callback by MdGatewayService.
+    /// Slow-cadence (updates every few seconds) — kept off the BBO firehose so
+    /// strategy consumers that don't need OI don't pay decode cost on every tick.
+    std::shared_ptr<IInstrumentStatsPublisher> stats_sink;
+
+    /// \brief Construct the prod (Aeron-backed) implementations of all five ports.
     ///
     /// Reads channel + stream-id assignments from `settings.aeron`. The
     /// supplied `aeron` shared client must already have a MediaDriver

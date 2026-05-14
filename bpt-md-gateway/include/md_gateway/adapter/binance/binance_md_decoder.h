@@ -7,6 +7,7 @@
 #include "md_gateway/adapter/common/subscription_map.h"
 #include "md_gateway/md/md_types.h"
 #include "md_gateway/messaging/funding_rate_publisher.h"
+#include "md_gateway/messaging/i_instrument_stats_publisher.h"
 
 #include <messages/TradeSide.h>
 
@@ -37,7 +38,8 @@ public:
     void decode(std::string_view payload,
                 uint64_t recv_ns,
                 Pub& pub,
-                messaging::FundingRateCallback& /*on_funding_rate*/) {
+                messaging::FundingRateCallback& /*on_funding_rate*/,
+                messaging::InstrumentStatsCallback& /*on_instrument_stats*/) {
         // Combined stream wrapper: {"stream":"<sym>@<type>","data":{...}}
         const uint64_t parse_start_ns = bpt::common::util::TscClock::now_mono_ns();
         pad(payload);

@@ -7,6 +7,7 @@
 #include "md_gateway/adapter/okx/okx_md_decoder.h"
 #include "md_gateway/md/md_types.h"
 #include "md_gateway/messaging/funding_rate_publisher.h"
+#include "md_gateway/messaging/i_instrument_stats_publisher.h"
 
 #include <cstdint>
 #include <gtest/gtest.h>
@@ -38,11 +39,13 @@ TEST(AdapterSmokeTest, BinanceBookTicker) {
     adapter::BinanceMdDecoder<CapturePub> parser(subs);
     CapturePub pub;
     messaging::FundingRateCallback fr;
+    messaging::InstrumentStatsCallback stats;
 
     parser.decode(R"({"stream":"btcusdt@bookTicker","data":{"b":"29990.50","B":"1.25","a":"29991.00","A":"0.75"}})",
                   0,
                   pub,
-                  fr);
+                  fr,
+        stats);
 
     ASSERT_TRUE(pub.last_bbo.has_value());
     EXPECT_EQ(pub.last_bbo->instrument_id, 100ULL);
@@ -58,12 +61,14 @@ TEST(AdapterSmokeTest, OkxBooks5) {
     adapter::OkxMdDecoder<CapturePub> parser(subs);
     CapturePub pub;
     messaging::FundingRateCallback fr;
+    messaging::InstrumentStatsCallback stats;
 
     parser.decode(
         R"({"arg":{"channel":"books5","instId":"BTC-USDT-SWAP"},"data":[{"bids":[["29990","1.5","0","1"]],"asks":[["29991","0.8","0","1"]]}]})",
         0,
         pub,
-        fr);
+        fr,
+        stats);
 
     ASSERT_TRUE(pub.last_bbo.has_value());
     EXPECT_EQ(pub.last_bbo->instrument_id, 200ULL);
@@ -78,12 +83,14 @@ TEST(AdapterSmokeTest, HyperliquidL2Book) {
     adapter::HyperliquidMdDecoder<CapturePub> parser(subs);
     CapturePub pub;
     messaging::FundingRateCallback fr;
+    messaging::InstrumentStatsCallback stats;
 
     parser.decode(
         R"({"channel":"l2Book","data":{"coin":"BTC","levels":[[{"px":"29990","sz":"1.5"}],[{"px":"29991","sz":"0.8"}]]}})",
         0,
         pub,
-        fr);
+        fr,
+        stats);
 
     ASSERT_TRUE(pub.last_bbo.has_value());
     EXPECT_EQ(pub.last_bbo->instrument_id, 300ULL);

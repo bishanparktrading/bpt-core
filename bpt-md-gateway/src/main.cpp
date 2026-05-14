@@ -37,6 +37,7 @@ int main(int argc, char* argv[]) {
                                                                                         std::move(bus.md_sink),
                                                                                         std::move(bus.ack_sink),
                                                                                         std::move(bus.funding_sink),
+                                                                                        std::move(bus.stats_sink),
                                                                                         ctx.topology);
                              });
     } catch (const std::exception& e) {

@@ -21,6 +21,7 @@ struct HLFundingFixture {
     test::FakeMdPublisher pub;
     std::optional<messaging::FundingRateUpdate> last_fr;
     messaging::FundingRateCallback fr_cb;
+    messaging::InstrumentStatsCallback stats_cb;
 
     HLFundingFixture() {
         fr_cb = [this](const messaging::FundingRateUpdate& fr) {
@@ -28,7 +29,7 @@ struct HLFundingFixture {
         };
     }
 
-    void inject(const char* msg, uint64_t recv_ns = 0) { parser.decode(msg, recv_ns, pub, fr_cb); }
+    void inject(const char* msg, uint64_t recv_ns = 0) { parser.decode(msg, recv_ns, pub, fr_cb, stats_cb); }
 };
 
 // ---------------------------------------------------------------------------

@@ -7,6 +7,7 @@
 #include "md_gateway/adapter/common/subscription_map.h"
 #include "md_gateway/md/md_types.h"
 #include "md_gateway/messaging/funding_rate_publisher.h"
+#include "md_gateway/messaging/i_instrument_stats_publisher.h"
 
 #include <messages/TradeSide.h>
 
@@ -45,7 +46,8 @@ public:
     void decode(std::string_view payload,
                 uint64_t recv_ns,
                 Pub& pub,
-                messaging::FundingRateCallback& /*on_funding_rate*/) {
+                messaging::FundingRateCallback& /*on_funding_rate*/,
+                messaging::InstrumentStatsCallback& on_instrument_stats) {
         const uint64_t parse_start_ns = bpt::common::util::TscClock::now_mono_ns();
         pad(payload);
 
@@ -93,6 +95,10 @@ public:
         } else if (channel.starts_with("book.")) {
             auto last_dot = channel.rfind('.');
             symbol = (last_dot > 5) ? channel.substr(5, last_dot - 5) : channel.substr(5);
+        } else if (channel.starts_with("ticker.")) {
+            // ticker.{symbol}.100ms — strip the prefix and the trailing ".100ms" cadence suffix
+            auto last_dot = channel.rfind('.');
+            symbol = (last_dot > 7) ? channel.substr(7, last_dot - 7) : channel.substr(7);
         } else {
             return;
         }
@@ -257,6 +263,45 @@ public:
                 pub.publish(book);
                 pub.publish(bbo);
             }
+            return;
+        }
+
+        // --- Ticker (slow-cadence instrument stats: OI, volume, mark, index, last) ---
+        // ticker.{symbol}.100ms carries per-instrument numeric fields that update
+        // every few seconds at most. Bundling them into one InstrumentStatsUpdate
+        // matches the source frame (atomic snapshot) and keeps the BBO firehose
+        // free of slow-cadence fields. Each field is optional — if Deribit doesn't
+        // provide it for this instrument type (spot has no OI, some non-perp tickers
+        // omit mark/index), we leave it as NaN via the struct's default initialiser.
+        if (channel.starts_with("ticker.")) {
+            if (!on_instrument_stats)
+                return;
+            simdjson::ondemand::object data;
+            if (data_val.get_object().get(data))
+                return;
+
+            messaging::InstrumentStatsUpdate stats;
+            stats.instrument_id = instrument_id;
+            stats.exchange_id = bpt::messages::ExchangeId::DERIBIT;
+            stats.collected_ts_ns = recv_ns;
+
+            // All fields are best-effort: simdjson .get() returns non-zero on
+            // missing/wrong-type, leaving the destination untouched. Since the
+            // struct's defaults are NaN, an absent field stays NaN in the
+            // published message — consumers detect via std::isnan.
+            (void)data.find_field_unordered("open_interest").get_double().get(stats.open_interest);
+            (void)data.find_field_unordered("mark_price").get_double().get(stats.mark_price);
+            (void)data.find_field_unordered("index_price").get_double().get(stats.index_price);
+            (void)data.find_field_unordered("last_price").get_double().get(stats.last_price);
+
+            // Deribit nests 24h volume under stats.volume (notional in base ccy
+            // for futures/perps, or in contracts for options — units differ).
+            simdjson::ondemand::object stats_obj;
+            if (!data.find_field_unordered("stats").get_object().get(stats_obj))
+                (void)stats_obj.find_field_unordered("volume").get_double().get(stats.volume_24h);
+
+            on_instrument_stats(stats);
+            return;
         }
     }
 

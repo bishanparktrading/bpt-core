@@ -25,6 +25,7 @@ refdata_status   = 1006
 md_control       = 2001
 md_data          = 2002
 md_ack_hb        = 2003
+instrument_stats    = 2004
 
 # Order-gateway / strategy
 order            = 3001

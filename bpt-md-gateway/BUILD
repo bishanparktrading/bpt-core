@@ -15,6 +15,7 @@ cc_library(
         "src/messaging/md_publisher.cpp",
         "src/messaging/ack_publisher.cpp",
         "src/messaging/funding_rate_publisher.cpp",
+        "src/messaging/instrument_stats_publisher.cpp",
         "src/adapter/common/subscription_map.cpp",
         "src/adapter/binance/binance_md_encoder.cpp",
         "src/adapter/binance/binance_funding_rate_stream.cpp",

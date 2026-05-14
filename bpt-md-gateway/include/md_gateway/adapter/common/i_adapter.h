@@ -4,6 +4,7 @@
 /// \brief Pure interface every md-gateway venue adapter implements.
 
 #include "md_gateway/messaging/funding_rate_publisher.h"
+#include "md_gateway/messaging/i_instrument_stats_publisher.h"
 
 #include <bpt_common/util/latency_histogram.h>
 #include <bpt_common/util/topology.h>
@@ -67,6 +68,9 @@ public:
 
     /// Called from the adapter's IO thread when a funding-rate update arrives. Set before start().
     messaging::FundingRateCallback on_funding_rate;
+
+    /// Called from the adapter's IO thread when an open-interest update arrives. Set before start().
+    messaging::InstrumentStatsCallback on_instrument_stats;
 
     /// \name Connection-lifecycle hooks
     ///

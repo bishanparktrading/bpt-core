@@ -120,7 +120,7 @@ protected:
     }
 
     void parse_frame(std::string_view payload, uint64_t recv_ns) override {
-        decoder_.decode(payload, recv_ns, this->validating_pub_, this->on_funding_rate);
+        decoder_.decode(payload, recv_ns, this->validating_pub_, this->on_funding_rate, this->on_instrument_stats);
         if (decoder_.take_test_request())
             ws_client_.signal_test_request();
     }

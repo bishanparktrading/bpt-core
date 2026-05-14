@@ -13,6 +13,7 @@
 #include "md_gateway/messaging/funding_rate_publisher.h"
 #include "md_gateway/messaging/md_control_subscriber.h"
 #include "md_gateway/messaging/md_publisher.h"
+#include "md_gateway/messaging/instrument_stats_publisher.h"
 
 namespace bpt::md_gateway::messaging {
 
@@ -28,6 +29,9 @@ AeronBus AeronBus::build(std::shared_ptr<aeron::Aeron> aeron, const config::Sett
     bus.funding_sink = std::make_shared<FundingRatePublisher>(aeron,
                                                               settings.aeron.funding_rate.channel,
                                                               settings.aeron.funding_rate.stream_id);
+    bus.stats_sink = std::make_shared<InstrumentStatsPublisher>(aeron,
+                                                          settings.aeron.instrument_stats.channel,
+                                                          settings.aeron.instrument_stats.stream_id);
     return bus;
 }
 

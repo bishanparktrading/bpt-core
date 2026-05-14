@@ -23,6 +23,7 @@
 #include "md_gateway/messaging/i_ack_publisher.h"
 #include "md_gateway/messaging/i_funding_rate_publisher.h"
 #include "md_gateway/messaging/i_md_control_source.h"
+#include "md_gateway/messaging/i_instrument_stats_publisher.h"
 #include "md_gateway/messaging/md_publisher.h"
 #include "md_gateway/metrics/metrics.h"
 #include "md_gateway/subscription/subscription_manager.h"
@@ -50,12 +51,14 @@ public:
     /// \param md_sink          publisher for normalised MD on the data stream
     /// \param ack_sink         publisher for acks + heartbeats
     /// \param funding_sink     publisher for funding-rate updates
+    /// \param stats_sink          publisher for open-interest updates
     /// \param topology         CPU-affinity map for IO/main thread pinning
     MdGatewayService(config::Settings cfg,
                  std::unique_ptr<messaging::IMdControlSource> control_source,
                  std::shared_ptr<messaging::MdPublisher> md_sink,
                  std::unique_ptr<messaging::IAckPublisher> ack_sink,
                  std::shared_ptr<messaging::IFundingRatePublisher> funding_sink,
+                 std::shared_ptr<messaging::IInstrumentStatsPublisher> stats_sink,
                  const bpt::common::util::Topology& topology);
 
     /// \brief Block running the main poll loop until stop() is called.
@@ -69,6 +72,7 @@ private:
     metrics::MdGatewayMetrics metrics_;
     std::shared_ptr<messaging::MdPublisher> md_pub_;
     std::shared_ptr<messaging::IFundingRatePublisher> funding_pub_;
+    std::shared_ptr<messaging::IInstrumentStatsPublisher> stats_pub_;
     std::unique_ptr<messaging::IAckPublisher> ack_pub_;
     std::unique_ptr<messaging::IMdControlSource> ctrl_sub_;
     subscription::SubscriptionManager sub_mgr_;

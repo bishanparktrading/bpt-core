@@ -95,6 +95,7 @@ Settings load(const std::string& path) {
     s.aeron.md_data = resolve_stream(shared_streams, "md_data", 2002);
     s.aeron.md_ack_hb = resolve_stream(shared_streams, "md_ack_hb", 2003);
     s.aeron.funding_rate = resolve_stream(shared_streams, "funding_rate", 1005);
+    s.aeron.instrument_stats = resolve_stream(shared_streams, "instrument_stats", 2004);
 
     for (auto& elem : adapters_arr) {
         auto* a = elem.as_table();

@@ -8,6 +8,7 @@
 #include "md_gateway/md/md_types.h"
 #include "md_gateway/md/sorted_ladder.h"
 #include "md_gateway/messaging/funding_rate_publisher.h"
+#include "md_gateway/messaging/i_instrument_stats_publisher.h"
 
 #include <messages/ExchangeId.h>
 #include <messages/TradeSide.h>
@@ -49,7 +50,11 @@ class OkxMdDecoder : public JsonDecoderBase {
 public:
     explicit OkxMdDecoder(const SubscriptionMap& subs) : subs_(subs) {}
 
-    void decode(std::string_view payload, uint64_t recv_ns, Pub& pub, messaging::FundingRateCallback& on_funding_rate) {
+    void decode(std::string_view payload,
+                uint64_t recv_ns,
+                Pub& pub,
+                messaging::FundingRateCallback& on_funding_rate,
+                messaging::InstrumentStatsCallback& /*on_instrument_stats*/) {
         const uint64_t parse_start_ns = bpt::common::util::TscClock::now_mono_ns();
         pad(payload);
 

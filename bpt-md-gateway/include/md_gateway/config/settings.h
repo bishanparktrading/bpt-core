@@ -30,6 +30,7 @@ struct AeronConfig {
     bpt::common::config::StreamConfig md_data{"aeron:ipc", 2002};       ///< MdGateway → Strategy: market data
     bpt::common::config::StreamConfig md_ack_hb{"aeron:ipc", 2003};     ///< MdGateway → Strategy: acks + heartbeats
     bpt::common::config::StreamConfig funding_rate{"aeron:ipc", 1005};  ///< MdGateway → Strategy: funding rates
+    bpt::common::config::StreamConfig instrument_stats{"aeron:ipc", 2004};  ///< MdGateway → consumers: open interest
 };
 
 /// \brief Per-exchange adapter configuration.

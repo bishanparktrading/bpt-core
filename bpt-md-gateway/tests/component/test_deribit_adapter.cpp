@@ -14,8 +14,9 @@ struct DeribitParserFixture {
     DeribitMdDecoder<test::FakeMdPublisher> parser{subs};
     test::FakeMdPublisher pub;
     messaging::FundingRateCallback fr_cb;
+    messaging::InstrumentStatsCallback stats_cb;
 
-    void inject(const char* msg, uint64_t recv_ns = 0) { parser.decode(msg, recv_ns, pub, fr_cb); }
+    void inject(const char* msg, uint64_t recv_ns = 0) { parser.decode(msg, recv_ns, pub, fr_cb, stats_cb); }
 };
 
 // ── BBO (quote channel) ───────────────────────────────────────────────────────

@@ -428,4 +428,22 @@
     </group>
   </sbe:message>
 
+  <!-- Slow-cadence per-instrument numeric stats from the venue ticker channel.
+       Sibling of MdMarketData (BBO) on its own stream so BBO firehose consumers
+       don't pay decode cost on every tick for fields that update every few
+       seconds. Optional fields use NaN as the absent-value sentinel — publisher
+       writes NaN for any field the venue didn't provide for this instrument
+       (e.g. markPrice for spot, openInterest for instruments without OI).
+       Units are venue-native; consumers reconcile via bpt-refdata. -->
+  <sbe:message name="InstrumentStats" id="29">
+    <field name="exchangeId" id="1" type="ExchangeId"/>
+    <field name="instrumentId" id="2" type="uint64"/>
+    <field name="openInterest" id="3" type="double"/>
+    <field name="volume24h" id="4" type="double"/>
+    <field name="markPrice" id="5" type="double"/>
+    <field name="indexPrice" id="6" type="double"/>
+    <field name="lastPrice" id="7" type="double"/>
+    <field name="collectedTs" id="8" type="uint64"/>
+  </sbe:message>
+
 </sbe:messageSchema>
