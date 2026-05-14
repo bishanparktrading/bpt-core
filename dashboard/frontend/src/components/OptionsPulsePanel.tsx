@@ -60,12 +60,17 @@ function rrClass(v: Num): string {
   return n < 0 ? 'stat-value--red' : 'stat-value--green'
 }
 
-export function OptionsPulsePanel() {
+export function OptionsPulsePanel({ underlying }: { underlying?: string | null } = {}) {
   const marketColor = useStore((s) => s.marketColor)
 
-  // Multi-underlying pick: deterministic — sort keys alphabetically and take
-  // the first. Replace with tabs/selector when a second underlying lands.
-  const entry = marketColor ? Object.entries(marketColor).sort(([a], [b]) => a.localeCompare(b))[0] : undefined
+  // Caller picks an underlying via prop (e.g. RadarApp's tab strip).
+  // When the prop is unset or doesn't match, fall back to first-alphabetical
+  // so single-underlying setups still render without extra wiring.
+  const entry = marketColor
+    ? underlying && marketColor[underlying]
+      ? ([underlying, marketColor[underlying]] as [string, (typeof marketColor)[string]])
+      : Object.entries(marketColor).sort(([a], [b]) => a.localeCompare(b))[0]
+    : undefined
 
   if (!entry) {
     return (
@@ -81,14 +86,14 @@ export function OptionsPulsePanel() {
     )
   }
 
-  const [underlying, msg] = entry
+  const [renderedUnderlying, msg] = entry
   const o = msg.options
   const oiCoverage = o.strikeCount > 0 ? o.strikesWithOi / o.strikeCount : 0
 
   return (
     <div className="panel" style={{ gridArea: 'options-pulse' }}>
       <div className="panel-header">
-        <span className="panel-title">Options Pulse · {underlying}</span>
+        <span className="panel-title">Options Pulse · {renderedUnderlying}</span>
         <span className="panel-badge">
           {msg.exchange} · {o.strikeCount} strikes · {o.expiryCount} exp
         </span>
