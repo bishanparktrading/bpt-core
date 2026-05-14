@@ -105,4 +105,35 @@ std::string toxicity(double bid_markout_5s,
                      double bid_ttf_ms,
                      double ask_ttf_ms);
 
+// { "type":"marketColor", "ts":..., "exchange":"...", "underlying":"BTC",
+//   "options": { ...front/back/term/gex/maxPain... } }
+//
+// Domain-grouped under "options" so future radar sections (perp, flow,
+// regime) land as sibling keys without churning the wire shape consumers
+// already depend on. NaN doubles encode as null; the frontend treats
+// `value == null` as "not yet computed".
+struct OptionsMarketColor {
+    uint32_t front_expiry_yyyymmdd;
+    double front_time_to_expiry_y;
+    double front_forward_price;
+    double front_atm_iv;
+    double front_rr_25d;
+    double front_skew_slope;
+    uint32_t back_expiry_yyyymmdd;
+    double back_time_to_expiry_y;
+    double back_atm_iv;
+    double term_spread;
+    double gex;
+    double max_pain_strike;
+    double total_oi;
+    uint32_t strike_count;
+    uint32_t expiry_count;
+    uint32_t strikes_with_oi;
+};
+
+std::string market_color(uint64_t ts_ns,
+                         std::string_view exchange,
+                         std::string_view underlying,
+                         const OptionsMarketColor& options);
+
 }  // namespace bpt::bridge::encode

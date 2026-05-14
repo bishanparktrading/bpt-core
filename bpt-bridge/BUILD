@@ -23,6 +23,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//bpt-analytics:analytics_core",
+        "//bpt-radar:radar_messages",
         "//messages",
         "//bpt-app",
         "//bpt-common",

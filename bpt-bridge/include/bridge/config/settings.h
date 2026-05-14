@@ -22,6 +22,7 @@ struct Settings {
     bpt::common::config::StreamConfig portfolio{"aeron:ipc", 9004};          // Strategy → bridge (portfolio state)
     bpt::common::config::StreamConfig account_snapshot{"aeron:ipc", 3004};   // OrderGateway → bridge (live balance)
     bpt::common::config::StreamConfig toxicity{"aeron:ipc", 0};              // Analytics → bridge (ToxicityUpdate)
+    bpt::common::config::StreamConfig market_color{"aeron:ipc", 0};          // Radar → bridge (MarketColor)
 
     // WebSocket
     uint16_t ws_port{8080};

@@ -13,7 +13,7 @@ if (import.meta.hot) {
 }
 
 import { create } from 'zustand'
-import type { ConnectionStatus, InstrumentType, Msg, OrderMsg, RunMode } from './types/messages'
+import type { ConnectionStatus, InstrumentType, MarketColorMsg, Msg, OrderMsg, RunMode } from './types/messages'
 import type { Fill } from './components/Blotter'
 import type { OptionLeg, PortfolioGreeks, VolSmileSlice, VolSurfacePoint } from './types/options'
 import { sendCommand } from './ws/client'
@@ -125,7 +125,7 @@ interface State {
   // wipe visible history.
   fundingHistory: FundingSample[]
 
-  // Tyr toxicity scores — updated by 'toxicity' messages from the bridge.
+  // bpt-analytics toxicity scores — updated by 'toxicity' messages from the bridge.
   toxicity: {
     bidMarkout5s: number
     askMarkout5s: number
@@ -140,6 +140,13 @@ interface State {
     bidTtfMs: number
     askTtfMs: number
   } | null
+
+  // bpt-radar market color — keyed by underlying so multiple radar feeds
+  // (BTC, ETH, ...) coexist without overwriting each other. Null inner
+  // sections (options is the only one wired today) mean "radar hasn't
+  // published for this domain yet"; numeric fields inside a section can
+  // be null when the analysis module ran but had insufficient data.
+  marketColor: Record<string, MarketColorMsg> | null
 
   // Kill-switch state: tracks the previous status so resume() can restore
   // the connection dot to whatever it was before the halt.  In slice (a)
@@ -186,6 +193,7 @@ const initialState = {
   strategyState: null as State['strategyState'],
   fundingHistory: [] as FundingSample[],
   toxicity: null as State['toxicity'],
+  marketColor: null as State['marketColor'],
   preHaltStatus: null as ConnectionStatus | null,
 }
 
@@ -386,6 +394,14 @@ export const useStore = create<State>((set) => ({
               askFillRate: msg.askFillRate,
               bidTtfMs: msg.bidTtfMs,
               askTtfMs: msg.askTtfMs,
+            },
+          }
+
+        case 'marketColor':
+          return {
+            marketColor: {
+              ...(state.marketColor ?? {}),
+              [msg.underlying]: msg,
             },
           }
 

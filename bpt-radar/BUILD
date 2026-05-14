@@ -2,6 +2,16 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
+# Header-only domain message struct. Tiny target so consumers (e.g. bpt-bridge)
+# can include `radar/messaging/market_color.h` without pulling in Aeron deps
+# they don't need.
+cc_library(
+    name = "radar_messages",
+    hdrs = ["include/radar/messaging/market_color.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+)
+
 # Pure-logic analysis modules — no Aeron, testable in isolation.
 cc_library(
     name = "radar_core",

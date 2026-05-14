@@ -23,7 +23,8 @@ enum class MsgKind : uint8_t {
     Fill,      // appended to rolling buffer
     Position,  // latest wins (per symbol)
     Order,     // not snapshotted — transient lifecycle events
-    Toxicity,  // latest wins — analytics toxicity scores
+    Toxicity,     // latest wins — analytics toxicity scores
+    MarketColor,  // latest wins (per underlying) — radar market-color snapshot
 };
 
 // Minimal broadcast-style WebSocket server with session replay.
@@ -71,6 +72,7 @@ private:
         std::shared_ptr<const std::string> tick_msg;
         std::shared_ptr<const std::string> position_msg;
         std::shared_ptr<const std::string> toxicity_msg;
+        std::shared_ptr<const std::string> market_color_msg;
         std::deque<std::shared_ptr<const std::string>> fills;
     };
 

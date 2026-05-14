@@ -165,7 +165,7 @@ export interface PortfolioMsg {
   }>
 }
 
-// Live toxicity scores from Tyr via the bridge.
+// Live toxicity scores from bpt-analytics via the bridge.
 export interface ToxicityMsg {
   type: 'toxicity'
   bidMarkout5s: number
@@ -290,6 +290,43 @@ export interface FundingArbStrategyState extends BaseStrategyState {
 
 export type StrategyStateMsg = ASStrategyState | FundingArbStrategyState
 
+// Market-color snapshot from bpt-radar via the bridge. One message per
+// (exchange, underlying) every ~2s. Fields are grouped by domain so the
+// wire shape can grow as new analysis modules (perp, flow, regime) come
+// online without breaking consumers of the existing sections.
+//
+// Today only the `options` section is populated. Numeric fields can be
+// `null` (encoded from C++ NaN) when the analysis module didn't have
+// enough data to compute that metric — render those as "—" not "0".
+export interface OptionsMarketColor {
+  frontExpiry: number // YYYYMMDD
+  frontTimeToExpiryY: number | null
+  frontForwardPrice: number | null
+  frontAtmIv: number | null
+  frontRr25d: number | null
+  frontSkewSlope: number | null
+  backExpiry: number // YYYYMMDD
+  backTimeToExpiryY: number | null
+  backAtmIv: number | null
+  termSpread: number | null
+  gex: number | null
+  maxPainStrike: number | null
+  totalOi: number | null
+  strikeCount: number
+  expiryCount: number
+  strikesWithOi: number
+}
+
+export interface MarketColorMsg {
+  type: 'marketColor'
+  ts: number // ns since epoch
+  exchange: string // e.g. "DERIBIT"
+  underlying: string // e.g. "BTC"
+  options: OptionsMarketColor
+  // Future: perp?, flow?, regime? — sections light up as the corresponding
+  // radar analysis modules get built.
+}
+
 export type Msg =
   | SessionMsg
   | StatusMsg
@@ -300,4 +337,5 @@ export type Msg =
   | PortfolioMsg
   | AccountMsg
   | ToxicityMsg
+  | MarketColorMsg
   | StrategyStateMsg

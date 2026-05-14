@@ -1,10 +1,22 @@
 #include "bridge/ws/message_encoder.h"
 
+#include <cmath>
 #include <nlohmann/json.hpp>
 
 namespace bpt::bridge::encode {
 
 using nlohmann::json;
+
+namespace {
+
+// nlohmann/json refuses to serialise NaN as a JSON number; encode it as `null`
+// so the frontend can use `value == null` to mean "not computed yet" rather
+// than collapsing to 0 or a sentinel double.
+json finite_or_null(double v) {
+    return std::isfinite(v) ? json(v) : json(nullptr);
+}
+
+}  // namespace
 
 std::string session(std::string_view symbol,
                     std::string_view strategy,
@@ -162,6 +174,38 @@ std::string toxicity(double bid_markout_5s,
         {"askFillRate", ask_fill_rate},
         {"bidTtfMs", bid_ttf_ms},
         {"askTtfMs", ask_ttf_ms},
+    }
+        .dump();
+}
+
+std::string market_color(uint64_t ts_ns,
+                         std::string_view exchange,
+                         std::string_view underlying,
+                         const OptionsMarketColor& o) {
+    json options = {
+        {"frontExpiry", o.front_expiry_yyyymmdd},
+        {"frontTimeToExpiryY", finite_or_null(o.front_time_to_expiry_y)},
+        {"frontForwardPrice", finite_or_null(o.front_forward_price)},
+        {"frontAtmIv", finite_or_null(o.front_atm_iv)},
+        {"frontRr25d", finite_or_null(o.front_rr_25d)},
+        {"frontSkewSlope", finite_or_null(o.front_skew_slope)},
+        {"backExpiry", o.back_expiry_yyyymmdd},
+        {"backTimeToExpiryY", finite_or_null(o.back_time_to_expiry_y)},
+        {"backAtmIv", finite_or_null(o.back_atm_iv)},
+        {"termSpread", finite_or_null(o.term_spread)},
+        {"gex", finite_or_null(o.gex)},
+        {"maxPainStrike", finite_or_null(o.max_pain_strike)},
+        {"totalOi", finite_or_null(o.total_oi)},
+        {"strikeCount", o.strike_count},
+        {"expiryCount", o.expiry_count},
+        {"strikesWithOi", o.strikes_with_oi},
+    };
+    return json{
+        {"type", "marketColor"},
+        {"ts", ts_ns},
+        {"exchange", exchange},
+        {"underlying", underlying},
+        {"options", std::move(options)},
     }
         .dump();
 }

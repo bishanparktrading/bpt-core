@@ -8,6 +8,8 @@
 #include "bridge/ws/ws_server.h"
 
 #include <analytics/messaging/toxicity_update.h>
+#include <radar/messaging/market_color.h>
+
 #include <bpt_common/aeron/aeron_utils.h>
 #include <bpt_common/logging.h>
 #include <bpt_common/signal.h>
@@ -49,6 +51,14 @@ void BridgeService::run() {
         tox_sub =
             bpt::common::aeron::wait_for_subscription(aeron_, settings_.toxicity.channel, settings_.toxicity.stream_id);
         bpt::common::log::info("toxicity subscription ready on stream {}", settings_.toxicity.stream_id);
+    }
+
+    std::shared_ptr<aeron::Subscription> mc_sub;
+    if (settings_.market_color.stream_id != 0) {
+        mc_sub = bpt::common::aeron::wait_for_subscription(aeron_,
+                                                           settings_.market_color.channel,
+                                                           settings_.market_color.stream_id);
+        bpt::common::log::info("market_color subscription ready on stream {}", settings_.market_color.stream_id);
     }
 
     // Control publication (bridge → Strategy): 1-byte commands 0x00=HALT, 0x01=RESUME.
@@ -224,6 +234,51 @@ void BridgeService::run() {
                                                 u.ask_fill_rate,
                                                 u.bid_ttf_ms,
                                                 u.ask_ttf_ms));
+                },
+                4);
+        }
+
+        if (mc_sub) {
+            work += mc_sub->poll(
+                [&ws](aeron::AtomicBuffer& buffer,
+                      aeron::util::index_t offset,
+                      aeron::util::index_t length,
+                      aeron::Header& /*hdr*/) {
+                    if (static_cast<std::size_t>(length) != sizeof(bpt::radar::messaging::MarketColor))
+                        return;
+                    bpt::radar::messaging::MarketColor mc;
+                    std::memcpy(&mc, buffer.buffer() + offset, sizeof(mc));
+
+                    encode::OptionsMarketColor opts{
+                        .front_expiry_yyyymmdd = mc.options_front_expiry_yyyymmdd,
+                        .front_time_to_expiry_y = mc.options_front_time_to_expiry_y,
+                        .front_forward_price = mc.options_front_forward_price,
+                        .front_atm_iv = mc.options_front_atm_iv,
+                        .front_rr_25d = mc.options_front_rr_25d,
+                        .front_skew_slope = mc.options_front_skew_slope,
+                        .back_expiry_yyyymmdd = mc.options_back_expiry_yyyymmdd,
+                        .back_time_to_expiry_y = mc.options_back_time_to_expiry_y,
+                        .back_atm_iv = mc.options_back_atm_iv,
+                        .term_spread = mc.options_term_spread,
+                        .gex = mc.options_gex,
+                        .max_pain_strike = mc.options_max_pain_strike,
+                        .total_oi = mc.options_total_oi,
+                        .strike_count = mc.options_strike_count,
+                        .expiry_count = mc.options_expiry_count,
+                        .strikes_with_oi = mc.options_strikes_with_oi,
+                    };
+
+                    // ExchangeId -> short label. Could go through ExchangeId::c_str
+                    // but bridge already labels via settings.exchange for the
+                    // session message; for market_color the venue can differ per
+                    // underlying (BTC on Deribit, ETH on Deribit, future BTC-perp
+                    // on Binance), so derive from the message field directly.
+                    static const char* kVenue[] = {"UNKNOWN", "BINANCE", "OKX", "HYPERLIQUID", "DERIBIT"};
+                    const char* venue = (mc.exchange_id < 5) ? kVenue[mc.exchange_id] : "UNKNOWN";
+
+                    // underlying is null-padded in the POD; treat as C-string.
+                    const char* under = mc.underlying;
+                    ws.publish(MsgKind::MarketColor, encode::market_color(mc.timestamp_ns, venue, under, opts));
                 },
                 4);
         }

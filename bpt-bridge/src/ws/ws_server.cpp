@@ -234,6 +234,9 @@ void WsServer::update_snapshot(MsgKind kind, std::shared_ptr<const std::string> 
         case MsgKind::Toxicity:
             snapshot_.toxicity_msg = std::move(msg);
             break;
+        case MsgKind::MarketColor:
+            snapshot_.market_color_msg = std::move(msg);
+            break;
         case MsgKind::Fill:
             snapshot_.fills.push_back(std::move(msg));
             while (snapshot_.fills.size() > Snapshot::kMaxFills)
@@ -259,6 +262,8 @@ void WsServer::replay_snapshot_to(const std::shared_ptr<WsSession>& session) {
         session->enqueue(snapshot_.position_msg);
     if (snapshot_.toxicity_msg)
         session->enqueue(snapshot_.toxicity_msg);
+    if (snapshot_.market_color_msg)
+        session->enqueue(snapshot_.market_color_msg);
 }
 
 void WsServer::add_session(std::shared_ptr<WsSession> session) {
