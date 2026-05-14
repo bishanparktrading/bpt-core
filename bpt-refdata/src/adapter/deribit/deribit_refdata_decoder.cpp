@@ -31,6 +31,29 @@ bpt::messages::InstrumentType::Value to_sbe_inst_type(refdata::InstrumentType t)
     }
 }
 
+// Deterministically derive a canonical_id for a Deribit instrument from its
+// venue symbol. Used as a fallback when the static mapping JSON doesn't
+// include the instrument — Deribit's option chain churns daily (new strikes
+// listed as spot moves, weekly/monthly expirations), so a hand-curated
+// mapping can't keep up. Stable across processes, runs, and restarts so
+// every consumer (refdata, md-gateway, pricer, radar) agrees on the ID
+// without any coordination beyond agreeing on the function itself.
+//
+// Hash: FNV-1a 32-bit. Output placed in the 10M-100M canonical_id band so it
+// never collides with the curated 1001-3999 range used for PERP/SPOT/FUTURE
+// on other venues (see InstrumentMappingLoader docs). With ~10k Deribit
+// instruments and 90M slots, expected collisions are < 1e-6 — acceptable for
+// a venue where the canonical_id is purely a join key, not load-bearing for
+// risk or settlement.
+uint32_t derive_deribit_canonical_id(const std::string& instrument_name) {
+    uint32_t h = 0x811c9dc5u;
+    for (unsigned char c : instrument_name) {
+        h ^= c;
+        h *= 0x01000193u;
+    }
+    return (h % 90'000'000u) + 10'000'000u;
+}
+
 // Determine instrument type from Deribit kind + settlement_period.
 // kind=future with settlement_period=perpetual → PERP
 // kind=future otherwise → FUTURE
@@ -92,13 +115,19 @@ std::vector<DeribitRefdataDecoder::InstrumentWithFee> DeribitRefdataDecoder::par
             continue;
 
         // Deribit symbols are unique per type (BTC-PERPETUAL, BTC-28MAR25, ...).
-        auto cid = mapping_->try_resolve_canonical_id(mapping::EXCHANGE_ID_DERIBIT, instrument_name);
-        if (!cid)
-            continue;
+        // Fall back to deterministic derivation when the static mapping JSON
+        // doesn't list this instrument — Deribit's option chain is dynamic,
+        // so most option strikes will miss the curated map.
+        uint32_t canonical_id;
+        if (auto cid = mapping_->try_resolve_canonical_id(mapping::EXCHANGE_ID_DERIBIT, instrument_name)) {
+            canonical_id = *cid;
+        } else {
+            canonical_id = derive_deribit_canonical_id(instrument_name);
+        }
 
         InstrumentWithFee iwf;
         refdata::Instrument& inst = iwf.instrument;
-        inst.inst_uid = mapping::make_inst_uid(*cid, mapping::EXCHANGE_ID_DERIBIT);
+        inst.inst_uid = mapping::make_inst_uid(canonical_id, mapping::EXCHANGE_ID_DERIBIT);
         inst.venue = "DERIBIT";
         inst.venue_symbol = instrument_name;
         inst.display_name = instrument_name;

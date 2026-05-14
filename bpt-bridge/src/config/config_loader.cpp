@@ -73,6 +73,7 @@ Settings load(const std::string& path, const std::string& profile_override) {
     s.portfolio = resolve_stream(shared_streams, "portfolio", 9004);
     s.account_snapshot = resolve_stream(shared_streams, "account_snapshot", 3004);
     s.toxicity = resolve_stream(shared_streams, "toxicity", 0);
+    s.market_color = resolve_stream(shared_streams, "market_color", 0);
 
     // WebSocket
     if (auto* ws = root["ws"].as_table()) {
