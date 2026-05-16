@@ -2,9 +2,9 @@
 
 /// @file
 /// SBE codec for VolSurfaceGrid ↔ wire bytes. Pure utility class with no
-/// transport dependency — composed by AeronVolSurfacePublisher in prod;
+/// transport dependency — composed by aeron::VolSurfacePublisher in prod;
 /// a future TapeVolSurfaceRecorder or JsonVolSurfaceDebugFeed reuses it
-/// against a different sink. An in-process bus bypasses it entirely.
+/// against a different sink. The sim variant bypasses it entirely.
 ///
 /// Statically testable as a round-trip pair without an Aeron driver
 /// (cf. tests/test_sbe_vol_surface_codec.cpp): `decode(encode(x)) == x`.
@@ -40,7 +40,7 @@ public:
     surface::VolSurfaceGrid decode(std::span<const std::byte> bytes);
 
     /// 56KB fits a worst-case 400-point grid × ~140 bytes/point. Same
-    /// upper bound the previous AeronVolSurfacePublisher::publish used.
+    /// upper bound the previous inline-encode publish path used.
     static constexpr std::size_t kRecommendedScratchSize = 65536;
 };
 

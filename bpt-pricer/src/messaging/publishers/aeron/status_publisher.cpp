@@ -1,38 +1,38 @@
-#include "pricer/messaging/publishers/aeron_status_publisher.h"
+#include "pricer/messaging/publishers/aeron/status_publisher.h"
 
 #include <bpt_common/aeron/aeron_utils.h>
 #include <bpt_common/logging.h>
 
 #include <cstddef>
 
-namespace bpt::pricer::messaging {
+namespace bpt::pricer::messaging::aeron {
 
-AeronStatusPublisher::AeronStatusPublisher(std::shared_ptr<aeron::Aeron> aeron,
-                                           const std::string& channel,
-                                           int32_t stream_id) {
+StatusPublisher::StatusPublisher(std::shared_ptr<::aeron::Aeron> aeron,
+                                 const std::string& channel,
+                                 int32_t stream_id) {
     pub_ = bpt::common::aeron::wait_for_publication(aeron, channel, stream_id);
-    bpt::common::log::info("[AeronStatusPublisher] Publication ready on {} stream {}", channel, stream_id);
+    bpt::common::log::info("[aeron::StatusPublisher] Publication ready on {} stream {}", channel, stream_id);
 }
 
-void AeronStatusPublisher::publish_heartbeat(uint64_t timestamp_ns, uint64_t seq_num) {
+void StatusPublisher::publish_heartbeat(uint64_t timestamp_ns, uint64_t seq_num) {
     if (!pub_)
         return;
     alignas(8) std::byte scratch[SbePricerHeartbeatCodec::kRecommendedScratchSize];
     const auto bytes = hb_codec_.encode(PricerHeartbeatMsg{timestamp_ns, seq_num}, scratch);
-    aeron::concurrent::AtomicBuffer buffer(reinterpret_cast<uint8_t*>(scratch), bytes.size());
+    ::aeron::concurrent::AtomicBuffer buffer(reinterpret_cast<uint8_t*>(scratch), bytes.size());
     pub_->offer(buffer, 0, static_cast<int32_t>(bytes.size()));
 }
 
-void AeronStatusPublisher::publish_ready(uint64_t timestamp_ns,
-                                         uint8_t exchanges_loaded,
-                                         uint16_t underlying_count,
-                                         uint32_t point_count) {
+void StatusPublisher::publish_ready(uint64_t timestamp_ns,
+                                    uint8_t exchanges_loaded,
+                                    uint16_t underlying_count,
+                                    uint32_t point_count) {
     if (!pub_)
         return;
     alignas(8) std::byte scratch[SbePricerReadyCodec::kRecommendedScratchSize];
     const PricerReadyMsg msg{timestamp_ns, exchanges_loaded, underlying_count, point_count};
     const auto bytes = ready_codec_.encode(msg, scratch);
-    aeron::concurrent::AtomicBuffer buffer(reinterpret_cast<uint8_t*>(scratch), bytes.size());
+    ::aeron::concurrent::AtomicBuffer buffer(reinterpret_cast<uint8_t*>(scratch), bytes.size());
     pub_->offer(buffer, 0, static_cast<int32_t>(bytes.size()));
 
     bpt::common::log::info("Published PricerReady: exchanges=0x{:02x} underlyings={} points={}",
@@ -41,4 +41,4 @@ void AeronStatusPublisher::publish_ready(uint64_t timestamp_ns,
                            point_count);
 }
 
-}  // namespace bpt::pricer::messaging
+}  // namespace bpt::pricer::messaging::aeron

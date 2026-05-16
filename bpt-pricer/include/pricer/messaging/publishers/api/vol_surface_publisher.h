@@ -1,14 +1,14 @@
 #pragma once
 
 /// @file
-/// IVolSurfacePublisher — port interface for the vol-surface output channel.
+/// Port interface for the vol-surface output channel.
 ///
 /// Lets PricerService publish a `surface::VolSurfaceGrid` without knowing
-/// the transport. The Aeron+SBE concrete is in
-/// `aeron_vol_surface_publisher.h`; an in-process concrete (direct
-/// std::function dispatch, no encode) is the obvious sibling for the
-/// deterministic backtester. Both are constructed at the composition root
-/// (PricerAeronBus / future InProcessBus); the service only sees the port.
+/// the transport. The Aeron+SBE concrete is in `aeron/vol_surface_publisher.h`;
+/// the codec-bypass sim variant for the deterministic backtester is in
+/// `sim/vol_surface_publisher.h`. Both are constructed at the composition
+/// root (PricerAeronBus / future InProcessBus); the service only sees this
+/// port.
 ///
 /// Vtable cost: one virtual dispatch per publish call. Vol surface
 /// publishes are off the MD hot path (one per surface rebuild, ~Hz
@@ -20,11 +20,11 @@
 
 #include <cstdint>
 
-namespace bpt::pricer::messaging {
+namespace bpt::pricer::messaging::api {
 
-class IVolSurfacePublisher {
+class VolSurfacePublisher {
 public:
-    virtual ~IVolSurfacePublisher() = default;
+    virtual ~VolSurfacePublisher() = default;
 
     /// Publish a fully-built vol surface grid. `timestamp_ns` is the
     /// wall-clock instant at which the grid is consistent (typically
@@ -33,4 +33,4 @@ public:
     virtual void publish(const surface::VolSurfaceGrid& grid, uint64_t timestamp_ns) = 0;
 };
 
-}  // namespace bpt::pricer::messaging
+}  // namespace bpt::pricer::messaging::api

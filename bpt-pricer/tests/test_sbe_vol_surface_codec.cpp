@@ -3,7 +3,7 @@
 ///
 /// First test file in the bpt-pricer tree that exercises a *codec* in
 /// isolation. Previously the SBE encode lived inside
-/// AeronVolSurfacePublisher::publish — testing it required standing up
+/// aeron::VolSurfacePublisher::publish — testing it required standing up
 /// an Aeron pub/sub pair. With the codec extracted as a pure utility,
 /// these tests run in microseconds without any IPC.
 
