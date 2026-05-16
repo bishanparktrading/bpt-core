@@ -2,6 +2,8 @@
 
 #include <boost/json.hpp>
 
+#include <cmath>
+
 namespace bpt::order_gateway::adapter::deribit {
 
 namespace json = boost::json;
@@ -46,12 +48,42 @@ std::string build_auth_msg(std::string_view client_id, std::string_view client_s
     return serialise_rpc("public/auth", std::move(params), req_id);
 }
 
+// Deribit options use price-tiered tick sizes:
+//   price <  0.005 → tick 0.0001
+//   price >= 0.005 → tick 0.0005
+// Refdata captures only the base `tick_size` (0.0001 for the low tier), so
+// the OrderManager rounds to 0.0001 — but prices ≥ 0.005 BTC (every quote
+// the options-maker emits) must be a multiple of 0.0005 or Deribit rejects
+// with `"must conform to tick size"` (2026-05-15 post-mortem). Proper fix
+// is refdata-side tick_size_steps support; this is the localised
+// workaround that unblocks live quoting today.
+//
+// Perps use a flat USD tick (e.g. 0.5 for BTC-PERP) which refdata
+// captures correctly — so we only adjust for option instrument names
+// (suffix -C or -P).
+static double tick_for_option_price(double price) {
+    return price < 0.005 ? 0.0001 : 0.0005;
+}
+
+static bool is_option(const std::string& instrument_name) {
+    if (instrument_name.size() < 2)
+        return false;
+    const char last = instrument_name.back();
+    return (last == 'C' || last == 'P')
+           && instrument_name[instrument_name.size() - 2] == '-';
+}
+
 std::string build_new_order_msg(const OrderSpec& spec, uint64_t req_id) {
     using OT = bpt::messages::OrderType;
     using OS = bpt::messages::OrderSide;
 
-    const double price = static_cast<double>(spec.price_e8) / kScale;
+    double price = static_cast<double>(spec.price_e8) / kScale;
     const double amount = static_cast<double>(spec.quantity_e8) / kScale;
+
+    if (spec.order_type != OT::MARKET && is_option(spec.instrument_name)) {
+        const double tick = tick_for_option_price(price);
+        price = std::round(price / tick) * tick;
+    }
 
     json::object params;
     params["instrument_name"] = spec.instrument_name;

@@ -89,18 +89,47 @@ void DeribitOrderAdapter::handle_message(const std::string& payload, uint64_t re
     }
 
     // JSON-RPC responses (id-based)
-    if (obj.find("id") == obj.end())
+    auto id_it = obj.find("id");
+    if (id_it == obj.end())
         return;
+
+    // Resolve any sync-waiter for this id (account snapshot path). We do
+    // this BEFORE the order-response dispatch so a snapshot RPC can't
+    // accidentally be re-routed to the exec decoder.
+    const uint64_t rpc_id = id_it->value().to_number<uint64_t>();
+    std::shared_ptr<std::promise<boost::json::value>> waiter;
+    {
+        std::lock_guard<std::mutex> lk(pending_responses_mu_);
+        auto pit = pending_responses_.find(rpc_id);
+        if (pit != pending_responses_.end()) {
+            waiter = pit->second;
+            pending_responses_.erase(pit);
+        }
+    }
+    if (waiter) {
+        // Hand the whole envelope back — caller picks `result` or `error`.
+        waiter->set_value(root);
+        return;
+    }
 
     if (auto err_it = obj.find("error"); err_it != obj.end()) {
         const auto& err = err_it->value().as_object();
         int64_t code = 0;
         std::string errmsg;
+        std::string data_str;
         if (auto cit = err.find("code"); cit != err.end())
             code = cit->value().to_number<int64_t>();
         if (auto mit = err.find("message"); mit != err.end())
             errmsg = std::string(mit->value().as_string());
-        bpt::common::log::error("DeribitOrderAdapter: JSON-RPC error code={} msg={}", code, errmsg);
+        // Deribit's data field on -32602 carries `reason` + `param` — those
+        // are the only useful breadcrumb when the params are malformed.
+        if (auto dit = err.find("data"); dit != err.end())
+            data_str = json::serialize(dit->value());
+        bpt::common::log::error("DeribitOrderAdapter: JSON-RPC error id={} code={} msg={} data={}",
+                                 rpc_id,
+                                 code,
+                                 errmsg,
+                                 data_str);
         return;
     }
 
@@ -267,14 +296,169 @@ void DeribitOrderAdapter::send_modify(const bpt::messages::ModifyOrder& modify, 
     }
 }
 
+json::value DeribitOrderAdapter::send_and_wait(const std::string& method,
+                                               const std::string& params_json,
+                                               std::chrono::milliseconds timeout) {
+    if (!logged_in_.load(std::memory_order_acquire))
+        throw std::runtime_error("send_and_wait called before auth completed");
+
+    const uint64_t id = jsonrpc_id_.fetch_add(1, std::memory_order_relaxed);
+    auto promise = std::make_shared<std::promise<json::value>>();
+    auto future = promise->get_future();
+
+    {
+        std::lock_guard<std::mutex> lk(pending_responses_mu_);
+        pending_responses_.emplace(id, promise);
+    }
+
+    const std::string frame = deribit::build_simple_rpc(method, params_json, id);
+    if (!ws_client_.send(frame)) {
+        std::lock_guard<std::mutex> lk(pending_responses_mu_);
+        pending_responses_.erase(id);
+        throw std::runtime_error("ws_client send failed for method=" + method);
+    }
+
+    if (future.wait_for(timeout) != std::future_status::ready) {
+        std::lock_guard<std::mutex> lk(pending_responses_mu_);
+        pending_responses_.erase(id);
+        throw std::runtime_error("timeout waiting for response to method=" + method);
+    }
+    return future.get();
+}
+
+namespace {
+
+int64_t to_e8(double v) {
+    return static_cast<int64_t>(std::llround(v * 1e8));
+}
+
+// Helper: extract a finite double from a json field (handles double / int / null gracefully).
+double j_double(const json::object& o, std::string_view key) {
+    auto it = o.find(key);
+    if (it == o.end() || it->value().is_null())
+        return 0.0;
+    if (it->value().is_double())
+        return it->value().as_double();
+    if (it->value().is_int64())
+        return static_cast<double>(it->value().as_int64());
+    if (it->value().is_uint64())
+        return static_cast<double>(it->value().as_uint64());
+    return 0.0;
+}
+
+std::string j_string(const json::object& o, std::string_view key) {
+    auto it = o.find(key);
+    if (it == o.end() || !it->value().is_string())
+        return {};
+    return std::string(it->value().as_string());
+}
+
+}  // namespace
+
 AccountSnapshotData DeribitOrderAdapter::fetch_account_snapshot(uint64_t correlation_id) {
-    bpt::common::log::warn(
-        "DeribitOrderAdapter: fetch_account_snapshot not implemented — returning empty "
-        "snapshot");
     AccountSnapshotData snap;
     snap.exchange_id = bpt::messages::ExchangeId::DERIBIT;
     snap.correlation_id = correlation_id;
     snap.timestamp_ns = bpt::common::util::WallClock::now_ns();
+
+    if (!logged_in_.load(std::memory_order_acquire)) {
+        bpt::common::log::warn(
+            "DeribitOrderAdapter: fetch_account_snapshot called before auth — returning empty");
+        return snap;
+    }
+
+    using namespace std::chrono_literals;
+    constexpr auto kTimeout = 5000ms;
+
+    // Per-currency summaries (balance + equity). Deribit's get_account_summaries
+    // returns one entry per currency (BTC, ETH, USDC, etc.). Aggregate USD
+    // equity across them goes into total_equity_e8 / available_balance_e8.
+    try {
+        const auto env = send_and_wait("private/get_account_summaries", "{}", kTimeout);
+        const auto& obj = env.as_object();
+        if (auto err_it = obj.find("error"); err_it != obj.end()) {
+            bpt::common::log::error(
+                "DeribitOrderAdapter: get_account_summaries error: {}",
+                json::serialize(err_it->value()));
+        } else if (auto res_it = obj.find("result"); res_it != obj.end() && res_it->value().is_object()) {
+            const auto& res = res_it->value().as_object();
+            auto sum_it = res.find("summaries");
+            if (sum_it != res.end() && sum_it->value().is_array()) {
+                for (const auto& v : sum_it->value().as_array()) {
+                    if (!v.is_object())
+                        continue;
+                    const auto& s = v.as_object();
+                    CurrencyBalance cb;
+                    cb.ccy = j_string(s, "currency");
+                    cb.equity_e8 = to_e8(j_double(s, "equity"));
+                    cb.available_balance_e8 = to_e8(j_double(s, "available_funds"));
+                    snap.currency_balances.push_back(cb);
+                }
+            }
+        }
+    } catch (const std::exception& e) {
+        bpt::common::log::error("DeribitOrderAdapter: get_account_summaries failed: {}", e.what());
+    }
+
+    // Open positions per currency. Deribit's get_positions requires a currency
+    // filter — query for each currency we observed in the summary. Empty
+    // currencies are skipped so we don't burn a useless RPC.
+    for (const auto& cb : snap.currency_balances) {
+        if (cb.ccy.empty())
+            continue;
+        try {
+            const std::string params = "{\"currency\":\"" + cb.ccy + "\"}";
+            const auto env = send_and_wait("private/get_positions", params, kTimeout);
+            const auto& obj = env.as_object();
+            if (auto err_it = obj.find("error"); err_it != obj.end()) {
+                bpt::common::log::error("DeribitOrderAdapter: get_positions({}) error: {}",
+                                         cb.ccy,
+                                         json::serialize(err_it->value()));
+                continue;
+            }
+            auto res_it = obj.find("result");
+            if (res_it == obj.end() || !res_it->value().is_array())
+                continue;
+            for (const auto& v : res_it->value().as_array()) {
+                if (!v.is_object())
+                    continue;
+                const auto& p = v.as_object();
+                const double size = j_double(p, "size");
+                if (size == 0.0)
+                    continue;
+                AccountPosition ap;
+                ap.exchange_symbol = j_string(p, "instrument_name");
+                ap.net_qty_e8 = to_e8(size);
+                ap.avg_entry_price_e8 = to_e8(j_double(p, "average_price"));
+                ap.unrealized_pnl_e8 = to_e8(j_double(p, "floating_profit_loss"));
+                snap.positions.push_back(ap);
+            }
+        } catch (const std::exception& e) {
+            bpt::common::log::error("DeribitOrderAdapter: get_positions({}) failed: {}", cb.ccy, e.what());
+        }
+    }
+
+    // Aggregate USD equity / available across currencies. Deribit's per-ccy
+    // equity is already in coin-units (BTC, ETH, etc.); converting to USDT
+    // would require a spot price lookup. For now the dashboard's `equity`
+    // field gets the largest single-currency equity, while currency_balances
+    // carries the per-ccy detail. The strategy reads positions directly.
+    // Revisit when USD-aggregation across crypto-collateral accounts matters.
+    int64_t largest_eq = 0;
+    int64_t largest_avail = 0;
+    for (const auto& cb : snap.currency_balances) {
+        if (cb.equity_e8 > largest_eq) {
+            largest_eq = cb.equity_e8;
+            largest_avail = cb.available_balance_e8;
+        }
+    }
+    snap.total_equity_e8 = largest_eq;
+    snap.available_balance_e8 = largest_avail;
+
+    bpt::common::log::info(
+        "DeribitOrderAdapter: fetched account snapshot — currencies={} positions={}",
+        snap.currency_balances.size(),
+        snap.positions.size());
     return snap;
 }
 

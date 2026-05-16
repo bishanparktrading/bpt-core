@@ -8,9 +8,14 @@
 #include "order_gateway/adapter/deribit/deribit_exec_decoder.h"
 #include "order_gateway/adapter/deribit/deribit_ws_client.h"
 
+#include <boost/json.hpp>
+
 #include <atomic>
+#include <future>
+#include <memory>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace bpt::order_gateway::adapter {
@@ -68,6 +73,24 @@ private:
     /// handle_message when the auth reply is seen.
     mutable std::mutex pending_mu_;
     std::vector<std::string> pending_sends_;
+
+    /// Promise/future bridge for synchronous JSON-RPC calls. The caller
+    /// (fetch_account_snapshot, on its own thread) registers a promise
+    /// keyed by the JSON-RPC request id, sends the frame, and waits on
+    /// the future with a timeout. handle_message resolves the promise
+    /// when the matching id-keyed response arrives. Used today only for
+    /// `private/get_account_summaries` + `private/get_positions`; order
+    /// flow stays event-driven via DeribitExecDecoder.
+    mutable std::mutex pending_responses_mu_;
+    std::unordered_map<uint64_t, std::shared_ptr<std::promise<boost::json::value>>> pending_responses_;
+
+    /// Send a JSON-RPC request and block (caller's thread) until the
+    /// response arrives or the timeout fires. Returns the `result` value
+    /// from the response. Throws std::runtime_error on timeout / WS send
+    /// failure / Deribit error envelope.
+    boost::json::value send_and_wait(const std::string& method,
+                                     const std::string& params_json,
+                                     std::chrono::milliseconds timeout);
 
     DeribitExecDecoder decoder_;
     deribit::DeribitWsClient ws_client_;
