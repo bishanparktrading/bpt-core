@@ -1,21 +1,21 @@
-#include "pms/messaging/publishers/aeron_balance_snapshot_publisher.h"
+#include "pms/messaging/publishers/aeron/balance_snapshot_publisher.h"
 
 #include <bpt_common/logging.h>
 #include <cstddef>
 
-namespace bpt::pms::messaging {
+namespace bpt::pms::messaging::aeron {
 
 using Policy = bpt::common::aeron::Publisher::Policy;
 
-AeronBalanceSnapshotPublisher::AeronBalanceSnapshotPublisher(std::shared_ptr<::aeron::Aeron> aeron,
-                                                             const std::string& channel,
-                                                             int stream_id)
+BalanceSnapshotPublisher::BalanceSnapshotPublisher(std::shared_ptr<::aeron::Aeron> aeron,
+                                                   const std::string& channel,
+                                                   int stream_id)
     // BalanceSnapshot is idempotent — next poll replaces stale data —
     // so kBoundedRetry on back-pressure + drop on no-subscriber is the
     // right shape.
     : publisher_(std::move(aeron), channel, stream_id, Policy::kBoundedRetry) {}
 
-void AeronBalanceSnapshotPublisher::publish(const adapter::BalanceSnapshot& snapshot) {
+void BalanceSnapshotPublisher::publish(const adapter::BalanceSnapshot& snapshot) {
     alignas(8) std::byte scratch[SbeBalanceSnapshotCodec::kRecommendedScratchSize];
     const auto bytes = codec_.encode(snapshot, scratch);
 
@@ -28,4 +28,4 @@ void AeronBalanceSnapshotPublisher::publish(const adapter::BalanceSnapshot& snap
         bpt::common::log::debug("BalanceSnapshot drop rows={} (no subscriber / back-pressure)", snapshot.rows.size());
 }
 
-}  // namespace bpt::pms::messaging
+}  // namespace bpt::pms::messaging::aeron

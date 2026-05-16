@@ -7,7 +7,7 @@
 /// one factory so `AnalyticsService` doesn't take `<Aeron.h>` in its
 /// constructor.
 
-#include "analytics/messaging/publishers/i_toxicity_publisher.h"
+#include "analytics/messaging/publishers/api/toxicity_publisher.h"
 #include "analytics/messaging/subscribers/exec_report_subscriber.h"
 #include "analytics/messaging/subscribers/md_bbo_subscriber.h"
 
@@ -25,14 +25,14 @@ namespace messaging {
 struct AnalyticsBus {
     std::unique_ptr<ExecReportSubscriber> exec_sub;
     std::unique_ptr<MdBboSubscriber> md_sub;
-    std::unique_ptr<IToxicityPublisher> tox_pub;  ///< port; AeronToxicityPublisher in prod
+    std::unique_ptr<api::ToxicityPublisher> tox_pub;  ///< port; aeron::ToxicityPublisher in prod
 };
 
 class AnalyticsAeronBus {
 public:
     /// Build every Aeron-touching object analytics needs. Sole place
     /// that calls into `<Aeron.h>` from the application layer.
-    static AnalyticsBus build(std::shared_ptr<aeron::Aeron> aeron, const config::Settings& settings);
+    static AnalyticsBus build(std::shared_ptr<::aeron::Aeron> aeron, const config::Settings& settings);
 };
 
 }  // namespace messaging
