@@ -1,9 +1,9 @@
-#include "bridge/messaging/publishers/dashboard_control_publisher.h"
+#include "bridge/messaging/publishers/aeron/dashboard_control_publisher.h"
 
 #include <bpt_common/aeron/aeron_utils.h>
 #include <bpt_common/logging.h>
 
-namespace bpt::bridge::messaging {
+namespace bpt::bridge::messaging::aeron {
 
 DashboardControlPublisher::DashboardControlPublisher(std::shared_ptr<::aeron::Aeron> aeron,
                                                      const std::string& channel,
@@ -29,4 +29,4 @@ void DashboardControlPublisher::publish_byte(uint8_t cmd) {
         bpt::common::log::warn("[bridge/Control] offer failed: {}", result);
 }
 
-}  // namespace bpt::bridge::messaging
+}  // namespace bpt::bridge::messaging::aeron

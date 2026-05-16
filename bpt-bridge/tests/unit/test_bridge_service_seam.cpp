@@ -1,5 +1,5 @@
 /// \file
-/// \brief Drives BridgeService's IBroadcaster + IDashboardControlSink seam
+/// \brief Drives BridgeService's IBroadcaster + api::DashboardControlPublisher seam
 /// through fake port implementations. No Aeron driver, no real WebSocket
 /// listener — bus_ is default-constructed (all unique_ptrs null) and the
 /// poll loop never runs. We drive event handlers directly.
@@ -12,7 +12,7 @@
 
 #include "bridge/app/bridge_service.h"
 #include "bridge/messaging/aeron_bus.h"
-#include "bridge/messaging/publishers/i_dashboard_control_sink.h"
+#include "bridge/messaging/publishers/api/dashboard_control_publisher.h"
 #include "bridge/messaging/subscribers/exec_subscriber.h"
 #include "bridge/ws/i_broadcaster.h"
 #include "bridge/ws/message_encoder.h"
@@ -28,7 +28,7 @@ namespace {
 using bpt::bridge::BridgeService;
 using bpt::bridge::MsgKind;
 using bpt::bridge::messaging::ExecSubscriber;
-using bpt::bridge::messaging::IDashboardControlSink;
+namespace ctrl_api = bpt::bridge::messaging::api;
 using bpt::bridge::ws::IBroadcaster;
 
 // ── Fakes ────────────────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ public:
     }
 };
 
-class FakeCtrlSink final : public IDashboardControlSink {
+class FakeCtrlSink final : public ctrl_api::DashboardControlPublisher {
 public:
     int halts = 0;
     int resumes = 0;

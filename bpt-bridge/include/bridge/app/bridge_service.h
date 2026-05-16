@@ -7,8 +7,8 @@
 /// as every other bpt-core service. Constructor takes a pre-built
 /// `BridgeBus` (built by BridgeAeronBus::build at the prod composition
 /// root) plus the two output ports — IBroadcaster (dashboard WS sink) and
-/// IDashboardControlSink (bridge → strategy command sink). No `<Aeron.h>`
-/// in this header.
+/// api::DashboardControlPublisher (bridge → strategy command sink). No
+/// `<Aeron.h>` in this header.
 ///
 /// The event-handler methods (on_*) are public so tests can drive them
 /// directly without polling the bus, and can substitute Fake implementations
@@ -16,7 +16,7 @@
 
 #include "bridge/config/settings.h"
 #include "bridge/messaging/aeron_bus.h"
-#include "bridge/messaging/publishers/i_dashboard_control_sink.h"
+#include "bridge/messaging/publishers/api/dashboard_control_publisher.h"
 #include "bridge/messaging/subscribers/account_subscriber.h"
 #include "bridge/messaging/subscribers/exec_subscriber.h"
 #include "bridge/state/position_tracker.h"
@@ -38,7 +38,7 @@ public:
     BridgeService(config::Settings settings,
                   messaging::BridgeBus bus,
                   std::shared_ptr<ws::IBroadcaster> broadcaster,
-                  std::shared_ptr<messaging::IDashboardControlSink> ctrl_sink);
+                  std::shared_ptr<messaging::api::DashboardControlPublisher> ctrl_sink);
 
     void run() override;
 
@@ -81,7 +81,7 @@ private:
     config::Settings settings_;
     messaging::BridgeBus bus_;
     std::shared_ptr<ws::IBroadcaster> broadcaster_;
-    std::shared_ptr<messaging::IDashboardControlSink> ctrl_sink_;
+    std::shared_ptr<messaging::api::DashboardControlPublisher> ctrl_sink_;
 
     PositionTracker tracker_;
     double last_mid_ = 0.0;

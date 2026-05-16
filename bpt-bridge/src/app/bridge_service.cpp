@@ -18,7 +18,7 @@ constexpr std::chrono::milliseconds BridgeService::kTickMinInterval;
 BridgeService::BridgeService(config::Settings settings,
                              messaging::BridgeBus bus,
                              std::shared_ptr<ws::IBroadcaster> broadcaster,
-                             std::shared_ptr<messaging::IDashboardControlSink> ctrl_sink)
+                             std::shared_ptr<messaging::api::DashboardControlPublisher> ctrl_sink)
     : settings_(std::move(settings)),
       bus_(std::move(bus)),
       broadcaster_(std::move(broadcaster)),

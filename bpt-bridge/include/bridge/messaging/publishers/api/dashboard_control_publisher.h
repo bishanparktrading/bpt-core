@@ -2,17 +2,17 @@
 
 /// @file
 /// Port interface for the bridge → strategy control publication.
-/// BridgeService depends on this rather than the concrete
-/// DashboardControlPublisher so the dashboard HALT/RESUME plumbing can be
-/// exercised without an Aeron driver in tests.
+/// BridgeService depends on this rather than the aeron concrete so the
+/// dashboard HALT/RESUME plumbing can be exercised without an Aeron
+/// driver in tests.
 ///
 /// Wire format: single-byte command. 0x00 = HALT, 0x01 = RESUME.
 
-namespace bpt::bridge::messaging {
+namespace bpt::bridge::messaging::api {
 
-class IDashboardControlSink {
+class DashboardControlPublisher {
 public:
-    virtual ~IDashboardControlSink() = default;
+    virtual ~DashboardControlPublisher() = default;
 
     /// Publish a HALT command (byte 0x00) to the control stream. Strategy
     /// stops generating new orders on receipt.
@@ -23,4 +23,4 @@ public:
     virtual void publish_resume() = 0;
 };
 
-}  // namespace bpt::bridge::messaging
+}  // namespace bpt::bridge::messaging::api
