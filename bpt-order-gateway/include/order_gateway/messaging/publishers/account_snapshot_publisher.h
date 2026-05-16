@@ -1,5 +1,6 @@
 #pragma once
 
+#include "order_gateway/messaging/codecs/sbe_account_snapshot_codec.h"
 #include "order_gateway/messaging/publishers/i_account_snapshot_publisher.h"
 
 #include <Aeron.h>
@@ -24,6 +25,7 @@ public:
 
 private:
     bpt::common::aeron::Publisher publisher_;
+    SbeAccountSnapshotCodec       codec_;
 };
 
 }  // namespace bpt::order_gateway::messaging

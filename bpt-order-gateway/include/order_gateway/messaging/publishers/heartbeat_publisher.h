@@ -1,5 +1,6 @@
 #pragma once
 
+#include "order_gateway/messaging/codecs/sbe_order_gateway_heartbeat_codec.h"
 #include "order_gateway/messaging/publishers/i_heartbeat_publisher.h"
 
 #include <Aeron.h>
@@ -24,7 +25,8 @@ public:
     void publish(uint8_t service_id, uint16_t orders_in_flight, uint8_t exchange_status) override;
 
 private:
-    bpt::common::aeron::Publisher publisher_;
+    bpt::common::aeron::Publisher    publisher_;
+    SbeOrderGatewayHeartbeatCodec    codec_;
 };
 
 }  // namespace bpt::order_gateway::messaging

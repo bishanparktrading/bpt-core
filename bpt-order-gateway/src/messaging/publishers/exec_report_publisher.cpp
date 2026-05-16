@@ -1,20 +1,9 @@
 #include "order_gateway/messaging/publishers/exec_report_publisher.h"
 
-#include <messages/ExecutionReport.h>
-#include <messages/MessageHeader.h>
-
-#include <algorithm>
-#include <cstring>
+#include <cstddef>
 
 namespace bpt::order_gateway::messaging {
 
-using bpt::messages::ExchangeId;
-using bpt::messages::ExecStatus;
-using bpt::messages::ExecutionReport;
-using bpt::messages::MessageHeader;
-using bpt::messages::OrderSide;
-using bpt::messages::OrderType;
-using bpt::messages::RejectReason;
 using Policy = bpt::common::aeron::Publisher::Policy;
 
 ExecReportPublisher::ExecReportPublisher(std::shared_ptr<::aeron::Aeron> aeron,
@@ -40,36 +29,28 @@ void ExecReportPublisher::publish(uint64_t order_id,
                                   std::string_view fee_currency,
                                   uint64_t exchange_ts_ns,
                                   uint64_t local_ts_ns) {
-    constexpr std::size_t kBufSize = MessageHeader::encodedLength() + ExecutionReport::sbeBlockLength();
-    char buf[kBufSize]{};
+    alignas(8) std::byte scratch[SbeExecutionReportCodec::kRecommendedScratchSize];
+    ExecutionReportMsg m{
+        .order_id = order_id,
+        .exchange_order_id = exchange_order_id,
+        .exchange_id = exchange_id,
+        .instrument_id = instrument_id,
+        .status = status,
+        .side = side,
+        .order_type = order_type,
+        .price = price,
+        .filled_qty = filled_qty,
+        .remaining_qty = remaining_qty,
+        .reject_reason = reject_reason,
+        .fee = fee,
+        .fee_currency = std::string(fee_currency),
+        .exchange_ts_ns = exchange_ts_ns,
+        .local_ts_ns = local_ts_ns,
+    };
+    const auto bytes = codec_.encode(m, scratch);
 
-    // SBE Char8 slot is fixed-width; zero-pad short ccy strings so the
-    // unused trailing bytes are deterministic. putFeeCurrency requires
-    // exactly 8 src bytes, no length prefix.
-    char ccy_pad[8] = {0};
-    const std::size_t ccy_len = std::min(fee_currency.size(), sizeof(ccy_pad));
-    std::memcpy(ccy_pad, fee_currency.data(), ccy_len);
-
-    ExecutionReport msg;
-    msg.wrapAndApplyHeader(buf, 0, kBufSize)
-        .orderId(order_id)
-        .exchangeOrderId(exchange_order_id)
-        .exchangeId(exchange_id)
-        .instrumentId(instrument_id)
-        .status(status)
-        .side(side)
-        .orderType(order_type)
-        .price(price)
-        .filledQty(filled_qty)
-        .remainingQty(remaining_qty)
-        .rejectReason(reject_reason)
-        .fee(fee)
-        .putFeeCurrency(ccy_pad)
-        .timestampNs(exchange_ts_ns)
-        .localTsNs(local_ts_ns);
-
-    ::aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), static_cast<::aeron::util::index_t>(kBufSize));
-    publisher_.offer(ab, 0, static_cast<::aeron::util::index_t>(kBufSize));
+    ::aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(scratch), static_cast<::aeron::util::index_t>(bytes.size()));
+    publisher_.offer(ab, 0, static_cast<::aeron::util::index_t>(bytes.size()));
 }
 
 }  // namespace bpt::order_gateway::messaging

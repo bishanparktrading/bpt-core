@@ -1,5 +1,6 @@
 #pragma once
 
+#include "order_gateway/messaging/codecs/sbe_execution_report_codec.h"
 #include "order_gateway/messaging/publishers/i_exec_report_publisher.h"
 
 #include <Aeron.h>
@@ -39,6 +40,7 @@ public:
 
 private:
     bpt::common::aeron::Publisher publisher_;
+    SbeExecutionReportCodec       codec_;
 };
 
 }  // namespace bpt::order_gateway::messaging
