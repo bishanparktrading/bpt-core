@@ -58,6 +58,11 @@ const MAX_CANDLES = 600
 // "data is in the store, not the chart instance" anti-HMR-reset pattern.
 const MAX_FUNDING_SAMPLES = 1800
 
+// Same sizing rationale for OptionsMaker's book-delta time series.
+// 1200 samples @ ~2Hz ≈ 10 min — enough to see whether the embedded
+// hedger is keeping book_delta inside the operator's threshold band.
+const MAX_BOOK_DELTA_SAMPLES = 1200
+
 // Time-series sample of a funding-arb pair's two legs. Persisted in the
 // store so DualLegChart survives HMR / panel remounts — without this,
 // the chart instance loses all history on every re-render.
@@ -66,6 +71,15 @@ export interface FundingSample {
   //          axis is strictly increasing even if Date.now() doesn't move)
   spot: number
   perp: number
+}
+
+// Time-series sample of OptionsMaker's per-(exchange, underlying) book
+// delta. Same store-not-chart persistence rationale as FundingSample.
+export interface BookDeltaSample {
+  ts: number // unix seconds, monotonic
+  bookDelta: number      // portfolio_delta + perp_position (≈ 0 when hedged)
+  portfolioDelta: number // option-leg delta only
+  perpPosition: number   // signed perp inventory
 }
 
 interface State {
@@ -148,6 +162,12 @@ interface State {
   // be null when the analysis module ran but had insufficient data.
   marketColor: Record<string, MarketColorMsg> | null
 
+  // OptionsMaker rolling book-delta history, keyed by "EXCHANGE|UNDERLYING"
+  // (e.g. "DERIBIT|BTC"). One sample appended per strategyState frame.
+  // Drives OptionsMakerChart; persisted here so the chart survives HMR /
+  // panel remounts the same way FundingSample drives DualLegChart.
+  bookDeltaHistory: Record<string, BookDeltaSample[]>
+
   // Kill-switch state: tracks the previous status so resume() can restore
   // the connection dot to whatever it was before the halt.  In slice (a)
   // this is pure client state; slice (b) will drive it from server acks.
@@ -194,6 +214,7 @@ const initialState = {
   fundingHistory: [] as FundingSample[],
   toxicity: null as State['toxicity'],
   marketColor: null as State['marketColor'],
+  bookDeltaHistory: {} as Record<string, BookDeltaSample[]>,
   preHaltStatus: null as ConnectionStatus | null,
 }
 
@@ -369,22 +390,50 @@ export const useStore = create<State>((set) => ({
         }
 
         case 'strategyState': {
-          // Append a funding sample when the active strategy is FundingArb
-          // and both legs have a real mid (zero would be one-sided BBO
-          // filtered upstream by MdValidator). Sample ts is clamped to
-          // monotonic seconds so lightweight-charts' time scale is happy.
-          if (msg.kind !== 'FundingArb' || msg.spotPx <= 0 || msg.perpPx <= 0) {
-            return { strategyState: msg }
+          // FundingArb branch: append a funding sample when both legs have
+          // a real mid (zero would be one-sided BBO filtered upstream by
+          // MdValidator). Sample ts is clamped to monotonic seconds so
+          // lightweight-charts' time scale is happy.
+          if (msg.kind === 'FundingArb' && msg.spotPx > 0 && msg.perpPx > 0) {
+            const wallTs = Math.floor(Date.now() / 1000)
+            const last = state.fundingHistory[state.fundingHistory.length - 1]
+            const ts = last && wallTs <= last.ts ? last.ts + 1 : wallTs
+            const sample: FundingSample = { ts, spot: msg.spotPx, perp: msg.perpPx }
+            const nextHistory =
+              state.fundingHistory.length >= MAX_FUNDING_SAMPLES
+                ? [...state.fundingHistory.slice(-(MAX_FUNDING_SAMPLES - 1)), sample]
+                : [...state.fundingHistory, sample]
+            return { strategyState: msg, fundingHistory: nextHistory }
           }
-          const wallTs = Math.floor(Date.now() / 1000)
-          const last = state.fundingHistory[state.fundingHistory.length - 1]
-          const ts = last && wallTs <= last.ts ? last.ts + 1 : wallTs
-          const sample: FundingSample = { ts, spot: msg.spotPx, perp: msg.perpPx }
-          const nextHistory =
-            state.fundingHistory.length >= MAX_FUNDING_SAMPLES
-              ? [...state.fundingHistory.slice(-(MAX_FUNDING_SAMPLES - 1)), sample]
-              : [...state.fundingHistory, sample]
-          return { strategyState: msg, fundingHistory: nextHistory }
+
+          // OptionsMaker branch: append one book-delta sample per UL into
+          // the per-(exchange, underlying) rolling buffer. Same monotonic-
+          // seconds clamp pattern as FundingArb so all the per-UL series
+          // share a single time axis without lightweight-charts
+          // complaining about non-monotonic ticks within a series.
+          if (msg.kind === 'OptionsMaker') {
+            const wallTs = Math.floor(Date.now() / 1000)
+            const nextHistory: Record<string, BookDeltaSample[]> = { ...state.bookDeltaHistory }
+            for (const u of msg.underlyings) {
+              const key = `${u.exchange}|${u.underlying}`
+              const prev = nextHistory[key] ?? []
+              const last = prev[prev.length - 1]
+              const ts = last && wallTs <= last.ts ? last.ts + 1 : wallTs
+              const sample: BookDeltaSample = {
+                ts,
+                bookDelta: u.book_delta,
+                portfolioDelta: u.portfolio_delta,
+                perpPosition: u.perp_position,
+              }
+              nextHistory[key] =
+                prev.length >= MAX_BOOK_DELTA_SAMPLES
+                  ? [...prev.slice(-(MAX_BOOK_DELTA_SAMPLES - 1)), sample]
+                  : [...prev, sample]
+            }
+            return { strategyState: msg, bookDeltaHistory: nextHistory }
+          }
+
+          return { strategyState: msg }
         }
 
         case 'toxicity':
