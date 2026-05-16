@@ -5,6 +5,7 @@ cc_library(
     name = "pms_core",
     srcs = [
         "src/config/loader.cpp",
+        "src/messaging/codecs/sbe_balance_snapshot_codec.cpp",
     ],
     hdrs = glob(["include/pms/**/*.h"]),
     includes = ["include"],
@@ -25,7 +26,7 @@ cc_binary(
         "src/app/pms_service.cpp",
         "src/adapter/hyperliquid_balance_adapter.cpp",
         "src/messaging/aeron_bus.cpp",
-        "src/messaging/publishers/balance_snapshot_publisher.cpp",
+        "src/messaging/publishers/aeron_balance_snapshot_publisher.cpp",
     ],
     deps = [
         ":pms_core",

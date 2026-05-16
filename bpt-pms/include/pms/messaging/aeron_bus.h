@@ -7,7 +7,7 @@
 /// services and so `PmsService` doesn't take `<Aeron.h>` in its
 /// constructor.
 
-#include "pms/messaging/publishers/balance_snapshot_publisher.h"
+#include "pms/messaging/publishers/i_balance_snapshot_publisher.h"
 
 #include <Aeron.h>
 
@@ -21,7 +21,7 @@ struct Settings;
 namespace messaging {
 
 struct PmsBus {
-    std::unique_ptr<BalanceSnapshotPublisher> snapshot_pub;
+    std::unique_ptr<IBalanceSnapshotPublisher> snapshot_pub;  ///< port; AeronBalanceSnapshotPublisher in prod
 };
 
 class PmsAeronBus {
