@@ -1,6 +1,8 @@
 #include "backtester/messaging/aeron_bus.h"
 
 #include "backtester/config/settings.h"
+#include "backtester/messaging/publishers/aeron_backtest_control_publisher.h"
+#include "backtester/messaging/subscribers/aeron_backtest_ack_subscriber.h"
 
 #include <bpt_common/aeron/aeron_utils.h>
 
@@ -13,8 +15,8 @@ BacktesterBus BacktesterAeronBus::build(std::shared_ptr<aeron::Aeron> aeron, con
     auto sub = bpt::common::aeron::wait_for_subscription(aeron, ac.backtest_ack.channel, ac.backtest_ack.stream_id);
 
     BacktesterBus bus;
-    bus.ctrl_pub = std::make_unique<BacktestControlPublisher>(std::move(pub));
-    bus.ack_sub = std::make_unique<BacktestAckSubscriber>(std::move(sub));
+    bus.ctrl_pub = std::make_unique<AeronBacktestControlPublisher>(std::move(pub));
+    bus.ack_sub = std::make_unique<AeronBacktestAckSubscriber>(std::move(sub));
     return bus;
 }
 

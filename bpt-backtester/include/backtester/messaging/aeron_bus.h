@@ -13,8 +13,8 @@
 /// `BacktestControl` (tick command) and inbound `BacktestAck`. Tiny
 /// surface but the same shape applies.
 
-#include "backtester/messaging/publishers/backtest_control_publisher.h"
-#include "backtester/messaging/subscribers/backtest_ack_subscriber.h"
+#include "backtester/messaging/publishers/i_backtest_control_publisher.h"
+#include "backtester/messaging/subscribers/i_backtest_ack_subscriber.h"
 
 #include <Aeron.h>
 
@@ -28,8 +28,8 @@ struct Settings;
 namespace messaging {
 
 struct BacktesterBus {
-    std::unique_ptr<BacktestControlPublisher> ctrl_pub;
-    std::unique_ptr<BacktestAckSubscriber> ack_sub;
+    std::unique_ptr<IBacktestControlPublisher> ctrl_pub;
+    std::unique_ptr<IBacktestAckSubscriber>    ack_sub;
 };
 
 class BacktesterAeronBus {
