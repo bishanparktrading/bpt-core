@@ -8,6 +8,7 @@
 /// before this responsibility moved to the gateway, so strategy-side
 /// consumers were not changed during the migration.
 
+#include "md_gateway/messaging/codecs/sbe_funding_rate_codec.h"
 #include "md_gateway/messaging/publishers/i_funding_rate_publisher.h"
 
 #include <Aeron.h>
@@ -31,6 +32,7 @@ public:
 
 private:
     bpt::common::aeron::Publisher publisher_;
+    SbeFundingRateCodec           codec_;
 };
 
 }  // namespace bpt::md_gateway::messaging

@@ -1,9 +1,9 @@
 #include "md_gateway/messaging/publishers/instrument_stats_publisher.h"
 
-#include <messages/InstrumentStats.h>
-#include <messages/MessageHeader.h>
+#include <messages/ExchangeId.h>
 
 #include <bpt_common/logging.h>
+#include <cstddef>
 
 namespace bpt::md_gateway::messaging {
 
@@ -15,29 +15,14 @@ InstrumentStatsPublisher::InstrumentStatsPublisher(std::shared_ptr<::aeron::Aero
     : publisher_(std::move(aeron), channel, stream_id, Policy::kRetryOnBackpressure) {}
 
 void InstrumentStatsPublisher::publish(const InstrumentStatsUpdate& stats) {
-    using bpt::messages::ExchangeId;
-    using bpt::messages::InstrumentStats;
-    using bpt::messages::MessageHeader;
+    alignas(8) std::byte scratch[SbeInstrumentStatsCodec::kRecommendedScratchSize];
+    const auto bytes = codec_.encode(stats, scratch);
 
-    constexpr std::size_t kBufSize = MessageHeader::encodedLength() + InstrumentStats::sbeBlockLength();
-    char buf[kBufSize] = {};
-
-    InstrumentStats msg;
-    msg.wrapAndApplyHeader(buf, 0, kBufSize)
-        .exchangeId(stats.exchange_id)
-        .instrumentId(stats.instrument_id)
-        .openInterest(stats.open_interest)
-        .volume24h(stats.volume_24h)
-        .markPrice(stats.mark_price)
-        .indexPrice(stats.index_price)
-        .lastPrice(stats.last_price)
-        .collectedTs(stats.collected_ts_ns);
-
-    ::aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), kBufSize);
-    publisher_.offer(ab, 0, static_cast<::aeron::util::index_t>(kBufSize));
+    ::aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(scratch), static_cast<::aeron::util::index_t>(bytes.size()));
+    publisher_.offer(ab, 0, static_cast<::aeron::util::index_t>(bytes.size()));
 
     bpt::common::log::debug("InstrumentStats published exchange={} instrument_id={} oi={} vol24h={} mark={}",
-                            ExchangeId::c_str(stats.exchange_id),
+                            bpt::messages::ExchangeId::c_str(stats.exchange_id),
                             stats.instrument_id,
                             stats.open_interest,
                             stats.volume_24h,

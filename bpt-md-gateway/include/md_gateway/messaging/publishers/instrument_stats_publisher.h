@@ -7,6 +7,7 @@
 /// Slow-cadence sibling of FundingRatePublisher — same pattern, same
 /// retry-on-backpressure policy.
 
+#include "md_gateway/messaging/codecs/sbe_instrument_stats_codec.h"
 #include "md_gateway/messaging/publishers/i_instrument_stats_publisher.h"
 
 #include <Aeron.h>
@@ -30,6 +31,7 @@ public:
 
 private:
     bpt::common::aeron::Publisher publisher_;
+    SbeInstrumentStatsCodec       codec_;
 };
 
 }  // namespace bpt::md_gateway::messaging
