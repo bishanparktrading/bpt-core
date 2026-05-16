@@ -7,11 +7,11 @@
 /// "the bus" as one unit rather than five inline `make_unique` calls. Adding
 /// a new port = one field + one line in build(); main.cpp doesn't change.
 
-#include "refdata/port/i_fee_schedule_sink.h"
-#include "refdata/port/i_refdata_control_source.h"
-#include "refdata/port/i_refdata_delta_sink.h"
-#include "refdata/port/i_refdata_snapshot_sink.h"
-#include "refdata/port/i_refdata_status_sink.h"
+#include "refdata/messaging/publishers/api/fee_schedule_publisher.h"
+#include "refdata/messaging/subscribers/api/refdata_control_subscriber.h"
+#include "refdata/messaging/publishers/api/refdata_delta_publisher.h"
+#include "refdata/messaging/publishers/api/refdata_snapshot_publisher.h"
+#include "refdata/messaging/publishers/api/refdata_status_publisher.h"
 
 #include <Aeron.h>
 
@@ -24,15 +24,15 @@ struct Settings;
 namespace bpt::refdata::messaging {
 
 struct AeronBus {
-    std::unique_ptr<port::IRefdataControlSource> control_source;
-    std::unique_ptr<port::IRefdataSnapshotSink> snapshot_sink;
-    std::shared_ptr<port::IRefdataDeltaSink> delta_sink;
-    std::shared_ptr<port::IFeeScheduleSink> fee_sink;
-    std::shared_ptr<port::IRefdataStatusSink> status_sink;
+    std::unique_ptr<messaging::api::RefdataControlSubscriber> control_source;
+    std::unique_ptr<messaging::api::RefdataSnapshotPublisher> snapshot_sink;
+    std::shared_ptr<messaging::api::RefdataDeltaPublisher> delta_sink;
+    std::shared_ptr<messaging::api::FeeSchedulePublisher> fee_sink;
+    std::shared_ptr<messaging::api::RefdataStatusPublisher> status_sink;
 
     /// \brief Build all five Aeron-backed adapters wired to the channels
     ///        and stream IDs in `settings`.
-    static AeronBus build(std::shared_ptr<aeron::Aeron> aeron, const config::Settings& settings);
+    static AeronBus build(std::shared_ptr<::aeron::Aeron> aeron, const config::Settings& settings);
 };
 
 }  // namespace bpt::refdata::messaging

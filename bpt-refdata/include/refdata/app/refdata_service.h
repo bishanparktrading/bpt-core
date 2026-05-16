@@ -7,11 +7,11 @@
 #include "refdata/mapping/instrument_mapping_merger.h"
 #include "refdata/messaging/subscription_manager.h"
 #include "refdata/metrics/metrics.h"
-#include "refdata/port/i_fee_schedule_sink.h"
-#include "refdata/port/i_refdata_control_source.h"
-#include "refdata/port/i_refdata_delta_sink.h"
-#include "refdata/port/i_refdata_snapshot_sink.h"
-#include "refdata/port/i_refdata_status_sink.h"
+#include "refdata/messaging/publishers/api/fee_schedule_publisher.h"
+#include "refdata/messaging/subscribers/api/refdata_control_subscriber.h"
+#include "refdata/messaging/publishers/api/refdata_delta_publisher.h"
+#include "refdata/messaging/publishers/api/refdata_snapshot_publisher.h"
+#include "refdata/messaging/publishers/api/refdata_status_publisher.h"
 #include "refdata/registry/instrument_registry.h"
 
 #include <bpt_app/app.h>
@@ -27,11 +27,11 @@ namespace bpt::refdata {
 class RefdataService : public bpt::app::IService {
 public:
     RefdataService(config::Settings settings,
-               std::unique_ptr<port::IRefdataControlSource> control_source,
-               std::unique_ptr<port::IRefdataSnapshotSink> snapshot_sink,
-               std::shared_ptr<port::IRefdataDeltaSink> delta_sink,
-               std::shared_ptr<port::IFeeScheduleSink> fee_sink,
-               std::shared_ptr<port::IRefdataStatusSink> status_sink,
+               std::unique_ptr<messaging::api::RefdataControlSubscriber> control_source,
+               std::unique_ptr<messaging::api::RefdataSnapshotPublisher> snapshot_sink,
+               std::shared_ptr<messaging::api::RefdataDeltaPublisher> delta_sink,
+               std::shared_ptr<messaging::api::FeeSchedulePublisher> fee_sink,
+               std::shared_ptr<messaging::api::RefdataStatusPublisher> status_sink,
                std::map<std::string, adapter::ExchangeCredentials> creds);
     void run() override;
     void stop() override;
@@ -46,11 +46,11 @@ private:
     std::shared_ptr<mapping::InstrumentMappingLoader> instrument_mapping_;
     std::optional<mapping::InstrumentMappingMerger> mapping_merger_;
     std::shared_ptr<registry::InstrumentRegistry> registry_;
-    std::unique_ptr<port::IRefdataControlSource> control_sub_;
-    std::unique_ptr<port::IRefdataSnapshotSink> snapshot_pub_;
-    std::shared_ptr<port::IRefdataDeltaSink> delta_pub_;
-    std::shared_ptr<port::IFeeScheduleSink> fee_pub_;
-    std::shared_ptr<port::IRefdataStatusSink> status_pub_;
+    std::unique_ptr<messaging::api::RefdataControlSubscriber> control_sub_;
+    std::unique_ptr<messaging::api::RefdataSnapshotPublisher> snapshot_pub_;
+    std::shared_ptr<messaging::api::RefdataDeltaPublisher> delta_pub_;
+    std::shared_ptr<messaging::api::FeeSchedulePublisher> fee_pub_;
+    std::shared_ptr<messaging::api::RefdataStatusPublisher> status_pub_;
     std::vector<std::unique_ptr<adapter::IExchangeRefDataAdapter>> adapters_;
     messaging::SubscriptionManager sub_manager_;
     std::mutex pub_mutex_;  // Guards publisher calls during parallel snapshot fetch

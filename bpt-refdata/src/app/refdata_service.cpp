@@ -43,11 +43,11 @@ uint8_t exchange_id_to_bit(bpt::messages::ExchangeId::Value id) {
 }  // namespace
 
 RefdataService::RefdataService(config::Settings settings,
-                       std::unique_ptr<port::IRefdataControlSource> control_source,
-                       std::unique_ptr<port::IRefdataSnapshotSink> snapshot_sink,
-                       std::shared_ptr<port::IRefdataDeltaSink> delta_sink,
-                       std::shared_ptr<port::IFeeScheduleSink> fee_sink,
-                       std::shared_ptr<port::IRefdataStatusSink> status_sink,
+                       std::unique_ptr<messaging::api::RefdataControlSubscriber> control_source,
+                       std::unique_ptr<messaging::api::RefdataSnapshotPublisher> snapshot_sink,
+                       std::shared_ptr<messaging::api::RefdataDeltaPublisher> delta_sink,
+                       std::shared_ptr<messaging::api::FeeSchedulePublisher> fee_sink,
+                       std::shared_ptr<messaging::api::RefdataStatusPublisher> status_sink,
                        std::map<std::string, adapter::ExchangeCredentials> creds)
     : settings_(std::move(settings)),
       metrics_(settings_.base.metrics_port),

@@ -7,13 +7,13 @@ namespace bpt::refdata::refdata {
 struct FeeScheduleState;
 }
 
-namespace bpt::refdata::port {
+namespace bpt::refdata::messaging::api {
 
-class IFeeScheduleSink {
+class FeeSchedulePublisher {
 public:
-    virtual ~IFeeScheduleSink() = default;
+    virtual ~FeeSchedulePublisher() = default;
 
     virtual void publish(const refdata::FeeScheduleState& fs) = 0;
 };
 
-}  // namespace bpt::refdata::port
+}  // namespace bpt::refdata::messaging::api

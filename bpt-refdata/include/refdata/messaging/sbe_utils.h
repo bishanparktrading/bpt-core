@@ -21,15 +21,15 @@ constexpr int kAeronMaxSpins = 25000;
 // Offer a buffer to an Aeron publication with bounded spin on backpressure.
 // Breaks immediately on NOT_CONNECTED / PUBLICATION_CLOSED.
 // Logs a warning and returns if the spin limit is exceeded (subscriber too slow or dead).
-inline void aeron_offer(aeron::Publication& pub,
-                        const aeron::AtomicBuffer& buf,
-                        aeron::util::index_t len,
+inline void aeron_offer(::aeron::Publication& pub,
+                        const ::aeron::AtomicBuffer& buf,
+                        ::aeron::util::index_t len,
                         const char* context = "") {
     int spins = 0;
     std::int64_t r;
     do {
         r = pub.offer(buf, 0, len);
-        if (r == aeron::NOT_CONNECTED || r == aeron::PUBLICATION_CLOSED)
+        if (r == ::aeron::NOT_CONNECTED || r == ::aeron::PUBLICATION_CLOSED)
             return;
         if (r < 0) {
             _mm_pause();

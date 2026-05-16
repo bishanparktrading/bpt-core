@@ -1,7 +1,7 @@
 #pragma once
 
 /// \file
-/// \brief Outbound port: per-instrument delta + heartbeat sink.
+/// \brief Outbound port: per-instrument delta + heartbeat publish.
 
 #include <messages/DeltaUpdateType.h>
 
@@ -11,11 +11,11 @@ namespace bpt::refdata::refdata {
 struct Instrument;
 }
 
-namespace bpt::refdata::port {
+namespace bpt::refdata::messaging::api {
 
-class IRefdataDeltaSink {
+class RefdataDeltaPublisher {
 public:
-    virtual ~IRefdataDeltaSink() = default;
+    virtual ~RefdataDeltaPublisher() = default;
 
     virtual void publish_delta(bpt::messages::DeltaUpdateType::Value update_type, const refdata::Instrument& inst) = 0;
 
@@ -24,4 +24,4 @@ public:
     virtual uint64_t current_sequence() const = 0;
 };
 
-}  // namespace bpt::refdata::port
+}  // namespace bpt::refdata::messaging::api

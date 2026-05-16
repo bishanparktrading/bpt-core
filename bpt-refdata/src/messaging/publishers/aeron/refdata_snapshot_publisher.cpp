@@ -1,4 +1,4 @@
-#include "refdata/messaging/publishers/refdata_snapshot_publisher.h"
+#include "refdata/messaging/publishers/aeron/refdata_snapshot_publisher.h"
 
 #include "refdata/messaging/sbe_utils.h"
 
@@ -11,7 +11,7 @@
 #include <bpt_common/util/tsc_clock.h>
 #include <vector>
 
-namespace bpt::refdata::messaging {
+namespace bpt::refdata::messaging::aeron {
 
 using bpt::messages::MessageHeader;
 using bpt::messages::OptionSide;
@@ -68,7 +68,7 @@ bool matches(const refdata::Instrument& inst, const RefdataRequest& req) {
 
 }  // namespace
 
-RefdataSnapshotPublisher::RefdataSnapshotPublisher(std::shared_ptr<aeron::Aeron> aeron,
+RefdataSnapshotPublisher::RefdataSnapshotPublisher(std::shared_ptr<::aeron::Aeron> aeron,
                                                    const std::string& channel,
                                                    int stream_id) {
     publication_ = bpt::common::aeron::wait_for_publication(aeron, channel, stream_id);
@@ -123,10 +123,10 @@ void RefdataSnapshotPublisher::publish(const registry::InstrumentRegistry& regis
         put_str<24>(group.underlying(), inst.base);
     }
 
-    aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf.data()), static_cast<aeron::util::index_t>(buf_size));
-    aeron_offer(*publication_, ab, static_cast<aeron::util::index_t>(buf_size), "snapshot");
+    ::aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf.data()), static_cast<::aeron::util::index_t>(buf_size));
+    aeron_offer(*publication_, ab, static_cast<::aeron::util::index_t>(buf_size), "snapshot");
 
     bpt::common::log::info("Snapshot sent correlation_id={}", request.correlation_id);
 }
 
-}  // namespace bpt::refdata::messaging
+}  // namespace bpt::refdata::messaging::aeron

@@ -11,19 +11,20 @@ class InstrumentRegistry;
 
 namespace bpt::refdata::messaging {
 struct RefdataRequest;
-}
 
-namespace bpt::refdata::port {
+namespace api {
 
-class IRefdataSnapshotSink {
+class RefdataSnapshotPublisher {
 public:
-    virtual ~IRefdataSnapshotSink() = default;
+    virtual ~RefdataSnapshotPublisher() = default;
 
     /// \brief Publish a snapshot of `registry` filtered by `request`, tagged with `seq_start`
     ///        so subscribers can join the delta stream without gaps.
     virtual void publish(const registry::InstrumentRegistry& registry,
-                         const messaging::RefdataRequest& request,
+                         const RefdataRequest& request,
                          uint64_t seq_start) = 0;
 };
 
-}  // namespace bpt::refdata::port
+}  // namespace api
+
+}  // namespace bpt::refdata::messaging

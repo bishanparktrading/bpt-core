@@ -1,4 +1,4 @@
-#include "refdata/messaging/subscribers/refdata_control_subscriber.h"
+#include "refdata/messaging/subscribers/aeron/refdata_control_subscriber.h"
 
 #include <messages/MessageHeader.h>
 #include <messages/RefDataSubscriptionRequest.h>
@@ -6,7 +6,7 @@
 #include <bpt_common/logging.h>
 #include <cstring>
 
-namespace bpt::refdata::messaging {
+namespace bpt::refdata::messaging::aeron {
 
 using bpt::messages::MessageHeader;
 using bpt::messages::RefDataSubscriptionRequest;
@@ -78,4 +78,4 @@ int RefdataControlSubscriber::poll(RequestHandler handler) {
     return fragments;
 }
 
-}  // namespace bpt::refdata::messaging
+}  // namespace bpt::refdata::messaging::aeron

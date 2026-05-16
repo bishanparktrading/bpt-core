@@ -7,17 +7,17 @@
 
 #include <functional>
 
-namespace bpt::refdata::port {
+namespace bpt::refdata::messaging::api {
 
-class IRefdataControlSource {
+class RefdataControlSubscriber {
 public:
-    using RequestHandler = std::function<void(const messaging::RefdataRequest&)>;
+    using RequestHandler = std::function<void(const RefdataRequest&)>;
 
-    virtual ~IRefdataControlSource() = default;
+    virtual ~RefdataControlSubscriber() = default;
 
     /// \brief Drain available control fragments, dispatching each to `handler`.
     /// \return Number of fragments processed; 0 means idle (caller drives idle strategy).
     virtual int poll(RequestHandler handler) = 0;
 };
 
-}  // namespace bpt::refdata::port
+}  // namespace bpt::refdata::messaging::api

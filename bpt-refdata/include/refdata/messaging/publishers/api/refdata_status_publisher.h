@@ -8,11 +8,11 @@
 
 #include <cstdint>
 
-namespace bpt::refdata::port {
+namespace bpt::refdata::messaging::api {
 
-class IRefdataStatusSink {
+class RefdataStatusPublisher {
 public:
-    virtual ~IRefdataStatusSink() = default;
+    virtual ~RefdataStatusPublisher() = default;
 
     /// \brief Published once after all enabled exchange adapters have completed
     ///        their initial snapshot fetch.
@@ -25,4 +25,4 @@ public:
                                uint64_t instrument_id = 0) = 0;
 };
 
-}  // namespace bpt::refdata::port
+}  // namespace bpt::refdata::messaging::api

@@ -9,11 +9,11 @@
 #include "refdata/app/refdata_service.h"
 #include "refdata/config/settings.h"
 #include "refdata/messaging/messages.h"
-#include "refdata/port/i_fee_schedule_sink.h"
-#include "refdata/port/i_refdata_control_source.h"
-#include "refdata/port/i_refdata_delta_sink.h"
-#include "refdata/port/i_refdata_snapshot_sink.h"
-#include "refdata/port/i_refdata_status_sink.h"
+#include "refdata/messaging/publishers/api/fee_schedule_publisher.h"
+#include "refdata/messaging/subscribers/api/refdata_control_subscriber.h"
+#include "refdata/messaging/publishers/api/refdata_delta_publisher.h"
+#include "refdata/messaging/publishers/api/refdata_snapshot_publisher.h"
+#include "refdata/messaging/publishers/api/refdata_status_publisher.h"
 #include "refdata/refdata/funding_rate.h"
 #include "refdata/refdata/instrument.h"
 #include "refdata/registry/instrument_registry.h"
@@ -29,23 +29,23 @@ namespace {
 using bpt::refdata::RefdataService;
 using bpt::refdata::config::Settings;
 using bpt::refdata::messaging::RefdataRequest;
-using bpt::refdata::port::IFeeScheduleSink;
-using bpt::refdata::port::IRefdataControlSource;
-using bpt::refdata::port::IRefdataDeltaSink;
-using bpt::refdata::port::IRefdataSnapshotSink;
-using bpt::refdata::port::IRefdataStatusSink;
+using bpt::refdata::messaging::api::FeeSchedulePublisher;
+using bpt::refdata::messaging::api::RefdataControlSubscriber;
+using bpt::refdata::messaging::api::RefdataDeltaPublisher;
+using bpt::refdata::messaging::api::RefdataSnapshotPublisher;
+using bpt::refdata::messaging::api::RefdataStatusPublisher;
 using bpt::refdata::refdata::FeeScheduleState;
 using bpt::refdata::refdata::Instrument;
 using bpt::refdata::registry::InstrumentRegistry;
 
 // ---- Fakes -----------------------------------------------------------------
 
-class FakeRefdataControlSource final : public IRefdataControlSource {
+class FakeRefdataControlSource final : public RefdataControlSubscriber {
 public:
     int poll(RequestHandler /*handler*/) override { return 0; }
 };
 
-class FakeRefdataSnapshotSink final : public IRefdataSnapshotSink {
+class FakeRefdataSnapshotSink final : public RefdataSnapshotPublisher {
 public:
     struct Call {
         uint64_t correlation_id;
@@ -61,7 +61,7 @@ public:
     }
 };
 
-class FakeRefdataDeltaSink final : public IRefdataDeltaSink {
+class FakeRefdataDeltaSink final : public RefdataDeltaPublisher {
 public:
     uint64_t seq{42};
     std::size_t deltas{0};
@@ -74,13 +74,13 @@ public:
     uint64_t current_sequence() const override { return seq; }
 };
 
-class FakeFeeScheduleSink final : public IFeeScheduleSink {
+class FakeFeeScheduleSink final : public FeeSchedulePublisher {
 public:
     std::size_t calls{0};
     void publish(const FeeScheduleState& /*fs*/) override { ++calls; }
 };
 
-class FakeRefdataStatusSink final : public IRefdataStatusSink {
+class FakeRefdataStatusSink final : public RefdataStatusPublisher {
 public:
     std::size_t ready_calls{0};
     std::size_t error_calls{0};

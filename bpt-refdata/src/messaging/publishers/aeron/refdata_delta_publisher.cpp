@@ -1,4 +1,4 @@
-#include "refdata/messaging/publishers/refdata_delta_publisher.h"
+#include "refdata/messaging/publishers/aeron/refdata_delta_publisher.h"
 
 #include "refdata/messaging/sbe_utils.h"
 
@@ -10,14 +10,14 @@
 #include <bpt_common/logging.h>
 #include <bpt_common/util/tsc_clock.h>
 
-namespace bpt::refdata::messaging {
+namespace bpt::refdata::messaging::aeron {
 
 using bpt::messages::DeltaUpdateType;
 using bpt::messages::MessageHeader;
 using bpt::messages::OptionSide;
 using bpt::messages::RefDataDelta;
 
-RefdataDeltaPublisher::RefdataDeltaPublisher(std::shared_ptr<aeron::Aeron> aeron,
+RefdataDeltaPublisher::RefdataDeltaPublisher(std::shared_ptr<::aeron::Aeron> aeron,
                                              const std::string& channel,
                                              int stream_id) {
     publication_ = bpt::common::aeron::wait_for_publication(aeron, channel, stream_id);
@@ -57,8 +57,8 @@ void RefdataDeltaPublisher::publish_delta(bpt::messages::DeltaUpdateType::Value 
         .strikePrice(inst.strike_price.value_or(0.0));
     put_str<24>(msg.underlying(), inst.base);
 
-    aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), kBufSize);
-    aeron_offer(*publication_, ab, static_cast<aeron::util::index_t>(kBufSize), "delta");
+    ::aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), kBufSize);
+    aeron_offer(*publication_, ab, static_cast<::aeron::util::index_t>(kBufSize), "delta");
 
     bpt::common::log::debug("Published delta seq={} uid={} type={}",
                             seq_,
@@ -89,10 +89,10 @@ void RefdataDeltaPublisher::publish_heartbeat() {
         .updateType(DeltaUpdateType::NULL_VALUE)  // sentinel: heartbeat, not a real update
         .instrumentId(0);
 
-    aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), kBufSize);
-    aeron_offer(*publication_, ab, static_cast<aeron::util::index_t>(kBufSize), "heartbeat");
+    ::aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf), kBufSize);
+    aeron_offer(*publication_, ab, static_cast<::aeron::util::index_t>(kBufSize), "heartbeat");
 
     bpt::common::log::debug("Published heartbeat seq={}", seq_);
 }
 
-}  // namespace bpt::refdata::messaging
+}  // namespace bpt::refdata::messaging::aeron
