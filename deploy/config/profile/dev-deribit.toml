@@ -1,0 +1,6 @@
+# Deployment profile — dev / Deribit testnet. Sibling of qa-deribit, but env=dev
+# so the secrets module accepts the ~/.bpt-secrets/ fallback that BPT_DEV_CREDS
+# points at. Use this with bpt-dev-radar-stack.target for the laptop dev loop.
+environment     = "dev"
+exchanges       = ["DERIBIT"]
+exchange_config = "config/exchanges/testnet.toml"

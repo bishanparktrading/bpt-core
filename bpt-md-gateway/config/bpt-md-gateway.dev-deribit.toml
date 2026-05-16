@@ -1,0 +1,23 @@
+# Instance config — QA environment, Deribit testnet.
+# Deployment profile (env + exchange filter + exchange-endpoints path).
+profile_config = "../deploy/config/profile/dev-deribit.toml"
+
+subscription_heartbeat_interval_ms = 5000
+service_heartbeat_interval_ms = 5000
+
+# Shared aeron stream registry — see deploy/config/aeron/streams.toml.
+aeron_config = "../deploy/config/aeron/streams.toml"
+
+[aeron]
+# Fallback only — shared file wins when present.
+media_driver_dir = "/dev/shm/aeron-bpt"
+
+[metrics]
+host = "0.0.0.0"  # Allow Prometheus to scrape from the monitoring host in QA
+port = 9102
+
+[logging]
+level             = "info"
+dir               = "logs"
+flush_level       = "warn"
+flush_interval_ms = 1000

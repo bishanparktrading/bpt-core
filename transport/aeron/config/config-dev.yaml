@@ -1,0 +1,26 @@
+# BPT Transport MediaDriver Configuration — dev instance.
+#
+# Identical to config.yaml today; kept as a separate file so the dev unit
+# (bpt-dev-transport.service) can be reconfigured independently of the
+# prod one without copy-paste drift. Examples of dev-only overrides this
+# file would carry once they're needed: SHARED threading mode (lower
+# resource use on a laptop), separate /dev/shm/aeron-bpt-dev directory
+# (to run dev + prod side-by-side on one host), tighter timeouts for
+# faster crash detection during iteration.
+
+aeron:
+  directory: "/dev/shm/aeron-bpt"
+  threading_mode: "DEDICATED"
+  idle_strategy: "BUSY_SPIN"
+  dir_delete_on_start: true
+  dir_delete_on_shutdown: true
+
+  heartbeat_interval_sec: 10
+  client_liveness_timeout_ns: 20000000000
+  publication_unblock_timeout_ns: 40000000000
+
+logger:
+  level: "info"
+
+metrics:
+  port: 9110

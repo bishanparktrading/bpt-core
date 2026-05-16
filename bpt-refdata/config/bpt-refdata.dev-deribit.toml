@@ -1,0 +1,24 @@
+# Instance config — QA environment, Deribit testnet.
+# Deployment profile (env + exchange filter + exchange-endpoints path).
+profile_config = "../deploy/config/profile/dev-deribit.toml"
+
+instrument_poll_interval_s = 3600
+
+# Shared aeron stream registry — see deploy/config/aeron/streams.toml.
+aeron_config = "../deploy/config/aeron/streams.toml"
+
+[aeron]
+# Fallback only — shared file wins when present.
+media_driver_dir = "/dev/shm/aeron-bpt"
+
+[instrument_mapping]
+local_path = "/opt/bpt/data/instrument_mapping.json"
+
+[metrics]
+port = 9101
+
+[logging]
+level             = "info"
+dir               = "logs"
+flush_level       = "warn"
+flush_interval_ms = 1000

@@ -1,0 +1,43 @@
+# Instance config — DEV environment, Deribit testnet.
+# Mirrors bpt-order-gateway.qa-deribit.toml but points at the dev-deribit
+# profile so the secrets module honours the ~/.bpt-secrets/ fallback (qa/prod
+# environments require systemd-creds delivery).
+profile_config = "../deploy/config/profile/dev-deribit.toml"
+
+aeron_config = "../deploy/config/aeron/streams.toml"
+
+[aeron]
+# Fallback only — shared file wins when present.
+media_driver_dir = "/dev/shm/aeron-bpt"
+
+[order-gateway]
+heartbeat_interval_ms = 1000
+stale_order_timeout_ms = 120000
+
+[order-gateway.risk]
+trading_enabled = true
+# Effectively disabled for testnet 2026-05-15: the risk_checker computes
+# `notional = price × qty` assuming linear perp semantics (qty in BTC).
+# Deribit perp's `amount` is in $10-multiplied contracts, so the formula
+# produces nonsense (qty=7380 contracts × price=$80k → $588M "notional").
+# Until the risk_checker is venue-aware (looks up contract_size from
+# refdata), the only way to let perp hedges through is to raise the cap
+# beyond anything realistic. TODO: venue-aware notional in risk_checker.
+max_order_size_usd = 10000000000.0
+max_notional_per_order_usd = 10000000000.0
+# Raised again 2026-05-15 (afternoon): 100 was still saturating because
+# Deribit's cancel-ack lag (~50-100ms) lets the counter creep up faster than
+# cancels drain. 300 gives enough headroom for the cancel-and-replace
+# inflight overlap until the strategy's debounce kicks in and reaches a
+# stable resting state.
+max_open_orders_per_venue = 300
+max_orders_per_second = 50
+
+[metrics]
+port = 9103
+
+[logging]
+level             = "info"
+dir               = "logs"
+flush_level       = "warn"
+flush_interval_ms = 0
