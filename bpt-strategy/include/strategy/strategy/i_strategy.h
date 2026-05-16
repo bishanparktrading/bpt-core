@@ -42,6 +42,7 @@ struct PortfolioState {
 
     struct SurfacePoint {
         uint64_t instrument_id{0};
+        std::string underlying;  ///< "BTC", "ETH", etc. — required for multi-underlying strategies (OptionsMaker)
         uint32_t expiry_date{0};
         double strike{0.0};
         bool is_call{true};

@@ -65,6 +65,7 @@ void PortfolioSnapshotPublisher::publish(const strategy::PortfolioState& state, 
     for (const auto& sp : state.surface_points) {
         surf.push_back({
             {"instrumentId", sp.instrument_id},
+            {"underlying", sp.underlying},
             {"expiry", sp.expiry_date},
             {"strike", sp.strike},
             {"isCall", sp.is_call},

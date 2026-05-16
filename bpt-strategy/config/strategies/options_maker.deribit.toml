@@ -1,0 +1,104 @@
+[strategy]
+type = "OptionsMakerStrategy"
+enabled = true
+instruments = []                # options discovered from VolSurface; perp resolved from refdata
+md_exchanges = ["DERIBIT"]
+
+[strategy.venue_exec.DERIBIT]
+enabled = true
+latency_budget_us = 10000
+order_type = "LIMIT"
+tif = "GTC"                     # MM quotes rest until filled / cancelled
+max_retries = 3
+
+[strategy.risk]
+max_position_usd = 200.0        # testnet — conservative even with paper capital
+max_order_size_usd = 100.0
+max_daily_loss_usd = 50.0
+max_open_orders = 40            # 2 sides × ~20 active strikes
+
+[strategy.schedule]
+require_refdata_ready = true
+md_staleness_threshold_ms = 10000
+max_refdata_staleness_ns = 300000000000
+configured_exchanges = ["DERIBIT"]
+
+[strategy.params]
+underlyings = ["BTC", "ETH"]
+
+# Universe filter — strategy picks front-N expiries from whatever the pricer
+# surfaces. front_n_expiries=2 covers today's same-day-expiry (often empty
+# on testnet) + tomorrow's expiry which will have makers.
+#
+# max_strikes_per_expiry cut from 6 → 3 in afternoon 2026-05-15: with 6
+# strikes × 2 sides × 2 expiries × 2 underlyings = 48 active orders, we
+# kept saturating the OGW counter during the cancel/replace burst before
+# debounce could stabilise the book. 3 strikes = 24 active = easier to
+# bootstrap.
+front_n_expiries = 2
+max_strikes_per_expiry = 3
+
+# Risk-free rate for BS-from-fitted-IV theo. 0.0 is fine for short-dated
+# crypto options (BS sensitivity to r at <30d tenors is negligible).
+risk_free_rate = 0.0
+
+# Phase 2 — quote strikes with no observed venue BBO using SVI-fitted theo
+# only. The strategy becomes the sole maker on those strikes, so three
+# safeguards apply when this is true:
+#   1. synthetic_size_mult       — scale quote size down (sole-maker, lower confidence)
+#   2. synthetic_max_strike_distance_pct — skip if nearest observed strike in
+#                                          this expiry is farther than this
+#                                          fraction of the forward
+#   3. synthetic_smile_staleness_ms      — skip if no surface tick within this window
+# Defaults are conservative; tighten or loosen after running with this on.
+quote_synthetic_strikes = false
+synthetic_size_mult = 0.25
+synthetic_max_strike_distance_pct = 0.05
+synthetic_smile_staleness_ms = 30000
+
+# Half-spread in vol points: 0.005 = 50 IV bps. Strategy converts vega from
+# USD-equivalent (pricer convention) to native BTC units internally, so
+# half_spread in BTC-price ≈ (vega_usd / spot) × 0.005. For ATM 7d at $80k
+# this is ~$20 of premium per side. Tune up if fills come too easily.
+vega_edge_vol_pts = 0.005
+
+# Per-quote vega budget in USD-equivalent (matches pricer's vega unit). ATM
+# 7d BTC option vega ≈ 700-1600 USD/IV-unit on testnet → qty = 50/vega ≈
+# 0.03-0.07 contracts. OrderManager will floor to Deribit's lot_size (0.1).
+# Larger budget = more quote size per option.
+per_quote_vega_budget = 50.0
+
+# Book-level hard caps. delta is in BTC-equivalent (linear perp delta). vega
+# and gamma are in pricer's USD-equivalent — chosen as headroom for ~10-20
+# contracts of typical exposure before quotes self-suppress.
+max_book_vega = 20000.0
+max_book_delta = 0.5
+max_book_gamma = 1000.0
+
+# Per-option cadence throttle. The pricer publishes a new VolSurface every
+# ~2s on Deribit; this 1s minimum means we re-quote at most every other tick
+# per option even if the surface ticks faster.
+requote_min_interval_ms = 1000
+
+# ── Embedded delta hedger ────────────────────────────────────────────────
+# v1 keeps the hedger inside this strategy (not a separate service). Hedges
+# fire on (a) every option fill that moves book Δ past the threshold, and
+# (b) every surface tick that re-computes deltas (spot drift case).
+
+enable_hedger = true
+# Hedge when |book_delta| > this (in BTC units). 0.05 ≈ $3.5k of notional
+# directional exposure at BTC $70k — small enough to keep us close to
+# delta-neutral, large enough not to crank one IOC per micro-fill.
+max_hedge_abs_delta = 0.05
+# IOC crosses the perp BBO by this many bps to ensure synchronous fills.
+# Aggressive on testnet where perp spreads can be wide; tighten in prod.
+hedge_aggress_bps = 10.0
+# Anti-thrash window between consecutive hedges per underlying.
+hedge_cooldown_ms = 500
+
+# Sanity ceiling: if |book_delta| ever exceeds this multiple of
+# max_hedge_abs_delta, the strategy hard-halts (latched, restart-to-clear).
+# 20× 0.05 = 1 BTC notional directional exposure — well above any legitimate
+# book imbalance, well below the runaway delta a unit-mismatch cascade would
+# produce. Caught the 2026-05-15 cascade at step 3 in hindsight.
+book_delta_sanity_ceiling_mult = 20.0

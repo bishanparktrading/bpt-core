@@ -1,0 +1,22 @@
+# Engine-level config for the options-maker strategy on Deribit testnet.
+# Mirrors short_vol.qa-deribit.toml but points at the *dev* profile so the
+# secrets module honours ~/.bpt-secrets/ — same reason the OGW had to flip
+# to bpt-order-gateway.dev-deribit.toml.
+profile_config = "../deploy/config/profile/dev-deribit.toml"
+
+strategy_config = "strategies/options_maker.deribit.toml"
+
+# Shared aeron stream registry — see deploy/config/aeron/streams.toml.
+aeron_config = "../deploy/config/aeron/streams.toml"
+
+[aeron]
+# Fallback only — shared file wins when present.
+media_driver_dir = "/dev/shm/aeron-bpt"
+
+[strategy]
+# Unique per-strategy correlation_id. Existing: AS=1003, FundingArb=1004,
+# ShortVol=1005. 1010 keeps a gap for any future linear strategies.
+correlation_id = 1010
+
+[metrics]
+port = 9104

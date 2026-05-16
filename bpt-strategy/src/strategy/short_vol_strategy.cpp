@@ -662,6 +662,7 @@ PortfolioState ShortVolStrategy::get_portfolio_state() {
             // Surface point for this leg
             PortfolioState::SurfacePoint sp;
             sp.instrument_id = opt.instrument_id;
+            sp.underlying = state.underlying;
             sp.expiry_date = opt.expiry_date;
             sp.strike = opt.strike;
             sp.is_call = opt.is_call;

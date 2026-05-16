@@ -8,6 +8,7 @@
 #include "strategy/strategy/hmm_strategy.h"
 #include "strategy/strategy/momentum_strategy.h"
 #include "strategy/strategy/ofi_strategy.h"
+#include "strategy/strategy/options_maker_strategy.h"
 #include "strategy/strategy/passive_maker_strategy.h"
 #include "strategy/strategy/regime_switch_strategy.h"
 #include "strategy/strategy/short_vol_strategy.h"
@@ -62,6 +63,15 @@ std::unique_ptr<IStrategy> StrategyFactory::create(const config::EngineConfig& c
 
     if (type == "ShortVolStrategy") {
         return std::make_unique<ShortVolStrategy>(cfg.correlation_id, cfg.strategy, refdata, md, order_mgr, vol_client);
+    }
+
+    if (type == "OptionsMakerStrategy") {
+        return std::make_unique<OptionsMakerStrategy>(cfg.correlation_id,
+                                                      cfg.strategy,
+                                                      refdata,
+                                                      md,
+                                                      order_mgr,
+                                                      vol_client);
     }
 
     throw std::invalid_argument(fmt::format("Unknown strategy type: {}", type));
