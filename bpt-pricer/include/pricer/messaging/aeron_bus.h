@@ -17,8 +17,8 @@
 
 #include "pricer/md/md_subscribe_client.h"
 #include "pricer/md/md_subscriber.h"
+#include "pricer/messaging/publishers/i_status_publisher.h"
 #include "pricer/messaging/publishers/i_vol_surface_publisher.h"
-#include "pricer/messaging/publishers/status_publisher.h"
 #include "pricer/refdata/refdata_subscriber.h"
 
 #include <Aeron.h>
@@ -33,8 +33,8 @@ struct Settings;
 namespace messaging {
 
 struct PricerBus {
-    std::unique_ptr<IVolSurfacePublisher> vol_pub;  ///< port; AeronVolSurfacePublisher in prod
-    std::unique_ptr<StatusPublisher> status_pub;
+    std::unique_ptr<IVolSurfacePublisher> vol_pub;     ///< port; AeronVolSurfacePublisher in prod
+    std::unique_ptr<IStatusPublisher>     status_pub;  ///< port; AeronStatusPublisher in prod
     std::unique_ptr<md::MdSubscriber> md_sub;
     std::unique_ptr<md::MdSubscribeClient> md_ctrl;  ///< pricer → md-gateway: subscribe batches
     std::unique_ptr<refdata::RefdataSubscriber> refdata_sub;

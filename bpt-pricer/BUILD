@@ -5,6 +5,8 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 cc_library(
     name = "pricer_core",
     srcs = [
+        "src/messaging/codecs/sbe_pricer_heartbeat_codec.cpp",
+        "src/messaging/codecs/sbe_pricer_ready_codec.cpp",
         "src/messaging/codecs/sbe_vol_surface_codec.cpp",
         "src/pricing/black_scholes.cpp",
         "src/pricing/forward_curve.cpp",
@@ -45,8 +47,8 @@ cc_binary(
         "src/config/config.cpp",
         "src/surface/surface_builder.cpp",
         "src/messaging/aeron_bus.cpp",
+        "src/messaging/publishers/aeron_status_publisher.cpp",
         "src/messaging/publishers/aeron_vol_surface_publisher.cpp",
-        "src/messaging/publishers/status_publisher.cpp",
         "src/md/md_subscribe_client.cpp",
         "src/md/md_subscriber.cpp",
         "src/refdata/refdata_subscriber.cpp",
