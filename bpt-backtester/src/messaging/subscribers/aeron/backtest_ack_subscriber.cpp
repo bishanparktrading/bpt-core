@@ -1,4 +1,4 @@
-#include "backtester/messaging/subscribers/aeron_backtest_ack_subscriber.h"
+#include "backtester/messaging/subscribers/aeron/backtest_ack_subscriber.h"
 
 #include <concurrent/AtomicBuffer.h>
 
@@ -6,21 +6,21 @@
 #include <cstddef>
 #include <thread>
 
-namespace bpt::backtester::messaging {
+namespace bpt::backtester::messaging::aeron {
 
 using namespace std::chrono_literals;
 
-AeronBacktestAckSubscriber::AeronBacktestAckSubscriber(std::shared_ptr<aeron::Subscription> sub)
+BacktestAckSubscriber::BacktestAckSubscriber(std::shared_ptr<::aeron::Subscription> sub)
     : sub_(std::move(sub)) {}
 
-bool AeronBacktestAckSubscriber::wait_for(uint64_t expected_seq, std::chrono::milliseconds timeout) {
+bool BacktestAckSubscriber::wait_for(uint64_t expected_seq, std::chrono::milliseconds timeout) {
     bool found = false;
     const auto deadline = std::chrono::steady_clock::now() + timeout;
 
-    auto handler = [&](const aeron::concurrent::AtomicBuffer& buf,
-                       aeron::index_t offset,
-                       aeron::index_t length,
-                       const aeron::Header& /*hdr*/) {
+    auto handler = [&](const ::aeron::concurrent::AtomicBuffer& buf,
+                       ::aeron::index_t offset,
+                       ::aeron::index_t length,
+                       const ::aeron::Header& /*hdr*/) {
         if (found)
             return;
 
@@ -47,4 +47,4 @@ bool AeronBacktestAckSubscriber::wait_for(uint64_t expected_seq, std::chrono::mi
     return found;
 }
 
-}  // namespace bpt::backtester::messaging
+}  // namespace bpt::backtester::messaging::aeron

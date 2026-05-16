@@ -27,8 +27,8 @@ ClockMaster::ClockMaster(data::DataLoader& loader,
                          exchange::HyperliquidMdServer* hyperliquid_server,
                          matching::MatchingEngine* matching_engine,
                          results::ResultsCollector* results,
-                         messaging::BacktestControlPublisher* ctrl_pub,
-                         messaging::BacktestAckSubscriber* ack_sub)
+                         messaging::api::BacktestControlPublisher* ctrl_pub,
+                         messaging::api::BacktestAckSubscriber* ack_sub)
     : loader_(loader),
       binance_server_(binance_server),
       okx_server_(okx_server),

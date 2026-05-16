@@ -8,8 +8,8 @@
 #include "backtester/exchange/hyperliquid/hyperliquid_md_server.h"
 #include "backtester/exchange/okx/okx_md_server.h"
 #include "backtester/matching/matching_engine.h"
-#include "backtester/messaging/publishers/backtest_control_publisher.h"
-#include "backtester/messaging/subscribers/backtest_ack_subscriber.h"
+#include "backtester/messaging/publishers/api/backtest_control_publisher.h"
+#include "backtester/messaging/subscribers/api/backtest_ack_subscriber.h"
 #include "backtester/results/results_collector.h"
 
 #include <chrono>
@@ -36,8 +36,8 @@ public:
                 exchange::HyperliquidMdServer* hyperliquid_server,
                 matching::MatchingEngine* matching_engine,
                 results::ResultsCollector* results,
-                messaging::BacktestControlPublisher* ctrl_pub = nullptr,
-                messaging::BacktestAckSubscriber* ack_sub = nullptr);
+                messaging::api::BacktestControlPublisher* ctrl_pub = nullptr,
+                messaging::api::BacktestAckSubscriber* ack_sub = nullptr);
 
     /// \brief Runs the simulation to completion.
     void run();
@@ -51,8 +51,8 @@ private:
     exchange::HyperliquidMdServer* hyperliquid_server_;
     matching::MatchingEngine* matching_engine_;
     results::ResultsCollector* results_;
-    messaging::BacktestControlPublisher* ctrl_pub_;
-    messaging::BacktestAckSubscriber* ack_sub_;
+    messaging::api::BacktestControlPublisher* ctrl_pub_;
+    messaging::api::BacktestAckSubscriber* ack_sub_;
 
     static constexpr std::chrono::milliseconds kAckTimeout{5000};
 };

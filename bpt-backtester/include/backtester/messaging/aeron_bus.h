@@ -13,8 +13,8 @@
 /// `BacktestControl` (tick command) and inbound `BacktestAck`. Tiny
 /// surface but the same shape applies.
 
-#include "backtester/messaging/publishers/i_backtest_control_publisher.h"
-#include "backtester/messaging/subscribers/i_backtest_ack_subscriber.h"
+#include "backtester/messaging/publishers/api/backtest_control_publisher.h"
+#include "backtester/messaging/subscribers/api/backtest_ack_subscriber.h"
 
 #include <Aeron.h>
 
@@ -28,8 +28,8 @@ struct Settings;
 namespace messaging {
 
 struct BacktesterBus {
-    std::unique_ptr<IBacktestControlPublisher> ctrl_pub;
-    std::unique_ptr<IBacktestAckSubscriber>    ack_sub;
+    std::unique_ptr<api::BacktestControlPublisher> ctrl_pub;
+    std::unique_ptr<api::BacktestAckSubscriber>    ack_sub;
 };
 
 class BacktesterAeronBus {
@@ -38,7 +38,7 @@ public:
     ///        tick-gate Strategy.
     ///
     /// Sole place that calls into `<Aeron.h>` from the application layer.
-    static BacktesterBus build(std::shared_ptr<aeron::Aeron> aeron, const config::Settings& settings);
+    static BacktesterBus build(std::shared_ptr<::aeron::Aeron> aeron, const config::Settings& settings);
 };
 
 }  // namespace messaging
