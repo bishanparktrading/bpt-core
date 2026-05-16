@@ -3,8 +3,10 @@ include(GoogleTest)
 add_executable(backtester_unit_tests
     unit/test_config.cpp
     unit/test_data_loader.cpp
+    unit/test_latency_model.cpp
     unit/test_matching_engine.cpp
     unit/test_results_collector.cpp
+    unit/test_session_calendar.cpp
 )
 
 target_link_libraries(backtester_unit_tests PRIVATE
