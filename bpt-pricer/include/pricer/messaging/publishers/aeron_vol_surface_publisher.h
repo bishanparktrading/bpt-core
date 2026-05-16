@@ -10,6 +10,7 @@
 /// (separate file, separate bus factory) calls a std::function directly
 /// instead of going through SBE encode + Aeron offer.
 
+#include "pricer/messaging/codecs/sbe_vol_surface_codec.h"
 #include "pricer/messaging/publishers/i_vol_surface_publisher.h"
 
 #include <Aeron.h>
@@ -28,6 +29,7 @@ public:
 
 private:
     std::shared_ptr<aeron::Publication> pub_;
+    SbeVolSurfaceCodec codec_;  ///< composed; transport-agnostic encode lives here
 };
 
 }  // namespace bpt::pricer::messaging
