@@ -5,6 +5,7 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 cc_library(
     name = "pricer_core",
     srcs = [
+        "src/messaging/codecs/sbe_vol_surface_codec.cpp",
         "src/pricing/black_scholes.cpp",
         "src/pricing/forward_curve.cpp",
         "src/pricing/iv_solver.cpp",
@@ -14,6 +15,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//bpt-common",
         "//messages",
         "//bpt-app",
     ],
@@ -25,6 +27,7 @@ cc_test(
         "tests/test_black_scholes.cpp",
         "tests/test_forward_curve.cpp",
         "tests/test_iv_solver.cpp",
+        "tests/test_sbe_vol_surface_codec.cpp",
         "tests/test_svi.cpp",
     ],
     deps = [
@@ -41,7 +44,6 @@ cc_binary(
         "src/config/config.cpp",
         "src/surface/surface_builder.cpp",
         "src/messaging/aeron_bus.cpp",
-        "src/messaging/codecs/sbe_vol_surface_codec.cpp",
         "src/messaging/publishers/aeron_vol_surface_publisher.cpp",
         "src/messaging/publishers/status_publisher.cpp",
         "src/md/md_subscribe_client.cpp",
