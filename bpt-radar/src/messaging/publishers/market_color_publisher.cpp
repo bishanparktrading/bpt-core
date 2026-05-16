@@ -1,6 +1,7 @@
 #include "radar/messaging/publishers/market_color_publisher.h"
 
 #include <Aeron.h>
+#include <cstddef>
 
 namespace bpt::radar::messaging {
 
@@ -18,8 +19,10 @@ MarketColorPublisher::MarketColorPublisher(std::shared_ptr<aeron::Aeron> aeron,
                                                            Policy::kBoundedRetry)) {}
 
 bool MarketColorPublisher::publish(const MarketColor& color) {
-    aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(const_cast<MarketColor*>(&color)), sizeof(MarketColor));
-    return pub_->offer(ab, 0, static_cast<aeron::util::index_t>(sizeof(MarketColor)));
+    alignas(8) std::byte scratch[PodMarketColorCodec::kRecommendedScratchSize];
+    const auto bytes = codec_.encode(color, scratch);
+    aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(scratch), static_cast<aeron::util::index_t>(bytes.size()));
+    return pub_->offer(ab, 0, static_cast<aeron::util::index_t>(bytes.size()));
 }
 
 }  // namespace bpt::radar::messaging

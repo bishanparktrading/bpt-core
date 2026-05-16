@@ -6,7 +6,9 @@
 /// Periodic, latest-wins. Drop-on-no-subscriber is fine — the next interval
 /// produces a fresh snapshot.
 
+#include "radar/messaging/codecs/pod_market_color_codec.h"
 #include "radar/messaging/market_color.h"
+#include "radar/messaging/publishers/i_market_color_publisher.h"
 
 #include <bpt_common/aeron/publisher.h>
 #include <memory>
@@ -14,15 +16,16 @@
 
 namespace bpt::radar::messaging {
 
-class MarketColorPublisher {
+class MarketColorPublisher final : public IMarketColorPublisher {
 public:
     MarketColorPublisher(std::shared_ptr<aeron::Aeron> aeron, const std::string& channel, int stream_id);
 
     /// \brief Returns true if Aeron accepted the offer.
-    bool publish(const MarketColor& color);
+    bool publish(const MarketColor& color) override;
 
 private:
     std::unique_ptr<bpt::common::aeron::Publisher> pub_;
+    PodMarketColorCodec                            codec_;
 };
 
 }  // namespace bpt::radar::messaging
