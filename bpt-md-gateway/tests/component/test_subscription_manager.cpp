@@ -21,7 +21,10 @@
 namespace bpt::md_gateway::subscription {
 namespace {
 
-using namespace bpt::messages;
+using bpt::messages::AckStatus;
+using bpt::messages::MdSubscribeBatch;
+using bpt::messages::MessageHeader;
+using bpt::messages::TradeSide;
 using ::testing::_;
 
 // ── Mock adapter ──────────────────────────────────────────────────────────────

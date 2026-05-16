@@ -13,7 +13,8 @@
 #include <gtest/gtest.h>
 #include <string>
 
-using namespace bpt::refdata::mapping;
+using bpt::refdata::mapping::InstrumentMappingLoader;
+using bpt::refdata::mapping::EXCHANGE_ID_OKX;
 
 namespace {
 

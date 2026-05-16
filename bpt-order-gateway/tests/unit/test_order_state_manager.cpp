@@ -9,7 +9,9 @@
 #include <gtest/gtest.h>
 #include <vector>
 
-using namespace bpt::order_gateway::order;
+using bpt::order_gateway::order::OrderLifecycle;
+using bpt::order_gateway::order::OrderState;
+using bpt::order_gateway::order::OrderStateManager;
 using EX = bpt::messages::ExchangeId;
 using OS = bpt::messages::OrderSide;
 using OT = bpt::messages::OrderType;

@@ -11,9 +11,13 @@
 #include <string>
 
 namespace fs = std::filesystem;
-using namespace bpt::backtester::results;
-using namespace bpt::backtester::matching;
-using namespace bpt::backtester::data;
+using bpt::backtester::results::ResultsCollector;
+using bpt::backtester::matching::FillReport;
+using bpt::backtester::matching::LiquidityRole;
+using bpt::backtester::matching::OrderSide;
+using bpt::backtester::matching::OrderType;
+using bpt::backtester::data::MarketEvent;
+using bpt::backtester::data::OrderBookRecord;
 using bpt::backtester::config::ResultsConfig;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

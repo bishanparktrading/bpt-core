@@ -20,7 +20,10 @@ namespace {
 namespace json = boost::json;
 using bpt::order_gateway::adapter::ExecEvent;
 using bpt::order_gateway::adapter::HyperliquidExecDecoder;
-using namespace bpt::messages;
+using bpt::messages::ExchangeId;
+using bpt::messages::ExecStatus;
+using bpt::messages::OrderSide;
+using bpt::messages::RejectReason;
 
 static constexpr double kScale = 1e8;
 

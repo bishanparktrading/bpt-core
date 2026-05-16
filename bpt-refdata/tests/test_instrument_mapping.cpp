@@ -5,7 +5,12 @@
 #include <gtest/gtest.h>
 #include <stdexcept>
 
-using namespace bpt::refdata::mapping;
+using bpt::refdata::mapping::InstrumentMappingLoader;
+using bpt::refdata::mapping::EXCHANGE_ID_BINANCE;
+using bpt::refdata::mapping::EXCHANGE_ID_HYPERLIQUID;
+using bpt::refdata::mapping::EXCHANGE_ID_OKX;
+using bpt::refdata::mapping::canonical_id_from_uid;
+using bpt::refdata::mapping::make_inst_uid;
 
 // ---------------------------------------------------------------------------
 // Helper: write a minimal valid instrument_mapping.json to a temp file.

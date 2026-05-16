@@ -19,7 +19,20 @@
 
 namespace {
 
-using namespace bpt::messages;
+using bpt::messages::DeltaUpdateType;
+using bpt::messages::ExchangeId;
+using bpt::messages::FeeSchedule;
+using bpt::messages::FundingRate;
+using bpt::messages::InstrumentStatus;
+using bpt::messages::InstrumentType;
+using bpt::messages::MessageHeader;
+using bpt::messages::OptionSide;
+using bpt::messages::RefDataDelta;
+using bpt::messages::RefDataError;
+using bpt::messages::RefDataErrorType;
+using bpt::messages::RefDataReady;
+using bpt::messages::RefDataSnapshot;
+using bpt::messages::RefDataSubscriptionRequest;
 
 // ---------------------------------------------------------------------------
 // RefDataSubscriptionRequest

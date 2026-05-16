@@ -8,8 +8,16 @@
 #include <string>
 #include <vector>
 
-using namespace bpt::backtester::matching;
-using namespace bpt::backtester::data;
+using bpt::backtester::matching::FillReport;
+using bpt::backtester::matching::LiquidityRole;
+using bpt::backtester::matching::MatchingEngine;
+using bpt::backtester::matching::OpenOrder;
+using bpt::backtester::matching::OrderSide;
+using bpt::backtester::matching::OrderType;
+using bpt::backtester::data::MarketEvent;
+using bpt::backtester::data::OrderBookRecord;
+using bpt::backtester::data::TradeRecord;
+using bpt::backtester::data::TradeSide;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

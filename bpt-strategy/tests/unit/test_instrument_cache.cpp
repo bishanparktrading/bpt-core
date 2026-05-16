@@ -14,7 +14,13 @@
 
 namespace {
 
-using namespace bpt::messages;
+using bpt::messages::DeltaUpdateType;
+using bpt::messages::InstrumentStatus;
+using bpt::messages::InstrumentType;
+using bpt::messages::MessageHeader;
+using bpt::messages::OptionSide;
+using bpt::messages::RefDataDelta;
+using bpt::messages::RefDataSnapshot;
 using bpt::strategy::refdata::InstrumentCache;
 
 // ---------------------------------------------------------------------------

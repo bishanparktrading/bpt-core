@@ -11,8 +11,16 @@
 #include <vector>
 
 namespace fs = std::filesystem;
-using namespace bpt::backtester::data;
-using namespace bpt::backtester::config;
+using bpt::backtester::data::DataLoader;
+using bpt::backtester::data::MarketEvent;
+using bpt::backtester::data::OrderBookRecord;
+using bpt::backtester::data::TradeRecord;
+using bpt::backtester::data::TradeSide;
+using bpt::backtester::data::Type;
+using bpt::backtester::config::DataConfig;
+using bpt::backtester::config::InstrumentConfig;
+using bpt::backtester::config::SimulationConfig;
+using bpt::backtester::config::TimeWindow;
 
 // ── Parquet test helpers ──────────────────────────────────────────────────────
 

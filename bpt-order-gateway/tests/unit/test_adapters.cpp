@@ -22,7 +22,11 @@
 namespace {
 
 namespace json = boost::json;
-using namespace bpt::messages;
+using bpt::messages::ExchangeId;
+using bpt::messages::ExecStatus;
+using bpt::messages::OrderSide;
+using bpt::messages::OrderType;
+using bpt::messages::RejectReason;
 
 static constexpr double kScale = 1e8;
 

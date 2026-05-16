@@ -36,7 +36,15 @@
 
 namespace {
 
-using namespace bpt::order_gateway;
+using bpt::order_gateway::adapter::ExecEvent;
+using bpt::order_gateway::adapter::IOrderAdapter;
+using bpt::order_gateway::messaging::IExecReportPublisher;
+using bpt::order_gateway::metrics::OrderGatewayMetrics;
+using bpt::order_gateway::order::OrderProcessor;
+using bpt::order_gateway::order::OrderStateManager;
+using bpt::order_gateway::risk::PnlTracker;
+using bpt::order_gateway::risk::RejectRateBreaker;
+using bpt::order_gateway::risk::RiskChecker;
 using bpt::messages::ExchangeId;
 using bpt::messages::ExecStatus;
 using bpt::messages::OrderSide;
@@ -46,7 +54,7 @@ using bpt::messages::TimeInForce;
 
 // Capturing fake: stores every publish() call in-memory so the test
 // can assert post-conditions without a real Aeron publication.
-struct CapturingExecReportPublisher final : public messaging::IExecReportPublisher {
+struct CapturingExecReportPublisher final : public IExecReportPublisher {
     struct Entry {
         uint64_t order_id;
         ExecStatus::Value status;
@@ -76,13 +84,13 @@ struct CapturingExecReportPublisher final : public messaging::IExecReportPublish
 
 constexpr int64_t kScale = 100'000'000LL;  // 1e8 fixed-point
 
-adapter::ExecEvent make_fill(uint64_t order_id,
+ExecEvent make_fill(uint64_t order_id,
                              ExchangeId::Value exchange,
                              uint64_t instrument_id,
                              OrderSide::Value side,
                              int64_t price_e8,
                              uint64_t qty_e8) {
-    adapter::ExecEvent ev{};
+    ExecEvent ev{};
     ev.order_id = order_id;
     ev.exchange_id = exchange;
     ev.instrument_id = instrument_id;
@@ -105,8 +113,8 @@ adapter::ExecEvent make_fill(uint64_t order_id,
 // Minimal REJECTED ExecEvent for breaker tests. Uses a unique
 // `local_ts_ns` so the rolling window sees distinct events even when
 // we feed a tight burst in one test.
-adapter::ExecEvent make_reject(uint64_t order_id, uint64_t local_ts_ns) {
-    adapter::ExecEvent ev{};
+ExecEvent make_reject(uint64_t order_id, uint64_t local_ts_ns) {
+    ExecEvent ev{};
     ev.order_id = order_id;
     ev.exchange_id = ExchangeId::OKX;
     ev.instrument_id = 100;
@@ -124,8 +132,8 @@ adapter::ExecEvent make_reject(uint64_t order_id, uint64_t local_ts_ns) {
     return ev;
 }
 
-adapter::ExecEvent make_ack(uint64_t order_id, uint64_t local_ts_ns) {
-    adapter::ExecEvent ev{};
+ExecEvent make_ack(uint64_t order_id, uint64_t local_ts_ns) {
+    ExecEvent ev{};
     ev.order_id = order_id;
     ev.exchange_id = ExchangeId::OKX;
     ev.instrument_id = 100;
@@ -180,21 +188,21 @@ struct NewOrderBuf {
 // exercise the exec-event and new-order paths.
 struct Harness {
     CapturingExecReportPublisher pub;
-    order::OrderStateManager state_mgr;
-    risk::RiskChecker risk_checker{
+    OrderStateManager state_mgr;
+    RiskChecker risk_checker{
         /*max_order_size_usd=*/1e9,
         /*max_notional_per_order_usd=*/1e9,
         /*max_open_orders_per_venue=*/1000,
         /*max_orders_per_second=*/1000,
     };
-    risk::PnlTracker pnl_tracker;
-    metrics::OrderGatewayMetrics metrics{0};  // port=0 → no HTTP exposer
-    std::vector<std::shared_ptr<adapter::IOrderAdapter>> adapters;
-    order::OrderProcessor processor;
+    PnlTracker pnl_tracker;
+    OrderGatewayMetrics metrics{0};  // port=0 → no HTTP exposer
+    std::vector<std::shared_ptr<IOrderAdapter>> adapters;
+    OrderProcessor processor;
 
     Harness(double max_daily_loss_usd = 10.0,
             double max_position_usd = 0.0,
-            risk::RejectRateBreaker::Config breaker_cfg = {})
+            RejectRateBreaker::Config breaker_cfg = {})
         : processor(pub,
                     state_mgr,
                     risk_checker,
@@ -274,8 +282,8 @@ TEST(OrderProcessorRiskLatchTest, NewOrderRejectsAfterLatch) {
 
 // ----- reject-rate breaker integration --------------------------------------
 
-risk::RejectRateBreaker::Config breaker_enabled(double threshold_pct = 20.0, uint32_t min_events = 10) {
-    risk::RejectRateBreaker::Config c;
+RejectRateBreaker::Config breaker_enabled(double threshold_pct = 20.0, uint32_t min_events = 10) {
+    RejectRateBreaker::Config c;
     c.enabled = true;
     c.threshold_pct = threshold_pct;
     c.min_events = min_events;

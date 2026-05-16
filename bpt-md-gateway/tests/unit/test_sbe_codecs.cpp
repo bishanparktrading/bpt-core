@@ -14,7 +14,15 @@
 
 namespace {
 
-using namespace bpt::messages;
+using bpt::messages::AckStatus;
+using bpt::messages::MdMarketData;
+using bpt::messages::MdServiceHeartbeat;
+using bpt::messages::MdSubscribeBatch;
+using bpt::messages::MdSubscriptionAck;
+using bpt::messages::MdSubscriptionHeartbeat;
+using bpt::messages::MdTrade;
+using bpt::messages::MessageHeader;
+using bpt::messages::TradeSide;
 
 // ── MdSubscribeBatch ─────────────────────────────────────────────────────────
 

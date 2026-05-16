@@ -22,7 +22,19 @@
 
 namespace {
 
-using namespace bpt::messages;
+using bpt::messages::CancelAll;
+using bpt::messages::CancelOrder;
+using bpt::messages::ExchangeId;
+using bpt::messages::ExecStatus;
+using bpt::messages::ExecutionReport;
+using bpt::messages::MessageHeader;
+using bpt::messages::ModifyOrder;
+using bpt::messages::NewOrder;
+using bpt::messages::OrderGatewayHeartbeat;
+using bpt::messages::OrderSide;
+using bpt::messages::OrderType;
+using bpt::messages::RejectReason;
+using bpt::messages::TimeInForce;
 
 // ── NewOrder (id=10) ─────────────────────────────────────────────────────────
 

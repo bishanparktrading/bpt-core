@@ -4,8 +4,10 @@
 
 #include <gtest/gtest.h>
 
-using namespace bpt::refdata::registry;
-using namespace bpt::refdata::refdata;
+using bpt::refdata::registry::InstrumentRegistry;
+using bpt::refdata::refdata::Instrument;
+using bpt::refdata::refdata::InstrumentStatus;
+using bpt::refdata::refdata::InstrumentType;
 
 static Instrument make_instrument(uint64_t uid,
                                   const std::string& venue,

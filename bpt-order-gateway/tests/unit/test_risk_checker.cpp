@@ -6,7 +6,7 @@
 
 #include <gtest/gtest.h>
 
-using namespace bpt::order_gateway::risk;
+using bpt::order_gateway::risk::RiskChecker;
 using EX = bpt::messages::ExchangeId;
 using RR = bpt::messages::RejectReason;
 

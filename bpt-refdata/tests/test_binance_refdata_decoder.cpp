@@ -10,9 +10,12 @@
 #include <gtest/gtest.h>
 #include <memory>
 
-using namespace bpt::refdata::adapter;
-using namespace bpt::refdata::mapping;
-using namespace bpt::refdata::refdata;
+using bpt::refdata::adapter::BinanceRefdataDecoder;
+using bpt::refdata::mapping::InstrumentMappingLoader;
+using bpt::refdata::mapping::EXCHANGE_ID_BINANCE;
+using bpt::refdata::mapping::make_inst_uid;
+using bpt::refdata::refdata::InstrumentStatus;
+using bpt::refdata::refdata::InstrumentType;
 
 // ---------------------------------------------------------------------------
 // Shared instrument mapping fixture

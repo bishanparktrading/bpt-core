@@ -26,16 +26,26 @@
 
 namespace {
 
-using namespace bpt::refdata;
+using bpt::refdata::RefdataService;
+using bpt::refdata::config::Settings;
+using bpt::refdata::messaging::RefdataRequest;
+using bpt::refdata::port::IFeeScheduleSink;
+using bpt::refdata::port::IRefdataControlSource;
+using bpt::refdata::port::IRefdataDeltaSink;
+using bpt::refdata::port::IRefdataSnapshotSink;
+using bpt::refdata::port::IRefdataStatusSink;
+using bpt::refdata::refdata::FeeScheduleState;
+using bpt::refdata::refdata::Instrument;
+using bpt::refdata::registry::InstrumentRegistry;
 
 // ---- Fakes -----------------------------------------------------------------
 
-class FakeRefdataControlSource final : public port::IRefdataControlSource {
+class FakeRefdataControlSource final : public IRefdataControlSource {
 public:
     int poll(RequestHandler /*handler*/) override { return 0; }
 };
 
-class FakeRefdataSnapshotSink final : public port::IRefdataSnapshotSink {
+class FakeRefdataSnapshotSink final : public IRefdataSnapshotSink {
 public:
     struct Call {
         uint64_t correlation_id;
@@ -44,33 +54,33 @@ public:
     };
     std::vector<Call> calls;
 
-    void publish(const registry::InstrumentRegistry& reg,
-                 const messaging::RefdataRequest& request,
+    void publish(const InstrumentRegistry& reg,
+                 const RefdataRequest& request,
                  uint64_t seq_start) override {
         calls.push_back({request.correlation_id, seq_start, reg.count()});
     }
 };
 
-class FakeRefdataDeltaSink final : public port::IRefdataDeltaSink {
+class FakeRefdataDeltaSink final : public IRefdataDeltaSink {
 public:
     uint64_t seq{42};
     std::size_t deltas{0};
     std::size_t heartbeats{0};
 
-    void publish_delta(bpt::messages::DeltaUpdateType::Value /*ut*/, const refdata::Instrument& /*inst*/) override {
+    void publish_delta(bpt::messages::DeltaUpdateType::Value /*ut*/, const Instrument& /*inst*/) override {
         ++deltas;
     }
     void publish_heartbeat() override { ++heartbeats; }
     uint64_t current_sequence() const override { return seq; }
 };
 
-class FakeFeeScheduleSink final : public port::IFeeScheduleSink {
+class FakeFeeScheduleSink final : public IFeeScheduleSink {
 public:
     std::size_t calls{0};
-    void publish(const refdata::FeeScheduleState& /*fs*/) override { ++calls; }
+    void publish(const FeeScheduleState& /*fs*/) override { ++calls; }
 };
 
-class FakeRefdataStatusSink final : public port::IRefdataStatusSink {
+class FakeRefdataStatusSink final : public IRefdataStatusSink {
 public:
     std::size_t ready_calls{0};
     std::size_t error_calls{0};
@@ -82,8 +92,8 @@ public:
     }
 };
 
-config::Settings make_test_settings() {
-    config::Settings s;
+Settings make_test_settings() {
+    Settings s;
     s.base.metrics_port = 0;               // skip Prometheus exposer
     s.instrument_mapping.local_path = "";  // skip mapping JSON load
     return s;
@@ -103,7 +113,7 @@ TEST(RefdataServiceSeamTest, HandleRequestForwardsToSnapshotSink) {
 
     RefdataService app(make_test_settings(), std::move(control), std::move(snapshot), delta, fee, status, {});
 
-    messaging::RefdataRequest req{};
+    RefdataRequest req{};
     req.correlation_id = 7777;
 
     app.handle_request(req);
