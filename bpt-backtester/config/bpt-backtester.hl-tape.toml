@@ -1,31 +1,31 @@
 environment    = "dev"
 
-# Backtest configured against the local 2026-04-25 HL tape capture
+# Backtest configured against the local 2026-05-08 HL tape capture
 # (/opt/bpt/data/backtest-cache/). Full-day data — APE, ETH, SOL,
 # DOGE, etc. Allow_partial_data=true skips funding/mark gracefully
 # (local cache only has trades + orderbook).
+# Refdata meta.json reused from 2026-04-25 — APE listing unchanged.
 
 [simulation]
 start              = "2026-04-25T00:00:00Z"
 end                = "2026-04-25T23:59:59Z"
 allow_partial_data = true
 
-[simulation.latency]
-cex_base_ms           = 2
-hyperliquid_base_ms   = 200
-hyperliquid_jitter_ms = 50
+# [simulation.latency]
+# cex_base_ms           = 2
+# hyperliquid_base_ms   = 200
+# hyperliquid_jitter_ms = 50
 
 [data]
 local_cache = "/opt/bpt/data/backtest-cache"
 hyperliquid_refdata_snapshot = "/opt/bpt/data/raw/hyperliquid/2026-04-25/meta.json"
 
-# APE — matches avellaneda_stoikov.backtest.toml's pinned
-# instruments = ["APE/USD:PERPETUAL"]. AS was selected for HL APE
-# because of its ~10bps median spread; most HL perps run <2bps,
-# too tight for AS to clear fees.
+# APE — for PassiveMakerStrategy. APE has 8bps median spread and
+# ~275 trades/day, the regime where passive maker (low cancel-replace
+# cadence, wide quotes) should beat AS-style aggressive quoting.
 [[instruments]]
 exchange = "HYPERLIQUID"
-symbol   = "APE"
+symbol   = "AAVE"
 
 [endpoints]
 binance_md_port       = 18100
