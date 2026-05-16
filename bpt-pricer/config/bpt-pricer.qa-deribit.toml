@@ -17,7 +17,11 @@ newton_tolerance = 1.0e-8
 # Deribit testnet's channel cap, enough to demo IV term-structure / RR /
 # skew on the dashboard. Increase incrementally; observe md-gateway
 # reconnect cadence as the canary.
-front_n_expiries = 1
+# Raised from 1 → 3 on 2026-05-15: front=1 picked 15MAY26 same-day expiry,
+# no makers on testnet for that, surface stayed empty. 3 covers same-day +
+# next-day + weekly. 3 × 20 = ~60 instruments per underlying — well under
+# the WS-flapping threshold we hit at 384.
+front_n_expiries = 3
 max_strikes_per_expiry = 20
 
 # Shared aeron stream registry — see deploy/config/aeron/streams.toml.
