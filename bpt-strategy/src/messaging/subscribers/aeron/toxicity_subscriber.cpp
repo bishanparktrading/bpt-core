@@ -1,20 +1,23 @@
-#include "strategy/messaging/subscribers/toxicity_subscriber.h"
+#include "strategy/messaging/subscribers/aeron/toxicity_subscriber.h"
 
 #include <bpt_common/aeron/aeron_utils.h>
+#include <cstring>
 
-namespace bpt::strategy::messaging {
+namespace bpt::strategy::messaging::aeron {
 
-ToxicitySubscriber::ToxicitySubscriber(std::shared_ptr<aeron::Aeron> aeron, const std::string& channel, int stream_id)
+ToxicitySubscriber::ToxicitySubscriber(std::shared_ptr<::aeron::Aeron> aeron,
+                                       const std::string& channel,
+                                       int stream_id)
     : sub_(bpt::common::aeron::wait_for_subscription(std::move(aeron), channel, stream_id)) {}
 
 int ToxicitySubscriber::poll(int fragment_limit) {
     if (!sub_)
         return 0;
     return sub_->poll(
-        [this](const aeron::concurrent::AtomicBuffer& buffer,
-               aeron::util::index_t offset,
-               aeron::util::index_t length,
-               const aeron::Header&) {
+        [this](const ::aeron::concurrent::AtomicBuffer& buffer,
+               ::aeron::util::index_t offset,
+               ::aeron::util::index_t length,
+               const ::aeron::Header&) {
             if (static_cast<std::size_t>(length) != sizeof(bpt::analytics::messaging::ToxicityUpdate))
                 return;
             bpt::analytics::messaging::ToxicityUpdate update;
@@ -25,4 +28,4 @@ int ToxicitySubscriber::poll(int fragment_limit) {
         fragment_limit);
 }
 
-}  // namespace bpt::strategy::messaging
+}  // namespace bpt::strategy::messaging::aeron

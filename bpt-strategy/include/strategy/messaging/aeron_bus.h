@@ -20,8 +20,8 @@
 #include "strategy/backtest/backtest_client.h"
 #include "strategy/dashboard/portfolio_snapshot_publisher.h"
 #include "strategy/md/i_md_client.h"
-#include "strategy/messaging/subscribers/dashboard_control_subscriber.h"
-#include "strategy/messaging/subscribers/toxicity_subscriber.h"
+#include "strategy/messaging/subscribers/api/dashboard_control_subscriber.h"
+#include "strategy/messaging/subscribers/api/toxicity_subscriber.h"
 #include "strategy/order/i_order_gateway_client.h"
 #include "strategy/refdata/i_refdata_client.h"
 #include "strategy/vol/vol_surface_client.h"
@@ -54,8 +54,8 @@ struct StrategyBus {
     std::unique_ptr<order::IOrderGatewayClient> order_gw;
     std::unique_ptr<vol::VolSurfaceClient> vol;
     std::unique_ptr<backtest::BacktestClient> backtest;
-    std::unique_ptr<ToxicitySubscriber> tox;
-    std::unique_ptr<DashboardControlSubscriber> dashboard_ctrl;
+    std::unique_ptr<api::ToxicitySubscriber> tox;                  ///< port; aeron::ToxicitySubscriber in prod
+    std::unique_ptr<api::DashboardControlSubscriber> dashboard_ctrl;  ///< port; aeron::DashboardControlSubscriber in prod
     std::unique_ptr<dashboard::PortfolioSnapshotPublisher> portfolio_snap;
 };
 
@@ -64,7 +64,7 @@ public:
     /// Build every concrete pub/sub the strategy needs from a single
     /// Aeron client + the parsed config. Sole place that calls into
     /// `<Aeron.h>` from the application layer.
-    static StrategyBus build(std::shared_ptr<aeron::Aeron> aeron, const config::AppConfig& cfg);
+    static StrategyBus build(std::shared_ptr<::aeron::Aeron> aeron, const config::AppConfig& cfg);
 };
 
 }  // namespace messaging

@@ -2,6 +2,8 @@
 
 #include "strategy/config/config.h"
 #include "strategy/md/md_client.h"
+#include "strategy/messaging/subscribers/aeron/dashboard_control_subscriber.h"
+#include "strategy/messaging/subscribers/aeron/toxicity_subscriber.h"
 #include "strategy/order/aeron_order_gateway_client.h"
 #include "strategy/refdata/refdata_client.h"
 
@@ -9,7 +11,7 @@
 
 namespace bpt::strategy::messaging {
 
-StrategyBus StrategyAeronBus::build(std::shared_ptr<aeron::Aeron> aeron, const config::AppConfig& cfg) {
+StrategyBus StrategyAeronBus::build(std::shared_ptr<::aeron::Aeron> aeron, const config::AppConfig& cfg) {
     const auto& ac = cfg.aeron;
     const auto& fc = cfg.strat;
 
@@ -53,7 +55,7 @@ StrategyBus StrategyAeronBus::build(std::shared_ptr<aeron::Aeron> aeron, const c
     }
 
     if (ac.toxicity.stream_id != 0) {
-        bus.tox = std::make_unique<ToxicitySubscriber>(aeron, ac.toxicity.channel, ac.toxicity.stream_id);
+        bus.tox = std::make_unique<aeron::ToxicitySubscriber>(aeron, ac.toxicity.channel, ac.toxicity.stream_id);
         bpt::common::log::info("Analytics toxicity subscription ready: {} stream {}",
                                ac.toxicity.channel,
                                ac.toxicity.stream_id);
@@ -74,9 +76,9 @@ StrategyBus StrategyAeronBus::build(std::shared_ptr<aeron::Aeron> aeron, const c
     // has its own control channel; portfolio snapshots are noise during
     // replay).
     if (!cfg.backtest_mode && ac.dashboard_control.stream_id != 0) {
-        bus.dashboard_ctrl = std::make_unique<DashboardControlSubscriber>(aeron,
-                                                                          ac.dashboard_control.channel,
-                                                                          ac.dashboard_control.stream_id);
+        bus.dashboard_ctrl = std::make_unique<aeron::DashboardControlSubscriber>(aeron,
+                                                                                 ac.dashboard_control.channel,
+                                                                                 ac.dashboard_control.stream_id);
         if (bus.dashboard_ctrl->is_ready()) {
             bpt::common::log::info("Dashboard control subscription ready on stream {}", ac.dashboard_control.stream_id);
         } else {
