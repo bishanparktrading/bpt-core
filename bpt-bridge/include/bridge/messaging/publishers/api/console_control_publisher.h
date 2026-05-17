@@ -10,9 +10,9 @@
 
 namespace bpt::bridge::messaging::api {
 
-class DashboardControlPublisher {
+class ConsoleControlPublisher {
 public:
-    virtual ~DashboardControlPublisher() = default;
+    virtual ~ConsoleControlPublisher() = default;
 
     /// Publish a HALT command (byte 0x00) to the control stream. Strategy
     /// stops generating new orders on receipt.

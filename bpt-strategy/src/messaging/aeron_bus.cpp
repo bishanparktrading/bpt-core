@@ -2,7 +2,7 @@
 
 #include "strategy/config/config.h"
 #include "strategy/md/md_client.h"
-#include "strategy/messaging/subscribers/aeron/dashboard_control_subscriber.h"
+#include "strategy/messaging/subscribers/aeron/console_control_subscriber.h"
 #include "strategy/messaging/subscribers/aeron/toxicity_subscriber.h"
 #include "strategy/order/aeron_order_gateway_client.h"
 #include "strategy/refdata/refdata_client.h"
@@ -75,19 +75,19 @@ StrategyBus StrategyAeronBus::build(std::shared_ptr<::aeron::Aeron> aeron, const
     // Dashboard control + snapshot — disabled in backtest mode (backtest
     // has its own control channel; portfolio snapshots are noise during
     // replay).
-    if (!cfg.backtest_mode && ac.dashboard_control.stream_id != 0) {
-        bus.dashboard_ctrl = std::make_unique<aeron::DashboardControlSubscriber>(aeron,
-                                                                                 ac.dashboard_control.channel,
-                                                                                 ac.dashboard_control.stream_id);
-        if (bus.dashboard_ctrl->is_ready()) {
-            bpt::common::log::info("Dashboard control subscription ready on stream {}", ac.dashboard_control.stream_id);
+    if (!cfg.backtest_mode && ac.console_control.stream_id != 0) {
+        bus.console_ctrl = std::make_unique<aeron::ConsoleControlSubscriber>(aeron,
+                                                                                 ac.console_control.channel,
+                                                                                 ac.console_control.stream_id);
+        if (bus.console_ctrl->is_ready()) {
+            bpt::common::log::info("Dashboard control subscription ready on stream {}", ac.console_control.stream_id);
         } else {
             bpt::common::log::warn("Dashboard control subscription unavailable");
         }
     }
 
     if (!cfg.backtest_mode) {
-        bus.portfolio_snap = std::make_unique<dashboard::PortfolioSnapshotPublisher>(aeron,
+        bus.portfolio_snap = std::make_unique<console::PortfolioSnapshotPublisher>(aeron,
                                                                                      ac.portfolio.channel,
                                                                                      ac.portfolio.stream_id);
     }

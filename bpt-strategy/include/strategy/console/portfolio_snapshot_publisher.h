@@ -9,7 +9,7 @@
 #include <memory>
 #include <string>
 
-namespace bpt::strategy::dashboard {
+namespace bpt::strategy::console {
 
 // Publishes the strategy's PortfolioState to the dashboard bridge as a JSON
 // blob over Aeron. The bridge relays the payload as-is to all connected
@@ -49,4 +49,4 @@ private:
     uint64_t last_publish_ns_{0};
 };
 
-}  // namespace bpt::strategy::dashboard
+}  // namespace bpt::strategy::console

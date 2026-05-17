@@ -1,9 +1,9 @@
 #pragma once
 
 /// @file
-/// Aeron-backed concrete for api::DashboardControlSubscriber.
+/// Aeron-backed concrete for api::ConsoleControlSubscriber.
 
-#include "strategy/messaging/subscribers/api/dashboard_control_subscriber.h"
+#include "strategy/messaging/subscribers/api/console_control_subscriber.h"
 
 #include <Aeron.h>
 
@@ -12,9 +12,9 @@
 
 namespace bpt::strategy::messaging::aeron {
 
-class DashboardControlSubscriber final : public api::DashboardControlSubscriber {
+class ConsoleControlSubscriber final : public api::ConsoleControlSubscriber {
 public:
-    DashboardControlSubscriber(std::shared_ptr<::aeron::Aeron> aeron, const std::string& channel, int stream_id);
+    ConsoleControlSubscriber(std::shared_ptr<::aeron::Aeron> aeron, const std::string& channel, int stream_id);
 
     [[nodiscard]] bool is_ready() const override { return static_cast<bool>(sub_); }
 

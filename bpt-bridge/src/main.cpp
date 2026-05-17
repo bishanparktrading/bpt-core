@@ -3,7 +3,7 @@
 #include "bridge/app/bridge_service.h"
 #include "bridge/config/settings.h"
 #include "bridge/messaging/aeron_bus.h"
-#include "bridge/messaging/publishers/api/dashboard_control_publisher.h"
+#include "bridge/messaging/publishers/api/console_control_publisher.h"
 #include "bridge/ws/i_broadcaster.h"
 #include "bridge/ws/ws_server.h"
 
@@ -90,10 +90,10 @@ int main(int argc, char** argv) {
             std::move(settings),
             [ws_server](auto& cfg, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
                 // Composition root: build the bus, surface the control publisher
-                // as the api::DashboardControlPublisher port, hand the WsServer
+                // as the api::ConsoleControlPublisher port, hand the WsServer
                 // as the IBroadcaster port.
                 auto bus = bpt::bridge::messaging::BridgeAeronBus::build(ctx.aeron, cfg);
-                std::shared_ptr<bpt::bridge::messaging::api::DashboardControlPublisher> ctrl_sink = bus.ctrl_pub;
+                std::shared_ptr<bpt::bridge::messaging::api::ConsoleControlPublisher> ctrl_sink = bus.ctrl_pub;
                 return std::make_unique<bpt::bridge::BridgeService>(std::move(cfg),
                                                                     std::move(bus),
                                                                     ws_server,

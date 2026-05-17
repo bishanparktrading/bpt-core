@@ -35,10 +35,10 @@ BridgeBus BridgeAeronBus::build(std::shared_ptr<::aeron::Aeron> aeron, const con
                                                                        settings.market_color.channel,
                                                                        settings.market_color.stream_id);
     }
-    if (settings.dashboard_control.stream_id != 0) {
-        bus.ctrl_pub = std::make_shared<aeron::DashboardControlPublisher>(aeron,
-                                                                          settings.dashboard_control.channel,
-                                                                          settings.dashboard_control.stream_id);
+    if (settings.console_control.stream_id != 0) {
+        bus.ctrl_pub = std::make_shared<aeron::ConsoleControlPublisher>(aeron,
+                                                                          settings.console_control.channel,
+                                                                          settings.console_control.stream_id);
     }
 
     return bus;

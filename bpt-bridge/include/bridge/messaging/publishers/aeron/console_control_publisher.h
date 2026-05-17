@@ -1,12 +1,12 @@
 #pragma once
 
 /// @file
-/// Aeron-backed implementation of api::DashboardControlPublisher. Publishes
+/// Aeron-backed implementation of api::ConsoleControlPublisher. Publishes
 /// single-byte HALT (0x00) / RESUME (0x01) commands on the bridge → strategy
 /// control stream. Constructed by BridgeAeronBus::build() at the prod
 /// composition root and held inside the BridgeBus.
 
-#include "bridge/messaging/publishers/api/dashboard_control_publisher.h"
+#include "bridge/messaging/publishers/api/console_control_publisher.h"
 
 #include <Aeron.h>
 
@@ -16,9 +16,9 @@
 
 namespace bpt::bridge::messaging::aeron {
 
-class DashboardControlPublisher : public api::DashboardControlPublisher {
+class ConsoleControlPublisher : public api::ConsoleControlPublisher {
 public:
-    DashboardControlPublisher(std::shared_ptr<::aeron::Aeron> aeron,
+    ConsoleControlPublisher(std::shared_ptr<::aeron::Aeron> aeron,
                               const std::string& channel,
                               int32_t stream_id);
 

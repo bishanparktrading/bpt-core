@@ -18,7 +18,7 @@ constexpr std::chrono::milliseconds BridgeService::kTickMinInterval;
 BridgeService::BridgeService(config::Settings settings,
                              messaging::BridgeBus bus,
                              std::shared_ptr<ws::IBroadcaster> broadcaster,
-                             std::shared_ptr<messaging::api::DashboardControlPublisher> ctrl_sink)
+                             std::shared_ptr<messaging::api::ConsoleControlPublisher> ctrl_sink)
     : settings_(std::move(settings)),
       bus_(std::move(bus)),
       broadcaster_(std::move(broadcaster)),
@@ -196,7 +196,7 @@ void BridgeService::on_market_color(const bpt::radar::messaging::MarketColor& mc
                           encode::market_color(mc.timestamp_ns, venue, mc.underlying, opts, perp, flow, regime));
 }
 
-void BridgeService::on_dashboard_command(const std::string& cmd) {
+void BridgeService::on_console_command(const std::string& cmd) {
     const char* status_str = nullptr;
     if (cmd == "halt") {
         if (ctrl_sink_)
@@ -223,7 +223,7 @@ void BridgeService::run() {
     bpt::common::log::info("md_data stream={}  exec_report stream={}  control stream={}",
                            settings_.md_data.stream_id,
                            settings_.exec_report.stream_id,
-                           settings_.dashboard_control.stream_id);
+                           settings_.console_control.stream_id);
     bpt::common::log::info("mode={} strategy={} symbol={}@{} instrument_filter={}",
                            settings_.mode,
                            settings_.strategy,
@@ -256,7 +256,7 @@ void BridgeService::run() {
     // Install dashboard command handler on the broadcaster (IO-thread-safe in
     // production WsServer; tests can drive it synchronously).
     if (broadcaster_)
-        broadcaster_->set_command_handler([this](const std::string& cmd) { on_dashboard_command(cmd); });
+        broadcaster_->set_command_handler([this](const std::string& cmd) { on_console_command(cmd); });
 
     publish_session_init();
 

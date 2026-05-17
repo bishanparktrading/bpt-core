@@ -1,5 +1,5 @@
 /// \file
-/// \brief Drives BridgeService's IBroadcaster + api::DashboardControlPublisher seam
+/// \brief Drives BridgeService's IBroadcaster + api::ConsoleControlPublisher seam
 /// through fake port implementations. No Aeron driver, no real WebSocket
 /// listener — bus_ is default-constructed (all unique_ptrs null) and the
 /// poll loop never runs. We drive event handlers directly.
@@ -12,7 +12,7 @@
 
 #include "bridge/app/bridge_service.h"
 #include "bridge/messaging/aeron_bus.h"
-#include "bridge/messaging/publishers/api/dashboard_control_publisher.h"
+#include "bridge/messaging/publishers/api/console_control_publisher.h"
 #include "bridge/messaging/subscribers/api/exec_subscriber.h"
 #include "bridge/ws/i_broadcaster.h"
 #include "bridge/ws/message_encoder.h"
@@ -66,7 +66,7 @@ public:
     }
 };
 
-class FakeCtrlSink final : public ctrl_api::DashboardControlPublisher {
+class FakeCtrlSink final : public ctrl_api::ConsoleControlPublisher {
 public:
     int halts = 0;
     int resumes = 0;
@@ -173,7 +173,7 @@ TEST(BridgeServiceSeamTest, DashboardHaltCommandPublishesByteAndStatus) {
     auto ctrl = std::make_shared<FakeCtrlSink>();
     auto svc = make_service(bc, ctrl);
 
-    svc->on_dashboard_command("halt");
+    svc->on_console_command("halt");
 
     EXPECT_EQ(ctrl->halts, 1);
     EXPECT_EQ(ctrl->resumes, 0);
@@ -186,7 +186,7 @@ TEST(BridgeServiceSeamTest, DashboardResumeCommandPublishesByteAndStatus) {
     auto ctrl = std::make_shared<FakeCtrlSink>();
     auto svc = make_service(bc, ctrl);
 
-    svc->on_dashboard_command("resume");
+    svc->on_console_command("resume");
 
     EXPECT_EQ(ctrl->halts, 0);
     EXPECT_EQ(ctrl->resumes, 1);
@@ -198,7 +198,7 @@ TEST(BridgeServiceSeamTest, UnknownCommandIsIgnored) {
     auto ctrl = std::make_shared<FakeCtrlSink>();
     auto svc = make_service(bc, ctrl);
 
-    svc->on_dashboard_command("flip");
+    svc->on_console_command("flip");
 
     EXPECT_EQ(ctrl->halts, 0);
     EXPECT_EQ(ctrl->resumes, 0);

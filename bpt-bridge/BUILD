@@ -12,7 +12,7 @@ cc_library(
         "src/app/bridge_service.cpp",
         "src/config/config_loader.cpp",
         "src/messaging/aeron_bus.cpp",
-        "src/messaging/publishers/aeron/dashboard_control_publisher.cpp",
+        "src/messaging/publishers/aeron/console_control_publisher.cpp",
         "src/messaging/subscribers/aeron/account_subscriber.cpp",
         "src/messaging/subscribers/aeron/exec_subscriber.cpp",
         "src/messaging/subscribers/aeron/market_color_subscriber.cpp",

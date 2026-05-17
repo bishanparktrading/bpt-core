@@ -18,9 +18,9 @@
 /// kept and bus output is typed by the interface.
 
 #include "strategy/backtest/backtest_client.h"
-#include "strategy/dashboard/portfolio_snapshot_publisher.h"
+#include "strategy/console/portfolio_snapshot_publisher.h"
 #include "strategy/md/i_md_client.h"
-#include "strategy/messaging/subscribers/api/dashboard_control_subscriber.h"
+#include "strategy/messaging/subscribers/api/console_control_subscriber.h"
 #include "strategy/messaging/subscribers/api/toxicity_subscriber.h"
 #include "strategy/order/i_order_gateway_client.h"
 #include "strategy/refdata/i_refdata_client.h"
@@ -55,8 +55,8 @@ struct StrategyBus {
     std::unique_ptr<vol::VolSurfaceClient> vol;
     std::unique_ptr<backtest::BacktestClient> backtest;
     std::unique_ptr<api::ToxicitySubscriber> tox;                  ///< port; aeron::ToxicitySubscriber in prod
-    std::unique_ptr<api::DashboardControlSubscriber> dashboard_ctrl;  ///< port; aeron::DashboardControlSubscriber in prod
-    std::unique_ptr<dashboard::PortfolioSnapshotPublisher> portfolio_snap;
+    std::unique_ptr<api::ConsoleControlSubscriber> console_ctrl;  ///< port; aeron::ConsoleControlSubscriber in prod
+    std::unique_ptr<console::PortfolioSnapshotPublisher> portfolio_snap;
 };
 
 class StrategyAeronBus {

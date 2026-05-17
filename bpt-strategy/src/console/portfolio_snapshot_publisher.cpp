@@ -1,10 +1,10 @@
-#include "strategy/dashboard/portfolio_snapshot_publisher.h"
+#include "strategy/console/portfolio_snapshot_publisher.h"
 
 #include <bpt_common/aeron/aeron_utils.h>
 #include <bpt_common/logging.h>
 #include <nlohmann/json.hpp>
 
-namespace bpt::strategy::dashboard {
+namespace bpt::strategy::console {
 
 PortfolioSnapshotPublisher::PortfolioSnapshotPublisher(std::shared_ptr<aeron::Aeron> aeron,
                                                        const std::string& channel,
@@ -83,4 +83,4 @@ void PortfolioSnapshotPublisher::publish(const strategy::PortfolioState& state, 
     pub_->offer(buf, 0, static_cast<aeron::util::index_t>(payload.size()));
 }
 
-}  // namespace bpt::strategy::dashboard
+}  // namespace bpt::strategy::console

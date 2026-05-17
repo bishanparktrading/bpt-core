@@ -1,26 +1,26 @@
-#include "bridge/messaging/publishers/aeron/dashboard_control_publisher.h"
+#include "bridge/messaging/publishers/aeron/console_control_publisher.h"
 
 #include <bpt_common/aeron/aeron_utils.h>
 #include <bpt_common/logging.h>
 
 namespace bpt::bridge::messaging::aeron {
 
-DashboardControlPublisher::DashboardControlPublisher(std::shared_ptr<::aeron::Aeron> aeron,
+ConsoleControlPublisher::ConsoleControlPublisher(std::shared_ptr<::aeron::Aeron> aeron,
                                                      const std::string& channel,
                                                      int32_t stream_id) {
     pub_ = bpt::common::aeron::wait_for_publication(std::move(aeron), channel, stream_id);
     bpt::common::log::info("[bridge/Control] publication ready on stream {}", stream_id);
 }
 
-void DashboardControlPublisher::publish_halt() {
+void ConsoleControlPublisher::publish_halt() {
     publish_byte(0x00);
 }
 
-void DashboardControlPublisher::publish_resume() {
+void ConsoleControlPublisher::publish_resume() {
     publish_byte(0x01);
 }
 
-void DashboardControlPublisher::publish_byte(uint8_t cmd) {
+void ConsoleControlPublisher::publish_byte(uint8_t cmd) {
     if (!pub_)
         return;
     ::aeron::AtomicBuffer buf(&cmd, 1);

@@ -1,11 +1,11 @@
-#include "strategy/messaging/subscribers/aeron/dashboard_control_subscriber.h"
+#include "strategy/messaging/subscribers/aeron/console_control_subscriber.h"
 
 #include <chrono>
 #include <thread>
 
 namespace bpt::strategy::messaging::aeron {
 
-DashboardControlSubscriber::DashboardControlSubscriber(std::shared_ptr<::aeron::Aeron> aeron,
+ConsoleControlSubscriber::ConsoleControlSubscriber(std::shared_ptr<::aeron::Aeron> aeron,
                                                        const std::string& channel,
                                                        int stream_id) {
     // Same 5-second poll-and-wait as the inline construction the app
@@ -21,7 +21,7 @@ DashboardControlSubscriber::DashboardControlSubscriber(std::shared_ptr<::aeron::
     }
 }
 
-int DashboardControlSubscriber::poll(int fragment_limit) {
+int ConsoleControlSubscriber::poll(int fragment_limit) {
     if (!sub_)
         return 0;
     return sub_->poll(

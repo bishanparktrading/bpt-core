@@ -12,7 +12,7 @@
 /// unique_ptr null.
 
 #include "bridge/config/settings.h"
-#include "bridge/messaging/publishers/aeron/dashboard_control_publisher.h"
+#include "bridge/messaging/publishers/aeron/console_control_publisher.h"
 #include "bridge/messaging/subscribers/api/account_subscriber.h"
 #include "bridge/messaging/subscribers/api/exec_subscriber.h"
 #include "bridge/messaging/subscribers/api/market_color_subscriber.h"
@@ -33,9 +33,9 @@ struct BridgeBus {
     std::unique_ptr<api::PortfolioSnapshotSubscriber> portfolio_sub; ///< optional port (null if stream_id == 0)
     std::unique_ptr<api::ToxicitySubscriber> tox_sub;                ///< optional port
     std::unique_ptr<api::MarketColorSubscriber> color_sub;           ///< optional port
-    /// Shared rather than unique so main can hand a `shared_ptr<api::DashboardControlPublisher>`
+    /// Shared rather than unique so main can hand a `shared_ptr<api::ConsoleControlPublisher>`
     /// view of the same object to BridgeService while the bus still owns it.
-    std::shared_ptr<aeron::DashboardControlPublisher> ctrl_pub;         ///< optional
+    std::shared_ptr<aeron::ConsoleControlPublisher> ctrl_pub;         ///< optional
 };
 
 class BridgeAeronBus {

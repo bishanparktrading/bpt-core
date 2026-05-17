@@ -69,7 +69,7 @@ Settings load(const std::string& path, const std::string& profile_override) {
     using bpt::common::config::resolve_stream;
     s.md_data = resolve_stream(shared_streams, "md_data", 2002);
     s.exec_report = resolve_stream(shared_streams, "exec_report", 3002);
-    s.dashboard_control = resolve_stream(shared_streams, "dashboard_control", 9003);
+    s.console_control = resolve_stream(shared_streams, "console_control", 9003);
     s.portfolio = resolve_stream(shared_streams, "portfolio", 9004);
     s.account_snapshot = resolve_stream(shared_streams, "account_snapshot", 3004);
     s.toxicity = resolve_stream(shared_streams, "toxicity", 0);

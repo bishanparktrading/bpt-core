@@ -7,7 +7,7 @@
 /// as every other bpt-core service. Constructor takes a pre-built
 /// `BridgeBus` (built by BridgeAeronBus::build at the prod composition
 /// root) plus the two output ports — IBroadcaster (dashboard WS sink) and
-/// api::DashboardControlPublisher (bridge → strategy command sink). No
+/// api::ConsoleControlPublisher (bridge → strategy command sink). No
 /// `<Aeron.h>` in this header.
 ///
 /// The event-handler methods (on_*) are public so tests can drive them
@@ -16,7 +16,7 @@
 
 #include "bridge/config/settings.h"
 #include "bridge/messaging/aeron_bus.h"
-#include "bridge/messaging/publishers/api/dashboard_control_publisher.h"
+#include "bridge/messaging/publishers/api/console_control_publisher.h"
 #include "bridge/messaging/subscribers/api/account_subscriber.h"
 #include "bridge/messaging/subscribers/api/exec_subscriber.h"
 #include "bridge/state/position_tracker.h"
@@ -38,7 +38,7 @@ public:
     BridgeService(config::Settings settings,
                   messaging::BridgeBus bus,
                   std::shared_ptr<ws::IBroadcaster> broadcaster,
-                  std::shared_ptr<messaging::api::DashboardControlPublisher> ctrl_sink);
+                  std::shared_ptr<messaging::api::ConsoleControlPublisher> ctrl_sink);
 
     void run() override;
 
@@ -73,7 +73,7 @@ public:
 
     /// Dashboard command from the WS client — currently "halt" or "resume".
     /// Publishes the control byte via ctrl_sink_ and broadcasts a status msg.
-    void on_dashboard_command(const std::string& cmd);
+    void on_console_command(const std::string& cmd);
 
 private:
     void publish_session_init();
@@ -81,7 +81,7 @@ private:
     config::Settings settings_;
     messaging::BridgeBus bus_;
     std::shared_ptr<ws::IBroadcaster> broadcaster_;
-    std::shared_ptr<messaging::api::DashboardControlPublisher> ctrl_sink_;
+    std::shared_ptr<messaging::api::ConsoleControlPublisher> ctrl_sink_;
 
     PositionTracker tracker_;
     double last_mid_ = 0.0;

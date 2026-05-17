@@ -51,7 +51,7 @@ backtest_ack     = 9001
 backtest_control = 9002
 
 # Bridge ↔ strategy
-dashboard_control = 9003   # bridge → strategy (kill-switch)
+console_control = 9003   # bridge → strategy (kill-switch)
 portfolio         = 9004   # strategy → bridge (portfolio snapshot)
 
 [channels]

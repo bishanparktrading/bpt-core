@@ -43,7 +43,7 @@ struct AeronConfig {
                                                        9002};           // Backtester → Strategy (BacktestControl id=25)
     bpt::common::config::StreamConfig backtest_ack{"aeron:ipc", 9001};  // Strategy → Backtester (BacktestAck id=24)
     // Dashboard control (optional — stream_id 0 disables; bridge → Strategy)
-    bpt::common::config::StreamConfig dashboard_control{"aeron:ipc", 9003};
+    bpt::common::config::StreamConfig console_control{"aeron:ipc", 9003};
     // Portfolio snapshot (optional — Strategy → bridge; published every ~100ms)
     bpt::common::config::StreamConfig portfolio{"aeron:ipc", 9004};
 };

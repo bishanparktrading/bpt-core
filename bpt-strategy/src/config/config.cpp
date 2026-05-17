@@ -68,7 +68,7 @@ AppConfig AppConfig::load(const std::string& path) {
     app_cfg.aeron.toxicity = resolve_stream(shared_streams, "toxicity", 0);
     app_cfg.aeron.backtest_control = resolve_stream(shared_streams, "backtest_control", 9002);
     app_cfg.aeron.backtest_ack = resolve_stream(shared_streams, "backtest_ack", 9001);
-    app_cfg.aeron.dashboard_control = resolve_stream(shared_streams, "dashboard_control", 9003);
+    app_cfg.aeron.console_control = resolve_stream(shared_streams, "console_control", 9003);
     app_cfg.aeron.portfolio = resolve_stream(shared_streams, "portfolio", 9004);
 
     // [strategy] in the parent config carries service-level fields (correlation_id).

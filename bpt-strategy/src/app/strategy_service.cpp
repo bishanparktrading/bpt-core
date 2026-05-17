@@ -118,9 +118,9 @@ void StrategyService::run() {
             frags += bus_.tox->poll();
         }
 
-        if (bus_.dashboard_ctrl) {
-            if (!bus_.dashboard_ctrl->on_command) {
-                bus_.dashboard_ctrl->on_command = [this](uint8_t cmd) {
+        if (bus_.console_ctrl) {
+            if (!bus_.console_ctrl->on_command) {
+                bus_.console_ctrl->on_command = [this](uint8_t cmd) {
                     if (cmd == 0x00 && !trading_halted_) {
                         trading_halted_ = true;
                         metrics_.trading_halted->Set(1.0);
@@ -132,7 +132,7 @@ void StrategyService::run() {
                     }
                 };
             }
-            frags += bus_.dashboard_ctrl->poll();
+            frags += bus_.console_ctrl->poll();
         }
 
         // Refdata watchdog runs unconditionally — it must fire during
