@@ -49,9 +49,9 @@ cc_binary(
         "src/messaging/aeron_bus.cpp",
         "src/messaging/publishers/aeron/status_publisher.cpp",
         "src/messaging/publishers/aeron/vol_surface_publisher.cpp",
-        "src/md/md_subscribe_client.cpp",
-        "src/md/md_subscriber.cpp",
-        "src/refdata/refdata_subscriber.cpp",
+        "src/md/aeron/md_subscribe_client.cpp",
+        "src/md/aeron/md_subscriber.cpp",
+        "src/refdata/aeron/refdata_subscriber.cpp",
     ],
     deps = [
         ":pricer_core",

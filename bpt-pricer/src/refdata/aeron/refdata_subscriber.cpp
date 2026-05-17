@@ -1,4 +1,4 @@
-#include "pricer/refdata/refdata_subscriber.h"
+#include "pricer/refdata/aeron/refdata_subscriber.h"
 
 #include <messages/DeltaUpdateType.h>
 #include <messages/ExchangeId.h>
@@ -18,7 +18,7 @@
 #include <thread>
 #include <x86intrin.h>
 
-namespace bpt::pricer::refdata {
+namespace bpt::pricer::refdata::aeron {
 
 using bpt::messages::DeltaUpdateType;
 using bpt::messages::ExchangeId;
@@ -103,13 +103,13 @@ void RefdataSubscriber::send_subscription_request(uint64_t correlation_id) {
     req.instrumentsCount(0);
     req.canonicalFilterCount(0);
 
-    aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf.data()), static_cast<aeron::util::index_t>(buf_size));
+    ::aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(buf.data()), static_cast<::aeron::util::index_t>(buf_size));
     // Retry for up to 10s — Aeron offer() returns NOT_CONNECTED until the
     // subscriber (bpt-refdata) has registered the image.  Sleep between retries
     // so we don't spin the CPU waiting for the driver.
     auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
     long result = 0;
-    while ((result = ctrl_pub_->offer(ab, 0, static_cast<aeron::util::index_t>(buf_size))) < 0) {
+    while ((result = ctrl_pub_->offer(ab, 0, static_cast<::aeron::util::index_t>(buf_size))) < 0) {
         if (std::chrono::steady_clock::now() > deadline) {
             bpt::common::log::error("[RefdataSubscriber] subscription request offer timed out (last result={})",
                                     result);
@@ -131,10 +131,10 @@ int RefdataSubscriber::poll(int fragment_limit) {
 }
 
 void RefdataSubscriber::on_snapshot_fragment(::aeron::AtomicBuffer& buffer,
-                                             aeron::util::index_t offset,
-                                             aeron::util::index_t length,
+                                             ::aeron::util::index_t offset,
+                                             ::aeron::util::index_t length,
                                              ::aeron::Header& /*header*/) {
-    if (length < static_cast<aeron::util::index_t>(MessageHeader::encodedLength()))
+    if (length < static_cast<::aeron::util::index_t>(MessageHeader::encodedLength()))
         return;
 
     MessageHeader hdr;
@@ -209,10 +209,10 @@ void RefdataSubscriber::on_snapshot_fragment(::aeron::AtomicBuffer& buffer,
 }
 
 void RefdataSubscriber::on_delta_fragment(::aeron::AtomicBuffer& buffer,
-                                          aeron::util::index_t offset,
-                                          aeron::util::index_t length,
+                                          ::aeron::util::index_t offset,
+                                          ::aeron::util::index_t length,
                                           ::aeron::Header& /*header*/) {
-    if (length < static_cast<aeron::util::index_t>(MessageHeader::encodedLength()))
+    if (length < static_cast<::aeron::util::index_t>(MessageHeader::encodedLength()))
         return;
 
     MessageHeader hdr;
@@ -260,4 +260,4 @@ void RefdataSubscriber::on_delta_fragment(::aeron::AtomicBuffer& buffer,
         on_option_(oi);
 }
 
-}  // namespace bpt::pricer::refdata
+}  // namespace bpt::pricer::refdata::aeron

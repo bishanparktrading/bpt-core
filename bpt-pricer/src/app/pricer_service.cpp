@@ -102,7 +102,7 @@ void PricerService::on_refdata_option(const surface::OptionInstrument& inst) {
                             inst.venue_symbol);
 }
 
-std::vector<md::MdSubscribeClient::InstrumentDesc> PricerService::build_subscribe_batch() const {
+std::vector<md::api::MdSubscribeClient::InstrumentDesc> PricerService::build_subscribe_batch() const {
     // First pass: collect distinct expiries per underlying. expiry_date == 0
     // is the perp sentinel — always include those.
     std::unordered_map<std::string, std::set<uint32_t>> expiries_by_underlying;
@@ -134,12 +134,12 @@ std::vector<md::MdSubscribeClient::InstrumentDesc> PricerService::build_subscrib
     std::unordered_map<std::string, std::vector<OptionDesc>> bucketed;
     auto bucket_key = [](const std::string& u, uint32_t e) { return u + "|" + std::to_string(e); };
 
-    std::vector<md::MdSubscribeClient::InstrumentDesc> batch;
+    std::vector<md::api::MdSubscribeClient::InstrumentDesc> batch;
     batch.reserve(option_universe_.size());
 
     for (const auto& [_, opt] : option_universe_) {
         if (opt.expiry_date == 0) {
-            batch.push_back(md::MdSubscribeClient::InstrumentDesc{opt.instrument_id, opt.exchange, opt.venue_symbol, 0});
+            batch.push_back(md::api::MdSubscribeClient::InstrumentDesc{opt.instrument_id, opt.exchange, opt.venue_symbol, 0});
             continue;
         }
         auto kit = kept_expiries.find(opt.underlying);
@@ -165,7 +165,7 @@ std::vector<md::MdSubscribeClient::InstrumentDesc> PricerService::build_subscrib
             opts.erase(opts.begin(), opts.begin() + static_cast<std::ptrdiff_t>(lo));
         }
         for (const auto& opt : opts)
-            batch.push_back(md::MdSubscribeClient::InstrumentDesc{opt.instrument_id, opt.exchange, opt.venue_symbol, 0});
+            batch.push_back(md::api::MdSubscribeClient::InstrumentDesc{opt.instrument_id, opt.exchange, opt.venue_symbol, 0});
     }
 
     return batch;

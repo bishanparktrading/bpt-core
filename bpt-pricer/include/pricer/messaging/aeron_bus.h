@@ -6,20 +6,17 @@
 /// Aeron pub/sub the pricer needs is constructed in one factory so
 /// `PricerService` doesn't have to take `<Aeron.h>` in its constructor.
 ///
-/// VolSurfacePublisher and StatusPublisher are promoted to ports
-/// (api::VolSurfacePublisher / api::StatusPublisher with aeron::* prod
-/// concretes) so the deterministic backtester can substitute the
-/// codec-bypass sim::VolSurfacePublisher. Off-hot-path vtable cost is
-/// invisible at the ~Hz cadence of vol-surface rebuilds. The remaining
-/// publishers + subscribers stay as concrete classes — promote each
-/// individually when a non-Aeron consumer materialises (same pragmatic
-/// call as bpt-strategy / bpt-analytics).
+/// All five pub/subs are typed as ports (api::*) so a sim variant can
+/// substitute any of them. The aeron::* concretes are wired in at the
+/// composition root (PricerAeronBus::build). VolSurface already has a
+/// sim variant in `messaging/publishers/sim/`; the others can grow one
+/// when the deterministic backtester needs them.
 
-#include "pricer/md/md_subscribe_client.h"
-#include "pricer/md/md_subscriber.h"
+#include "pricer/md/api/md_subscribe_client.h"
+#include "pricer/md/api/md_subscriber.h"
 #include "pricer/messaging/publishers/api/status_publisher.h"
 #include "pricer/messaging/publishers/api/vol_surface_publisher.h"
-#include "pricer/refdata/refdata_subscriber.h"
+#include "pricer/refdata/api/refdata_subscriber.h"
 
 #include <Aeron.h>
 
@@ -35,9 +32,9 @@ namespace messaging {
 struct PricerBus {
     std::unique_ptr<api::VolSurfacePublisher> vol_pub;     ///< port; aeron::VolSurfacePublisher in prod
     std::unique_ptr<api::StatusPublisher>     status_pub;  ///< port; aeron::StatusPublisher in prod
-    std::unique_ptr<md::MdSubscriber> md_sub;
-    std::unique_ptr<md::MdSubscribeClient> md_ctrl;  ///< pricer → md-gateway: subscribe batches
-    std::unique_ptr<refdata::RefdataSubscriber> refdata_sub;
+    std::unique_ptr<md::api::MdSubscriber> md_sub;            ///< port
+    std::unique_ptr<md::api::MdSubscribeClient> md_ctrl;      ///< port; pricer → md-gateway subscribe batches
+    std::unique_ptr<refdata::api::RefdataSubscriber> refdata_sub;  ///< port
 };
 
 class PricerAeronBus {

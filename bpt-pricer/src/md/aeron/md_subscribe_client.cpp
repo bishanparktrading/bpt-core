@@ -1,4 +1,4 @@
-#include "pricer/md/md_subscribe_client.h"
+#include "pricer/md/aeron/md_subscribe_client.h"
 
 #include <messages/MdSubscribeBatch.h>
 #include <messages/MessageHeader.h>
@@ -8,7 +8,7 @@
 #include <cstring>
 #include <vector>
 
-namespace bpt::pricer::md {
+namespace bpt::pricer::md::aeron {
 
 using bpt::messages::MdSubscribeBatch;
 using bpt::messages::MessageHeader;
@@ -53,4 +53,4 @@ void MdSubscribeClient::publish(uint64_t correlation_id, const std::vector<Instr
     bpt::common::log::info("[MdSubscribeClient] sent batch correlation_id={} instruments={}", correlation_id, n);
 }
 
-}  // namespace bpt::pricer::md
+}  // namespace bpt::pricer::md::aeron

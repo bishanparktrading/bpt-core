@@ -1,4 +1,4 @@
-#include "pricer/md/md_subscriber.h"
+#include "pricer/md/aeron/md_subscriber.h"
 
 #include <messages/MdMarketData.h>
 #include <messages/MdTrade.h>
@@ -6,7 +6,7 @@
 
 #include <bpt_common/logging.h>
 
-namespace bpt::pricer::md {
+namespace bpt::pricer::md::aeron {
 
 using bpt::messages::MdMarketData;
 using bpt::messages::MdTrade;
@@ -55,4 +55,4 @@ void MdSubscriber::on_fragment(::aeron::AtomicBuffer& buffer,
     }
 }
 
-}  // namespace bpt::pricer::md
+}  // namespace bpt::pricer::md::aeron

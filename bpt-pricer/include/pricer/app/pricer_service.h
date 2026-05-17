@@ -1,7 +1,7 @@
 #pragma once
 
 #include "pricer/config/settings.h"
-#include "pricer/md/md_subscribe_client.h"
+#include "pricer/md/api/md_subscribe_client.h"
 #include "pricer/messaging/aeron_bus.h"
 #include "pricer/surface/surface_builder.h"
 
@@ -52,7 +52,7 @@ private:
     /// Filter: keep options for each underlying whose expiry is one of the
     /// front-N (earliest non-expired) expiries. Optional per-expiry strike
     /// cap if `settings_.universe.max_strikes_per_expiry > 0`.
-    std::vector<md::MdSubscribeClient::InstrumentDesc> build_subscribe_batch() const;
+    std::vector<md::api::MdSubscribeClient::InstrumentDesc> build_subscribe_batch() const;
 
     config::Settings settings_;
     surface::SurfaceBuilder builder_;
