@@ -3,7 +3,7 @@
 /// @file
 /// Port interface for the bridge → strategy control publication.
 /// BridgeService depends on this rather than the aeron concrete so the
-/// dashboard HALT/RESUME plumbing can be exercised without an Aeron
+/// console HALT/RESUME plumbing can be exercised without an Aeron
 /// driver in tests.
 ///
 /// Wire format: single-byte command. 0x00 = HALT, 0x01 = RESUME.

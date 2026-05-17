@@ -81,7 +81,7 @@ export interface AccountCurrencyBalance {
 }
 
 // Live exchange account snapshot from order-gateway, relayed by the bridge.
-// The dashboard uses these as the canonical equity baseline so the equity
+// The console uses these as the canonical equity baseline so the equity
 // curve reflects the actual exchange balance, not a static config value.
 // `positions` feeds crypto rows in the holdings panel; `currencyBalances`
 // feeds per-stable-ccy rows.
@@ -184,7 +184,7 @@ export interface ToxicityMsg {
 
 // Live strategy state from bpt-strategy. Each strategy implementing
 // IStrategy::get_strategy_state_json() emits its own shape; the `kind`
-// discriminator picks the matching panel on the dashboard
+// discriminator picks the matching panel on the console
 // (components/panels/index.ts).
 //
 // To add a new strategy: add its kind below, extend StrategyStateMsg
@@ -273,7 +273,7 @@ export interface ASStrategyState extends BaseStrategyState {
 
 // FundingArb — cross-leg spot+perp funding-rate arbitrage. Strategy
 // holds one spot leg and one perp leg in opposite directions, capturing
-// the funding rate. Dashboard panel shows per-leg state + the basis
+// the funding rate. Console panel shows per-leg state + the basis
 // spread that drives the entry/exit decision.
 export interface FundingArbStrategyState extends BaseStrategyState {
   kind: 'FundingArb'
@@ -325,7 +325,7 @@ export interface OptionsMakerUnderlyingState {
 
 // OptionsMaker spans multiple (exchange, underlying) tuples concurrently, so
 // the per-state-msg `symbol` / `exchange` shape that AS and FundingArb carry
-// at the top level doesn't apply. The dashboard reads the per-underlying list
+// at the top level doesn't apply. The console reads the per-underlying list
 // directly. `risk_halted` is the global sanity-ceiling latch (set when book
 // delta ever exceeds book_delta_sanity_ceiling_mult × max_hedge_abs_delta);
 // when true the strategy is silently refusing to quote OR hedge until restart.

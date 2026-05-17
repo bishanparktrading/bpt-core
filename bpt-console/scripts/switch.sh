@@ -1,5 +1,5 @@
 #!/bin/bash
-# switch.sh — One-command stack switcher for the dashboard.
+# switch.sh — One-command stack switcher for the console.
 #
 # Tears down whatever stack is currently running (if any) and brings up the
 # requested mode.  The browser tab stays connected to ws://localhost:8080
@@ -45,7 +45,7 @@ case "$MODE" in
         ;;
 esac
 
-echo "=== Dashboard mode switch → $MODE ==="
+echo "=== Console mode switch → $MODE ==="
 echo
 
 # ── 1. Tear down whatever's running ─────────────────────────────────────────

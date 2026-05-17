@@ -1,7 +1,7 @@
 #pragma once
 
 /// @file
-/// Port interface for the dashboard broadcast sink. BridgeService depends on
+/// Port interface for the console broadcast sink. BridgeService depends on
 /// this rather than the concrete WsServer so tests can substitute a
 /// FakeBroadcaster that records the (kind, payload) pairs without opening a
 /// real TCP listener.
@@ -21,13 +21,13 @@ class IBroadcaster {
 public:
     virtual ~IBroadcaster() = default;
 
-    /// Broadcast a typed message to every connected dashboard client and
+    /// Broadcast a typed message to every connected console client and
     /// update the session-replay snapshot. Thread-safe in concrete impls.
     virtual void publish(MsgKind kind, std::string message) = 0;
 
-    /// Install the handler invoked when a dashboard client sends a command
+    /// Install the handler invoked when a console client sends a command
     /// (e.g. "halt", "resume"). Concrete WsServer fires on its IO thread;
-    /// fakes can call the handler synchronously to simulate dashboard input.
+    /// fakes can call the handler synchronously to simulate console input.
     /// Set to `nullptr` to detach before the handler's captured state goes
     /// away.
     using CommandHandler = std::function<void(const std::string& cmd)>;

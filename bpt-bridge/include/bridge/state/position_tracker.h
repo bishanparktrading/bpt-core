@@ -10,7 +10,7 @@ namespace bpt::bridge {
 //
 // Tracks net qty / avg entry and the cumulative realized PnL since session
 // start. Absolute account equity is sourced from order-gateway AccountSnapshots
-// in the dashboard — this class deliberately has no notion of a starting
+// in the console — this class deliberately has no notion of a starting
 // capital baseline.
 class PositionTracker {
 public:

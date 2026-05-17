@@ -91,7 +91,7 @@ void StrategyService::shutdown_flatten() {
     (void)drained_cleanly;  // reserved: may gate exit code in the future
 
     // Request a fresh AccountSnapshot from every configured exchange so the
-    // dashboard HoldingsPanel reflects the post-flatten state (instead of
+    // console HoldingsPanel reflects the post-flatten state (instead of
     // waiting up to the periodic republish interval in order-gateway).
     if (startup_gate_) {
         try {

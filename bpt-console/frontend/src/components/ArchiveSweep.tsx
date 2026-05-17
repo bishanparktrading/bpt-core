@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
-// Sweep view: pick 3+ runs, the dashboard introspects each run's
+// Sweep view: pick 3+ runs, the console introspects each run's
 // params.toml to find which leaf params differ across the selection,
 // then renders the chosen metric across that varied dimension.
 //

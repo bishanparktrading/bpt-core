@@ -34,7 +34,7 @@ flowchart TB
     ANALYTICS -.->|toxicity| STRAT
     PRICER -.->|vol surface| STRAT
 
-    STRAT -->|portfolio| BRIDGE[bpt-bridge → dashboard]:::aux
+    STRAT -->|portfolio| BRIDGE[bpt-bridge → console]:::aux
 
     classDef venue fill:#0d1117,stroke:#7c8794,stroke-width:2px,color:#fff
     classDef hot fill:#312e81,stroke:#a78bfa,stroke-width:3px,color:#fff
@@ -84,7 +84,7 @@ Currently:
 
 | Host | Role | Stack |
 |---|---|---|
-| Laptop (dev) | Build + dev runs + research | All services + dashboard |
+| Laptop (dev) | Build + dev runs + research | All services + console |
 | Tokyo VPS (`ap-northeast-1`) | tape recording | `bpt-tape` only — no Aeron, no MediaDriver |
 
 Planned:

@@ -150,9 +150,9 @@ void OrderGatewayService::run() {
     const uint64_t hb_interval_ns = static_cast<uint64_t>(cfg_.gateway.heartbeat_interval_ms) * 1'000'000ULL;
     const uint64_t stale_timeout_ns = static_cast<uint64_t>(cfg_.gateway.stale_order_timeout_ms) * 1'000'000ULL;
     // Republish AccountSnapshot every 30s so late subscribers (e.g. the
-    // dashboard bridge starting up after order-gateway) get a current view of
+    // console bridge starting up after order-gateway) get a current view of
     // exchange balance without having to wait for a Strategy-driven request.
-    // 5s interval keeps the dashboard HoldingsPanel fresh enough that a
+    // 5s interval keeps the console HoldingsPanel fresh enough that a
     // manual flatten or other one-off order action is visible quickly,
     // without hammering the exchange REST API. Strategy's shutdown_flatten
     // path additionally sends an on-demand AccountSnapshotRequest to

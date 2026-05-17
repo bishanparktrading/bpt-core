@@ -620,12 +620,12 @@ std::size_t OptionsMakerStrategy::on_account_snapshot(bpt::messages::AccountSnap
 }
 
 PortfolioState OptionsMakerStrategy::get_portfolio_state() {
-    // Aggregate legs across all underlyings so the dashboard can render the
+    // Aggregate legs across all underlyings so the console can render the
     // Greeks panel as soon as we hold any positions. Quote-only legs (no
     // position) are skipped to keep the wire small. Surface points include
     // EVERY known strike (regardless of position) so the smile + heatmap
     // panels have a continuous IV curve to render — each point carries
-    // its `underlying` so the dashboard can split BTC and ETH cleanly.
+    // its `underlying` so the console can split BTC and ETH cleanly.
     PortfolioState ps;
     for (const auto& [_, st] : states_) {
         for (const auto& [__, opt] : st.options) {
@@ -674,7 +674,7 @@ PortfolioState OptionsMakerStrategy::get_portfolio_state() {
                 ps.surface_points.push_back(sp);
             }
         }
-        // Surface the perp hedge leg when we hold any so the dashboard
+        // Surface the perp hedge leg when we hold any so the console
         // shows the actual neutral book, not just the option-side Greeks.
         if (st.perp_position_qty != 0.0 && st.perp_instrument_id != 0) {
             PortfolioState::Leg leg;
@@ -728,7 +728,7 @@ std::string OptionsMakerStrategy::get_strategy_state_json() {
 
         // Strike-level view — include any option in the active universe OR
         // anything we still hold inventory on. Sorted by distance to forward
-        // and capped at kMaxStrikesEmit so the dashboard renders something
+        // and capped at kMaxStrikesEmit so the console renders something
         // readable rather than a 50-row scroll. Bridge uses FragmentAssembler
         // so this is a display sanity cap, not an MTU constraint.
         constexpr std::size_t kMaxStrikesEmit = 12;
@@ -803,7 +803,7 @@ void OptionsMakerStrategy::on_shutdown_flatten() {
     bpt::common::log::info("[OptionsMaker] shutdown_flatten cancelled {} live orders (option quotes + perp hedges)",
                            snapshot.size());
 
-    // Clear the per-option order_id fields too so the dashboard doesn't
+    // Clear the per-option order_id fields too so the console doesn't
     // continue advertising the cancelled orders as live until exec reports
     // land in the drain window.
     for (auto& [_, st] : states_) {

@@ -54,7 +54,7 @@ StrategyMetrics::StrategyMetrics(int port) {
 
     auto& th = prometheus::BuildGauge()
                    .Name("strategy_trading_halted")
-                   .Help("1 if dashboard kill-switch latched — no automatic recovery")
+                   .Help("1 if console kill-switch latched — no automatic recovery")
                    .Register(*registry);
     trading_halted = &th.Add({});
     trading_halted->Set(0.0);

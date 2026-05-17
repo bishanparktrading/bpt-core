@@ -62,7 +62,7 @@ public:
         std::string git_sha;        ///< `git rev-parse HEAD` (7 chars typical).
         /// Path to the strategy params file used for this run. When set,
         /// ResultsCollector::write() copies it into the run dir as
-        /// `params.toml` so the dashboard can read the actual param values
+        /// `params.toml` so the console can read the actual param values
         /// for sweep visualisation. Empty = no copy.
         std::string params_file;
     };

@@ -164,7 +164,7 @@ EOF
 # ── bpt-dev-bridge ───────────────────────────────────────────────────────────
 cat > "$UNIT_DIR/bpt-dev-bridge.service" <<EOF
 [Unit]
-Description=BPT Dashboard Bridge (dev)
+Description=BPT Console Bridge (dev)
 After=bpt-dev-strategy.service
 Requires=bpt-dev-transport.service
 PartOf=bpt-dev-stack.target bpt-dev-transport.service
@@ -192,7 +192,7 @@ WantedBy=default.target
 EOF
 
 # ── bpt-dev-radar-stack target (lean subset — radar path only) ───────────────
-# Brings up only what's needed for the Options Pulse dashboard:
+# Brings up only what's needed for the Options Pulse console:
 #   transport → refdata → md-gateway → pricer → radar → bridge
 # Skips order-gateway, strategy, analytics. Use this when you want to see
 # market-color signals without spinning up the trading half.

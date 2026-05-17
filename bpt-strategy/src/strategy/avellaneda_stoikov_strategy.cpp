@@ -488,9 +488,9 @@ void AvellanedaStoikovStrategy::on_bbo(const bpt::messages::MdMarketData& tick) 
     const double mid = (bid_px + ask_px) * 0.5;
     const uint64_t ts_ns = tick.timestampNs();
 
-    // Cache market top-of-book for the dashboard overlay. Done here (not
+    // Cache market top-of-book for the console overlay. Done here (not
     // just before publish) so the strategy sees the same values the
-    // dashboard does, and works even when order_book_depth=0 leaves
+    // console does, and works even when order_book_depth=0 leaves
     // st.book unpopulated.
     st.last_market_bid = bid_px;
     st.last_market_ask = ask_px;
@@ -1128,7 +1128,7 @@ double AvellanedaStoikovStrategy::gamma_pnl_mult(const InstrumentState& st) cons
 }
 
 // ── Suppression state — single source of truth for both runtime
-//    (maybe_requote) and dashboard (get_strategy_state_json) ────────────────
+//    (maybe_requote) and console (get_strategy_state_json) ────────────────
 AvellanedaStoikovStrategy::SuppressionState AvellanedaStoikovStrategy::compute_suppression(const InstrumentState& st,
                                                                                            double net_qty,
                                                                                            double new_bid,
@@ -1241,7 +1241,7 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
     // price change between calls, downstream aggregation gets messy).
     const double eff_qty = effective_order_qty(st);
 
-    // Info-level logging of the runtime triggers. Dashboard reporting
+    // Info-level logging of the runtime triggers. Console reporting
     // consumes the same supp struct via get_strategy_state_json, so
     // these log lines and the rendered badge can't drift.
     if (supp.trend_bid || supp.trend_ask) {
@@ -1584,7 +1584,7 @@ void AvellanedaStoikovStrategy::on_refdata_stale_changed(bool stale) {
     }
 }
 
-// ── Strategy state for dashboard ────────────────────────────────────────────
+// ── Strategy state for console ────────────────────────────────────────────
 
 std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     // Single instrument for now — take the first entry in state_.
@@ -1606,7 +1606,7 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     const double reservation_offset_bps = st.last_mid > 0 ? (reservation - st.last_mid) / st.last_mid * 1e4 : 0.0;
 
     // Suppression snapshot shared with maybe_requote — single source of
-    // truth so the dashboard badge can't disagree with the actual
+    // truth so the console badge can't disagree with the actual
     // runtime decision. Queue suppression is only meaningful when
     // quotes_valid (pre-warmup returns fp=1); compute_suppression
     // computes it unconditionally but the projected prices below are
@@ -1618,7 +1618,7 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     const double projected_fp_ask = supp.fp_ask;
 
     // queue_ahead for any live resting orders — the ACTUAL tracked queue,
-    // not the projected one. Used by the dashboard to show how buried the
+    // not the projected one. Used by the console to show how buried the
     // current resting orders are.
     double bid_queue_ahead = 0.0;
     double ask_queue_ahead = 0.0;
@@ -1639,7 +1639,7 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
 
     nlohmann::json j;
     j["type"] = "strategyState";
-    // Discriminator for the dashboard's panel registry. Every strategy
+    // Discriminator for the console's panel registry. Every strategy
     // that implements get_strategy_state_json() must set `kind`; the
     // frontend picks the matching panel component (panels/index.ts).
     j["kind"] = "AS";
@@ -1679,7 +1679,7 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     j["halfSpreadBps"] = st.last_mid > 0 ? half_spread / st.last_mid * 1e4 : 0;
 
     // Inventory — report the EFFECTIVE cap (adaptive when configured),
-    // not the static fallback, so the dashboard inventoryPct gauge
+    // not the static fallback, so the console inventoryPct gauge
     // tracks the same threshold the strategy is actually enforcing.
     const double max_inv = effective_max_inventory(st);
     j["inventory"] = net_qty;

@@ -1,4 +1,4 @@
-// bridge — Aeron → WebSocket forwarder for the dashboard.
+// bridge — Aeron → WebSocket forwarder for the console.
 
 #include "bridge/app/bridge_service.h"
 #include "bridge/config/settings.h"
@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
     std::string profile_override;
 
     auto args =
-        bpt::app::parse_cli(argc, argv, "bpt-bridge", "Aeron → WebSocket forwarder for dashboard", [&](CLI::App& cli) {
+        bpt::app::parse_cli(argc, argv, "bpt-bridge", "Aeron → WebSocket forwarder for console", [&](CLI::App& cli) {
             cli.add_option("--strategy-name", strategy_override, "Override session.strategy");
             cli.add_option("--symbol", symbol_override, "Override session.symbol");
             cli.add_option("--exchange", exchange_override, "Override session.exchange");

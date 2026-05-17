@@ -13,7 +13,7 @@ PortfolioSnapshotPublisher::PortfolioSnapshotPublisher(std::shared_ptr<aeron::Ae
         return;
 
     pub_ = bpt::common::aeron::wait_for_publication(aeron, channel, stream_id);
-    bpt::common::log::info("Dashboard snapshot publication ready on stream {}", stream_id);
+    bpt::common::log::info("Console snapshot publication ready on stream {}", stream_id);
 }
 
 void PortfolioSnapshotPublisher::publish_if_due(const strategy::PortfolioState& state, uint64_t now_ns) {

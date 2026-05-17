@@ -100,7 +100,7 @@ void StrategyHarness::initialize() {
 
     // Wire strategy callbacks. These mirror StrategyService::wire_*_callbacks()
     // but are simpler because we don't need the latency histograms,
-    // dashboard publish, or watchdog logic — those are integration
+    // console publish, or watchdog logic — those are integration
     // concerns that belong on the multi-process path.
     refdata_client_->on_snapshot_complete = [this](const bpt::strategy::refdata::InstrumentCache& cache) {
         strategy_->on_snapshot(cache);

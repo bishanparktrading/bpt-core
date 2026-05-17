@@ -1,12 +1,12 @@
 # bpt-core
 
-> Low-latency algorithmic trading system spanning **C++ • Java • Python • TypeScript**, built around the Aeron messaging fabric. Eight backend services + a real-time React/WebSocket dashboard, end-to-end live on Hyperliquid testnet/mainnet.
+> Low-latency algorithmic trading system spanning **C++ • Java • Python • TypeScript**, built around the Aeron messaging fabric. Eight backend services + a real-time React/WebSocket console, end-to-end live on Hyperliquid testnet/mainnet.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
-A solo project. Built end-to-end — services, deploy tooling, dashboard, and a backtest harness — to learn what a production trading stack actually feels like to operate. Live on Hyperliquid testnet; mainnet read-only verified on PURR + HYPE funding-arb and XMR market making.
+A solo project. Built end-to-end — services, deploy tooling, console, and a backtest harness — to learn what a production trading stack actually feels like to operate. Live on Hyperliquid testnet; mainnet read-only verified on PURR + HYPE funding-arb and XMR market making.
 
 <p align="center">
   <img src="docs/diagrams/system-overview.svg" alt="bpt-core system overview" width="900">
@@ -18,7 +18,7 @@ Deeper diagrams (tick→fill sequence, config topology) live in [`docs/architect
 
 | Service | Language | Role |
 |---|---|---|
-| `bpt-strategy` | C++23 | Strategy framework — startup gates, sizing, dashboard publishing, per-strategy panels |
+| `bpt-strategy` | C++23 | Strategy framework — startup gates, sizing, console publishing, per-strategy panels |
 | `bpt-md-gateway` | C++23 | Market data gateway — Binance / OKX / Hyperliquid / Deribit WebSocket adapters with validation breaker |
 | `bpt-order-gateway` | C++23 | Order routing — multi-venue execution, position tracking, risk + reject-rate circuit breakers |
 | `bpt-refdata` | C++23 | Reference data — instrument catalog, fee schedules, per-venue REST adapters, canonical ID mapping |
@@ -27,8 +27,8 @@ Deeper diagrams (tick→fill sequence, config topology) live in [`docs/architect
 | `bpt-pms` | C++23 | Multi-venue balance + position aggregator |
 | `bpt-tape` | C++23 | Market-data recorder (Parquet → S3) for backtest replay |
 | `bpt-backtester` | C++23 | Exchange simulator — replays orderbook tape against the strategy + order-gateway path |
-| `bpt-bridge` | C++23 | Aeron → WebSocket forwarder for the live dashboard |
-| `dashboard/frontend` | React + TypeScript | Real-time trading dashboard with per-strategy panel + chart registries |
+| `bpt-bridge` | C++23 | Aeron → WebSocket forwarder for the live console |
+| `bpt-console/frontend` | React + TypeScript | Real-time trading console with per-strategy panel + chart registries |
 | `messages` | SBE | Zero-copy / zero-allocation wire schemas (v9+) |
 | `transport/aeron` | Java 17 | External Aeron MediaDriver (ZGC-tuned to isolate GC from the C++ hot path) |
 
@@ -40,7 +40,7 @@ Deeper diagrams (tick→fill sequence, config topology) live in [`docs/architect
 
 **Single source of truth for deployment.** `deploy/config/profile/<tag>.toml` owns environment, exchange filter, and exchange-endpoints path. `switch-env.sh` refuses to activate any env file whose services disagree on profile. Eliminates the "stack started on different exchanges" failure mode.
 
-**Per-strategy modularity.** The dashboard has a `STRATEGY_PANELS` registry (React) and a `STRATEGY_CHARTS` registry — adding a new strategy means writing a panel/chart component and registering it. The bridge stays a dumb pipe; per-strategy concerns live in per-strategy code. See `dashboard/frontend/src/components/panels/` and `components/charts/`.
+**Per-strategy modularity.** The console has a `STRATEGY_PANELS` registry (React) and a `STRATEGY_CHARTS` registry — adding a new strategy means writing a panel/chart component and registering it. The bridge stays a dumb pipe; per-strategy concerns live in per-strategy code. See `bpt-console/frontend/src/components/panels/` and `components/charts/`.
 
 **Zero-copy hot path.** SBE encoders/decoders generate header-only classes; no heap allocation on tick processing. Strategy → order-gateway round-trip measured at ~150 µs p50 / 524 µs max on commodity hardware.
 
@@ -52,7 +52,7 @@ Deeper diagrams (tick→fill sequence, config topology) live in [`docs/architect
 
 ## Live screenshots
 
-See `docs/screenshots/` for the dashboard running on live Hyperliquid data.
+See `docs/screenshots/` for the console running on live Hyperliquid data.
 - AvellanedaStoikov on XMR perp: candlestick + bid/ask overlays + AS-specific state panel.
 - FundingArb on PURR/HYPE: dual-leg spot/perp chart, basis bps overlay, funding APR.
 - PassiveMaker on APE: lifecycle including order rest → fill → realized P&L.
@@ -63,7 +63,7 @@ Prerequisites:
 - GCC 13+ (C++23)
 - Bazel 7+ with bzlmod
 - Java 17 (Aeron MediaDriver)
-- Node 20 (dashboard)
+- Node 20 (console)
 - Linux (systemd-user for the deploy scripts; macOS works for dev with manual launch)
 
 ```bash
@@ -72,7 +72,7 @@ cd bpt-core
 bazel build //...                                # ~5 min cold
 bazel test //...                                 # ~30 s
 cd transport/aeron && ./gradlew shadowJar        # builds the MediaDriver
-cd ../../dashboard/frontend && npm ci && npm run build
+cd ../../bpt-console/frontend && npm ci && npm run build
 ```
 
 Bring up the stack on Hyperliquid testnet (no real-money risk; orders fire against HL's testnet venue):
@@ -85,7 +85,7 @@ cp deploy/env/dev.env.example deploy/env/dev-hyperliquid.env
 journalctl --user -fu bpt-strategy               # tail the strategy log
 ```
 
-Open `http://localhost:5173/` for the live dashboard.
+Open `http://localhost:5173/` for the live console.
 
 ## Repo layout
 
@@ -97,7 +97,7 @@ bpt-<service>/                  one Bazel-built C++ service
   tests/unit/                   googletest
   BUILD                         bazel
 bpt-bridge/                     C++ Aeron→WS forwarder (sibling of other bpt-* services)
-dashboard/
+bpt-console/                    React + TypeScript trading console
   frontend/                     Vite + React + TypeScript
   scripts/                      run/smoke helpers
 deploy/

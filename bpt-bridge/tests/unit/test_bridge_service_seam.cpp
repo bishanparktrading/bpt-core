@@ -7,7 +7,7 @@
 /// Locks in:
 ///   - decode-and-forward path for each input stream (exec → broadcast Order;
 ///     toxicity → broadcast Toxicity; portfolio JSON → broadcast Order)
-///   - dashboard HALT/RESUME command protocol (string → ctrl_sink byte +
+///   - console HALT/RESUME command protocol (string → ctrl_sink byte +
 ///     status broadcast)
 
 #include "bridge/app/bridge_service.h"

@@ -4,12 +4,12 @@
 # Starts:
 #   1. Monitoring stack (Prometheus + Grafana via docker compose)
 #   2. Trading stack (transport, bpt-refdata, bpt-md-gateway, order-gateway, bpt-strategy)
-#   3. Dashboard bridge (WebSocket :8080)
+#   3. Console bridge (WebSocket :8080)
 #
 # Frontend (vite dev server) is also started under paper_run.sh.
 # NOTE: vite is a DEV server — HMR, unminified bundle, dev error overlay.
 # For a real prod deployment, replace with `npm run build` + a static
-# file server (nginx/caddy) serving dashboard/frontend/dist/.
+# file server (nginx/caddy) serving bpt-console/frontend/dist/.
 #
 # Usage:
 #   ./scripts/up.sh                                        # default Hyperliquid stoikov
@@ -54,13 +54,13 @@ fi
 
 # ── Trading stack + bridge ──────────────────────────────────────────────
 export BPT_ENV="${BPT_ENV:-qa}"
-"$ROOT/dashboard/scripts/paper_run.sh" start "$CFG" "${EXTRA_ARGS[@]}"
+"$ROOT/bpt-console/scripts/paper_run.sh" start "$CFG" "${EXTRA_ARGS[@]}"
 
 cat <<EOF
 
 === Everything up ===
 
-  Dashboard    : http://localhost:5173          (paper trading UI)
+  Console    : http://localhost:5173          (paper trading UI)
   Grafana      : http://localhost:3000          (BPT System Overview)
   Prometheus   : http://localhost:9090          (targets at /targets)
 
@@ -70,7 +70,7 @@ Logs:
   bpt-refdata   : tail -f $ROOT/bpt-refdata/logs/bpt-refdata.log
   bpt-strategy   : tail -f $ROOT/bpt-strategy/logs/bpt-strategy.log
   bridge   : tail -f $ROOT/bpt-bridge/logs/bridge.stdout
-  frontend : tail -f $ROOT/dashboard/frontend/logs/vite.stdout
+  frontend : tail -f $ROOT/bpt-console/frontend/logs/vite.stdout
 
 To stop: $ROOT/scripts/down.sh
 EOF

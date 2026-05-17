@@ -23,7 +23,7 @@ struct AccountPosition {
 /// OKX's `/account/balance` carries a `details[]` array with one entry
 /// per currency the account holds. The single aggregated
 /// `available_balance_e8` collapses this into USDT only; this struct
-/// preserves the per-ccy breakdown so the dashboard can show a row per
+/// preserves the per-ccy breakdown so the console can show a row per
 /// currency (USDT, USDC, SGD, USD, BTC, etc.).
 struct CurrencyBalance {
     std::string ccy;                  ///< currency code, e.g. "USDT", "USDC", "SGD" (≤ 8 chars)

@@ -298,10 +298,10 @@ $(emit_limits bpt-analytics)
 WantedBy=bpt-stack.target
 EOF
 
-# ── bpt-bridge (dashboard WebSocket forwarder) ──────────────────────────────
+# ── bpt-bridge (console WebSocket forwarder) ──────────────────────────────
 cat > "$UNIT_DIR/bpt-bridge.service" <<EOF
 [Unit]
-Description=BPT Dashboard Bridge
+Description=BPT Console Bridge
 After=bpt-strategy.service
 Requires=bpt-transport.service
 PartOf=bpt-stack.target bpt-transport.service
@@ -321,24 +321,24 @@ $(emit_limits bpt-bridge)
 WantedBy=bpt-stack.target
 EOF
 
-# ── bpt-frontend (dashboard UI, Vite dev server) — LAPTOP ONLY ──────────────
+# ── bpt-frontend (console UI, Vite dev server) — LAPTOP ONLY ──────────────
 # Vite dev server runs from the source checkout; not shipped in deploy tarballs.
-# Deploy hosts serve the built dashboard via bridge or a separate nginx/caddy
-# out of band; emitting a unit that points at $BPT_DEPLOY_ROOT/dashboard/frontend
+# Deploy hosts serve the built console via bridge or a separate nginx/caddy
+# out of band; emitting a unit that points at $BPT_DEPLOY_ROOT/bpt-console/frontend
 # would produce a ghost unit that fails to start on every boot.
 if [ -z "${BPT_DEPLOY_ROOT:-}" ]; then
     cat > "$UNIT_DIR/bpt-frontend.service" <<EOF
 [Unit]
-Description=BPT Dashboard Frontend
+Description=BPT Console Frontend
 After=bpt-bridge.service
 PartOf=bpt-stack.target
 
 [Service]
 Type=simple
-WorkingDirectory=$BPT_ROOT/dashboard/frontend
+WorkingDirectory=$BPT_ROOT/bpt-console/frontend
 Environment=VITE_WS_URL=ws://localhost:8080
 Environment=PATH=${HOME}/.nvm/versions/node/v20.20.1/bin:/usr/bin
-ExecStart=/usr/bin/env node $BPT_ROOT/dashboard/frontend/node_modules/.bin/vite
+ExecStart=/usr/bin/env node $BPT_ROOT/bpt-console/frontend/node_modules/.bin/vite
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=5

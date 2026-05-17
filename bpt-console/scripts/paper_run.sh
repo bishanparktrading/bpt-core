@@ -1,8 +1,8 @@
 #!/bin/bash
-# paper_run.sh — Launch the paper trading stack + dashboard bridge.
+# paper_run.sh — Launch the paper trading stack + console bridge.
 #
 # Mirror of smoke_test.sh but for paper trading against OKX testnet.
-# The dashboard URL is the same — what changes is the mode pill in the
+# The console URL is the same — what changes is the mode pill in the
 # top bar (yellow "PAPER" instead of blue "BACKTEST").
 #
 # Usage:
@@ -12,7 +12,7 @@
 #
 # Default strategy-config: bpt-strategy/config/vwap_reversion.qa-okx.toml
 #
-# --instrument-id restricts the dashboard to a single instrument when the
+# --instrument-id restricts the console to a single instrument when the
 # bpt-strategy strategy trades multiple.  Without it, fills from every instrument
 # get mixed into one blotter/position/equity view, which is visually wrong.
 # OKX instrument IDs:  BTC-USDT=200102  ETH-USDT=200202  SOL-USDT=200302
@@ -26,7 +26,7 @@ BRIDGE_CFG="$STACK_DIR/bpt-bridge/config/bridge.live.toml"
 BRIDGE_LOG_DIR="$STACK_DIR/bpt-bridge/logs"
 BRIDGE_PID="$STACK_DIR/bpt-bridge/.bridge.pid"
 PAPER_SH="$STACK_DIR/scripts/paper.sh"
-FRONTEND_DIR="$STACK_DIR/dashboard/frontend"
+FRONTEND_DIR="$STACK_DIR/bpt-console/frontend"
 FRONTEND_BIN="$FRONTEND_DIR/node_modules/.bin/vite"
 FRONTEND_LOG_DIR="$FRONTEND_DIR/logs"
 FRONTEND_LOG="$FRONTEND_LOG_DIR/vite.stdout"
@@ -235,7 +235,7 @@ do_status() {
 }
 
 do_start() {
-    echo "=== Dashboard paper trading run — starting ==="
+    echo "=== Console paper trading run — starting ==="
     echo
 
     if [ -n "${STRATEGY_CONFIG_OVERRIDE:-}" ]; then
@@ -254,7 +254,7 @@ do_start() {
     cat <<EOF
 === Paper trading stack is up ===
 
-  Dashboard : http://localhost:5173           (yellow PAPER pill)
+  Console : http://localhost:5173           (yellow PAPER pill)
   Bridge WS : ws://localhost:8080
 
 Logs:
@@ -265,7 +265,7 @@ EOF
 }
 
 do_stop() {
-    echo "=== Dashboard paper trading run — stopping ==="
+    echo "=== Console paper trading run — stopping ==="
     frontend_stop
     bridge_stop
     "$PAPER_SH" stop

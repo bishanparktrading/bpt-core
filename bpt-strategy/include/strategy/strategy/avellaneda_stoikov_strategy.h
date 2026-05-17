@@ -148,7 +148,7 @@ private:
         double last_ask_price{0.0};
 
         // Most-recent market top-of-book, cached from on_bbo. Only used
-        // by the dashboard state publisher — the strategy math operates
+        // by the console state publisher — the strategy math operates
         // on last_mid. Keeping it separate from st.book so strategies
         // configured with order_book_depth=0 still have a reference for
         // the chart overlay.
@@ -297,9 +297,9 @@ private:
     // Aggregated suppression state — one per-tick snapshot of every
     // reason a side might be blocked from quoting. Exists to keep
     // maybe_requote's runtime decisions and get_strategy_state_json's
-    // dashboard reporting in lockstep: prior to extraction, each path
+    // console reporting in lockstep: prior to extraction, each path
     // had its own copy of the logic and a new reason (e.g. today's
-    // trend_suppress) had to be added in two places or the dashboard
+    // trend_suppress) had to be added in two places or the console
     // would silently disagree with the actual decision.
     //
     // Organization: raw per-reason booleans for both sides, plus
@@ -317,10 +317,10 @@ private:
         bool pause_active{false};                         // PnL drawdown circuit-breaker
 
         // Queue projection side outputs — populated when queue check
-        // runs, cached here so logging + dashboard don't recompute.
+        // runs, cached here so logging + console don't recompute.
         double fp_bid{1.0}, fp_ask{1.0};
 
-        // Full aggregate — every reason counted. Used by the dashboard
+        // Full aggregate — every reason counted. Used by the console
         // bidSuppressed / askSuppressed flags.
         [[nodiscard]] bool bid_suppressed() const noexcept {
             return drift_bid || trend_bid || tox_bid || queue_bid || inventory_bid || post_fill_bid || vol_halted ||

@@ -245,7 +245,7 @@ AccountSnapshotData OKXOrderAdapter::fetch_account_snapshot(uint64_t correlation
                     snap.total_equity_e8 =
                         static_cast<int64_t>(std::round(std::stod(std::string(d.at("totalEq").as_string())) * 1e8));
                 // Per-ccy detail scan: record non-zero currency balances in
-                // snap.currency_balances (one row per ccy for the dashboard)
+                // snap.currency_balances (one row per ccy for the console)
                 // AND capture the USDT availBal for snap.available_balance_e8.
                 if (d.contains("details") && d.at("details").is_array()) {
                     for (const auto& detail : d.at("details").as_array()) {

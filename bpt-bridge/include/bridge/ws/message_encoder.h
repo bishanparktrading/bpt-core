@@ -1,7 +1,7 @@
 #pragma once
 
 // Encodes bridge → frontend JSON messages.  The shapes MUST match the
-// TypeScript schema in dashboard/frontend/src/types/messages.ts.
+// TypeScript schema in console/frontend/src/types/messages.ts.
 
 #include <cstdint>
 #include <string>
@@ -15,7 +15,7 @@ enum class Side : uint8_t { Buy, Sell };
 //   "mode":"paper|live", "instrumentType":"SPOT|PERP|FUTURE|OPTION" }
 //
 // Equity baseline is sourced from order-gateway AccountSnapshots ("account"
-// messages), not from a static config value. The dashboard derives the
+// messages), not from a static config value. The console derives the
 // equity curve and risk metrics from those snapshots.
 std::string session(std::string_view symbol,
                     std::string_view strategy,
@@ -66,7 +66,7 @@ struct AccountCurrencyBalance {
 //   "currencyBalances":[{"ccy":"USDT", "equity":..., "availableBalance":...}, ...] }
 //
 // Live exchange account snapshot from order-gateway — the canonical equity
-// baseline for the dashboard. `positions` feeds crypto rows in the
+// baseline for the console. `positions` feeds crypto rows in the
 // holdings panel; `currencyBalances` feeds per-stable-ccy rows.
 std::string account(uint64_t ts_ns,
                     double balance,

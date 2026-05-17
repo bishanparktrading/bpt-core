@@ -72,7 +72,7 @@ StrategyBus StrategyAeronBus::build(std::shared_ptr<::aeron::Aeron> aeron, const
                                ac.backtest_ack.stream_id);
     }
 
-    // Dashboard control + snapshot — disabled in backtest mode (backtest
+    // Console control + snapshot — disabled in backtest mode (backtest
     // has its own control channel; portfolio snapshots are noise during
     // replay).
     if (!cfg.backtest_mode && ac.console_control.stream_id != 0) {
@@ -80,9 +80,9 @@ StrategyBus StrategyAeronBus::build(std::shared_ptr<::aeron::Aeron> aeron, const
                                                                                  ac.console_control.channel,
                                                                                  ac.console_control.stream_id);
         if (bus.console_ctrl->is_ready()) {
-            bpt::common::log::info("Dashboard control subscription ready on stream {}", ac.console_control.stream_id);
+            bpt::common::log::info("Console control subscription ready on stream {}", ac.console_control.stream_id);
         } else {
-            bpt::common::log::warn("Dashboard control subscription unavailable");
+            bpt::common::log::warn("Console control subscription unavailable");
         }
     }
 

@@ -667,10 +667,10 @@ void FundingArbStrategy::handle_terminal(ArbPair& pair, LegState& leg, bpt::mess
     }
 }
 
-// ── Dashboard strategy-state JSON ───────────────────────────────────────────
+// ── Console strategy-state JSON ───────────────────────────────────────────
 //
 // One snapshot per call. FundingArb manages N independent (base_asset → pair)
-// arbs; the dashboard panel currently shows one, so emit the first non-IDLE
+// arbs; the console panel currently shows one, so emit the first non-IDLE
 // pair when there is one, else the first pair we've got. Multi-pair display
 // is a later panel evolution.
 
@@ -711,8 +711,8 @@ std::string FundingArbStrategy::get_strategy_state_json() {
     // Basis is only meaningful when BOTH legs have a real mid. On HL
     // testnet the perp side often has ask=0 (filtered upstream by
     // MdValidator), leaving perp_mid=0 — emitting (0 - spot)/spot then
-    // gives a nonsense -10000 bps that pollutes the dashboard. Show 0
-    // until both legs warm up; the dashboard differentiates by the
+    // gives a nonsense -10000 bps that pollutes the console. Show 0
+    // until both legs warm up; the console differentiates by the
     // perp_mid being 0.
     const double basis_bps = (spot_mid > 0 && perp_mid > 0) ? (perp_mid - spot_mid) / spot_mid * 1e4 : 0.0;
     const double funding_rate = p->last_funding_rate_bps / 1e4;  // bps → decimal
@@ -729,7 +729,7 @@ std::string FundingArbStrategy::get_strategy_state_json() {
     nlohmann::json j;
     j["type"] = "strategyState";
     j["kind"] = "FundingArb";
-    // base_asset is the natural symbol for the dashboard (BTC, ETH, …); the
+    // base_asset is the natural symbol for the console (BTC, ETH, …); the
     // top-bar already shows the configured BPT_BRIDGE_SYMBOL separately.
     j["symbol"] = p->base_asset;
     j["exchange"] = p->perp.exchange;  // perp leg's venue carries the funding

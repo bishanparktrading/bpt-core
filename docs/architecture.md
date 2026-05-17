@@ -4,7 +4,7 @@ Diagrams here complement the high-level overview in the [README](../README.md). 
 
 ## System overview
 
-The whole stack at a glance: exchange venues on one side, the React dashboard on the other, every C++ service multiplexed over an Aeron fabric in the middle.
+The whole stack at a glance: exchange venues on one side, the React console on the other, every C++ service multiplexed over an Aeron fabric in the middle.
 
 <p align="center">
   <img src="diagrams/system-overview.svg" alt="bpt-core system overview" width="900">

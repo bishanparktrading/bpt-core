@@ -66,7 +66,7 @@ public:
     /// \brief Set the current count of subscribed instruments for `venue`.
     ///
     /// Called once after the universe loads. A subsequent drop visible
-    /// on the dashboard signals a config regression or mapping shrink.
+    /// on the console signals a config regression or mapping shrink.
     void set_subscriptions(const std::string& venue, std::size_t count);
 
     /// \brief Set healthy=0 so dashboards distinguish a clean stop from

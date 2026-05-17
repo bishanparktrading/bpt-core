@@ -1,4 +1,4 @@
-// Mock options data for dashboard development. Simulates a short-vol
+// Mock options data for console development. Simulates a short-vol
 // BTC options portfolio: short strangles at multiple expiries, hedged
 // with a small delta position in the underlying perp.
 //

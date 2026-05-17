@@ -213,7 +213,7 @@ private:
     vol::VolSurfaceClient* vol_client_;
 
     // Keyed by "exchange_id:underlying" — mirrors ShortVolStrategy's
-    // canonical key shape so the dashboard can resolve cross-strategy
+    // canonical key shape so the console can resolve cross-strategy
     // state consistently.
     std::unordered_map<std::string, UnderlyingState> states_;
     std::unordered_map<uint64_t, std::string> instrument_to_key_;

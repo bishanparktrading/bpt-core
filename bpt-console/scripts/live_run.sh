@@ -1,8 +1,8 @@
 #!/bin/bash
-# live_run.sh — Launch the LIVE trading stack + dashboard bridge.
+# live_run.sh — Launch the LIVE trading stack + console bridge.
 #
 # DANGER: real orders, real money.  The bridge broadcasts mode="live"
-# so the dashboard top-bar shows a pulsing red LIVE pill — impossible
+# so the console top-bar shows a pulsing red LIVE pill — impossible
 # to miss at a glance.
 #
 # Usage:
@@ -18,7 +18,7 @@ BRIDGE_CFG="$STACK_DIR/bpt-bridge/config/bridge.live.toml"
 BRIDGE_LOG_DIR="$STACK_DIR/bpt-bridge/logs"
 BRIDGE_PID="$STACK_DIR/bpt-bridge/.bridge.pid"
 LIVE_SH="$STACK_DIR/scripts/live.sh"
-FRONTEND_DIR="$STACK_DIR/dashboard/frontend"
+FRONTEND_DIR="$STACK_DIR/bpt-console/frontend"
 
 is_running() {
     local pid_file="$1"
@@ -107,7 +107,7 @@ do_start() {
         exit 1
     fi
 
-    echo "=== Dashboard LIVE trading run — starting ==="
+    echo "=== Console LIVE trading run — starting ==="
     echo
 
     # live.sh enforces its own confirmation prompt — if the user aborts it
@@ -136,7 +136,7 @@ EOF
 }
 
 do_stop() {
-    echo "=== Dashboard LIVE trading run — stopping ==="
+    echo "=== Console LIVE trading run — stopping ==="
     bridge_stop
     "$LIVE_SH" stop
     echo "=== Stack is down ==="

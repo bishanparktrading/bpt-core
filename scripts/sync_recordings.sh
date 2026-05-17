@@ -1,7 +1,7 @@
 #!/bin/bash
 # sync_recordings.sh — pull Parquet recordings from a remote recorder
 # host into the local backtest cache. Run on the operator's laptop so
-# sweeps + the dashboard see fresh data without any cloud dependency
+# sweeps + the console see fresh data without any cloud dependency
 # at sweep time.
 #
 # Usage:

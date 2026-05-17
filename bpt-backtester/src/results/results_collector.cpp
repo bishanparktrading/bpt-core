@@ -330,7 +330,7 @@ void ResultsCollector::write() const {
     write_summary_json();
 }
 
-// Copy the strategy params file into the run dir so the dashboard can render
+// Copy the strategy params file into the run dir so the console can render
 // the actual param values (not just the hash) — needed for sweep visualisations
 // that label each cell by its tuned param. Warn-only on failure: params is a
 // diagnostic, not a correctness input.
@@ -373,7 +373,7 @@ void ResultsCollector::write_trades_csv() const {
                          r.fee_paid,
                          r.equity);
         // Empty cell instead of NaN for unresolved horizons — pandas and the
-        // dashboard parser both treat it as missing.
+        // console parser both treat it as missing.
         for (double mk : r.markouts_bps) {
             if (mk == kUnresolved)
                 f << ",";

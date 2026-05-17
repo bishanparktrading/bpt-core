@@ -33,7 +33,7 @@ strat: bpt-strategy {
 og: bpt-order-gateway {
   style.fill: "#dbeafe"
 }
-bridge: "bpt-bridge → dashboard" {
+bridge: "bpt-bridge → console" {
   style.fill: "#dcfce7"
 }
 
@@ -50,7 +50,7 @@ venue -> og: "ack + later Fill event"
 og -> aeron: "publish ExecReport"
 aeron -> strat: "fill → position update"
 strat -> aeron: "publish StrategyState (per-strategy JSON)"
-aeron -> bridge: "tap state for dashboard"
+aeron -> bridge: "tap state for console"
 
 note: "p50 ~150µs · max 524µs measured Aeron round-trip\non commodity hardware (strategy ↔ order-gateway)" {
   near: bottom-center

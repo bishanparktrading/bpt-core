@@ -8,7 +8,7 @@
 
 - **Sub-microsecond p50 latency** for IPC over shared memory (the same publish-subscribe transport that LMAX, Adaptive, and many trading firms use)
 - **Mature backpressure** — log-buffer-based; the publisher gets back a position cursor and can detect slow subscribers without queueing in userspace
-- **Multiple subscribers** per stream — the strategy, analytics, and the dashboard all consume the same MD stream without the publisher knowing
+- **Multiple subscribers** per stream — the strategy, analytics, and the console all consume the same MD stream without the publisher knowing
 - **Battle-tested** — used in production at LMAX since ~2014, multiple HFT shops, plus the Real-Logic team is responsive
 - **MIT licensed** — no commercial gotchas
 - **Wire-protocol stability** — a 2018 wslog could be replayed by a 2026 subscriber without code changes
@@ -37,7 +37,7 @@ bpt-md-gateway → bpt-strategy           # MD ticks
 bpt-strategy → bpt-order-gateway        # orders
 bpt-order-gateway → bpt-strategy        # exec reports + account snapshots
 bpt-refdata → all consumers             # snapshot + delta
-bpt-strategy → bpt-bridge               # portfolio snapshots for dashboard
+bpt-strategy → bpt-bridge               # portfolio snapshots for console
 bpt-pricer → bpt-strategy               # vol surface
 bpt-analytics → bpt-strategy            # toxicity
 ```

@@ -37,7 +37,7 @@ struct Settings {
     // Instrument filter: when non-zero, the bridge drops MD ticks and fills
     // that aren't for this instrument_id.  When zero, everything is forwarded
     // (single-instrument runs work without configuring the filter, but
-    // multi-instrument runs will mix instruments on the dashboard).
+    // multi-instrument runs will mix instruments on the console).
     uint64_t instrument_id{0};
 };
 

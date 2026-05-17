@@ -1,10 +1,10 @@
 #pragma once
 
 /// @file
-/// Port: dashboard kill-switch / resume control subscriber.
+/// Port: console kill-switch / resume control subscriber.
 /// 1-byte messages: 0x00 = HALT, 0x01 = RESUME. The bridge sends these
 /// via the console_control stream when an operator clicks the
-/// dashboard button. Strategy translates HALT into trading_halted_=true
+/// console button. Strategy translates HALT into trading_halted_=true
 /// and stops sending orders. Aeron concrete in
 /// `aeron/console_control_subscriber.h`.
 

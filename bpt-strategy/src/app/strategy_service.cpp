@@ -82,7 +82,7 @@ void StrategyService::run() {
 
     while (bpt::common::signal::is_running()) {
         // SIGUSR1 → flip to halted state + run the shutdown flatten
-        // once. Strategy stays alive after, so the dashboard / logs
+        // once. Strategy stays alive after, so the console / logs
         // can be inspected without the process exiting. Another
         // SIGUSR1 re-triggers (clears the flag on consumption).
         if (bpt::common::signal::is_flatten_requested()) {
@@ -124,11 +124,11 @@ void StrategyService::run() {
                     if (cmd == 0x00 && !trading_halted_) {
                         trading_halted_ = true;
                         metrics_.trading_halted->Set(1.0);
-                        bpt::common::log::warn("TRADING HALTED via dashboard kill-switch");
+                        bpt::common::log::warn("TRADING HALTED via console kill-switch");
                     } else if (cmd == 0x01 && trading_halted_) {
                         trading_halted_ = false;
                         metrics_.trading_halted->Set(0.0);
-                        bpt::common::log::info("Trading RESUMED via dashboard");
+                        bpt::common::log::info("Trading RESUMED via console");
                     }
                 };
             }
@@ -154,12 +154,12 @@ void StrategyService::run() {
             report_latency_stats();
         }
 
-        // Dashboard state publishing is intentionally OUTSIDE the gate:
+        // Console state publishing is intentionally OUTSIDE the gate:
         // get_strategy_state_json() returns "" when the strategy has
         // nothing to report (pre-pair-resolution), and a populated JSON
         // once pairs are resolved — even if order-gateway is absent (e.g.
         // mainnet read-only runs with OG stopped). Tying it to the gate
-        // meant the dashboard showed "Waiting for strategy data" any time
+        // meant the console showed "Waiting for strategy data" any time
         // OG was down even though the strategy itself was fully alive.
         if (bus_.portfolio_snap && bus_.portfolio_snap->is_active()) {
             const auto now_ns = bpt::common::util::TscClock::now_epoch_ns();
@@ -188,7 +188,7 @@ void StrategyService::run() {
 void StrategyService::stop() {
     // Called by bpt::app::run() after run() exits on signal. Graceful
     // shutdown does two things in order: (1) cancel resting orders and
-    // flatten inventory while the dashboard can still observe, (2) drain
+    // flatten inventory while the console can still observe, (2) drain
     // the Prometheus exposer. Both are symmetric with startup side-effects.
     shutdown_flatten();
     metrics_.shutdown();

@@ -50,7 +50,7 @@ private:
     // Set to true when any service heartbeat goes stale; cleared on recovery.
     // MD and order-gateway callbacks are suppressed while paused.
     bool trading_paused_{false};
-    // Set by the dashboard kill-switch via the control stream (9003).
+    // Set by the console kill-switch via the control stream (9003).
     // Distinct from trading_paused_ so auto-recovery doesn't override
     // a manual halt.
     bool trading_halted_{false};

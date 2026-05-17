@@ -1,4 +1,4 @@
-# dashboard/frontend
+# bpt-console/frontend
 
 Vite + React + TypeScript single-bundle app. **Three routes, three separate top-level apps** — chosen because the three surfaces answer different questions and shouldn't share chrome.
 
@@ -38,7 +38,7 @@ All three apps share:
 ## Development
 
 ```bash
-cd dashboard/frontend
+cd bpt-console/frontend
 npm install
 VITE_WS_URL=ws://localhost:8080 npm run dev   # http://localhost:5173/
 ```

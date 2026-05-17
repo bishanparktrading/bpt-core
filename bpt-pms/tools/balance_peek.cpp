@@ -2,7 +2,7 @@
 // messages from stream 6001 and pretty-prints each row.
 //
 // Validates the bpt-pms SBE encoding end-to-end without needing the
-// dashboard or strategy to be wired up yet. Useful for eyeballing
+// console or strategy to be wired up yet. Useful for eyeballing
 // "does bpt-pms see my actual HL balances correctly" during dev.
 
 #include <Aeron.h>

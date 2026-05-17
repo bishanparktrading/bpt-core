@@ -18,7 +18,7 @@
 namespace bpt::strategy::strategy {
 
 // Snapshot of current portfolio state — queried by StrategyService to publish
-// to the dashboard bridge.  Options strategies populate this; linear
+// to the console bridge.  Options strategies populate this; linear
 // strategies return the default (empty legs, zero Greeks).
 struct PortfolioState {
     struct Leg {
@@ -121,24 +121,24 @@ public:
     // bug, or exchange state drift — worth waking someone up.
     virtual std::size_t on_account_snapshot(bpt::messages::AccountSnapshot& /*snap*/) { return 0; }
 
-    // Returns the current portfolio state for dashboard publishing.
+    // Returns the current portfolio state for console publishing.
     // Default returns empty — only options strategies with position
     // tracking need to override this.
     virtual PortfolioState get_portfolio_state() { return {}; }
 
-    // Strategy state snapshot for the dashboard strategy-state panel.
-    // Published as JSON on the dashboard snapshot stream alongside
+    // Strategy state snapshot for the console strategy-state panel.
+    // Published as JSON on the console snapshot stream alongside
     // portfolio state. Default returns empty string (no state to publish).
     //
     // Schema convention:
     //   {
-    //     "type": "strategyState",   // routed by dashboard ws/client.ts
+    //     "type": "strategyState",   // routed by console ws/client.ts
     //     "kind": "AS",              // discriminator → frontend picks the
     //                                // matching panel from panels/index.ts
     //                                // (one entry per strategy class)
     //     ...strategy-specific fields
     //   }
-    // The dashboard's GenericStrategyPanel renders unknown `kind`s as a
+    // The console's GenericStrategyPanel renders unknown `kind`s as a
     // JSON dump so adding a new strategy is non-fatal — operators still
     // see something while the dedicated panel is being built.
     virtual std::string get_strategy_state_json() { return {}; }

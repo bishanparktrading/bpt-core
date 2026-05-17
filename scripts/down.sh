@@ -22,7 +22,7 @@ while [ $# -gt 0 ]; do
 done
 
 # ── Trading stack + bridge ──────────────────────────────────────────────
-"$ROOT/dashboard/scripts/paper_run.sh" stop
+"$ROOT/bpt-console/scripts/paper_run.sh" stop
 
 # ── Monitoring (optional) ───────────────────────────────────────────────
 if [ "$WITH_MONITORING" -eq 1 ]; then

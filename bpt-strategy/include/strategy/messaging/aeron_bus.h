@@ -45,7 +45,7 @@ namespace messaging {
 /// so a deterministic backtest harness can substitute in-process
 /// implementations without any change to the strategy. The remaining
 /// fields are still typed against concrete classes — they're either
-/// off-hot-path (vol, dashboard) or only used in production paths
+/// off-hot-path (vol, console) or only used in production paths
 /// (backtest, tox); promoting them to interfaces is deferred until a
 /// concrete consumer needs the substitution.
 struct StrategyBus {

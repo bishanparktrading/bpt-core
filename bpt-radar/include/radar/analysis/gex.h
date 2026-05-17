@@ -13,7 +13,7 @@
 /// we sum (+gamma·OI) for calls and (−gamma·OI) for puts, reflecting the
 /// typical assumption that dealers are short calls and long puts (the customer
 /// flow side). Refine when we have richer flow-side data; for now this matches
-/// what every options dashboard (SpotGamma, SqueezeMetrics, etc.) reports.
+/// what every options console (SpotGamma, SqueezeMetrics, etc.) reports.
 ///
 /// Skipping a strike: any point missing gamma or OI (NaN) is excluded.
 /// Returns {NaN total_oi=0 strikes=0} if no strike contributed.

@@ -253,7 +253,7 @@ export default function App() {
   // Options data — strictly live store data. Mock fallback removed because
   // mocked smile/heatmap silently overlaid mock IV curves under real position
   // markers, which was confusing for multi-underlying ops. If you want a
-  // dashboard demo without live services, use the bridge's `mock` URL mode.
+  // console demo without live services, use the bridge's `mock` URL mode.
   const storeLegs = useStore((s) => s.optionLegs)
   const storeGreeks = useStore((s) => s.portfolioGreeks)
   const storeSurface = useStore((s) => s.volSurface)

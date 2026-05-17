@@ -440,7 +440,7 @@ AccountSnapshotData DeribitOrderAdapter::fetch_account_snapshot(uint64_t correla
 
     // Aggregate USD equity / available across currencies. Deribit's per-ccy
     // equity is already in coin-units (BTC, ETH, etc.); converting to USDT
-    // would require a spot price lookup. For now the dashboard's `equity`
+    // would require a spot price lookup. For now the console's `equity`
     // field gets the largest single-currency equity, while currency_balances
     // carries the per-ccy detail. The strategy reads positions directly.
     // Revisit when USD-aggregation across crypto-collateral accounts matters.

@@ -1,12 +1,12 @@
 #pragma once
 
 /// \file
-/// \brief Outbound port: AccountSnapshot publish toward strategy / dashboard.
+/// \brief Outbound port: AccountSnapshot publish toward strategy / console.
 ///
 /// AccountSnapshot is the periodic + on-demand picture of the account
 /// state at a venue (positions, currency balances, available margin).
 /// Published on its own Aeron stream so subscribers (strategy gating
-/// shutdown_flatten, dashboard HoldingsPanel) can attach without
+/// shutdown_flatten, console HoldingsPanel) can attach without
 /// touching the higher-rate exec_report stream.
 ///
 /// Implementations: aeron::AccountSnapshotPublisher in prod; fakes in

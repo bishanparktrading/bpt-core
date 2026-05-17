@@ -9,7 +9,7 @@ nothing that places orders, so a `bpt-pms` outage doesn't stop trading.
 - Periodic REST poll of `/account` (balances) and `/positions` (per venue)
 - Normalises the per-venue shapes into a unified `AccountSnapshot` SBE message
 - Publishes on the account-snapshot stream
-- Consumed by `bpt-strategy` (for cross-venue position view) and the dashboard
+- Consumed by `bpt-strategy` (for cross-venue position view) and the console
 
 ## Why a separate service
 

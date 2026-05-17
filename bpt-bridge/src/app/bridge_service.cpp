@@ -253,7 +253,7 @@ void BridgeService::run() {
         bus_.color_sub->set_handler(
             [this](const bpt::radar::messaging::MarketColor& mc) { on_market_color(mc); });
 
-    // Install dashboard command handler on the broadcaster (IO-thread-safe in
+    // Install console command handler on the broadcaster (IO-thread-safe in
     // production WsServer; tests can drive it synchronously).
     if (broadcaster_)
         broadcaster_->set_command_handler([this](const std::string& cmd) { on_console_command(cmd); });
@@ -276,7 +276,7 @@ void BridgeService::run() {
             std::this_thread::sleep_for(std::chrono::microseconds(500));
     }
 
-    // Graceful shutdown on signal — notify dashboard that bridge is going
+    // Graceful shutdown on signal — notify console that bridge is going
     // away, give WS clients a beat to flush. Detach the command handler so
     // any late inbound command can't run against a half-destroyed service.
     if (broadcaster_) {

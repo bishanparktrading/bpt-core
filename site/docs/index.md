@@ -47,7 +47,7 @@ a one-pod quant shop need to actually run live?*
 **It isn't:**
 
 - A toy or paper simulation. There's no synthetic-fill engine — venues without testnet either get small real capital or get skipped. Paper mode was [removed](decisions/testnet-over-paper.md) after the fills it modelled diverged from real adverse-selection in a trending market.
-- A demo with a slick UI. The dashboard exists but is utilitarian — built for the operator, not for screenshots.
+- A demo with a slick UI. The console exists but is utilitarian — built for the operator, not for screenshots.
 - Finished. The [hexagonal bus refactor](decisions/hexagonal-bus.md) just landed across all 8 services; refdata REST snapshot capture is the next [bpt-tape](services/tape.md) extension; there's an [open backlog](https://github.com/bishanparktrading/bpt-core/blob/main/docs/backlog.md) of prod-hardening items.
 
 ---

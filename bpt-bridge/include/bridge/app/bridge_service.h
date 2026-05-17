@@ -1,12 +1,12 @@
 #pragma once
 
 /// @file
-/// BridgeService — Aeron → WebSocket forwarder for the dashboard.
+/// BridgeService — Aeron → WebSocket forwarder for the console.
 ///
 /// Wraps `bpt::app::IService` so main() follows the same lifecycle pattern
 /// as every other bpt-core service. Constructor takes a pre-built
 /// `BridgeBus` (built by BridgeAeronBus::build at the prod composition
-/// root) plus the two output ports — IBroadcaster (dashboard WS sink) and
+/// root) plus the two output ports — IBroadcaster (console WS sink) and
 /// api::ConsoleControlPublisher (bridge → strategy command sink). No
 /// `<Aeron.h>` in this header.
 ///
@@ -47,7 +47,7 @@ public:
     // In production, run() wires bus_.<...>->set_handler(...) to call these.
 
     /// MD market-data tick. Filters by settings_.instrument_id if set, throttles
-    /// dashboard broadcasts to ~30 Hz, and updates last_mid_ for unrealized PnL.
+    /// console broadcasts to ~30 Hz, and updates last_mid_ for unrealized PnL.
     void on_md_tick(uint64_t instrument_id, double mid, uint64_t ts_ns);
 
     /// OrderGateway exec-report fill (FILLED or PARTIAL with qty > 0). Updates
@@ -55,7 +55,7 @@ public:
     void on_exec_fill(const messaging::api::ExecSubscriber::Fill& f);
 
     /// OrderGateway exec-report lifecycle event (all statuses). Broadcasts
-    /// an Order message so the dashboard can track working/cancelled orders.
+    /// an Order message so the console can track working/cancelled orders.
     void on_exec_order_event(const messaging::api::ExecSubscriber::OrderEvent& ev);
 
     /// OrderGateway AccountSnapshot — equity / balance / per-currency rows.
@@ -71,7 +71,7 @@ public:
     /// Radar market-color update.
     void on_market_color(const bpt::radar::messaging::MarketColor& mc);
 
-    /// Dashboard command from the WS client — currently "halt" or "resume".
+    /// Console command from the WS client — currently "halt" or "resume".
     /// Publishes the control byte via ctrl_sink_ and broadcasts a status msg.
     void on_console_command(const std::string& cmd);
 
@@ -86,7 +86,7 @@ private:
     PositionTracker tracker_;
     double last_mid_ = 0.0;
 
-    // Tick throttle — BBO mids update ~1000 Hz but the dashboard only
+    // Tick throttle — BBO mids update ~1000 Hz but the console only
     // needs ~30 Hz for a smooth visual. Most-recent value wins.
     std::chrono::steady_clock::time_point last_tick_bcast_{};
     static constexpr std::chrono::milliseconds kTickMinInterval{33};

@@ -1,5 +1,5 @@
 #!/bin/bash
-# smoke_test.sh — End-to-end dashboard smoke test.
+# smoke_test.sh — End-to-end console smoke test.
 #
 # Launches the full backtest stack (bpt-transport + bpt-refdata + bpt-md-gateway + order-gateway +
 # bpt-strategy + bpt-backtester) via the existing backtest.sh, then starts the bridge
@@ -15,7 +15,7 @@
 # strategy config other than the default vwap_reversion.backtest.toml.
 #
 # --starting-capital N (default: 100000) is forwarded to BOTH bpt-backtester and
-# the bridge so the equity curve on the dashboard matches the one written to
+# the bridge so the equity curve on the console matches the one written to
 # summary.json.  Strategy's risk limits (max_position_usd etc.) are separate
 # and stay whatever the strategy config says.
 #
@@ -24,7 +24,7 @@
 #   2. Bridge connects to Aeron, listens on :8080
 #   3. Frontend (run separately) connects to ws://localhost:8080
 #   4. Blotter fills up with 22 fills as the backtest runs
-#   5. Final equity on the dashboard matches summary.json within $0.01
+#   5. Final equity on the console matches summary.json within $0.01
 
 set -euo pipefail
 
@@ -35,7 +35,7 @@ BRIDGE_LOG_DIR="$STACK_DIR/bpt-bridge/logs"
 BRIDGE_PID="$STACK_DIR/bpt-bridge/.bridge.pid"
 BACKTEST_SH="$STACK_DIR/scripts/backtest.sh"
 RESULTS_DIR="$STACK_DIR/bpt-backtester/results"
-FRONTEND_DIR="$STACK_DIR/dashboard/frontend"
+FRONTEND_DIR="$STACK_DIR/bpt-console/frontend"
 
 is_running() {
     local pid_file="$1"
@@ -130,7 +130,7 @@ do_status() {
 }
 
 do_start() {
-    echo "=== Dashboard smoke test — starting ==="
+    echo "=== Console smoke test — starting ==="
     echo
 
     # Forward the optional strategy-config override to backtest.sh
@@ -152,7 +152,7 @@ Now, in a separate terminal, start the frontend pointed at the bridge:
     cd $FRONTEND_DIR
     VITE_WS_URL=ws://localhost:8080 npm run dev
 
-Then open the URL Vite prints (http://localhost:5173/).  The dashboard
+Then open the URL Vite prints (http://localhost:5173/).  The console
 should animate with real fills as bpt-backtester replays the data.
 
 Logs:
@@ -168,7 +168,7 @@ EOF
 }
 
 do_stop() {
-    echo "=== Dashboard smoke test — stopping ==="
+    echo "=== Console smoke test — stopping ==="
     bridge_stop
     "$BACKTEST_SH" stop
     echo "=== Stack is down ==="
@@ -201,9 +201,9 @@ print(f"  total fills      : {s['total_fills']:>12}")
 PY
 
     echo
-    echo "To verify against the dashboard:"
+    echo "To verify against the console:"
     echo "  1. Open $latest/summary.json in one window"
-    echo "  2. Open the dashboard in another"
+    echo "  2. Open the console in another"
     echo "  3. Confirm total_fills, final_equity, and total_pnl all match"
 }
 

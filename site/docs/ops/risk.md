@@ -16,7 +16,7 @@ the operator-facing summary.
 | `max_position_usd` | post-fill net qty × mark | reject |
 
 Every gate increments a per-reason Prometheus counter. Rejection rate by
-reason is on the operator dashboard.
+reason is on the operator console.
 
 ## Latches that fire on post-trade signal
 

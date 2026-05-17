@@ -11,19 +11,19 @@
 
 namespace bpt::strategy::console {
 
-// Publishes the strategy's PortfolioState to the dashboard bridge as a JSON
+// Publishes the strategy's PortfolioState to the console bridge as a JSON
 // blob over Aeron. The bridge relays the payload as-is to all connected
-// dashboard clients.
+// console clients.
 //
 // Throttled to ~10 Hz internally; callers can poke `publish_if_due()` from a
 // hot poll loop without worrying about cadence. Snapshots that contain no
 // option legs and no surface points are skipped to avoid spamming the
-// dashboard with empty payloads from linear strategies.
+// console with empty payloads from linear strategies.
 class PortfolioSnapshotPublisher {
 public:
     // channel/stream may be empty/0 — in that case the publisher operates as
     // a no-op so call sites don't need conditionals. Used when running in
-    // backtest mode or with no dashboard configured.
+    // backtest mode or with no console configured.
     PortfolioSnapshotPublisher(std::shared_ptr<aeron::Aeron> aeron, const std::string& channel, int32_t stream_id);
 
     // Publishes a snapshot if at least kIntervalNs has elapsed since the

@@ -48,7 +48,7 @@ void ExecSubscriber::on_fragment(::aeron::AtomicBuffer& buffer,
             const auto side = (msg.side() == OrderSide::BUY) ? encode::Side::Buy : encode::Side::Sell;
             const double price = static_cast<double>(msg.price()) / kPriceScale;
 
-            // Fire order lifecycle event for all statuses so the dashboard can
+            // Fire order lifecycle event for all statuses so the console can
             // track open/working orders.
             if (order_handler_) {
                 OrderEvent ev{};

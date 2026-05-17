@@ -1,4 +1,4 @@
-// Mock replay — fires the WebSocket message schema on a timer so the dashboard
+// Mock replay — fires the WebSocket message schema on a timer so the console
 // animates as if a real bridge were connected.  Emits the same JSON shape that
 // the real C++ bridge will emit, so components don't need a code path switch.
 
