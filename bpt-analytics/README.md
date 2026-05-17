@@ -8,17 +8,33 @@ See [service-anatomy.md](../docs/service-anatomy.md) for the canonical service s
 
 ## At a glance
 
-```
-   ┌────────────────────────────────────────────────────────────┐
-   │                   bpt-analytics                             │
-   │                                                            │
-   │  md_sub   ←── MdBbo (samples mid + spread per instrument)  │
-   │  exec_sub ←── ExecutionReport (fills + lifecycle)          │
-   │                            ↓                               │
-   │     ToxicityCalculator + MarkoutAnalyzer + FillRateTracker │
-   │                            ↓                               │
-   │  tox_pub  ──→ ToxicityUpdate (POD) on stream 5001          │
-   └────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    mdgw["md-gateway"]
+    ogw["order-gateway"]
+    strategy["strategy · bridge"]
+
+    subgraph analytics["bpt-analytics"]
+        md_sub["md_sub<br/>MdBbo"]
+        exec_sub["exec_sub<br/>ExecutionReport"]
+        analyzers["<b>analyzers</b><br/>ToxicityCalculator<br/>MarkoutAnalyzer<br/>FillRateTracker"]
+        tox_pub["tox_pub<br/>ToxicityUpdate (POD)"]
+
+        md_sub --> analyzers
+        exec_sub --> analyzers
+        analyzers --> tox_pub
+    end
+
+    mdgw --> md_sub
+    ogw --> exec_sub
+    tox_pub --> strategy
+
+    classDef external fill:#fff3cd,stroke:#856404,color:#000
+    classDef domain fill:#dbeafe,stroke:#1e40af,stroke-width:2px,color:#000
+    classDef layer fill:#f5f5f5,stroke:#333,color:#000
+    class mdgw,ogw,strategy external
+    class analyzers domain
+    class md_sub,exec_sub,tox_pub layer
 ```
 
 ## Streams produced

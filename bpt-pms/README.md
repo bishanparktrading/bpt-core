@@ -9,27 +9,31 @@ See [service-anatomy.md](../docs/service-anatomy.md) for the canonical service s
 
 ## At a glance
 
-```
-        EXCHANGES (REST)                        INTERNAL CONSUMERS
+```mermaid
+flowchart LR
+    hl["<b>Hyperliquid /info</b><br/>(clearinghouse state)"]
+    consumers["strategy · console<br/>(cross-venue position view)"]
 
-   ┌──────────────┐                             ┌──────────────────┐
-   │ Hyperliquid  │←── POST /info               │ strategy         │
-   │   (info API) │     (clearinghouse state)   │ (cross-venue     │
-   └──────────────┘                             │  position view)  │
-          ↑                                     │ console          │
-          │                                     └──────────────────┘
-          ↓                                              ↑
-   ┌────────────────────────────────────────────────────────┐
-   │                       bpt-pms                           │
-   │                                                        │
-   │  HyperliquidBalanceAdapter                              │
-   │    BeastHttpsClient (signed POST)                       │
-   │    JSON parser → BalanceSnapshot (positions + ccys)     │
-   │                            ↓                           │
-   │                  PmsService (polls on cadence)         │
-   │                            ↓                           │
-   │  snapshot_pub  ──→ BalanceSnapshot (SBE) on stream 8001 │
-   └────────────────────────────────────────────────────────┘
+    subgraph pms["bpt-pms"]
+        https["BeastHttpsClient<br/>(signed POST)"]
+        parser["JSON parser<br/>→ BalanceSnapshot"]
+        service["<b>PmsService</b><br/>(polls on cadence)"]
+        snapshot_pub["snapshot_pub<br/>BalanceSnapshot SBE"]
+
+        https --> parser
+        parser --> service
+        service --> snapshot_pub
+    end
+
+    hl -->|"POST /info"| https
+    snapshot_pub --> consumers
+
+    classDef external fill:#fff3cd,stroke:#856404,color:#000
+    classDef domain fill:#dbeafe,stroke:#1e40af,stroke-width:2px,color:#000
+    classDef layer fill:#f5f5f5,stroke:#333,color:#000
+    class hl,consumers external
+    class service domain
+    class https,parser,snapshot_pub layer
 ```
 
 ## Streams produced

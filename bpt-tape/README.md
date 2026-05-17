@@ -12,31 +12,33 @@ See [service-anatomy.md](../docs/service-anatomy.md) for the canonical service s
 
 ## At a glance
 
-```
-        EXCHANGES (WebSocket + REST)               LOCAL DISK
+```mermaid
+flowchart LR
+    exchanges["<b>EXCHANGES</b><br/>WebSocket + REST"]
+    disk["<b>LOCAL DISK</b><br/>/opt/bpt/data/tape/<br/>*.wslog · *.json"]
+    s3["<b>AWS Tokyo S3</b>"]
 
-   ┌──────────────┐                            ┌──────────────────┐
-   │ Binance      │←── stream                  │ /opt/bpt/data/   │
-   │ OKX          │                            │   tape/          │
-   │ Deribit      │←── stream                  │     2026-05-18/  │
-   │ Hyperliquid  │                            │       *.wslog    │
-   └──────────────┘                            │       *.json     │
-          ↑                                    └──────────────────┘
-          │ ws_client                                  ↑
-          │                                            │ rclone sync
-          ↓                                            ↓
-   ┌────────────────────────────────────────────────────┐         ┌──────┐
-   │                   bpt-tape                          │ ── hourly→ AWS  │
-   │                                                    │         │ Tokyo│
-   │  reuses bpt-md-gateway's IAdapter implementations  │         │ S3   │
-   │  with a NoopMdPublisher (zero-copy from decoder    │         └──────┘
-   │  but no Aeron offer) — frames forked off to a      │
-   │  Tape (rotating .wslog writer with optional zstd). │
-   │                                                    │
-   │  refdata path: subclasses RestClient to tee        │
-   │  response bodies to disk, capturing exchangeInfo /  │
-   │  instruments / fee schedules over time.            │
-   └────────────────────────────────────────────────────┘
+    subgraph tape["bpt-tape"]
+        ws_clients["WS clients<br/>(reused from md-gateway)"]
+        decoders["MdDecoders<br/>(reused, with NoopMdPublisher —<br/>parse but no Aeron offer)"]
+        tape_writer["<b>Tape writer</b><br/>(rotating .wslog,<br/>optional zstd)"]
+        refdata_poller["refdata poller<br/>(RestClient subclass,<br/>tees JSON to disk)"]
+    end
+
+    exchanges -->|"WS frame"| ws_clients
+    ws_clients -->|"raw frame<br/>(forked off)"| tape_writer
+    ws_clients --> decoders
+    exchanges -->|"REST JSON"| refdata_poller
+    tape_writer --> disk
+    refdata_poller --> disk
+    disk -.->|"hourly rclone"| s3
+
+    classDef external fill:#fff3cd,stroke:#856404,color:#000
+    classDef domain fill:#dbeafe,stroke:#1e40af,stroke-width:2px,color:#000
+    classDef layer fill:#f5f5f5,stroke:#333,color:#000
+    class exchanges,disk,s3 external
+    class tape_writer,refdata_poller domain
+    class ws_clients,decoders layer
 ```
 
 ## Streams produced

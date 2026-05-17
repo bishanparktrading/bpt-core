@@ -9,24 +9,57 @@ See [service-anatomy.md](../docs/service-anatomy.md) for the canonical service s
 
 ## At a glance
 
-```
-   ┌────────────────────────────────────────────────────────────┐
-   │                    bpt-strategy                             │
-   │                                                            │
-   │  refdata        ←── refdata_client (universe, fees, fundings)│
-   │  md             ←── md_client (BBO, trades; sends subscribes)│
-   │  vol            ←── vol_surface_client                       │
-   │  tox_sub        ←── ToxicityUpdate (gates new orders)        │
-   │  console_ctrl   ←── 1-byte HALT/RESUME from bpt-bridge       │
-   │  backtest_sub   ←── BacktestControl (replay tick gate)        │
-   │                            ↓                                │
-   │                  IStrategy implementations                   │
-   │    (AvellanedaStoikov, OptionsMaker, FundingArb, HMM, ...)   │
-   │                            ↓                                │
-   │  order_gw       ──→ NewOrder / CancelOrder / ModifyOrder    │
-   │  portfolio_snap ──→ JSON portfolio snapshots (to bridge)     │
-   │  backtest_pub   ──→ BacktestAck (replay tick acked)          │
-   └────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    refdata_svc["refdata"]
+    mdgw["md-gateway"]
+    pricer["pricer"]
+    analytics["analytics"]
+    bridge["bridge"]
+    backtester["backtester"]
+    ogw["order-gateway"]
+
+    subgraph strategy["bpt-strategy"]
+        in_refdata["refdata client<br/>(universe, fees, fundings)"]
+        in_md["md client<br/>(BBO, trades; sends subscribes)"]
+        in_vol["vol_surface client"]
+        in_tox["tox_sub<br/>(gates new orders)"]
+        in_ctrl["console_ctrl<br/>(HALT / RESUME)"]
+        in_back["backtest_sub<br/>(replay tick gate)"]
+
+        algo["<b>IStrategy implementations</b><br/>AvellanedaStoikov · OptionsMaker<br/>FundingArb · HMM · RegimeSwitch · ..."]
+
+        out_order["order_gw client<br/>NewOrder · Cancel · Modify"]
+        out_port["portfolio_snap<br/>JSON snapshots"]
+        out_back["backtest_pub<br/>BacktestAck"]
+
+        in_refdata --> algo
+        in_md --> algo
+        in_vol --> algo
+        in_tox --> algo
+        in_ctrl --> algo
+        in_back --> algo
+        algo --> out_order
+        algo --> out_port
+        algo --> out_back
+    end
+
+    refdata_svc --> in_refdata
+    mdgw --> in_md
+    pricer --> in_vol
+    analytics --> in_tox
+    bridge --> in_ctrl
+    backtester --> in_back
+    out_order --> ogw
+    out_port --> bridge
+    out_back --> backtester
+
+    classDef external fill:#fff3cd,stroke:#856404,color:#000
+    classDef domain fill:#dbeafe,stroke:#1e40af,stroke-width:2px,color:#000
+    classDef layer fill:#f5f5f5,stroke:#333,color:#000
+    class refdata_svc,mdgw,pricer,analytics,bridge,backtester,ogw external
+    class algo domain
+    class in_refdata,in_md,in_vol,in_tox,in_ctrl,in_back,out_order,out_port,out_back layer
 ```
 
 ## Streams produced

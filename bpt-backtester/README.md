@@ -15,62 +15,80 @@ See [service-anatomy.md](../docs/service-anatomy.md) for the canonical service s
 
 ## At a glance — bpt-backtester (multi-process)
 
-```
-        TAPE FILES                              INTERNAL CONSUMERS
-        (.wslog from bpt-tape)                  (regular Aeron-based services)
+```mermaid
+flowchart TD
+    tape["<b>TAPE FILES</b><br/>.wslog / .parquet"]
+    services["<b>regular Aeron services</b><br/>strategy · md-gateway<br/>order-gateway"]
 
-   ┌──────────────┐                            ┌──────────────────┐
-   │ disk         │                            │ strategy          │
-   │   *.wslog    │                            │ md-gateway        │ ←─── connects
-   │   *.parquet  │                            │ order-gateway     │       to MOCK
-   └──────────────┘                            │ (regular services │       venue WS
-          ↑                                    │  running normally)│       servers
-          │ DataLoader                         └──────────────────┘
-          ↓                                              ↑
-   ┌──────────────────────────────────────────────────────────────┐
-   │                  bpt-backtester                               │
-   │                                                              │
-   │  ClockMaster: tick-by-tick replay driver                     │
-   │     ├ dispatches MarketEvent → mock venue WS servers         │
-   │     │   (BinanceMdServer, OkxMdServer, HLMdServer, ...)      │
-   │     ├ runs MatchingEngine (per-instrument book + queue)      │
-   │     ├ collects fills via ResultsCollector                    │
-   │     └ tick-gates strategy:                                   │
-   │         ctrl_pub ──→ BacktestControl(seq, sim_ts)            │
-   │         ack_sub  ←── BacktestAck(seq)                        │
-   │                                                              │
-   │  mock WS / HTTP servers per venue:                           │
-   │    *MdServer  (accepts strategy's subscribe, feeds tape)     │
-   │    *OrderServer (accepts orders, routes to matching engine)  │
-   │    HyperliquidInfoServer (mock REST /info endpoint)          │
-   └──────────────────────────────────────────────────────────────┘
+    subgraph backtester["bpt-backtester"]
+        loader["DataLoader<br/>(reads tape)"]
+        clock["<b>ClockMaster</b><br/>tick-by-tick replay driver"]
+
+        subgraph mocks["mock venue servers"]
+            md_srv["*MdServer<br/>(BinanceMdServer,<br/>OkxMdServer, ...)"]
+            order_srv["*OrderServer"]
+            info_srv["HyperliquidInfoServer<br/>(mock /info)"]
+        end
+
+        match_eng["<b>MatchingEngine</b><br/>(per-instrument book + queue)"]
+        results["ResultsCollector"]
+
+        ctrl_pub["ctrl_pub<br/>BacktestControl(seq, sim_ts)"]
+        ack_sub["ack_sub<br/>BacktestAck(seq)"]
+
+        loader --> clock
+        clock -->|"MarketEvent"| mocks
+        clock -->|"trade event"| match_eng
+        match_eng -->|"fill"| results
+        clock --> ctrl_pub
+        ack_sub --> clock
+    end
+
+    tape --> loader
+    mocks <-->|"WS / HTTP<br/>(localhost)"| services
+    ctrl_pub --> services
+    services --> ack_sub
+
+    classDef external fill:#fff3cd,stroke:#856404,color:#000
+    classDef domain fill:#dbeafe,stroke:#1e40af,stroke-width:2px,color:#000
+    classDef layer fill:#f5f5f5,stroke:#333,color:#000
+    class tape,services external
+    class clock,match_eng domain
+    class loader,md_srv,order_srv,info_srv,results,ctrl_pub,ack_sub layer
 ```
 
 ## At a glance — bpt-backtester-mono (deterministic)
 
-```
-        TAPE FILES
+```mermaid
+flowchart TD
+    tape["<b>TAPE FILES</b><br/>.wslog"]
 
-   ┌──────────────┐
-   │ disk         │
-   │   *.wslog    │
-   └──────────────┘
-          ↑
-          │
-          ↓
-   ┌──────────────────────────────────────────────────────────────┐
-   │              bpt-backtester-mono (single binary)              │
-   │                                                              │
-   │   StrategyHarness:                                           │
-   │     - reads tape directly (no mock WS)                       │
-   │     - feeds frames into reused md-gateway decoders           │
-   │     - decodes into a HarnessMdPublisher (in-process)         │
-   │     - HarnessMdPublisher delivers MdBbo / Trade / Book       │
-   │       directly to the strategy (no Aeron, no encode-decode)  │
-   │     - strategy emits orders into an InProcessOrderGatewayClient│
-   │     - matches against the same MatchingEngine                │
-   │     - logs fills + final equity                              │
-   └──────────────────────────────────────────────────────────────┘
+    subgraph mono["bpt-backtester-mono (single binary, single thread)"]
+        harness["<b>StrategyHarness</b><br/>reads tape, drives one event at a time"]
+        decoders["MdDecoders<br/>(reused from md-gateway)"]
+        harness_pub["HarnessMdPublisher<br/>(in-process — no Aeron,<br/>no encode/decode)"]
+        strategy["<b>IStrategy</b><br/>(same code as live)"]
+        ogw_client["InProcessOrderGatewayClient"]
+        match_eng["MatchingEngine<br/>(same as multi-process)"]
+        results["fills · final equity log"]
+
+        harness --> decoders
+        decoders --> harness_pub
+        harness_pub -->|"MdBbo / Trade / Book"| strategy
+        strategy -->|"NewOrder"| ogw_client
+        ogw_client --> match_eng
+        match_eng -->|"fill"| strategy
+        match_eng --> results
+    end
+
+    tape --> harness
+
+    classDef external fill:#fff3cd,stroke:#856404,color:#000
+    classDef domain fill:#dbeafe,stroke:#1e40af,stroke-width:2px,color:#000
+    classDef layer fill:#f5f5f5,stroke:#333,color:#000
+    class tape external
+    class harness,strategy,match_eng domain
+    class decoders,harness_pub,ogw_client,results layer
 ```
 
 ## Streams produced (multi-process)

@@ -10,30 +10,53 @@ See [service-anatomy.md](../docs/service-anatomy.md) for the canonical service s
 
 ## At a glance
 
-```
-   ┌──────────────────────────────────────────────────────────────┐
-   │                  bpt-order-gateway                            │
-   │                                                              │
-   │  order_sub ←── NewOrder / Cancel / CancelAll / Modify /      │
-   │                AccountSnapshotRequest (from strategy)         │
-   │                            ↓                                 │
-   │              OrderProcessor (validation, risk gates)         │
-   │                            ↓                                 │
-   │              ┌─── pre-trade risk checks                       │
-   │              │     - daily-loss kill switch                   │
-   │              │     - reject-rate breaker                      │
-   │              │     - disconnect-rate breaker                  │
-   │              │     - min-notional, tick-rounding              │
-   │              ↓                                                │
-   │  per-venue adapter:                                          │
-   │    *HttpsClient (REST orders) + *WsClient (user data WS)     │
-   │    *ActionEncoder (domain → venue JSON / signed POST body)    │
-   │    *ExecDecoder  (venue ack/fill JSON → ExecutionReport)      │
-   │                            ↓                                 │
-   │  exec_pub      ──→ ExecutionReport (every ack/fill/reject)   │
-   │  account_pub   ──→ AccountSnapshot (5s periodic + on-demand) │
-   │  heartbeat_pub ──→ OrderGatewayHeartbeat (venue connectivity)│
-   └──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    strategy["strategy"]
+    exchanges["<b>EXCHANGES</b><br/>Binance · OKX<br/>Deribit · Hyperliquid<br/>(REST + WS user data)"]
+    consumers["strategy · bridge · analytics"]
+
+    subgraph ogw["bpt-order-gateway"]
+        order_sub["order_sub<br/>NewOrder · Cancel · CancelAll<br/>Modify · AccountSnapshotRequest"]
+
+        processor["<b>OrderProcessor</b><br/>validation + risk gates"]
+
+        risk["<b>risk checks</b><br/>daily-loss kill switch<br/>reject-rate breaker<br/>disconnect-rate breaker<br/>min-notional · tick-rounding"]
+
+        subgraph adapter["per-venue Adapter"]
+            https["*HttpsClient<br/>(REST orders, signed)"]
+            user_ws["*WsClient<br/>(user data WS,<br/>exec events)"]
+            encoder["*ActionEncoder<br/>(domain → venue JSON)"]
+            exec_decoder["*ExecDecoder<br/>(venue JSON → ExecutionReport)"]
+        end
+
+        exec_pub["exec_pub<br/>ExecutionReport"]
+        account_pub["account_pub<br/>AccountSnapshot"]
+        heartbeat_pub["heartbeat_pub<br/>OrderGatewayHeartbeat"]
+
+        order_sub --> processor
+        processor --> risk
+        risk --> encoder
+        encoder --> https
+        user_ws --> exec_decoder
+        exec_decoder --> exec_pub
+    end
+
+    strategy --> order_sub
+    https -->|"order POST"| exchanges
+    exchanges -->|"exec / fill WS"| user_ws
+    exec_pub --> consumers
+    account_pub --> consumers
+    heartbeat_pub --> consumers
+
+    classDef external fill:#fff3cd,stroke:#856404,color:#000
+    classDef domain fill:#dbeafe,stroke:#1e40af,stroke-width:2px,color:#000
+    classDef risk_style fill:#fecaca,stroke:#7f1d1d,stroke-width:2px,color:#000
+    classDef layer fill:#f5f5f5,stroke:#333,color:#000
+    class strategy,exchanges,consumers external
+    class processor domain
+    class risk risk_style
+    class order_sub,https,user_ws,encoder,exec_decoder,exec_pub,account_pub,heartbeat_pub layer
 ```
 
 ## Streams produced

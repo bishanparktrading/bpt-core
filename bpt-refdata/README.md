@@ -11,35 +11,50 @@ See [service-anatomy.md](../docs/service-anatomy.md) for the canonical service s
 
 ## At a glance
 
-```
-        EXCHANGES (REST)                        INTERNAL CONSUMERS
+```mermaid
+flowchart TD
+    exchanges["<b>EXCHANGES (REST)</b><br/>Binance /exchangeInfo<br/>OKX /api/v5/public<br/>Deribit /get_instruments<br/>Hyperliquid /info"]
+    consumers["<b>INTERNAL CONSUMERS</b><br/>strategy · pricer<br/>md-gateway · radar"]
+    requester["any subscriber<br/>(RefDataSubscriptionRequest)"]
 
-   ┌──────────────┐                             ┌──────────────────┐
-   │ Binance      │←── GET /exchangeInfo        │ strategy         │
-   │ OKX          │←── GET /api/v5/public/      │ pricer           │
-   │ Deribit      │←── GET /public/get_         │ md-gateway       │
-   │ Hyperliquid  │     instruments             │ radar            │
-   └──────────────┘                             └──────────────────┘
-          ↑                                              ↑
-          │ rest_client                                  │ Aeron sub
-          ↓                                              │
-   ┌────────────────────────────────────────────────────────┐
-   │                   bpt-refdata                           │
-   │                                                        │
-   │  per-venue adapter:                                    │
-   │    RestClient (Boost.Beast over TLS)                   │
-   │    *RefdataDecoder (JSON → Instrument records)         │
-   │                            ↓                           │
-   │              InstrumentRegistry (canonical IDs)        │
-   │              InstrumentResolver (venue → canonical)    │
-   │                            ↓                           │
-   │  snapshot_sink ──→ RefDataSnapshot (full universe)     │
-   │  delta_sink    ──→ RefDataDelta + heartbeat            │
-   │  fee_sink      ──→ FeeSchedule (per-instrument)        │
-   │  status_sink   ──→ RefDataReady, RefDataError          │
-   │                                                        │
-   │  control_source ←── RefDataSubscriptionRequest         │
-   └────────────────────────────────────────────────────────┘
+    subgraph refdata["bpt-refdata"]
+        subgraph adapter["per-venue Adapter"]
+            rest_client["RestClient<br/>(Boost.Beast over TLS)"]
+            decoder["*RefdataDecoder<br/>(JSON → Instrument)"]
+        end
+
+        registry["<b>InstrumentRegistry</b><br/>(canonical IDs)"]
+        resolver["<b>InstrumentResolver</b><br/>(venue ↔ canonical)"]
+
+        snapshot["snapshot_sink<br/>RefDataSnapshot"]
+        delta["delta_sink<br/>RefDataDelta + heartbeat"]
+        fee["fee_sink<br/>FeeSchedule"]
+        status["status_sink<br/>RefDataReady / Error"]
+        ctrl["control_source"]
+
+        decoder --> registry
+        decoder --> resolver
+        ctrl --> snapshot
+        registry --> snapshot
+        registry --> delta
+        registry --> fee
+        registry --> status
+    end
+
+    exchanges -->|"poll"| rest_client
+    rest_client --> decoder
+    requester --> ctrl
+    snapshot --> consumers
+    delta --> consumers
+    fee --> consumers
+    status --> consumers
+
+    classDef external fill:#fff3cd,stroke:#856404,color:#000
+    classDef domain fill:#dbeafe,stroke:#1e40af,stroke-width:2px,color:#000
+    classDef layer fill:#f5f5f5,stroke:#333,color:#000
+    class exchanges,consumers,requester external
+    class registry,resolver domain
+    class rest_client,decoder,snapshot,delta,fee,status,ctrl layer
 ```
 
 ## Streams produced

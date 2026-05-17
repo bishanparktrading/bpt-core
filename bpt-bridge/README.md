@@ -9,27 +9,53 @@ See [service-anatomy.md](../docs/service-anatomy.md) for the canonical service s
 
 ## At a glance
 
-```
-                                                      ┌──────────────┐
-   AERON (SBE)                                        │  bpt-console │
-                                                      │  (browser)   │
-   ┌──────────────────────────────────────────┐       │              │
-   │              bpt-bridge                   │       └──────┬───────┘
-   │                                          │              │
-   │  md_sub        ←── MdMarketData (BBO)    │              │ WS / JSON
-   │  exec_sub      ←── ExecutionReport       │              │ (port 5173 / 8080)
-   │  account_sub   ←── AccountSnapshot       │              │
-   │  portfolio_sub ←── JSON portfolio blob   │              ↓
-   │  tox_sub       ←── ToxicityUpdate        │       ┌──────────────┐
-   │  color_sub     ←── MarketColor           │       │  WsServer    │ ←─ broadcasts
-   │           ↓ SBE → JSON                   │       │  (Boost.Beast)│
-   │       message_encoder                    │       └──────┬───────┘
-   │           ↓                              │              │
-   │           IBroadcaster ──────────────────┼──────────────┘
-   │                                          │   (in-process: BridgeService
-   │  ctrl_pub      ──→ console_control byte  │    holds shared_ptr to WsServer)
-   │     (HALT / RESUME from console click)   │
-   └──────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    mdgw["md-gateway"]
+    ogw["order-gateway"]
+    strategy["strategy"]
+    analytics["analytics"]
+    radar["radar"]
+    console["<b>bpt-console</b><br/>(React browser app)"]
+
+    subgraph bridge["bpt-bridge"]
+        md_sub["md_sub<br/>MdMarketData"]
+        exec_sub["exec_sub<br/>ExecutionReport"]
+        account_sub["account_sub<br/>AccountSnapshot"]
+        portfolio_sub["portfolio_sub<br/>JSON blob"]
+        tox_sub["tox_sub<br/>ToxicityUpdate"]
+        color_sub["color_sub<br/>MarketColor"]
+
+        encoder["<b>message_encoder</b><br/>SBE → JSON"]
+        ws_srv["<b>WsServer</b><br/>(Boost.Beast)<br/>broadcasts + receives commands"]
+
+        ctrl_pub["ctrl_pub<br/>console_control byte<br/>(HALT / RESUME)"]
+
+        md_sub --> encoder
+        exec_sub --> encoder
+        account_sub --> encoder
+        portfolio_sub --> encoder
+        tox_sub --> encoder
+        color_sub --> encoder
+        encoder --> ws_srv
+        ws_srv -->|"command<br/>(HALT/RESUME JSON)"| ctrl_pub
+    end
+
+    mdgw --> md_sub
+    ogw --> exec_sub
+    ogw --> account_sub
+    strategy --> portfolio_sub
+    analytics --> tox_sub
+    radar --> color_sub
+    ws_srv <-->|"WS / JSON<br/>port 8080"| console
+    ctrl_pub --> strategy
+
+    classDef external fill:#fff3cd,stroke:#856404,color:#000
+    classDef domain fill:#dbeafe,stroke:#1e40af,stroke-width:2px,color:#000
+    classDef layer fill:#f5f5f5,stroke:#333,color:#000
+    class mdgw,ogw,strategy,analytics,radar,console external
+    class encoder,ws_srv domain
+    class md_sub,exec_sub,account_sub,portfolio_sub,tox_sub,color_sub,ctrl_pub layer
 ```
 
 ## Streams consumed (Aeron, inbound)

@@ -9,19 +9,38 @@ See [service-anatomy.md](../docs/service-anatomy.md) for the canonical service s
 
 ## At a glance
 
-```
-   ┌────────────────────────────────────────────────────────────┐
-   │                     bpt-pricer                              │
-   │                                                            │
-   │  refdata_sub ←── RefDataSnapshot/Delta (strikes, expiries) │
-   │  md_sub      ←── MdBbo (option BBOs for IV solve)          │
-   │  md_ctrl     ──→ MdSubscribeBatch (request options chain)  │
-   │                                                            │
-   │              SurfaceBuilder + IvSolver + SVI fit           │
-   │                            ↓                               │
-   │  vol_pub     ──→ VolSurface (SBE) on stream 4001           │
-   │  status_pub  ──→ PricerHeartbeat, PricerReady              │
-   └────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    refdata["refdata service<br/>(RefDataSnapshot / Delta)"]
+    mdgw["md-gateway"]
+    consumers["strategy · bridge · radar"]
+
+    subgraph pricer["bpt-pricer"]
+        refdata_sub["refdata_sub"]
+        md_sub["md_sub<br/>(MdBbo for IV solve)"]
+        md_ctrl["md_ctrl<br/>(MdSubscribeBatch)"]
+        builder["<b>SurfaceBuilder</b><br/>IvSolver + SVI fit"]
+        vol_pub["vol_pub<br/>VolSurface SBE (stream 4001)"]
+        status_pub["status_pub<br/>PricerHeartbeat / PricerReady"]
+
+        refdata_sub --> builder
+        md_sub --> builder
+        builder --> vol_pub
+        builder --> status_pub
+    end
+
+    refdata --> refdata_sub
+    mdgw --> md_sub
+    md_ctrl -->|"request options chain"| mdgw
+    vol_pub --> consumers
+    status_pub --> consumers
+
+    classDef external fill:#fff3cd,stroke:#856404,color:#000
+    classDef domain fill:#dbeafe,stroke:#1e40af,stroke-width:2px,color:#000
+    classDef layer fill:#f5f5f5,stroke:#333,color:#000
+    class refdata,mdgw,consumers external
+    class builder domain
+    class refdata_sub,md_sub,md_ctrl,vol_pub,status_pub layer
 ```
 
 ## Streams produced

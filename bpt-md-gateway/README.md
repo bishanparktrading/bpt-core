@@ -10,44 +10,46 @@ shape this service has.
 
 ## At a glance
 
-```
-        EXCHANGES                                    INTERNAL CONSUMERS
-        (WebSocket JSON)                             (Aeron / SBE)
+```mermaid
+flowchart TD
+    exchanges["<b>EXCHANGES</b><br/>Binance · OKX<br/>Deribit · Hyperliquid<br/>(WebSocket JSON)"]
+    consumers["<b>INTERNAL CONSUMERS</b><br/>strategy · pricer<br/>analytics · bridge · radar<br/>(Aeron / SBE)"]
+    strategy_in["strategy<br/>(MdSubscribeBatch)"]
 
-   ┌──────────────┐                                 ┌──────────────────┐
-   │ Binance      │←──── subscribe URL ────         │ strategy         │
-   │ OKX          │       (built once at connect)   │ pricer           │
-   │ Deribit      │                                 │ analytics        │
-   │ Hyperliquid  │───── tick frame ───→            │ bridge           │
-   └──────────────┘                                 │ radar            │
-          ↑                                         └──────────────────┘
-          │ ws_client                                        ↑
-          │                                                   │ Aeron sub
-          ↓                                                   │
-   ┌────────────────────────────────────────────────────────────┐
-   │                    bpt-md-gateway                          │
-   │                                                            │
-   │  per-venue adapter:                                        │
-   │    *MdWsClient    (TCP + TLS WebSocket)                    │
-   │    *MdDecoder<Pub> (JSON → MdBbo / MdTrade / MdOrderBook)  │
-   │                                ↓                           │
-   │                          ValidatingPublisher<MdPublisher>   │
-   │                                ↓ (zero vtable, inlined)     │
-   │                          MdPublisher (zero-copy SBE encode  │
-   │                                       direct into Aeron buf)│
-   │                                                            │
-   │  slow-path publishers (api/aeron split):                   │
-   │    aeron::FundingRatePublisher  + SbeFundingRateCodec      │
-   │    aeron::InstrumentStatsPublisher + SbeInstrumentStatsCodec│
-   │    aeron::AckPublisher          + 3 codecs (acks + heartbeats)│
-   │                                                            │
-   │  inbound:                                                  │
-   │    aeron::MdControlSubscriber ← strategy's MdSubscribeBatch│
-   │                ↓                                           │
-   │           SubscriptionManager (canonical → per-venue route)│
-   │                ↓                                           │
-   │           dispatch to adapter.subscribe(venue_symbol, ...) │
-   └────────────────────────────────────────────────────────────┘
+    subgraph mdgw["bpt-md-gateway"]
+        ctrl_sub["aeron::MdControlSubscriber"]
+        sub_mgr["SubscriptionManager<br/>canonical → per-venue route"]
+
+        subgraph adapter["per-venue Adapter"]
+            ws["*MdWsClient<br/>(TCP + TLS WebSocket)"]
+            decoder["*MdDecoder&lt;Pub&gt;<br/>JSON → MdBbo /<br/>MdTrade / MdOrderBook"]
+        end
+
+        validating["ValidatingPublisher&lt;MdPublisher&gt;<br/>zero vtable, inlined"]
+        md_pub["<b>MdPublisher</b> (hot path)<br/>zero-copy SBE encode<br/>direct into Aeron log buffer"]
+
+        slow["<b>slow-path publishers</b><br/>aeron::FundingRatePublisher + SbeFundingRateCodec<br/>aeron::InstrumentStatsPublisher + SbeInstrumentStatsCodec<br/>aeron::AckPublisher + 3 codecs"]
+    end
+
+    strategy_in -->|subscribe| ctrl_sub
+    ctrl_sub --> sub_mgr
+    sub_mgr -->|adapter.subscribe| adapter
+
+    exchanges -.->|subscribe URL| ws
+    exchanges -->|tick frame| ws
+    ws --> decoder
+    decoder --> validating
+    validating --> md_pub
+    md_pub --> consumers
+    decoder -.->|funding/stats callbacks| slow
+    slow --> consumers
+
+    classDef external fill:#fff3cd,stroke:#856404,color:#000
+    classDef hot fill:#fecaca,stroke:#7f1d1d,stroke-width:2px,color:#000
+    classDef layer fill:#f5f5f5,stroke:#333,color:#000
+    class exchanges,consumers,strategy_in external
+    class validating,md_pub hot
+    class ctrl_sub,sub_mgr,ws,decoder,slow layer
 ```
 
 ## Streams produced

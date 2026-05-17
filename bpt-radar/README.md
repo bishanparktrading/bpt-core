@@ -8,22 +8,48 @@ See [service-anatomy.md](../docs/service-anatomy.md) for the canonical service s
 
 ## At a glance
 
-```
-   ┌────────────────────────────────────────────────────────────┐
-   │                      bpt-radar                              │
-   │                                                            │
-   │  surface_sub      ←── VolSurface (per-underlying IV grid)  │
-   │  stats_sub        ←── InstrumentStats (OI, mark, vol24h)   │
-   │  funding_sub      ←── FundingRate (perp 8h rate)           │
-   │  refdata_perp_sub ←── perp instrument_id → underlying map  │
-   │  trade_sub        ←── MdTrade (5m flow imbalance)          │
-   │  bbo_sub          ←── MdMarketData (basis, mid)            │
-   │                            ↓                               │
-   │     GEX, max-pain, vol regime, term spread,                │
-   │     flow imbalance, basis bps                              │
-   │                            ↓                               │
-   │  color_pub        ──→ MarketColor (POD) on stream 6002     │
-   └────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    pricer["pricer"]
+    mdgw["md-gateway"]
+    refdata["refdata"]
+    bridge["bridge<br/>(→ console /radar)"]
+
+    subgraph radar["bpt-radar"]
+        surface_sub["surface_sub<br/>VolSurface"]
+        stats_sub["stats_sub<br/>InstrumentStats<br/>(OI, mark, vol24h)"]
+        funding_sub["funding_sub<br/>FundingRate"]
+        refdata_perp["refdata_perp_sub<br/>perp id → underlying"]
+        trade_sub["trade_sub<br/>MdTrade"]
+        bbo_sub["bbo_sub<br/>MdMarketData"]
+
+        analytics["<b>analytics</b><br/>GEX · max-pain · vol regime<br/>term spread · flow imbalance · basis"]
+
+        color_pub["color_pub<br/>MarketColor (POD)"]
+
+        surface_sub --> analytics
+        stats_sub --> analytics
+        funding_sub --> analytics
+        refdata_perp --> analytics
+        trade_sub --> analytics
+        bbo_sub --> analytics
+        analytics --> color_pub
+    end
+
+    pricer --> surface_sub
+    mdgw --> stats_sub
+    mdgw --> funding_sub
+    mdgw --> trade_sub
+    mdgw --> bbo_sub
+    refdata --> refdata_perp
+    color_pub --> bridge
+
+    classDef external fill:#fff3cd,stroke:#856404,color:#000
+    classDef domain fill:#dbeafe,stroke:#1e40af,stroke-width:2px,color:#000
+    classDef layer fill:#f5f5f5,stroke:#333,color:#000
+    class pricer,mdgw,refdata,bridge external
+    class analytics domain
+    class surface_sub,stats_sub,funding_sub,refdata_perp,trade_sub,bbo_sub,color_pub layer
 ```
 
 ## Streams produced
