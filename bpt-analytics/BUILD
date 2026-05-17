@@ -41,8 +41,8 @@ cc_binary(
         "src/app/analytics_service.cpp",
         "src/config/config.cpp",
         "src/messaging/aeron_bus.cpp",
-        "src/messaging/subscribers/exec_report_subscriber.cpp",
-        "src/messaging/subscribers/md_bbo_subscriber.cpp",
+        "src/messaging/subscribers/aeron/exec_report_subscriber.cpp",
+        "src/messaging/subscribers/aeron/md_bbo_subscriber.cpp",
         "src/messaging/publishers/aeron/toxicity_publisher.cpp",
     ],
     deps = [

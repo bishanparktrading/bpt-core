@@ -8,8 +8,8 @@
 /// constructor.
 
 #include "analytics/messaging/publishers/api/toxicity_publisher.h"
-#include "analytics/messaging/subscribers/exec_report_subscriber.h"
-#include "analytics/messaging/subscribers/md_bbo_subscriber.h"
+#include "analytics/messaging/subscribers/api/exec_report_subscriber.h"
+#include "analytics/messaging/subscribers/api/md_bbo_subscriber.h"
 
 #include <Aeron.h>
 
@@ -23,9 +23,9 @@ struct Settings;
 namespace messaging {
 
 struct AnalyticsBus {
-    std::unique_ptr<ExecReportSubscriber> exec_sub;
-    std::unique_ptr<MdBboSubscriber> md_sub;
-    std::unique_ptr<api::ToxicityPublisher> tox_pub;  ///< port; aeron::ToxicityPublisher in prod
+    std::unique_ptr<api::ExecReportSubscriber> exec_sub;  ///< port; aeron::ExecReportSubscriber in prod
+    std::unique_ptr<api::MdBboSubscriber> md_sub;         ///< port; aeron::MdBboSubscriber in prod
+    std::unique_ptr<api::ToxicityPublisher> tox_pub;      ///< port; aeron::ToxicityPublisher in prod
 };
 
 class AnalyticsAeronBus {
