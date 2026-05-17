@@ -1,4 +1,4 @@
-#include "radar/messaging/subscribers/refdata_perp_subscriber.h"
+#include "radar/messaging/subscribers/aeron/refdata_perp_subscriber.h"
 
 #include <messages/InstrumentType.h>
 #include <messages/MessageHeader.h>
@@ -8,7 +8,7 @@
 #include <bpt_common/logging.h>
 #include <cstring>
 
-namespace bpt::radar::messaging {
+namespace bpt::radar::messaging::aeron {
 
 using bpt::messages::ExchangeId;
 using bpt::messages::InstrumentType;
@@ -23,15 +23,15 @@ std::string trim_null(const char* p, std::size_t n) {
 }
 }  // namespace
 
-RefdataPerpSubscriber::RefdataPerpSubscriber(std::shared_ptr<aeron::Aeron> aeron,
+RefdataPerpSubscriber::RefdataPerpSubscriber(std::shared_ptr<::aeron::Aeron> aeron,
                                              const std::string& channel,
                                              int stream_id) {
     sub_ = bpt::common::aeron::wait_for_subscription(aeron, channel, stream_id);
-    assembler_ = std::make_unique<aeron::FragmentAssembler>(
-        [this](aeron::AtomicBuffer& buffer,
-               aeron::util::index_t offset,
-               aeron::util::index_t length,
-               aeron::Header& header) { handle_fragment(buffer, offset, length, header); });
+    assembler_ = std::make_unique<::aeron::FragmentAssembler>(
+        [this](::aeron::AtomicBuffer& buffer,
+               ::aeron::util::index_t offset,
+               ::aeron::util::index_t length,
+               ::aeron::Header& header) { handle_fragment(buffer, offset, length, header); });
     bpt::common::log::info("[RefdataPerpSubscriber] ready on stream {}", stream_id);
 }
 
@@ -41,11 +41,11 @@ int RefdataPerpSubscriber::poll(int fragment_limit) {
     return sub_->poll(assembler_->handler(), fragment_limit);
 }
 
-void RefdataPerpSubscriber::handle_fragment(aeron::AtomicBuffer& buffer,
-                                            aeron::util::index_t offset,
-                                            aeron::util::index_t length,
-                                            aeron::Header& /*header*/) {
-    if (length < static_cast<aeron::util::index_t>(MessageHeader::encodedLength()))
+void RefdataPerpSubscriber::handle_fragment(::aeron::AtomicBuffer& buffer,
+                                            ::aeron::util::index_t offset,
+                                            ::aeron::util::index_t length,
+                                            ::aeron::Header& /*header*/) {
+    if (length < static_cast<::aeron::util::index_t>(MessageHeader::encodedLength()))
         return;
 
     char* data = reinterpret_cast<char*>(buffer.buffer()) + offset;
@@ -95,4 +95,4 @@ void RefdataPerpSubscriber::handle_fragment(aeron::AtomicBuffer& buffer,
     }
 }
 
-}  // namespace bpt::radar::messaging
+}  // namespace bpt::radar::messaging::aeron

@@ -7,12 +7,12 @@
 /// one factory so `RadarService` doesn't depend on `<Aeron.h>` directly.
 
 #include "radar/messaging/publishers/api/market_color_publisher.h"
-#include "radar/messaging/subscribers/funding_rate_subscriber.h"
-#include "radar/messaging/subscribers/instrument_stats_subscriber.h"
-#include "radar/messaging/subscribers/md_market_data_subscriber.h"
-#include "radar/messaging/subscribers/md_trade_subscriber.h"
-#include "radar/messaging/subscribers/refdata_perp_subscriber.h"
-#include "radar/messaging/subscribers/vol_surface_subscriber.h"
+#include "radar/messaging/subscribers/api/funding_rate_subscriber.h"
+#include "radar/messaging/subscribers/api/instrument_stats_subscriber.h"
+#include "radar/messaging/subscribers/api/md_market_data_subscriber.h"
+#include "radar/messaging/subscribers/api/md_trade_subscriber.h"
+#include "radar/messaging/subscribers/api/refdata_perp_subscriber.h"
+#include "radar/messaging/subscribers/api/vol_surface_subscriber.h"
 
 #include <Aeron.h>
 
@@ -26,13 +26,13 @@ struct Settings;
 namespace messaging {
 
 struct RadarBus {
-    std::unique_ptr<VolSurfaceSubscriber> surface_sub;
-    std::unique_ptr<InstrumentStatsSubscriber> stats_sub;
-    std::unique_ptr<FundingRateSubscriber> funding_sub;
-    std::unique_ptr<RefdataPerpSubscriber> refdata_perp_sub;
-    std::unique_ptr<MdTradeSubscriber> trade_sub;
-    std::unique_ptr<MdMarketDataSubscriber> bbo_sub;
-    std::unique_ptr<api::MarketColorPublisher> color_pub;  ///< port; aeron::MarketColorPublisher in prod
+    std::unique_ptr<api::VolSurfaceSubscriber> surface_sub;        ///< port
+    std::unique_ptr<api::InstrumentStatsSubscriber> stats_sub;     ///< port
+    std::unique_ptr<api::FundingRateSubscriber> funding_sub;       ///< port
+    std::unique_ptr<api::RefdataPerpSubscriber> refdata_perp_sub;  ///< port
+    std::unique_ptr<api::MdTradeSubscriber> trade_sub;             ///< port
+    std::unique_ptr<api::MdMarketDataSubscriber> bbo_sub;          ///< port
+    std::unique_ptr<api::MarketColorPublisher> color_pub;          ///< port; aeron::MarketColorPublisher in prod
 };
 
 class RadarAeronBus {

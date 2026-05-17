@@ -22,7 +22,9 @@ RadarService::RadarService(config::Settings settings, messaging::RadarBus bus)
     bus_.stats_sub->on_stats = [this](bpt::messages::InstrumentStats& s) { on_instrument_stats(s); };
     bus_.funding_sub->on_funding = [this](bpt::messages::FundingRate& fr) { on_funding(fr); };
     bus_.refdata_perp_sub->on_perp =
-        [this](const messaging::RefdataPerpSubscriber::PerpInfo& p) { on_refdata_perp(p.instrument_id, p.underlying, p.exchange_id); };
+        [this](const messaging::api::RefdataPerpSubscriber::PerpInfo& p) {
+            on_refdata_perp(p.instrument_id, p.underlying, p.exchange_id);
+        };
     bus_.trade_sub->on_trade = [this](bpt::messages::MdTrade& t) { on_trade(t); };
     bus_.bbo_sub->on_bbo = [this](bpt::messages::MdMarketData& b) { on_bbo(b); };
 
