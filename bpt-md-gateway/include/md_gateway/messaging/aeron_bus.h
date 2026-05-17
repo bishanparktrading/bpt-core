@@ -21,6 +21,23 @@
 /// Lifetime: AeronBus owns the publisher and subscriber objects but
 /// hands ownership to MdGatewayService at construction; AeronBus itself is
 /// a value type that can be moved out at the wiring site.
+///
+/// Where this bus sits in the service stack:
+///
+///     [ main.cpp ]                              composition root
+///         ↓
+///     [ MdGatewayService ]                      service / poll loop
+///         ↓ owns
+///     [ AeronBus ]  ←── this file                bus (messaging composition root)
+///         │
+///         ├──→ [ api::*Publisher / Subscriber ] virtual ports (slow path)
+///         │        ↓ dispatches to
+///         │    [ aeron::*Publisher / Subscriber ] concretes (own Codec<C,T>)
+///         │
+///         └──→ [ MdPublisher ] (hot path)       concrete, no port; venue
+///                                                adapters template on it
+///
+/// See docs/service-anatomy.md for the full layered shape.
 
 #include "md_gateway/messaging/publishers/api/ack_publisher.h"
 #include "md_gateway/messaging/publishers/api/funding_rate_publisher.h"

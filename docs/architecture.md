@@ -2,6 +2,8 @@
 
 Diagrams here complement the high-level overview in the [README](../README.md). Sources are D2 (`docs/diagrams/*.d2`) — re-render with `d2 docs/diagrams/foo.d2 docs/diagrams/foo.svg` after edits.
 
+For the shape of an individual service (composition root → service → bus → adapter → wire / codec → pub/sub), see [service-anatomy.md](service-anatomy.md). That doc covers the canonical layered structure every bpt-* C++ service follows and which layers each service drops.
+
 ## System overview
 
 The whole stack at a glance: exchange venues on one side, the React console on the other, every C++ service multiplexed over an Aeron fabric in the middle.

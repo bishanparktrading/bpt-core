@@ -2,6 +2,30 @@
 
 /// \file
 /// \brief Pure interface every md-gateway venue adapter implements.
+///
+/// The canonical adapter shape (any venue):
+///
+///                ┌─────────────────────────────┐
+///                │  Adapter (e.g. BinanceMdAdapter)│
+///                │   implements IAdapter         │
+///                ├─────────────────────────────┤
+///                │  owns:                        │
+///                │    *MdWsClient   ─── WIRE     │
+///                │    *MdDecoder<Pub> ─ EXTERNAL CODEC
+///                │    (JSON → domain via simdjson)
+///                │  refs:                        │
+///                │    MdPublisher (the hot sink) │
+///                │    funding_cb, stats_cb       │
+///                └────────────┬────────────────┘
+///                             │
+///       inbound:              │ decoder.decode(payload, ts, pub, callbacks)
+///       [exchange WS] ── frame ─→ ws_client ─→ adapter ─→ decoder ─→ pub.publish(domain)
+///                                                            └─→ funding_cb(domain)
+///
+///       outbound:              │ ws_client.send(query string)
+///       [exchange WS] ←── subscribe ── ws_client ←── adapter ←── encoder.build_streams_query(subs)
+///
+/// See docs/service-anatomy.md for where this fits in the overall service stack.
 
 #include "md_gateway/messaging/publishers/api/funding_rate_publisher.h"
 #include "md_gateway/messaging/publishers/api/instrument_stats_publisher.h"
