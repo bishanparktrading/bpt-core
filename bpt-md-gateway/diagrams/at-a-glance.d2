@@ -2,7 +2,7 @@
 # Render: d2 --layout=elk at-a-glance.d2 at-a-glance.svg
 # Source-of-truth — the .svg next to it is generated.
 
-direction: right
+direction: down
 
 classes: {
   card: {
@@ -70,6 +70,7 @@ mdgw: bpt-md-gateway {
 
   adapter: "per-venue Adapter" {
     class: swimlane-inner
+    direction: right
     ws: "*MdWsClient" { class: card }
     decoder: "*MdDecoder<Pub>" { class: card }
     pub: "MdPublisher\nvalidate · breaker\nSBE encode (zero-copy)" { class: card }
