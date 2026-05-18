@@ -7,21 +7,21 @@ direction: down
 classes: {
   card: {
     style: {
-      fill: "#f1f5f9"
+      fill: "#64748b"
       stroke: "#cbd5e1"
       stroke-width: 1
-      font-color: "#0f172a"
+      font-color: "#f8fafc"
       shadow: true
       border-radius: 20
     }
   }
-  cylinder-card: {
-    shape: cylinder
+  bus-card: {
+    shape: queue
     style: {
-      fill: "#f1f5f9"
+      fill: "#64748b"
       stroke: "#cbd5e1"
       stroke-width: 1
-      font-color: "#0f172a"
+      font-color: "#f8fafc"
     }
   }
   swimlane-mdgw: {
@@ -78,7 +78,12 @@ classes: {
 venue: "📡 Exchange\n(Binance / OKX / Deribit / HL)" { class: card }
 strat_in: "strategy\npublishes MdSubscribeBatch" { class: card }
 consumers: "strategy · pricer · analytics\nbridge · radar\nconsume MD via Aeron" { class: card }
-aeron: "☕ Aeron MediaDriver\nshared-memory log buffers" { class: cylinder-card }
+aeron: "Aeron — shared-memory log buffers" {
+  class: bus-card
+  icon: aeron-logo.png
+  icon.near: top-center
+  label.near: bottom-center
+}
 
 mdgw: bpt-md-gateway {
   class: swimlane-mdgw
