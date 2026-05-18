@@ -82,6 +82,7 @@ aeron: "☕ Aeron MediaDriver\nshared-memory log buffers" { class: cylinder-card
 
 mdgw: bpt-md-gateway {
   class: swimlane-mdgw
+  label.near: outside-top-center
 
   main: "main.cpp\ncomposition root" { class: card }
   service: "MdGatewayService\nIService · main poll loop" { class: card }
@@ -89,6 +90,7 @@ mdgw: bpt-md-gateway {
 
   bus: "MdGatewayBus (struct)" {
     class: swimlane-inner
+    label.near: outside-top-center
     ctrl_sub: "control_sub\napi::MdControlSubscriber" { class: card }
     ack_pub: "ack_pub\napi::AckPublisher" { class: card }
     funding_pub: "funding_pub\napi::FundingRatePublisher" { class: card }
@@ -99,6 +101,7 @@ mdgw: bpt-md-gateway {
 
   adapter: "BinanceMdAdapter : AdapterBase<Pub> : IAdapter (one per venue)" {
     class: swimlane-adapter
+    label.near: outside-top-center
     ws_client: "BinanceMdWsClient\nBoost.Beast WS / TLS\n(IO thread)" { class: card }
     queue: "SpscQueue<Frame>\nIO → publisher thread" { class: card }
     decoder: "BinanceMdDecoder<Pub>\nsimdjson → domain\n(publisher thread)" { class: card }
@@ -108,6 +111,7 @@ mdgw: bpt-md-gateway {
 
   codecs: "codecs/" {
     class: swimlane-inner
+    label.near: outside-top-center
     sbe_funding: "SbeFundingRateCodec\nencode(fr, scratch) → span" { class: card }
     sbe_stats: "SbeInstrumentStatsCodec" { class: card }
     sbe_ack: "SbeMdSubscription*Codec\n(3 message types)" { class: card }

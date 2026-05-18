@@ -61,15 +61,18 @@ classes: {
 
 ext: External {
   class: swimlane-ext
+  label.near: outside-top-center
   venue: "Exchange\n(Binance · OKX · Deribit · HL)" { class: card }
   strat: "strategy\n(MdSubscribeBatch)" { class: card }
 }
 
 mdgw: bpt-md-gateway {
   class: swimlane-mdgw
+  label.near: outside-top-center
 
   adapter: "per-venue Adapter" {
     class: swimlane-inner
+    label.near: outside-top-center
     direction: right
     ws: "*MdWsClient" { class: card }
     decoder: "*MdDecoder<Pub>" { class: card }
@@ -83,6 +86,7 @@ mdgw: bpt-md-gateway {
 
 right: "Aeron + Consumers" {
   class: swimlane-ext
+  label.near: outside-top-center
   aeron: "Aeron\nshared-memory log buffers" { class: card }
   consumers: "strategy · pricer · analytics\nbridge · radar" { class: card }
 }
