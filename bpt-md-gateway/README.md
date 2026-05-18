@@ -13,52 +13,86 @@ shape this service has.
 ```mermaid
 %%{init: {
   'theme': 'base',
+  'flowchart': {
+    'defaultRenderer': 'elk',
+    'curve': 'step'
+  },
   'themeVariables': {
-    'fontFamily': '"SF Mono", "JetBrains Mono", "Cascadia Code", Consolas, monospace',
-    'fontSize': '14px',
-    'lineColor': '#475569',
-    'primaryColor': '#1e293b',
-    'primaryTextColor': '#f8fafc',
-    'primaryBorderColor': '#0f172a'
+    'fontFamily': '"IBM Plex Sans", "Inter", "Helvetica Neue", Arial, sans-serif',
+    'fontSize': '14px'
   }
 }}%%
-flowchart TD
-    exchanges["<b>EXCHANGES</b><br/>Binance · OKX<br/>Deribit · Hyperliquid<br/>(WebSocket JSON)"]
-    consumers["<b>INTERNAL CONSUMERS</b><br/>strategy · pricer<br/>analytics · bridge · radar<br/>(Aeron / SBE)"]
-    strategy_in["strategy<br/>(MdSubscribeBatch)"]
-
-    subgraph mdgw["bpt-md-gateway"]
-        ctrl_sub["aeron::MdControlSubscriber"]
-        sub_mgr["SubscriptionManager<br/>canonical → per-venue route"]
-
-        subgraph adapter["per-venue Adapter (one per venue)"]
-            ws["*MdWsClient<br/>(TCP + TLS WebSocket)"]
-            decoder["*MdDecoder&lt;Pub&gt;<br/>JSON → MdBbo /<br/>MdTrade / MdOrderBook"]
-            md_pub["<b>MdPublisher</b> (hot path)<br/>validate · breaker · SBE encode<br/>zero-copy into Aeron log buffer"]
-        end
-
-        slow["<b>slow-path publishers</b><br/>aeron::FundingRatePublisher + SbeFundingRateCodec<br/>aeron::InstrumentStatsPublisher + SbeInstrumentStatsCodec<br/>aeron::AckPublisher + 3 codecs"]
+flowchart LR
+    %% ── Left swimlane: external producers + control ──────────────────────
+    subgraph EXT["External"]
+        direction TB
+        venue("Exchange<br/>Binance · OKX<br/>Deribit · Hyperliquid")
+        strat_in("strategy<br/>MdSubscribeBatch")
     end
 
-    strategy_in -->|subscribe| ctrl_sub
-    ctrl_sub --> sub_mgr
-    sub_mgr -->|adapter.subscribe| adapter
+    %% ── Middle swimlane: bpt-md-gateway ──────────────────────────────────
+    subgraph MDGW["bpt-md-gateway"]
+        direction TB
 
-    exchanges -.->|subscribe URL| ws
-    exchanges -->|tick frame| ws
+        subgraph adapter["per-venue Adapter"]
+            direction TB
+            ws("*MdWsClient")
+            decoder("*MdDecoder&lt;Pub&gt;")
+            md_pub("MdPublisher<br/>validate · breaker<br/>SBE encode (zero-copy)")
+        end
+
+        ctrl_sub("MdControlSubscriber")
+        sub_mgr("SubscriptionManager")
+
+        slow("slow-path publishers<br/>FundingRate · InstrumentStats · Ack")
+    end
+
+    %% ── Right swimlane: Aeron + consumers ────────────────────────────────
+    subgraph RIGHT["Aeron + Consumers"]
+        direction TB
+        aeron_box("Aeron<br/>shared-memory<br/>log buffers")
+        consumers("strategy · pricer<br/>analytics · bridge · radar")
+    end
+
+    %% Hot tick path (edges 0–4)
+    venue --> ws
     ws --> decoder
     decoder --> md_pub
-    md_pub --> consumers
-    decoder -.->|funding/stats callbacks| slow
-    slow --> consumers
+    md_pub --> aeron_box
+    aeron_box --> consumers
 
-    classDef external fill:#fff3cd,stroke:#856404,color:#000
-    classDef hot fill:#fecaca,stroke:#7f1d1d,stroke-width:2px,color:#000
-    classDef layer fill:#f5f5f5,stroke:#333,color:#000
-    class exchanges,consumers,strategy_in external
-    class md_pub hot
-    class ctrl_sub,sub_mgr,ws,decoder,slow layer
+    %% Slow path (edges 5–6)
+    decoder --> slow
+    slow --> aeron_box
+
+    %% Control / ack path (edges 7–10)
+    strat_in --> ctrl_sub
+    ctrl_sub --> sub_mgr
+    sub_mgr --> ws
+    sub_mgr --> slow
+
+    %% Edge colours carry the semantic load (no edge labels — see legend below)
+    linkStyle 0,1,2,3,4 stroke:#ef4444,stroke-width:2.5px,fill:none
+    linkStyle 5,6 stroke:#10b981,stroke-width:2.5px,fill:none
+    linkStyle 7,8,9,10 stroke:#22d3ee,stroke-width:2.5px,fill:none
+
+    %% Off-white "data card" stadium nodes + dark slate swimlanes (trading-terminal palette)
+    classDef node fill:#f1f5f9,stroke:#cbd5e1,stroke-width:1.5px,color:#0f172a
+    class venue,strat_in,ws,decoder,md_pub,ctrl_sub,sub_mgr,slow,aeron_box,consumers node
+
+    style EXT fill:#0f172a,stroke:#475569,stroke-width:1px,color:#e2e8f0
+    style MDGW fill:#1e1b4b,stroke:#4338ca,stroke-width:1px,color:#c7d2fe
+    style RIGHT fill:#0f172a,stroke:#475569,stroke-width:1px,color:#e2e8f0
+    style adapter fill:#312e81,stroke:#6366f1,stroke-width:1px,color:#e0e7ff
 ```
+
+**Legend**
+
+| Edge colour | Path | What flows |
+|---|---|---|
+| 🟥 **Red** | Hot tick path | BBO / Trade / OrderBook (zero-copy SBE into Aeron log buffer) |
+| 🟩 **Green** | Slow path | FundingRate / InstrumentStats / Ack (codec + offer) |
+| 🟦 **Blue** | Control | MdSubscribeBatch from strategy → SubscriptionManager → adapter / slow-pub |
 
 ## Detailed data flow (every major object)
 
@@ -82,43 +116,43 @@ Every component named, every arrow labelled. `==>` is the hot tick path,
   }
 }}%%
 flowchart TD
-    venue["📡 <b>Exchange</b><br/>(Binance / OKX / Deribit / HL)"]
-    strat_in["<b>strategy</b><br/>publishes MdSubscribeBatch"]
-    consumers["<b>strategy · pricer · analytics<br/>bridge · radar</b><br/>consume MD via Aeron"]
+    venue("📡 <b>Exchange</b><br/>(Binance / OKX / Deribit / HL)")
+    strat_in("<b>strategy</b><br/>publishes MdSubscribeBatch")
+    consumers("<b>strategy · pricer · analytics<br/>bridge · radar</b><br/>consume MD via Aeron")
     aeron[("☕ <b>Aeron MediaDriver</b><br/>shared-memory log buffers")]
 
     subgraph mdgw["bpt-md-gateway"]
         direction TB
 
-        main["<b>main.cpp</b><br/>composition root"]
-        service["<b>MdGatewayService</b><br/>IService · main poll loop"]
-        factory["<b>MdGatewayAeronBus::build</b><br/>factory"]
+        main("<b>main.cpp</b><br/>composition root")
+        service("<b>MdGatewayService</b><br/>IService · main poll loop")
+        factory("<b>MdGatewayAeronBus::build</b><br/>factory")
 
         subgraph bus["MdGatewayBus (struct)"]
-            ctrl_sub["control_sub<br/><i>api::MdControlSubscriber</i>"]
-            ack_pub["ack_pub<br/><i>api::AckPublisher</i>"]
-            funding_pub["funding_pub<br/><i>api::FundingRatePublisher</i>"]
-            stats_pub["stats_pub<br/><i>api::InstrumentStatsPublisher</i>"]
+            ctrl_sub("control_sub<br/><i>api::MdControlSubscriber</i>")
+            ack_pub("ack_pub<br/><i>api::AckPublisher</i>")
+            funding_pub("funding_pub<br/><i>api::FundingRatePublisher</i>")
+            stats_pub("stats_pub<br/><i>api::InstrumentStatsPublisher</i>")
         end
 
-        sub_mgr["<b>SubscriptionManager</b><br/>canonical_id → per-venue<br/>holds SubscriptionMap"]
+        sub_mgr("<b>SubscriptionManager</b><br/>canonical_id → per-venue<br/>holds SubscriptionMap")
 
         subgraph adapter["BinanceMdAdapter : AdapterBase&lt;Pub&gt; : IAdapter (one per venue)"]
             direction TB
-            ws_client["<b>BinanceMdWsClient</b><br/>Boost.Beast WS / TLS<br/>(IO thread)"]
-            queue["<b>SpscQueue&lt;Frame&gt;</b><br/>IO → publisher thread"]
-            decoder["<b>BinanceMdDecoder&lt;Pub&gt;</b><br/>simdjson → domain<br/>(publisher thread)"]
-            md_pub["<b>MdPublisher</b><br/>owns MdValidator + ValidationDropBreaker<br/>+ aeron::Publisher; one per adapter,<br/>publisher-thread-confined"]
-            encoder["<b>BinanceMdEncoder</b><br/>build_streams_query"]
+            ws_client("<b>BinanceMdWsClient</b><br/>Boost.Beast WS / TLS<br/>(IO thread)")
+            queue("<b>SpscQueue&lt;Frame&gt;</b><br/>IO → publisher thread")
+            decoder("<b>BinanceMdDecoder&lt;Pub&gt;</b><br/>simdjson → domain<br/>(publisher thread)")
+            md_pub("<b>MdPublisher</b><br/>owns MdValidator + ValidationDropBreaker<br/>+ aeron::Publisher; one per adapter,<br/>publisher-thread-confined")
+            encoder("<b>BinanceMdEncoder</b><br/>build_streams_query")
         end
 
         subgraph codecs["codecs/"]
-            sbe_funding["<b>SbeFundingRateCodec</b><br/>encode(fr, scratch) → span"]
-            sbe_stats["<b>SbeInstrumentStatsCodec</b>"]
-            sbe_ack["<b>SbeMdSubscription*Codec</b><br/>(3 message types)"]
+            sbe_funding("<b>SbeFundingRateCodec</b><br/>encode(fr, scratch) → span")
+            sbe_stats("<b>SbeInstrumentStatsCodec</b>")
+            sbe_ack("<b>SbeMdSubscription*Codec</b><br/>(3 message types)")
         end
 
-        common_pub["<b>bpt::common::aeron::Publisher</b><br/>thin wrapper: offer + back-pressure"]
+        common_pub("<b>bpt::common::aeron::Publisher</b><br/>thin wrapper: offer + back-pressure")
 
         main --> service
         main -.builds.-> factory
