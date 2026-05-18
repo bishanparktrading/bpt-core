@@ -14,8 +14,7 @@ shape this service has.
 %%{init: {
   'theme': 'base',
   'flowchart': {
-    'defaultRenderer': 'elk',
-    'curve': 'step'
+    'curve': 'linear'
   },
   'themeVariables': {
     'fontFamily': '"IBM Plex Sans", "Inter", "Helvetica Neue", Arial, sans-serif',
