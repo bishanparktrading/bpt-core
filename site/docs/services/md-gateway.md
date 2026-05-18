@@ -7,9 +7,9 @@ normalised structs, validates, and publishes SBE-encoded ticks on Aeron.
 
 - **Per-venue WS adapters** — Binance, OKX, Hyperliquid, Deribit. Each inherits a shared `RunLoop` (boost::beast WS) + `AdapterBase` (parse + publish thread topology).
 - **SBE encoders** for `MdBbo`, `MdTrade`, `MdOrderBook`, `FundingRateUpdate`.
-- **MdValidator** — per-instrument sanity checks (price > 0, qty > 0, no crossed book, deviation guards) gated on `max_price_deviation_pct`.
-- **ValidatingPublisher<Pub>** — CRTP decorator wrapping the concrete publisher; the chain `decoder → ValidatingPublisher<MdPublisher> → MdPublisher` is fully vtable-free.
-- **ValidationDropBreaker** — per-adapter circuit breaker. If MdValidator drops > 30% of publishes over a 60s window, the publisher latches off until restart. Disabled by default; opt-in once thresholds are tuned per venue.
+- **MdPublisher** — folds validate + drop-rate breaker + SBE encode + Aeron offer into one class. CRTP-friendly: the chain `decoder → MdPublisher` is fully vtable-free. One per adapter (publisher-thread-confined validator state).
+- **MdValidator** (owned by MdPublisher) — per-instrument sanity checks (price > 0, qty > 0, no crossed book, deviation guards) gated on `max_price_deviation_pct`.
+- **ValidationDropBreaker** (owned by MdPublisher) — per-adapter circuit breaker. If MdValidator drops > 30% of publishes over a 60s window, the publisher latches off until restart. Disabled by default; opt-in once thresholds are tuned per venue.
 - **Hexagonal bus boundary** — `IMdControlSource`, `IAckPublisher`, `IFundingRatePublisher`, `IMdPublisher` ports; `AeronBus::build()` wires the prod concretes.
 
 ## Hot-path microopts

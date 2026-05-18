@@ -8,17 +8,17 @@
 /// virtual hooks. bpt-tape reuses the same adapter library by
 /// substituting recording-aware on_frame() overrides on derived classes.
 ///
-/// Templated on Pub (the concrete inner publisher type) so the
-/// hot path decoder → ValidatingPublisher<Pub> → Pub is vtable-free.
-/// Prod md-gateway instantiates AdapterBase<MdPublisher>; bpt-tape
-/// instantiates AdapterBase<NoopMdPublisher>; tests can use any concrete
-/// type satisfying the publisher signature.
+/// Templated on Pub (the concrete publisher type) so the hot path
+///     decoder → md_pub_->publish()
+/// is vtable-free. Prod md-gateway instantiates AdapterBase<MdPublisher>;
+/// bpt-tape instantiates AdapterBase<NoopMdPublisher>; tests can use any
+/// concrete type satisfying the publisher signature. The MdPublisher
+/// itself now owns validation + drop-rate breaker state (one publisher
+/// per adapter — validator state is publisher-thread-confined).
 
 #include "md_gateway/adapter/common/i_adapter.h"
 #include "md_gateway/adapter/common/subscription_map.h"
 #include "md_gateway/config/settings.h"
-#include "md_gateway/md/md_validator.h"
-#include "md_gateway/md/validating_publisher.h"
 
 #include <atomic>
 #include <boost/asio/io_context.hpp>
@@ -89,23 +89,11 @@ public:
     AdapterBase(const config::AdapterConfig& cfg, std::shared_ptr<Pub> md_pub)
         : cfg_(cfg),
           md_pub_(std::move(md_pub)),
-          validator_(cfg.max_price_deviation_pct),
-          validating_pub_(*md_pub_, validator_, cfg_.exchange.c_str()),
           ssl_ctx_(boost::asio::ssl::context::tls_client) {
         ssl_ctx_.set_default_verify_paths();
         ssl_ctx_.set_verify_mode(boost::asio::ssl::verify_peer);
         // Enforce TLS 1.2 minimum — disable weak protocol versions.
         ssl_ctx_.set_options(boost::asio::ssl::context::no_tlsv1 | boost::asio::ssl::context::no_tlsv1_1);
-
-        // Apply validation-drop breaker config from the adapter's TOML block.
-        // Default-constructed Config is disabled, so adapters that don't set
-        // the knobs behave identically to before this change.
-        md::ValidationDropBreaker::Config db_cfg;
-        db_cfg.enabled = cfg_.validation_drop_breaker_enabled;
-        db_cfg.threshold_pct = cfg_.validation_drop_threshold_pct;
-        db_cfg.window_ns = static_cast<uint64_t>(cfg_.validation_drop_window_sec) * 1'000'000'000ULL;
-        db_cfg.min_events = cfg_.validation_drop_min_events;
-        validating_pub_.set_drop_breaker_config(db_cfg);
     }
 
     ~AdapterBase() override = default;
@@ -132,10 +120,11 @@ public:
 
     void set_topology(const bpt::common::util::Topology& topology) override { topology_ = &topology; }
 
-    [[nodiscard]] uint64_t md_published_count() const noexcept override { return validating_pub_.published(); }
-    [[nodiscard]] uint64_t validation_drop_count() const noexcept override { return validating_pub_.drops(); }
+    [[nodiscard]] uint64_t md_published_count() const noexcept override { return md_pub_->published(); }
+    [[nodiscard]] uint64_t validation_drop_count() const noexcept override { return md_pub_->validation_drops(); }
+    [[nodiscard]] uint64_t md_backpressure_drop_count() const noexcept override { return md_pub_->drop_count(); }
     [[nodiscard]] bool validation_drop_breaker_tripped() const noexcept override {
-        return validating_pub_.breaker_tripped();
+        return md_pub_->breaker_tripped();
     }
 
 protected:
@@ -188,9 +177,6 @@ protected:
     /// set_topology() before start(). nullptr = fall back to the legacy
     /// cfg_.io_thread_cpu TOML knob.
     const bpt::common::util::Topology* topology_{nullptr};
-    /// validator_ must be declared before validating_pub_ (init-list order).
-    md::MdValidator validator_;
-    md::ValidatingPublisher<Pub> validating_pub_;
 
     SubscriptionMap subs_;
     boost::asio::io_context ioc_;
@@ -220,7 +206,7 @@ private:
         while (!stop_flag_.load(std::memory_order_relaxed)) {
             try {
                 ioc_.restart();
-                validator_.reset();
+                md_pub_->reset_validator();
                 auto ws = connect_and_subscribe();
                 if (!ws) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));

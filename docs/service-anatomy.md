@@ -159,18 +159,17 @@ Inside the pub/sub layer there are two dispatch styles:
 BinanceMdDecoder<Pub>
    │   pub.publish(MdBbo)    ← static dispatch, no vtable
    ↓
-ValidatingPublisher<MdPublisher>
-   │   inner_.publish(MdBbo) ← static dispatch
-   ↓
 MdPublisher
+   │   validate (MdValidator) + record (ValidationDropBreaker)
    │   tryClaim + SBE encode in-place ← zero-copy into Aeron log buffer
    ↓
 Aeron log buffer
 ```
 
-- All template-composed (`template <md::MdSink Pub>`)
+- Template-composed (`template <md::MdSink Pub>`)
 - Zero vtable hops
-- `MdPublisher` writes directly into the Aeron log buffer (no scratch)
+- `MdPublisher` owns validation + drop-rate breaker + Aeron offer in one class
+  (one per adapter — validator state is publisher-thread-confined)
 - Constrained by the `md::MdSink` / `md::MdPublisher` concepts
 
 **Slow path** (~µs per call, ≤ Hz rates) — funding rates, status, acks,
@@ -207,7 +206,7 @@ Three named contracts live across the codebase:
 |---|---|---|
 | `bpt::common::codec::Codec<C, T>` | `bpt-common/include/bpt_common/codec/codec.h` | All slow-path SBE/POD codecs |
 | `bpt::md_gateway::md::MdSink<P>` | `bpt-md-gateway/include/md_gateway/md/md_publisher_concept.h` | Venue MD decoders' `Pub` template param |
-| `bpt::md_gateway::md::MdPublisher<P>` | same file | `ValidatingPublisher<Inner>`'s `Inner` template param |
+| `bpt::md_gateway::md::MdPublisher<P>` | same file | Prod `MdPublisher` self-verifies via `static_assert` |
 
 Every codec class self-verifies its conformance with
 `static_assert(Codec<C, T>)` next to its declaration. `MdPublisher` does the
@@ -242,9 +241,8 @@ bpt-md-gateway/include/md_gateway/
 │   ├── md_types.h                      domain types (MdBbo, MdTrade, MdOrderBook)
 │   ├── md_encoder.h                    zero-copy SBE encode used inside MdPublisher
 │   ├── md_publisher_concept.h          MdSink / MdPublisher concepts
-│   ├── md_validator.h                  validation on the tick path
-│   ├── validation_drop_breaker.h       circuit breaker
-│   └── validating_publisher.h          template decorator wrapping MdPublisher
+│   ├── md_validator.h                  validation on the tick path (owned by MdPublisher)
+│   └── validation_drop_breaker.h       circuit breaker (owned by MdPublisher)
 ├── messaging/                        ← INTERNAL SIDE
 │   ├── aeron_bus.h                     BUS layer (composition root for messaging)
 │   ├── streams.h                       stream-id constants

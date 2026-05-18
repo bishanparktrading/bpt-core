@@ -28,8 +28,8 @@ namespace bpt::md_gateway::adapter {
 
 /// \brief Decodes OKX WS frames (JSON envelope with `"arg"` + `"data"`) and publishes SBE.
 ///
-/// Templated on Pub (concrete inner-pub type) so the publish() chain
-/// inlines completely — see md_gateway/md/validating_publisher.h.
+/// Templated on Pub (concrete publisher type) so the publish() chain
+/// inlines completely — see md_gateway/messaging/publishers/md_publisher.h.
 ///
 /// Handled channels:
 ///   - bbo-tbt        → handle_bbo (tick-by-tick BBO)

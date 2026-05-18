@@ -90,7 +90,7 @@ sequenceDiagram
 
     venue->>mdgw: BBO tick (JSON frame)
     Note over mdgw: simdjson parse →<br/>MdBbo POD
-    mdgw->>mdgw: ValidatingPublisher checks
+    mdgw->>mdgw: MdPublisher (validate + breaker)
     mdgw->>aeron: SBE encode + tryClaim
     Note over aeron: zero-copy into log buffer
     aeron->>strat: BBO delivered
@@ -111,7 +111,7 @@ sequenceDiagram
 
 **Budget breakdown** (~150 µs p50 wire-arrival to fill-on-strategy):
 - ~10 µs: WS frame → simdjson parse → MdBbo
-- ~5 µs: ValidatingPublisher + SBE encode + Aeron offer
+- ~5 µs: MdPublisher (validate + breaker + SBE encode + Aeron offer)
 - ~20 µs: Aeron shared-memory delivery to strategy
 - ~30 µs: strategy logic + NewOrder publish
 - ~50 µs: order-gateway risk + REST POST

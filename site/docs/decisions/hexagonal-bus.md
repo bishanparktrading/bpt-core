@@ -74,7 +74,7 @@ overhead is ~2-5 ns vs direct call. Acceptable on the cold path. **Not
 acceptable on the publish hot path.**
 
 That's why the hot path uses [CRTP / template composition instead](crtp-hot-path.md):
-`decoder → ValidatingPublisher<MdPublisher> → MdPublisher` is fully inlined.
+`decoder → MdPublisher` is fully inlined (`MdPublisher` itself folds validate + drop-rate breaker + SBE encode + Aeron offer).
 The hexagonal pattern lives at the bus seam (cold side); template composition
 lives inside the publish chain (hot side). Both patterns coexist in
 `bpt-md-gateway`, each in its right place.

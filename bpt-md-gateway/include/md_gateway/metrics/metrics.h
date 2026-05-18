@@ -44,7 +44,7 @@ struct MdGatewayMetrics {
     /// \brief Per-adapter ValidationDropBreaker latch.
     ///
     /// 1 if the drop ratio exceeded the configured threshold and the
-    /// ValidatingPublisher has stopped forwarding to Aeron. Latches;
+    /// MdPublisher has stopped forwarding to Aeron. Latches;
     /// operator restart required to clear.
     prometheus::Family<prometheus::Gauge>* validation_drop_breaker_tripped_fam{};
     /// @}

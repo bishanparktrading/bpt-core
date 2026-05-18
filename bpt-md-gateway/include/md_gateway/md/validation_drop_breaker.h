@@ -5,10 +5,10 @@
 ///
 /// Trips when the share of `DROP` validation results over the rolling
 /// window exceeds the configured threshold (and at least `min_events`
-/// validations have run). On trip, ValidatingPublisher stops forwarding
-/// to its inner publisher — downstream consumers see no further data
-/// from this adapter rather than suspect data. Latches: no auto-clear,
-/// process restart required (mirrors the order-gateway breakers).
+/// validations have run). On trip, MdPublisher stops offering to Aeron
+/// — downstream consumers see no further data from this adapter rather
+/// than suspect data. Latches: no auto-clear, process restart required
+/// (mirrors the order-gateway breakers).
 ///
 /// Intended signal: a feed that is consistently emitting bad ticks
 /// (schema drift after a venue upgrade, broken timestamp sequence,

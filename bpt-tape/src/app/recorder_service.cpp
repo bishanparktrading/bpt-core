@@ -32,12 +32,19 @@ namespace {
 // Discards all parsed SBE — recorder has no downstream consumers, the
 // disk tap on raw frames is the only output. Templated venue adapters
 // inline these no-ops; the publish() chain compiles to dead branches.
+// Satisfies the surface AdapterBase pokes (published/validation_drops/
+// breaker_tripped/reset_validator) post-fold so the same adapter
+// classes can be reused unchanged.
 class NoopMdPublisher {
 public:
     void publish(const bpt::md_gateway::md::MdBbo&) {}
     void publish(const bpt::md_gateway::md::MdTrade&) {}
     void publish(const bpt::md_gateway::md::MdOrderBook&) {}
+    void reset_validator() {}
     uint64_t drop_count() const { return 0; }
+    uint64_t published() const { return 0; }
+    uint64_t validation_drops() const { return 0; }
+    bool breaker_tripped() const { return false; }
 };
 
 }  // namespace

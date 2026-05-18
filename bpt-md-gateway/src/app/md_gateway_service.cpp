@@ -1,6 +1,8 @@
 #include "md_gateway/app/md_gateway_service.h"
 
 #include "md_gateway/adapter/common/md_adapter_factory.h"
+#include "md_gateway/md/validation_drop_breaker.h"
+#include "md_gateway/messaging/publishers/md_publisher.h"
 
 #include <messages/ExchangeRegistry.h>
 #include <messages/MdSubscribeBatch.h>
@@ -13,16 +15,28 @@ using namespace std::chrono_literals;
 
 namespace bpt::md_gateway {
 
+namespace {
+
+md::ValidationDropBreaker::Config breaker_cfg_from(const config::AdapterConfig& a) {
+    md::ValidationDropBreaker::Config db;
+    db.enabled = a.validation_drop_breaker_enabled;
+    db.threshold_pct = a.validation_drop_threshold_pct;
+    db.window_ns = static_cast<uint64_t>(a.validation_drop_window_sec) * 1'000'000'000ULL;
+    db.min_events = a.validation_drop_min_events;
+    return db;
+}
+
+}  // namespace
+
 MdGatewayService::MdGatewayService(config::Settings cfg,
+                           std::shared_ptr<::aeron::Aeron> aeron,
                            std::unique_ptr<messaging::api::MdControlSubscriber> control_sub,
-                           std::shared_ptr<messaging::MdPublisher> md_pub,
                            std::unique_ptr<messaging::api::AckPublisher> ack_pub,
                            std::shared_ptr<messaging::api::FundingRatePublisher> funding_pub,
                            std::shared_ptr<messaging::api::InstrumentStatsPublisher> stats_pub,
                            const bpt::common::util::Topology& topology)
     : cfg_(std::move(cfg)),
       metrics_(cfg_.metrics_host, cfg_.base.metrics_port),
-      md_pub_(std::move(md_pub)),
       funding_pub_(std::move(funding_pub)),
       stats_pub_(std::move(stats_pub)),
       ack_pub_(std::move(ack_pub)),
@@ -37,7 +51,16 @@ MdGatewayService::MdGatewayService(config::Settings cfg,
             throw std::runtime_error(
                 fmt::format("Unknown exchange '{}' in mdgw config — not in messages/exchanges.yaml", a_cfg.exchange));
         }
-        auto adapter = adapter::make_md_adapter<messaging::MdPublisher>(*exch_id, a_cfg, md_pub_);
+        // One MdPublisher per adapter — validator state is publisher-thread-confined,
+        // so each adapter gets its own publication on (md_data.channel, md_data.stream_id).
+        // Aeron handles N publications on the same stream natively (one session-id each).
+        auto md_pub = std::make_shared<messaging::MdPublisher>(aeron,
+                                                                cfg_.aeron.md_data.channel,
+                                                                cfg_.aeron.md_data.stream_id,
+                                                                a_cfg.max_price_deviation_pct,
+                                                                breaker_cfg_from(a_cfg),
+                                                                a_cfg.exchange);
+        auto adapter = adapter::make_md_adapter<messaging::MdPublisher>(*exch_id, a_cfg, std::move(md_pub));
         if (!adapter) {
             throw std::runtime_error(
                 fmt::format("Exchange '{}' is in the registry but mdgw has no adapter implementation for it",
@@ -110,9 +133,12 @@ void MdGatewayService::run() {
         if (fragments == 0)
             std::this_thread::sleep_for(10us);
 
-        // Sync drop counter from MdPublisher into the metrics gauge.
-        // Cheap relaxed load — done every idle iteration so lag is at most ~10µs.
-        metrics_.md_messages_dropped->Set(static_cast<double>(md_pub_->drop_count()));
+        // Sum per-adapter back-pressure drops into the legacy single gauge.
+        // Cheap relaxed loads — done every idle iteration so lag is at most ~10µs.
+        uint64_t total_backpressure_drops = 0;
+        for (auto& [_, a] : md_stat_reporters_)
+            total_backpressure_drops += a->md_backpressure_drop_count();
+        metrics_.md_messages_dropped->Set(static_cast<double>(total_backpressure_drops));
 
         // Snapshot decode latency histograms and push per-exchange gauges to Prometheus.
         if (now - last_lat_report >= lat_report_interval) {

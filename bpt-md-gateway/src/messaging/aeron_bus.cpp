@@ -12,7 +12,6 @@
 #include "md_gateway/messaging/publishers/aeron/ack_publisher.h"
 #include "md_gateway/messaging/publishers/aeron/funding_rate_publisher.h"
 #include "md_gateway/messaging/publishers/aeron/instrument_stats_publisher.h"
-#include "md_gateway/messaging/publishers/md_publisher.h"
 #include "md_gateway/messaging/subscribers/aeron/md_control_subscriber.h"
 
 namespace bpt::md_gateway::messaging {
@@ -22,8 +21,6 @@ MdGatewayBus MdGatewayAeronBus::build(std::shared_ptr<::aeron::Aeron> aeron, con
     bus.control_sub = std::make_unique<aeron::MdControlSubscriber>(aeron,
                                                                       settings.aeron.md_control.channel,
                                                                       settings.aeron.md_control.stream_id);
-    bus.md_pub =
-        std::make_shared<MdPublisher>(aeron, settings.aeron.md_data.channel, settings.aeron.md_data.stream_id);
     bus.ack_pub = std::make_unique<aeron::AckPublisher>(aeron,
                                                          settings.aeron.md_ack_hb.channel,
                                                          settings.aeron.md_ack_hb.stream_id);

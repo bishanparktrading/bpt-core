@@ -1,43 +1,51 @@
 # CRTP on the hot path
 
-**Choice:** the publish chain `decoder → ValidatingPublisher<MdPublisher> → MdPublisher`
-is templated on the inner publisher type, fully vtable-free.
+**Choice:** the publish chain `decoder → MdPublisher` is templated on the
+publisher type, fully vtable-free.
 
 **Main alternative:** virtual `IMdPublisher` interface (which is what we use at
 the [bus boundary](hexagonal-bus.md)).
 
+> **Historical note:** earlier revisions interposed a `ValidatingPublisher<MdPublisher>`
+> decorator between decoder and publisher. The wrapper was N=1 with its wrapee,
+> shared all state, lifetime, and thread affinity, and its `drop_count()` already
+> leaked across layers — so it was folded into `MdPublisher` itself. The CRTP
+> pattern below is otherwise unchanged.
+
 ## The shape
 
 ```cpp
-template <class Inner>
-class ValidatingPublisher {
+class MdPublisher {
 public:
-    void publish(const MdBbo& bbo) { forward(bbo); }
-    void publish(const MdTrade& t)  { forward(t); }
-    void publish(const MdOrderBook& b) { forward(b); }
+    void publish(const MdBbo& bbo)        { forward(bbo); }
+    void publish(const MdTrade& trade)    { forward(trade); }
+    void publish(const MdOrderBook& book) { forward(book); }
 
 private:
     template <typename T>
     void forward(const T& msg) {
-        if (validator_.validate(msg) == OK) {
-            inner_.publish(msg);  // direct call; inlined into the decoder
-        } else {
-            drops_.fetch_add(1, std::memory_order_relaxed);
-        }
+        if (breaker_.tripped()) { validation_drops_++; return; }
+        const bool drop = (validator_.validate(msg) != OK);
+        breaker_.record(drop, now_ns());
+        if (drop) { validation_drops_++; return; }
+        // tryClaim + SBE encode in-place; direct call, inlined into decoder.
+        publisher_.publish<SbeT>([&](SbeT& m){ /* set fields */ });
     }
 
-    Inner& inner_;  // not IMdPublisher* — concrete type known at compile time
+    MdValidator validator_;
+    ValidationDropBreaker breaker_;
+    bpt::common::aeron::Publisher publisher_;
+    // ...atomic counters
 };
 ```
 
-The decoder (e.g. `OkxMdDecoder<Pub>`) is also templated on `Pub`. So the
-full chain at compile time is:
+The decoder (e.g. `OkxMdDecoder<Pub>`) is templated on `Pub`. So the full
+chain at compile time is:
 
 ```
-OkxMdDecoder<ValidatingPublisher<MdPublisher>>::decode_bbo(...)
-  → ValidatingPublisher<MdPublisher>::publish(MdBbo&)
-    → MdPublisher::publish(const MdBbo&)
-      → tryClaim() + SBE encode
+OkxMdDecoder<MdPublisher>::decode_bbo(...)
+  → MdPublisher::publish(const MdBbo&)
+    → validate + breaker + tryClaim + SBE encode
 ```
 
 After the optimiser has its way, that's a single inlined chain with no

@@ -43,6 +43,7 @@ public:
 
     [[nodiscard]] uint64_t md_published_count() const noexcept override { return 0; }
     [[nodiscard]] uint64_t validation_drop_count() const noexcept override { return 0; }
+    [[nodiscard]] uint64_t md_backpressure_drop_count() const noexcept override { return 0; }
 
 private:
     std::string name_;

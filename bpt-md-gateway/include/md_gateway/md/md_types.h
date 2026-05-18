@@ -5,10 +5,10 @@
 ///        venue-specific decoders and the SBE encoding/publishing layer.
 ///
 /// Every adapter parses its native wire format (JSON, FIX, binary) into
-/// these plain-value structs before handing them to ValidatingPublisher
-/// → MdPublisher. Keeping the publish path on POD types means no heap
-/// allocation between decode and Aeron, which is the contract the hot
-/// path is designed around.
+/// these plain-value structs before handing them to MdPublisher.
+/// Keeping the publish path on POD types means no heap allocation
+/// between decode and Aeron, which is the contract the hot path is
+/// designed around.
 
 #include <messages/TradeSide.h>
 

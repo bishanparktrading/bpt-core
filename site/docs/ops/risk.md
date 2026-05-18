@@ -32,8 +32,9 @@ human attention before resuming.
 
 ## Validation drop breaker (separate from order-gateway breakers)
 
-Lives in `bpt-md-gateway`'s `ValidatingPublisher`. If MdValidator drops > 30%
-of publishes for an adapter over a 60s rolling window:
+Lives in `bpt-md-gateway`'s `MdPublisher` (which folds the validator + drop-rate
+breaker). If `MdValidator` drops > 30% of publishes for an adapter over a 60s
+rolling window:
 
 - Stops forwarding to Aeron for that adapter (downstream sees no data, not bad data)
 - Latches; restart to clear

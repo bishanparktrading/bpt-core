@@ -57,7 +57,7 @@ The stack is opinionated. Each of these is documented separately under [Decision
 - **Aeron over shared memory** for IPC — sub-microsecond latency, mature backpressure, MIT-licensed
 - **SBE for wire format** — fixed-layout, zero-copy decode, schema-evolvable
 - **Hexagonal boundaries** at the bus seam — every service exposes ports (`I*Subscriber`, `I*Publisher`); concrete Aeron bindings live in one factory per service
-- **CRTP on the hot path** — `decoder → ValidatingPublisher<MdPublisher> → MdPublisher` is fully vtable-free
+- **CRTP on the hot path** — `decoder → MdPublisher` is fully vtable-free; `MdPublisher` folds validate + drop-rate breaker + SBE encode + Aeron offer
 - **C++20 over Rust** — for the talent pool, FFI-free venue libraries, and tooling maturity at this point in time
 - **systemd over Kubernetes** — solo operator, latency-sensitive workload, k8s overhead doesn't pay back
 - **Testnet over paper-mode** — paper-mode was [removed](decisions/testnet-over-paper.md) after its model diverged from real adverse-selection
@@ -68,8 +68,8 @@ A Hyperliquid `l2Book` update arrives at the `bpt-md-gateway` adapter:
 
 1. **WS read** in the adapter's IO thread. Raw bytes handed to `on_frame()`.
 2. **JSON decode** via simdjson into a normalised `MdOrderBook` struct (no heap alloc — InlineVec for levels).
-3. **Validation** — `MdValidator` checks for crossed book, price-deviation guards, monotonic ordering.
-4. **CRTP publish** — `ValidatingPublisher<MdPublisher>::publish(book)` inlines straight into `MdPublisher::publish_orderbook()`.
+3. **CRTP publish** — `decoder.publish(book)` inlines straight into `MdPublisher::publish(MdOrderBook)`.
+4. **Validation + breaker** — inside `MdPublisher`: `MdValidator` checks crossed book, price-deviation guards, monotonic ordering; `ValidationDropBreaker` records the outcome and latches if the rolling drop rate exceeds threshold.
 5. **SBE encode + Aeron tryClaim** — encoder writes directly into Aeron's reserved buffer. No double copy.
 6. **Strategy poll** — `bpt-strategy`'s `MdClient::poll()` consumes the fragment, dispatches to the active strategy's `on_orderbook()`.
 7. **Decision + order** — strategy may emit a `NewOrder` SBE frame on the order-control stream.

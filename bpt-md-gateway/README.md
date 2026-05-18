@@ -31,13 +31,11 @@ flowchart TD
         ctrl_sub["aeron::MdControlSubscriber"]
         sub_mgr["SubscriptionManager<br/>canonical → per-venue route"]
 
-        subgraph adapter["per-venue Adapter"]
+        subgraph adapter["per-venue Adapter (one per venue)"]
             ws["*MdWsClient<br/>(TCP + TLS WebSocket)"]
             decoder["*MdDecoder&lt;Pub&gt;<br/>JSON → MdBbo /<br/>MdTrade / MdOrderBook"]
+            md_pub["<b>MdPublisher</b> (hot path)<br/>validate · breaker · SBE encode<br/>zero-copy into Aeron log buffer"]
         end
-
-        validating["ValidatingPublisher&lt;MdPublisher&gt;<br/>zero vtable, inlined"]
-        md_pub["<b>MdPublisher</b> (hot path)<br/>zero-copy SBE encode<br/>direct into Aeron log buffer"]
 
         slow["<b>slow-path publishers</b><br/>aeron::FundingRatePublisher + SbeFundingRateCodec<br/>aeron::InstrumentStatsPublisher + SbeInstrumentStatsCodec<br/>aeron::AckPublisher + 3 codecs"]
     end
@@ -49,8 +47,7 @@ flowchart TD
     exchanges -.->|subscribe URL| ws
     exchanges -->|tick frame| ws
     ws --> decoder
-    decoder --> validating
-    validating --> md_pub
+    decoder --> md_pub
     md_pub --> consumers
     decoder -.->|funding/stats callbacks| slow
     slow --> consumers
@@ -59,9 +56,132 @@ flowchart TD
     classDef hot fill:#fecaca,stroke:#7f1d1d,stroke-width:2px,color:#000
     classDef layer fill:#f5f5f5,stroke:#333,color:#000
     class exchanges,consumers,strategy_in external
-    class validating,md_pub hot
+    class md_pub hot
     class ctrl_sub,sub_mgr,ws,decoder,slow layer
 ```
+
+## Detailed data flow (every major object)
+
+Every component named, every arrow labelled. `==>` is the hot tick path,
+`-->` is slow path or control, `-.->` is configuration / composition wiring.
+
+```mermaid
+%%{init: {
+  'theme': 'base',
+  'flowchart': {
+    'defaultRenderer': 'elk',
+    'curve': 'step'
+  },
+  'themeVariables': {
+    'fontFamily': '"SF Mono", "JetBrains Mono", Consolas, monospace',
+    'fontSize': '13px',
+    'lineColor': '#475569',
+    'primaryColor': '#1e293b',
+    'primaryTextColor': '#f8fafc',
+    'primaryBorderColor': '#0f172a'
+  }
+}}%%
+flowchart TD
+    venue["📡 <b>Exchange</b><br/>(Binance / OKX / Deribit / HL)"]
+    strat_in["<b>strategy</b><br/>publishes MdSubscribeBatch"]
+    consumers["<b>strategy · pricer · analytics<br/>bridge · radar</b><br/>consume MD via Aeron"]
+    aeron[("☕ <b>Aeron MediaDriver</b><br/>shared-memory log buffers")]
+
+    subgraph mdgw["bpt-md-gateway"]
+        direction TB
+
+        main["<b>main.cpp</b><br/>composition root"]
+        service["<b>MdGatewayService</b><br/>IService · main poll loop"]
+        factory["<b>MdGatewayAeronBus::build</b><br/>factory"]
+
+        subgraph bus["MdGatewayBus (struct)"]
+            ctrl_sub["control_sub<br/><i>api::MdControlSubscriber</i>"]
+            ack_pub["ack_pub<br/><i>api::AckPublisher</i>"]
+            funding_pub["funding_pub<br/><i>api::FundingRatePublisher</i>"]
+            stats_pub["stats_pub<br/><i>api::InstrumentStatsPublisher</i>"]
+        end
+
+        sub_mgr["<b>SubscriptionManager</b><br/>canonical_id → per-venue<br/>holds SubscriptionMap"]
+
+        subgraph adapter["BinanceMdAdapter : AdapterBase&lt;Pub&gt; : IAdapter (one per venue)"]
+            direction TB
+            ws_client["<b>BinanceMdWsClient</b><br/>Boost.Beast WS / TLS<br/>(IO thread)"]
+            queue["<b>SpscQueue&lt;Frame&gt;</b><br/>IO → publisher thread"]
+            decoder["<b>BinanceMdDecoder&lt;Pub&gt;</b><br/>simdjson → domain<br/>(publisher thread)"]
+            md_pub["<b>MdPublisher</b><br/>owns MdValidator + ValidationDropBreaker<br/>+ aeron::Publisher; one per adapter,<br/>publisher-thread-confined"]
+            encoder["<b>BinanceMdEncoder</b><br/>build_streams_query"]
+        end
+
+        subgraph codecs["codecs/"]
+            sbe_funding["<b>SbeFundingRateCodec</b><br/>encode(fr, scratch) → span"]
+            sbe_stats["<b>SbeInstrumentStatsCodec</b>"]
+            sbe_ack["<b>SbeMdSubscription*Codec</b><br/>(3 message types)"]
+        end
+
+        common_pub["<b>bpt::common::aeron::Publisher</b><br/>thin wrapper: offer + back-pressure"]
+
+        main --> service
+        main -.builds.-> factory
+        factory -.constructs.-> bus
+        service -.owns.-> bus
+        service -.owns.-> sub_mgr
+        service -.owns.-> adapter
+
+        venue ==>|"1: WS frame (JSON)"| ws_client
+        ws_client ==>|"2: push raw frame"| queue
+        queue ==>|"3: pop on pub thread"| decoder
+        decoder ==>|"4: MdBbo / MdTrade /<br/>MdOrderBook"| md_pub
+        md_pub ==>|"5: validate · breaker ·<br/>SBE encode + tryClaim (zero-copy)"| aeron
+
+        decoder -->|"funding_cb<br/>(std::function)"| funding_pub
+        decoder -->|"stats_cb"| stats_pub
+        funding_pub -->|"encode(fr, scratch)"| sbe_funding
+        stats_pub --> sbe_stats
+        sbe_funding -->|"span&lt;byte&gt;"| common_pub
+        sbe_stats --> common_pub
+
+        aeron ==>|"a: MdSubscribeBatch"| ctrl_sub
+        ctrl_sub ==>|"b: decoded batch"| service
+        service ==>|"c: apply_batch(...)"| sub_mgr
+        sub_mgr -->|"d: ack via SBE"| ack_pub
+        ack_pub --> sbe_ack
+        sub_mgr ==>|"e: subscribe(symbol)"| adapter
+        adapter --> encoder
+        encoder -->|"f: subscribe URL"| ws_client
+        ws_client -.->|"g: WS sub frame"| venue
+
+        common_pub ==>|"offer (back-pressure policy)"| aeron
+        sbe_ack --> common_pub
+    end
+
+    aeron ==>|"deliver via shared memory"| consumers
+    strat_in --> aeron
+
+    classDef external fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#451a03
+    classDef hot fill:#7f1d1d,stroke:#450a0a,stroke-width:2px,color:#fee2e2
+    classDef domain fill:#1e3a8a,stroke:#1e293b,stroke-width:1px,color:#dbeafe
+    classDef component fill:#1e293b,stroke:#0f172a,stroke-width:1px,color:#f8fafc
+    classDef factory fill:#312e81,stroke:#1e293b,stroke-width:1px,color:#e0e7ff
+
+    class venue,strat_in,consumers,aeron external
+    class md_pub hot
+    class decoder,sub_mgr domain
+    class ctrl_sub,ack_pub,funding_pub,stats_pub,ws_client,queue,encoder,sbe_funding,sbe_stats,sbe_ack,common_pub component
+    class main,service,factory factory
+
+    style mdgw fill:#f8fafc,stroke:#94a3b8,stroke-width:2px,color:#0f172a
+    style bus fill:#ffffff,stroke:#cbd5e1,stroke-width:1px,color:#475569
+    style adapter fill:#ffffff,stroke:#cbd5e1,stroke-width:1px,color:#475569
+    style codecs fill:#ffffff,stroke:#cbd5e1,stroke-width:1px,color:#475569
+```
+
+**Three flows, three colours of arrows:**
+
+- **`==>` heavy arrows**: the tick path (numbered 1–5). Hot — zero vtable, zero-copy at the Aeron boundary. ~µs. `MdPublisher` does validate + drop-rate breaker + SBE encode + offer in one step.
+- **`-->` thin arrows**: slow path (funding rate, instrument stats, control). Same Aeron at the end, but goes through a Codec + Publisher::offer with a stack scratch buffer. ~µs per call, lower frequency.
+- **`-.->` dashed arrows**: composition / configuration / one-shot. Lifetime ownership wiring (main builds factory, factory constructs bus, service owns components). Or one-shot like the subscribe URL handed to the WS client.
+
+**The control path (lettered a–g):** strategy publishes `MdSubscribeBatch` → flows through Aeron → `MdControlSubscriber` decodes → `MdGatewayService` routes via `SubscriptionManager` → which both (d) publishes an ack and (e) tells the venue adapter to subscribe → which builds the URL and hands to the WS client → which reconnects with the new subscriptions baked into the URL (Binance) or sends a runtime subscribe frame (OKX / Deribit / HL).
 
 ## Streams produced
 
@@ -92,14 +212,14 @@ flowchart TD
 | Pub/Sub (slow) | `messaging/publishers/{api,aeron}/...`, `messaging/subscribers/{api,aeron}/...` | api/aeron split |
 | Pub (hot) | `messaging/publishers/md_publisher.{h,cpp}` | `MdPublisher` (templated chain target) |
 | Internal codec | `messaging/codecs/sbe_*.{h,cpp}` | All satisfy `Codec<C, T>` |
-| Hot-path support | `md/{md_encoder,md_validator,md_types,md_publisher_concept,validating_publisher,...}.h` | CRTP / template chain pieces |
+| Hot-path support | `md/{md_encoder,md_validator,md_types,md_publisher_concept,validation_drop_breaker,...}.h` | template chain + MdPublisher-owned validator/breaker pieces |
 
 ## Concepts
 
 | Concept | Where defined | Used by |
 |---|---|---|
 | `MdSink<P>` | `md/md_publisher_concept.h` | All 4 venue decoders constrain their `Pub` template param |
-| `MdPublisher<P>` | `md/md_publisher_concept.h` | `ValidatingPublisher<Inner>` constrains `Inner` |
+| `MdPublisher<P>` | `md/md_publisher_concept.h` | Prod `MdPublisher` self-verifies via `static_assert` |
 | `Codec<C, T>` | `bpt-common/include/bpt_common/codec/codec.h` | All slow-path SBE codecs verify via `static_assert` |
 
 ## Test seams
@@ -127,11 +247,10 @@ flowchart TD
 4. **`adapter/common/i_adapter.h`** — adapter contract. The file's `@file` doc has an ASCII picture of the per-venue stack.
 5. **`adapter/binance/binance_md_adapter.h`** — concrete venue adapter. Other 3 venues follow the same shape.
 6. **`adapter/binance/binance_md_decoder.h`** — concept-constrained template doing JSON→domain.
-7. **`md/validating_publisher.h`** — the template wrapper between decoder and `MdPublisher`. Hot-path chain visible here.
-8. **`messaging/publishers/md_publisher.h`** — zero-copy SBE encode + Aeron `tryClaim`.
+7. **`messaging/publishers/md_publisher.h`** — validate → drop-rate breaker → zero-copy SBE encode + Aeron `tryClaim`. The hot path lives entirely here.
 
 Everything else (subscription manager, individual SBE codecs, per-venue exec
-decoders) follows from those eight files.
+decoders) follows from those seven files.
 
 ## Build + test
 

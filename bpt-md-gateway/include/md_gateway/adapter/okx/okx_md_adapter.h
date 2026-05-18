@@ -7,7 +7,6 @@
 #include "md_gateway/adapter/okx/okx_md_decoder.h"
 #include "md_gateway/adapter/okx/okx_md_encoder.h"
 #include "md_gateway/adapter/okx/okx_md_ws_client.h"
-#include "md_gateway/md/validating_publisher.h"
 
 #include <atomic>
 #include <boost/asio/buffer.hpp>
@@ -37,7 +36,6 @@ template <class Pub>
 class OkxMdAdapter : public AdapterBase<Pub> {
 public:
     using Base = AdapterBase<Pub>;
-    using ValidatingPub = md::ValidatingPublisher<Pub>;
 
     explicit OkxMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<Pub> md_pub)
         : Base(cfg, std::move(md_pub)),
@@ -130,11 +128,11 @@ protected:
     }
 
     void parse_frame(std::string_view payload, uint64_t recv_ns) override {
-        decoder_.decode(payload, recv_ns, this->validating_pub_, this->on_funding_rate, this->on_instrument_stats);
+        decoder_.decode(payload, recv_ns, *this->md_pub_, this->on_funding_rate, this->on_instrument_stats);
     }
 
 private:
-    OkxMdDecoder<ValidatingPub> decoder_;
+    OkxMdDecoder<Pub> decoder_;
     OkxMdWsClient ws_client_;
 
     /// RunLoop::run signature needs a 'connected' atomic; AdapterBase

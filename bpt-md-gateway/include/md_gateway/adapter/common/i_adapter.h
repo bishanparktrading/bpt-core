@@ -92,6 +92,9 @@ public:
     /// \brief MD messages dropped by the validator (price-deviation, etc.).
     [[nodiscard]] virtual uint64_t validation_drop_count() const noexcept = 0;
 
+    /// \brief MD messages dropped at the Aeron offer layer (back-pressure / oversize).
+    [[nodiscard]] virtual uint64_t md_backpressure_drop_count() const noexcept = 0;
+
     /// \brief True if the ValidationDropBreaker has latched on this adapter.
     ///
     /// Exposed for the periodic Prometheus gauge sampler in MdGatewayService.

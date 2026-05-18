@@ -27,7 +27,11 @@ public:
         ++order_book_count;
     }
 
+    void reset_validator() {}
     uint64_t drop_count() const { return 0; }
+    uint64_t published() const { return bbo_count + trade_count + order_book_count; }
+    uint64_t validation_drops() const { return 0; }
+    bool breaker_tripped() const { return false; }
 
     void reset() {
         last_bbo.reset();

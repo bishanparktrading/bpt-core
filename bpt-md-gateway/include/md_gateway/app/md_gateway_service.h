@@ -47,15 +47,15 @@ class MdGatewayService : public bpt::app::IService {
 public:
     /// \brief Construct.
     /// \param cfg              loaded settings (ownership taken)
-    /// \param control_sub   subscriber on the strategy → gateway control stream
-    /// \param md_pub          publisher for normalised MD on the data stream
-    /// \param ack_pub         publisher for acks + heartbeats
-    /// \param funding_pub     publisher for funding-rate updates
-    /// \param stats_pub          publisher for open-interest updates
+    /// \param aeron            shared Aeron client — used to mint per-adapter MdPublishers
+    /// \param control_sub      subscriber on the strategy → gateway control stream
+    /// \param ack_pub          publisher for acks + heartbeats
+    /// \param funding_pub      publisher for funding-rate updates
+    /// \param stats_pub        publisher for open-interest updates
     /// \param topology         CPU-affinity map for IO/main thread pinning
     MdGatewayService(config::Settings cfg,
+                 std::shared_ptr<::aeron::Aeron> aeron,
                  std::unique_ptr<messaging::api::MdControlSubscriber> control_sub,
-                 std::shared_ptr<messaging::MdPublisher> md_pub,
                  std::unique_ptr<messaging::api::AckPublisher> ack_pub,
                  std::shared_ptr<messaging::api::FundingRatePublisher> funding_pub,
                  std::shared_ptr<messaging::api::InstrumentStatsPublisher> stats_pub,
@@ -70,7 +70,6 @@ public:
 private:
     config::Settings cfg_;
     metrics::MdGatewayMetrics metrics_;
-    std::shared_ptr<messaging::MdPublisher> md_pub_;
     std::shared_ptr<messaging::api::FundingRatePublisher> funding_pub_;
     std::shared_ptr<messaging::api::InstrumentStatsPublisher> stats_pub_;
     std::unique_ptr<messaging::api::AckPublisher> ack_pub_;

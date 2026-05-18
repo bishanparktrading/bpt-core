@@ -106,9 +106,9 @@ struct AdapterConfig {
     ///
     /// Trips when the share of publishes rejected by MdValidator over
     /// the rolling window exceeds the threshold (and at least
-    /// `min_events` have landed). On trip the ValidatingPublisher
-    /// stops forwarding to Aeron — downstream sees no data rather
-    /// than bad data. Latches; restart to clear. Disabled by default
+    /// `min_events` have landed). On trip MdPublisher stops offering
+    /// to Aeron — downstream sees no data rather than bad data.
+    /// Latches; restart to clear. Disabled by default
     /// until drop rates are characterised per-venue on a live feed
     /// (schemas change, symbol listings shift).
     /// @{

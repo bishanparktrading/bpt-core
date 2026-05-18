@@ -3,20 +3,18 @@
 /// \file
 /// \brief Composition root that wires the Aeron-backed implementations of the messaging ports.
 ///
-/// MdGatewayService talks to the four messaging ports (api::MdControlSubscriber +
-/// api::AckPublisher + api::FundingRatePublisher + api::InstrumentStatsPublisher
-/// + concrete MdPublisher) without knowing how they are implemented.
-/// `MdGatewayAeronBus::build()` is the single place that constructs the Aeron-backed
-/// concrete classes and bundles them into a struct the app accepts in its
-/// constructor — swap this factory for a different one (e.g. an in-memory bus
-/// for seam tests, a NoopMdPublisher for bpt-tape) and the app code is
-/// unchanged.
+/// MdGatewayService talks to four messaging ports (api::MdControlSubscriber +
+/// api::AckPublisher + api::FundingRatePublisher + api::InstrumentStatsPublisher)
+/// without knowing how they are implemented. `MdGatewayAeronBus::build()` is
+/// the single place that constructs the Aeron-backed concrete classes and
+/// bundles them into a struct the app accepts in its constructor — swap
+/// this factory for a different one (e.g. an in-memory bus for seam tests)
+/// and the app code is unchanged.
 ///
-/// The MD publisher is exposed by concrete type rather than via a port:
-/// venue adapters are templated on the publisher type so the publish()
-/// chain inlines all the way to the wire — see md_gateway/md/validating_publisher.h.
-/// Variation at the MD publisher is therefore a compile-time choice
-/// (which `Pub` you instantiate the adapters with), not a runtime polymorphism.
+/// The MD publisher (hot path) is intentionally NOT a bus field: each
+/// venue adapter owns its own MdPublisher (one per publisher thread, so
+/// validator+breaker state stays thread-confined). The service constructs
+/// them inline against the shared `aeron` client and `settings.aeron.md_data`.
 ///
 /// Lifetime: MdGatewayBus owns the publisher and subscriber objects but
 /// hands ownership to MdGatewayService at construction; MdGatewayBus itself is
@@ -30,19 +28,17 @@
 ///         ↓ owns
 ///     [ MdGatewayBus ]  ←── this file                bus (messaging composition root)
 ///         │
-///         ├──→ [ api::*Publisher / Subscriber ] virtual ports (slow path)
-///         │        ↓ dispatches to
-///         │    [ aeron::*Publisher / Subscriber ] concretes (own Codec<C,T>)
-///         │
-///         └──→ [ MdPublisher ] (hot path)       concrete, no port; venue
-///                                                adapters template on it
+///         └──→ [ api::*Publisher / Subscriber ] virtual ports (slow path)
+///                  ↓ dispatches to
+///              [ aeron::*Publisher / Subscriber ] concretes (own Codec<C,T>)
+///
+///     [ MdPublisher ] (hot path)                    per-adapter; service-built
 ///
 /// See docs/service-anatomy.md for the full layered shape.
 
 #include "md_gateway/messaging/publishers/api/ack_publisher.h"
 #include "md_gateway/messaging/publishers/api/funding_rate_publisher.h"
 #include "md_gateway/messaging/publishers/api/instrument_stats_publisher.h"
-#include "md_gateway/messaging/publishers/md_publisher.h"
 #include "md_gateway/messaging/subscribers/api/md_control_subscriber.h"
 
 #include <Aeron.h>
@@ -57,25 +53,16 @@ namespace bpt::md_gateway::messaging {
 
 /// \brief Bundle of messaging-port implementations handed to MdGatewayService.
 ///
-/// Each field is one port. Four are exposed via interface type so that
+/// Each field is one port, all exposed via interface type so that
 /// alternate implementations (test fakes, recorder no-ops) can substitute
-/// without rebuilding the app; the MD publisher is concrete because the
-/// hot path is templated on `Pub` (see file-level doc above).
+/// without rebuilding the app. The MD data publisher is intentionally
+/// absent — the service builds one per venue adapter (see file-level doc).
 struct MdGatewayBus {
     /// \brief Inbound: SBE `MdSubscribeBatch` control fragments from strategy.
     ///
     /// Polled from MdGatewayService::run(); each fragment dispatched to the
     /// SubscriptionManager.
     std::unique_ptr<api::MdControlSubscriber> control_sub;
-
-    /// \brief Outbound: normalised market-data on stream 2002.
-    ///
-    /// Concrete type rather than interface — venue adapters are
-    /// templated on `Pub`, so the decoder→ValidatingPublisher→MdPublisher
-    /// chain is fully devirtualised. Swap by instantiating the templated
-    /// adapters with a different concrete type at the composition root
-    /// (e.g. bpt-tape uses NoopMdPublisher to drop without writing).
-    std::shared_ptr<MdPublisher> md_pub;
 
     /// \brief Outbound: subscription ACKs + service heartbeats to strategy.
     std::unique_ptr<api::AckPublisher> ack_pub;
@@ -97,7 +84,7 @@ struct MdGatewayBus {
 
 class MdGatewayAeronBus {
 public:
-    /// \brief Construct the prod (Aeron-backed) implementations of all five ports.
+    /// \brief Construct the prod (Aeron-backed) implementations of the ports.
     ///
     /// Reads channel + stream-id assignments from `settings.aeron`. The
     /// supplied `aeron` shared client must already have a MediaDriver
