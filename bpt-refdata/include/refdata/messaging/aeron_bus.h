@@ -3,7 +3,7 @@
 /// \file
 /// \brief Composition root for the Aeron-backed bus adapters.
 ///
-/// Bundles construction of all five Aeron sinks/sources so main.cpp wires
+/// Bundles construction of all five Aeron publishers/subscribers so main.cpp wires
 /// "the bus" as one unit rather than five inline `make_unique` calls. Adding
 /// a new port = one field + one line in build(); main.cpp doesn't change.
 
@@ -24,11 +24,11 @@ struct Settings;
 namespace bpt::refdata::messaging {
 
 struct AeronBus {
-    std::unique_ptr<messaging::api::RefdataControlSubscriber> control_source;
-    std::unique_ptr<messaging::api::RefdataSnapshotPublisher> snapshot_sink;
-    std::shared_ptr<messaging::api::RefdataDeltaPublisher> delta_sink;
-    std::shared_ptr<messaging::api::FeeSchedulePublisher> fee_sink;
-    std::shared_ptr<messaging::api::RefdataStatusPublisher> status_sink;
+    std::unique_ptr<messaging::api::RefdataControlSubscriber> control_sub;
+    std::unique_ptr<messaging::api::RefdataSnapshotPublisher> snapshot_pub;
+    std::shared_ptr<messaging::api::RefdataDeltaPublisher> delta_pub;
+    std::shared_ptr<messaging::api::FeeSchedulePublisher> fee_pub;
+    std::shared_ptr<messaging::api::RefdataStatusPublisher> status_pub;
 
     /// \brief Build all five Aeron-backed adapters wired to the channels
     ///        and stream IDs in `settings`.

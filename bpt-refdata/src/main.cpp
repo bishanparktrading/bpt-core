@@ -86,11 +86,11 @@ int main(int argc, char** argv) {
                                  auto bus = bpt::refdata::messaging::AeronBus::build(ctx.aeron, cfg);
 
                                  return std::make_unique<bpt::refdata::RefdataService>(std::move(cfg),
-                                                                                   std::move(bus.control_source),
-                                                                                   std::move(bus.snapshot_sink),
-                                                                                   std::move(bus.delta_sink),
-                                                                                   std::move(bus.fee_sink),
-                                                                                   std::move(bus.status_sink),
+                                                                                   std::move(bus.control_sub),
+                                                                                   std::move(bus.snapshot_pub),
+                                                                                   std::move(bus.delta_pub),
+                                                                                   std::move(bus.fee_pub),
+                                                                                   std::move(bus.status_pub),
                                                                                    std::move(creds));
                              });
     } catch (const std::exception& e) {

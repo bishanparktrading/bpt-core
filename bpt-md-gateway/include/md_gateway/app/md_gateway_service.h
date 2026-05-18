@@ -47,18 +47,18 @@ class MdGatewayService : public bpt::app::IService {
 public:
     /// \brief Construct.
     /// \param cfg              loaded settings (ownership taken)
-    /// \param control_source   subscriber on the strategy → gateway control stream
-    /// \param md_sink          publisher for normalised MD on the data stream
-    /// \param ack_sink         publisher for acks + heartbeats
-    /// \param funding_sink     publisher for funding-rate updates
-    /// \param stats_sink          publisher for open-interest updates
+    /// \param control_sub   subscriber on the strategy → gateway control stream
+    /// \param md_pub          publisher for normalised MD on the data stream
+    /// \param ack_pub         publisher for acks + heartbeats
+    /// \param funding_pub     publisher for funding-rate updates
+    /// \param stats_pub          publisher for open-interest updates
     /// \param topology         CPU-affinity map for IO/main thread pinning
     MdGatewayService(config::Settings cfg,
-                 std::unique_ptr<messaging::api::MdControlSubscriber> control_source,
-                 std::shared_ptr<messaging::MdPublisher> md_sink,
-                 std::unique_ptr<messaging::api::AckPublisher> ack_sink,
-                 std::shared_ptr<messaging::api::FundingRatePublisher> funding_sink,
-                 std::shared_ptr<messaging::api::InstrumentStatsPublisher> stats_sink,
+                 std::unique_ptr<messaging::api::MdControlSubscriber> control_sub,
+                 std::shared_ptr<messaging::MdPublisher> md_pub,
+                 std::unique_ptr<messaging::api::AckPublisher> ack_pub,
+                 std::shared_ptr<messaging::api::FundingRatePublisher> funding_pub,
+                 std::shared_ptr<messaging::api::InstrumentStatsPublisher> stats_pub,
                  const bpt::common::util::Topology& topology);
 
     /// \brief Block running the main poll loop until stop() is called.

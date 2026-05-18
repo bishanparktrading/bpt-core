@@ -43,13 +43,13 @@ struct AeronBus {
     ///
     /// Polled from OrderGatewayService::run(); each fragment dispatched to
     /// the matching OrderProcessor handler via the public callbacks.
-    std::shared_ptr<api::OrderSubscriber> control_source;
+    std::shared_ptr<api::OrderSubscriber> control_sub;
 
     /// \brief Outbound: ExecutionReport on the exec-report stream.
     ///
     /// Driven by OrderProcessor on every exec event from a venue adapter
     /// plus synthetic events (risk rejects, stale-order cancellations).
-    std::shared_ptr<api::ExecReportPublisher> exec_sink;
+    std::shared_ptr<api::ExecReportPublisher> exec_pub;
 
     /// \brief Outbound: AccountSnapshot on its own stream.
     ///
@@ -57,10 +57,10 @@ struct AeronBus {
     /// AccountSnapshotRequest (REST fetches are blocking and must not
     /// run on the poll thread) plus a periodic 5 s republish from the
     /// main loop.
-    std::shared_ptr<api::AccountSnapshotPublisher> account_snapshot_sink;
+    std::shared_ptr<api::AccountSnapshotPublisher> account_snapshot_pub;
 
     /// \brief Outbound: OrderGatewayHeartbeat on a fixed cadence.
-    std::shared_ptr<api::HeartbeatPublisher> heartbeat_sink;
+    std::shared_ptr<api::HeartbeatPublisher> heartbeat_pub;
 
     /// \brief Construct the prod (Aeron-backed) implementations of all
     ///        four ports.

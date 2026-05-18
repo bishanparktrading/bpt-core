@@ -79,10 +79,10 @@ int main(int argc, char* argv[]) {
                                  auto bus = bpt::order_gateway::messaging::AeronBus::build(ctx.aeron, settings);
                                  return std::make_unique<bpt::order_gateway::OrderGatewayService>(
                                      std::move(settings),
-                                     std::move(bus.control_source),
-                                     std::move(bus.exec_sink),
-                                     std::move(bus.account_snapshot_sink),
-                                     std::move(bus.heartbeat_sink),
+                                     std::move(bus.control_sub),
+                                     std::move(bus.exec_pub),
+                                     std::move(bus.account_snapshot_pub),
+                                     std::move(bus.heartbeat_pub),
                                      std::move(creds),
                                      ctx.topology);
                              });

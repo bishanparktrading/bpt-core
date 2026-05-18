@@ -33,11 +33,11 @@ int main(int argc, char* argv[]) {
                              [](auto& settings, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
                                  auto bus = bpt::md_gateway::messaging::AeronBus::build(ctx.aeron, settings);
                                  return std::make_unique<bpt::md_gateway::MdGatewayService>(std::move(settings),
-                                                                                        std::move(bus.control_source),
-                                                                                        std::move(bus.md_sink),
-                                                                                        std::move(bus.ack_sink),
-                                                                                        std::move(bus.funding_sink),
-                                                                                        std::move(bus.stats_sink),
+                                                                                        std::move(bus.control_sub),
+                                                                                        std::move(bus.md_pub),
+                                                                                        std::move(bus.ack_pub),
+                                                                                        std::move(bus.funding_pub),
+                                                                                        std::move(bus.stats_pub),
                                                                                         ctx.topology);
                              });
     } catch (const std::exception& e) {

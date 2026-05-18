@@ -14,19 +14,19 @@ using namespace std::chrono_literals;
 namespace bpt::md_gateway {
 
 MdGatewayService::MdGatewayService(config::Settings cfg,
-                           std::unique_ptr<messaging::api::MdControlSubscriber> control_source,
-                           std::shared_ptr<messaging::MdPublisher> md_sink,
-                           std::unique_ptr<messaging::api::AckPublisher> ack_sink,
-                           std::shared_ptr<messaging::api::FundingRatePublisher> funding_sink,
-                           std::shared_ptr<messaging::api::InstrumentStatsPublisher> stats_sink,
+                           std::unique_ptr<messaging::api::MdControlSubscriber> control_sub,
+                           std::shared_ptr<messaging::MdPublisher> md_pub,
+                           std::unique_ptr<messaging::api::AckPublisher> ack_pub,
+                           std::shared_ptr<messaging::api::FundingRatePublisher> funding_pub,
+                           std::shared_ptr<messaging::api::InstrumentStatsPublisher> stats_pub,
                            const bpt::common::util::Topology& topology)
     : cfg_(std::move(cfg)),
       metrics_(cfg_.metrics_host, cfg_.base.metrics_port),
-      md_pub_(std::move(md_sink)),
-      funding_pub_(std::move(funding_sink)),
-      stats_pub_(std::move(stats_sink)),
-      ack_pub_(std::move(ack_sink)),
-      ctrl_sub_(std::move(control_source)) {
+      md_pub_(std::move(md_pub)),
+      funding_pub_(std::move(funding_pub)),
+      stats_pub_(std::move(stats_pub)),
+      ack_pub_(std::move(ack_pub)),
+      ctrl_sub_(std::move(control_sub)) {
     for (const auto& a_cfg : cfg_.adapters) {
         // Validate against ExchangeRegistry at the boundary so a typo in
         // the TOML fails immediately rather than skipping silently with a

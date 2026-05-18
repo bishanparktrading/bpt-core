@@ -37,11 +37,11 @@ flowchart TD
         registry["<b>InstrumentRegistry</b><br/>(canonical IDs)"]
         resolver["<b>InstrumentResolver</b><br/>(venue ↔ canonical)"]
 
-        snapshot["snapshot_sink<br/>RefDataSnapshot"]
-        delta["delta_sink<br/>RefDataDelta + heartbeat"]
-        fee["fee_sink<br/>FeeSchedule"]
-        status["status_sink<br/>RefDataReady / Error"]
-        ctrl["control_source"]
+        snapshot["snapshot_pub<br/>RefDataSnapshot"]
+        delta["delta_pub<br/>RefDataDelta + heartbeat"]
+        fee["fee_pub<br/>FeeSchedule"]
+        status["status_pub<br/>RefDataReady / Error"]
+        ctrl["control_sub"]
 
         decoder --> registry
         decoder --> resolver

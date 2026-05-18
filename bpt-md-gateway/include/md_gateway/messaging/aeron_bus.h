@@ -12,11 +12,11 @@
 /// for seam tests, a NoopMdPublisher for bpt-tape) and the app code is
 /// unchanged.
 ///
-/// The MD sink is exposed by concrete type rather than via a port: venue
-/// adapters are templated on the publisher type so the publish() chain
-/// inlines all the way to the wire — see md_gateway/md/validating_publisher.h.
-/// Variation at the MD sink is therefore a compile-time choice (which `Pub`
-/// you instantiate the adapters with), not a runtime polymorphism.
+/// The MD publisher is exposed by concrete type rather than via a port:
+/// venue adapters are templated on the publisher type so the publish()
+/// chain inlines all the way to the wire — see md_gateway/md/validating_publisher.h.
+/// Variation at the MD publisher is therefore a compile-time choice
+/// (which `Pub` you instantiate the adapters with), not a runtime polymorphism.
 ///
 /// Lifetime: AeronBus owns the publisher and subscriber objects but
 /// hands ownership to MdGatewayService at construction; AeronBus itself is
@@ -59,14 +59,14 @@ namespace bpt::md_gateway::messaging {
 ///
 /// Each field is one port. Four are exposed via interface type so that
 /// alternate implementations (test fakes, recorder no-ops) can substitute
-/// without rebuilding the app; the MD sink is concrete because the hot
-/// path is templated on `Pub` (see file-level doc above).
+/// without rebuilding the app; the MD publisher is concrete because the
+/// hot path is templated on `Pub` (see file-level doc above).
 struct AeronBus {
     /// \brief Inbound: SBE `MdSubscribeBatch` control fragments from strategy.
     ///
     /// Polled from MdGatewayService::run(); each fragment dispatched to the
     /// SubscriptionManager.
-    std::unique_ptr<api::MdControlSubscriber> control_source;
+    std::unique_ptr<api::MdControlSubscriber> control_sub;
 
     /// \brief Outbound: normalised market-data on stream 2002.
     ///
@@ -75,23 +75,23 @@ struct AeronBus {
     /// chain is fully devirtualised. Swap by instantiating the templated
     /// adapters with a different concrete type at the composition root
     /// (e.g. bpt-tape uses NoopMdPublisher to drop without writing).
-    std::shared_ptr<MdPublisher> md_sink;
+    std::shared_ptr<MdPublisher> md_pub;
 
     /// \brief Outbound: subscription ACKs + service heartbeats to strategy.
-    std::unique_ptr<api::AckPublisher> ack_sink;
+    std::unique_ptr<api::AckPublisher> ack_pub;
 
     /// \brief Outbound: per-instrument funding-rate updates on stream 1005.
     ///
     /// Wired into each adapter's `on_funding_rate` callback by MdGatewayService;
     /// adapter threads call publish() directly off their IO thread.
-    std::shared_ptr<api::FundingRatePublisher> funding_sink;
+    std::shared_ptr<api::FundingRatePublisher> funding_pub;
 
     /// \brief Outbound: per-instrument stats updates on stream 2004.
     ///
     /// Wired into each adapter's `on_instrument_stats` callback by MdGatewayService.
     /// Slow-cadence (updates every few seconds) — kept off the BBO firehose so
     /// strategy consumers that don't need OI don't pay decode cost on every tick.
-    std::shared_ptr<api::InstrumentStatsPublisher> stats_sink;
+    std::shared_ptr<api::InstrumentStatsPublisher> stats_pub;
 
     /// \brief Construct the prod (Aeron-backed) implementations of all five ports.
     ///

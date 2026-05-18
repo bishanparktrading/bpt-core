@@ -11,19 +11,19 @@ namespace bpt::refdata::messaging {
 
 AeronBus AeronBus::build(std::shared_ptr<::aeron::Aeron> aeron, const config::Settings& settings) {
     AeronBus bus;
-    bus.control_source = std::make_unique<aeron::RefdataControlSubscriber>(aeron,
+    bus.control_sub = std::make_unique<aeron::RefdataControlSubscriber>(aeron,
                                                                            settings.refdata_control.channel,
                                                                            settings.refdata_control.stream_id);
-    bus.snapshot_sink = std::make_unique<aeron::RefdataSnapshotPublisher>(aeron,
+    bus.snapshot_pub = std::make_unique<aeron::RefdataSnapshotPublisher>(aeron,
                                                                           settings.refdata_snapshot.channel,
                                                                           settings.refdata_snapshot.stream_id);
-    bus.delta_sink = std::make_shared<aeron::RefdataDeltaPublisher>(aeron,
+    bus.delta_pub = std::make_shared<aeron::RefdataDeltaPublisher>(aeron,
                                                                     settings.refdata_delta.channel,
                                                                     settings.refdata_delta.stream_id);
-    bus.fee_sink = std::make_shared<aeron::FeeSchedulePublisher>(aeron,
+    bus.fee_pub = std::make_shared<aeron::FeeSchedulePublisher>(aeron,
                                                                  settings.fee_schedule.channel,
                                                                  settings.fee_schedule.stream_id);
-    bus.status_sink = std::make_shared<aeron::RefdataStatusPublisher>(aeron,
+    bus.status_pub = std::make_shared<aeron::RefdataStatusPublisher>(aeron,
                                                                       settings.refdata_status.channel,
                                                                       settings.refdata_status.stream_id);
     return bus;

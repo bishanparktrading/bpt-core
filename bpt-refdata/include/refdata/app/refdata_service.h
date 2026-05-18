@@ -27,11 +27,11 @@ namespace bpt::refdata {
 class RefdataService : public bpt::app::IService {
 public:
     RefdataService(config::Settings settings,
-               std::unique_ptr<messaging::api::RefdataControlSubscriber> control_source,
-               std::unique_ptr<messaging::api::RefdataSnapshotPublisher> snapshot_sink,
-               std::shared_ptr<messaging::api::RefdataDeltaPublisher> delta_sink,
-               std::shared_ptr<messaging::api::FeeSchedulePublisher> fee_sink,
-               std::shared_ptr<messaging::api::RefdataStatusPublisher> status_sink,
+               std::unique_ptr<messaging::api::RefdataControlSubscriber> control_sub,
+               std::unique_ptr<messaging::api::RefdataSnapshotPublisher> snapshot_pub,
+               std::shared_ptr<messaging::api::RefdataDeltaPublisher> delta_pub,
+               std::shared_ptr<messaging::api::FeeSchedulePublisher> fee_pub,
+               std::shared_ptr<messaging::api::RefdataStatusPublisher> status_pub,
                std::map<std::string, adapter::ExchangeCredentials> creds);
     void run() override;
     void stop() override;
