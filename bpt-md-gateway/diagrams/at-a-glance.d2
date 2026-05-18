@@ -110,8 +110,8 @@ aeron: "Aeron — shared-memory log buffers" { class: cylinder-card }
 clients: "Aeron clients" {
   class: swimlane-ext
   label.near: outside-top-center
-  producers: "Producers\npublish MdSubscribeBatch\non control stream" { class: multi-card }
   subscribers: "Subscribers\nconsume BBO · Trade · OrderBook\nFundingRate · Stats · Ack" { class: multi-card }
+  producers: "Producers\npublish MdSubscribeBatch\non control stream" { class: multi-card }
 }
 
 # Venue → adapter is the only external link that's NOT Aeron (it's WebSocket).
