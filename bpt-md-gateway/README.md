@@ -102,16 +102,11 @@ Every component named, every arrow labelled. `==>` is the hot tick path,
 %%{init: {
   'theme': 'base',
   'flowchart': {
-    'defaultRenderer': 'elk',
-    'curve': 'step'
+    'curve': 'linear'
   },
   'themeVariables': {
-    'fontFamily': '"SF Mono", "JetBrains Mono", Consolas, monospace',
-    'fontSize': '13px',
-    'lineColor': '#475569',
-    'primaryColor': '#1e293b',
-    'primaryTextColor': '#f8fafc',
-    'primaryBorderColor': '#0f172a'
+    'fontFamily': '"IBM Plex Sans", "Inter", "Helvetica Neue", Arial, sans-serif',
+    'fontSize': '13px'
   }
 }}%%
 flowchart TD
@@ -190,29 +185,34 @@ flowchart TD
     aeron ==>|"deliver via shared memory"| consumers
     strat_in --> aeron
 
-    classDef external fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#451a03
-    classDef hot fill:#7f1d1d,stroke:#450a0a,stroke-width:2px,color:#fee2e2
-    classDef domain fill:#1e3a8a,stroke:#1e293b,stroke-width:1px,color:#dbeafe
-    classDef component fill:#1e293b,stroke:#0f172a,stroke-width:1px,color:#f8fafc
-    classDef factory fill:#312e81,stroke:#1e293b,stroke-width:1px,color:#e0e7ff
+    %% Edge palette — same scheme as the at-a-glance diagram above
+    %%   composition / lifetime (edges 0–5) — slate
+    %%   hot tick path           (edges 6–10, 28) — red
+    %%   slow path               (edges 11–16, 26–27) — emerald
+    %%   control / ack           (edges 17–25, 29) — cyan
+    linkStyle 0,1,2,3,4,5 stroke:#64748b,stroke-width:1.5px,fill:none
+    linkStyle 6,7,8,9,10,28 stroke:#ef4444,stroke-width:2.5px,fill:none
+    linkStyle 11,12,13,14,15,16,26,27 stroke:#10b981,stroke-width:2px,fill:none
+    linkStyle 17,18,19,20,21,22,23,24,25,29 stroke:#22d3ee,stroke-width:2px,fill:none
 
-    class venue,strat_in,consumers,aeron external
-    class md_pub hot
-    class decoder,sub_mgr domain
-    class ctrl_sub,ack_pub,funding_pub,stats_pub,ws_client,queue,encoder,sbe_funding,sbe_stats,sbe_ack,common_pub component
-    class main,service,factory factory
+    %% Off-white "data card" stadium nodes + dark slate/indigo swimlanes (trading-terminal palette)
+    classDef node fill:#f1f5f9,stroke:#cbd5e1,stroke-width:1.5px,color:#0f172a
+    class venue,strat_in,consumers,aeron,md_pub,decoder,sub_mgr,ctrl_sub,ack_pub,funding_pub,stats_pub,ws_client,queue,encoder,sbe_funding,sbe_stats,sbe_ack,common_pub,main,service,factory node
 
-    style mdgw fill:#f8fafc,stroke:#94a3b8,stroke-width:2px,color:#0f172a
-    style bus fill:#ffffff,stroke:#cbd5e1,stroke-width:1px,color:#475569
-    style adapter fill:#ffffff,stroke:#cbd5e1,stroke-width:1px,color:#475569
-    style codecs fill:#ffffff,stroke:#cbd5e1,stroke-width:1px,color:#475569
+    style mdgw fill:#1e1b4b,stroke:#4338ca,stroke-width:2px,color:#c7d2fe
+    style bus fill:#0f172a,stroke:#475569,stroke-width:1px,color:#e2e8f0
+    style adapter fill:#312e81,stroke:#6366f1,stroke-width:1px,color:#e0e7ff
+    style codecs fill:#0f172a,stroke:#475569,stroke-width:1px,color:#e2e8f0
 ```
 
-**Three flows, three colours of arrows:**
+**Legend** (same colour scheme as the at-a-glance above)
 
-- **`==>` heavy arrows**: the tick path (numbered 1–5). Hot — zero vtable, zero-copy at the Aeron boundary. ~µs. `MdPublisher` does validate + drop-rate breaker + SBE encode + offer in one step.
-- **`-->` thin arrows**: slow path (funding rate, instrument stats, control). Same Aeron at the end, but goes through a Codec + Publisher::offer with a stack scratch buffer. ~µs per call, lower frequency.
-- **`-.->` dashed arrows**: composition / configuration / one-shot. Lifetime ownership wiring (main builds factory, factory constructs bus, service owns components). Or one-shot like the subscribe URL handed to the WS client.
+| Edge colour | Path | Notes |
+|---|---|---|
+| 🟥 **Red** | Hot tick path (numbered 1–5) | Zero vtable, zero-copy at the Aeron boundary. ~µs. `MdPublisher` does validate + drop-rate breaker + SBE encode + offer in one step. |
+| 🟩 **Green** | Slow path | Funding rate, instrument stats, ack. Same Aeron at the end, but goes through a `Codec` + `Publisher::offer` with a stack scratch buffer. ~µs per call, lower frequency. |
+| 🟦 **Cyan** | Control / ack (lettered a–g) | `MdSubscribeBatch` from strategy → `MdControlSubscriber` → `MdGatewayService` → `SubscriptionManager` → ack via SBE + adapter subscribe. |
+| ⬜ **Slate** | Composition / lifetime | One-shot ownership wiring — main builds factory, factory constructs bus, service owns components. |
 
 **The control path (lettered a–g):** strategy publishes `MdSubscribeBatch` → flows through Aeron → `MdControlSubscriber` decodes → `MdGatewayService` routes via `SubscriptionManager` → which both (d) publishes an ack and (e) tells the venue adapter to subscribe → which builds the URL and hands to the WS client → which reconnects with the new subscriptions baked into the URL (Binance) or sends a runtime subscribe frame (OKX / Deribit / HL).
 
