@@ -19,8 +19,8 @@ shape this service has.
 | Edge colour | Path | What flows |
 |---|---|---|
 | 🟥 **Red** | Hot tick path | venue → adapter (WS) → MdPublisher → **Aeron** → subscribers. Zero-copy SBE into the log buffer. |
-| 🟩 **Green** | Slow path | FundingRate / InstrumentStats / Ack → **Aeron** → subscribers. Codec + offer. |
-| 🟦 **Cyan** | Control | producer → **Aeron** → MdControlSubscriber → SubscriptionManager → adapter / slow-pub. |
+| 🟩 **Green** | Slow path | FundingRate / InstrumentStats → **Aeron** → subscribers. Both publishers live inside each Venue Adapter (per-venue publications). Codec + offer. |
+| 🟦 **Cyan** | Control | producer → **Aeron** → MdControlSubscriber → SubscriptionManager → SubCmdQueue → publisher thread → adapter. AckPublisher returns ack on Aeron. |
 
 ## Detailed data flow (every major object)
 
@@ -37,7 +37,7 @@ semantic (see legend); rendered via D2 with ELK orthogonal routing.
 |---|---|---|
 | 🟥 **Red** | Hot tick path (numbered 1–5) | Zero vtable, zero-copy at the Aeron boundary. ~µs. `MdPublisher` does validate + drop-rate breaker + SBE encode + offer in one step. |
 | 🟩 **Green** | Slow path | Funding rate, instrument stats, ack. Same Aeron at the end, but goes through a `Codec` + `Publisher::offer` with a stack scratch buffer. ~µs per call, lower frequency. |
-| 🟦 **Cyan** | Control / ack (lettered a–g) | `MdSubscribeBatch` from strategy → `MdControlSubscriber` → `MdGatewayService` → `SubscriptionManager` → ack via SBE + adapter subscribe. |
+| 🟦 **Cyan** | Control / ack (lettered a–i) | `MdSubscribeBatch` → `MdControlSubscriber` → `MdGatewayService` → `SubscriptionManager` → **SubCmdQueue** → publisher thread drains → calls `do_send_subscribe_frame` which posts to IO thread via `asio::post` → WS sub frame to venue. Ack returns via Aeron. |
 | ⬜ **Slate** | Composition / lifetime | One-shot ownership wiring — main builds factory, factory constructs bus, service owns components. |
 
 **The control path (lettered a–g):** strategy publishes `MdSubscribeBatch` → flows through Aeron → `MdControlSubscriber` decodes → `MdGatewayService` routes via `SubscriptionManager` → which both (d) publishes an ack and (e) tells the venue adapter to subscribe → which builds the URL and hands to the WS client → which reconnects with the new subscriptions baked into the URL (Binance) or sends a runtime subscribe frame (OKX / Deribit / HL).

@@ -98,8 +98,6 @@ mdgw: bpt-md-gateway {
     label.near: outside-top-center
     ctrl_sub: "control_sub\napi::MdControlSubscriber" { class: card }
     ack_pub: "ack_pub\napi::AckPublisher" { class: card }
-    funding_pub: "funding_pub\napi::FundingRatePublisher" { class: card }
-    stats_pub: "stats_pub\napi::InstrumentStatsPublisher" { class: card }
   }
 
   sub_mgr: "SubscriptionManager\ncanonical_id → per-venue\nholds SubscriptionMap" { class: card }
@@ -112,6 +110,9 @@ mdgw: bpt-md-gateway {
     decoder: "BinanceMdDecoder<Pub>\nsimdjson → domain\n(publisher thread)" { class: card }
     pub: "MdPublisher\nowns MdValidator + ValidationDropBreaker\n+ aeron::Publisher; one per adapter,\npublisher-thread-confined" { class: card }
     encoder: "BinanceMdEncoder\nbuild_streams_query" { class: card }
+    funding_pub: "aeron::FundingRatePublisher\n(per-adapter, publisher thread)" { class: card }
+    stats_pub: "aeron::InstrumentStatsPublisher\n(per-adapter, publisher thread)" { class: card }
+    sub_cmd_q: "SubCmdQueue\ncontrol → publisher thread\n(single-writer subs_)" { class: card }
   }
 
   codecs: "codecs/" {
@@ -140,26 +141,31 @@ mdgw.adapter.queue -> mdgw.adapter.decoder: "3: pop on pub thread" { class: hot 
 mdgw.adapter.decoder -> mdgw.adapter.pub: "4: MdBbo / MdTrade / MdOrderBook" { class: hot }
 mdgw.adapter.pub -> aeron: "5: validate · breaker · SBE encode + tryClaim (zero-copy)" { class: hot }
 
-# Slow path (emerald)
-mdgw.adapter.decoder -> mdgw.bus.funding_pub: "funding_cb (std::function)" { class: slow }
-mdgw.adapter.decoder -> mdgw.bus.stats_pub: "stats_cb" { class: slow }
-mdgw.bus.funding_pub -> mdgw.codecs.sbe_funding: "encode(fr, scratch)" { class: slow }
-mdgw.bus.stats_pub -> mdgw.codecs.sbe_stats: { class: slow }
+# Slow path (emerald). Per-adapter publishers post-refactor: each
+# venue adapter owns its FundingRate + InstrumentStats Aeron publications.
+mdgw.adapter.decoder -> mdgw.adapter.funding_pub: "funding_cb (std::function)" { class: slow }
+mdgw.adapter.decoder -> mdgw.adapter.stats_pub: "stats_cb" { class: slow }
+mdgw.adapter.funding_pub -> mdgw.codecs.sbe_funding: "encode(fr, scratch)" { class: slow }
+mdgw.adapter.stats_pub -> mdgw.codecs.sbe_stats: { class: slow }
 mdgw.codecs.sbe_funding -> mdgw.common_pub: "span<byte>" { class: slow }
 mdgw.codecs.sbe_stats -> mdgw.common_pub: { class: slow }
 mdgw.codecs.sbe_ack -> mdgw.common_pub: { class: slow }
 mdgw.common_pub -> aeron: "offer (back-pressure policy)" { class: slow }
 
-# Control path (cyan, lettered a-g)
+# Control path (cyan, lettered a-h). SubCmd queue routes the subscribe
+# from the control thread to the publisher thread (single-writer subs_).
+# WS-send hooks then post the protocol frame onto the IO thread via
+# asio::post — single-writer for ws_client_ too.
 aeron -> mdgw.bus.ctrl_sub: "a: MdSubscribeBatch" { class: control }
 mdgw.bus.ctrl_sub -> mdgw.service: "b: decoded batch" { class: control }
 mdgw.service -> mdgw.sub_mgr: "c: apply_batch(...)" { class: control }
 mdgw.sub_mgr -> mdgw.bus.ack_pub: "d: ack via SBE" { class: control }
 mdgw.bus.ack_pub -> mdgw.codecs.sbe_ack: { class: control }
-mdgw.sub_mgr -> mdgw.adapter: "e: subscribe(symbol)" { class: control }
-mdgw.adapter -> mdgw.adapter.encoder: { class: control }
-mdgw.adapter.encoder -> mdgw.adapter.ws_client: "f: subscribe URL" { class: control }
-mdgw.adapter.ws_client -> venue: "g: WS sub frame" { class: control }
+mdgw.sub_mgr -> mdgw.adapter.sub_cmd_q: "e: push SubCmd\n(control thread)" { class: control }
+mdgw.adapter.sub_cmd_q -> mdgw.adapter.pub: "f: drain on pub thread\n→ subs_.subscribe" { class: control }
+mdgw.adapter.pub -> mdgw.adapter.encoder: "g: build payload" { class: control }
+mdgw.adapter.encoder -> mdgw.adapter.ws_client: "h: asio::post\n(pub → IO thread)" { class: control }
+mdgw.adapter.ws_client -> venue: "i: WS sub frame" { class: control }
 
 # Aeron → consumers delivery (hot)
 aeron -> consumers: deliver via shared memory { class: hot }

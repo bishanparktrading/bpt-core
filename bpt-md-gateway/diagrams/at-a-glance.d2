@@ -95,11 +95,12 @@ mdgw: bpt-md-gateway {
     direction: right
     ws: "MdWsClient" { class: card }
     pub: "MdPublisher" { class: card }
+    slow: "FundingRate +\nInstrumentStats\npublishers" { class: card }
   }
 
   ctrl: "MdControlSubscriber" { class: card }
   sm: "SubscriptionManager" { class: card }
-  slow: "slow-path publishers\nFundingRate · InstrumentStats · Ack" { class: card }
+  ack: "AckPublisher" { class: card }
 }
 
 # Aeron is the bus, not part of mdgw and not part of consumers.
@@ -125,13 +126,17 @@ mdgw.adapter.ws -> mdgw.adapter.pub: { class: hot }
 mdgw.adapter.pub -> aeron: { class: hot }
 aeron -> clients.subscribers: { class: hot }
 
-# Slow path (funding, stats, ack) also lands in Aeron and is delivered to subscribers.
-mdgw.adapter.pub -> mdgw.slow: { class: slow }
-mdgw.slow -> aeron: { class: slow }
+# Slow path: funding-rate + instrument-stats publishers live inside each
+# adapter post-refactor (greenfield: adapter owns everything it produces).
+# Aeron handles N publications per stream natively (multi-session).
+mdgw.adapter.ws -> mdgw.adapter.slow: { class: slow }
+mdgw.adapter.slow -> aeron: { class: slow }
 
-# Control path: any Aeron producer publishes MdSubscribeBatch → Aeron → mdgw.
+# Control path: producer → Aeron → MdControlSubscriber → SubscriptionManager
+# → (back through SubCmd queue) → Venue Adapter; ack publisher returns ack.
 clients.producers -> aeron: { class: control }
 aeron -> mdgw.ctrl: { class: control }
 mdgw.ctrl -> mdgw.sm: { class: control }
-mdgw.sm -> mdgw.adapter.ws: { class: control }
-mdgw.sm -> mdgw.slow: { class: control }
+mdgw.sm -> mdgw.adapter: { class: control }
+mdgw.sm -> mdgw.ack: { class: control }
+mdgw.ack -> aeron: { class: control }
