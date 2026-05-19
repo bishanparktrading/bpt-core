@@ -19,17 +19,17 @@ namespace bpt::md_gateway::messaging {
 MdGatewayBus MdGatewayAeronBus::build(std::shared_ptr<::aeron::Aeron> aeron, const config::Settings& settings) {
     MdGatewayBus bus;
     bus.control_sub = std::make_unique<aeron::MdControlSubscriber>(aeron,
-                                                                      settings.aeron.md_control.channel,
-                                                                      settings.aeron.md_control.stream_id);
+                                                                   settings.aeron.md_control.channel,
+                                                                   settings.aeron.md_control.stream_id);
     bus.ack_pub = std::make_unique<aeron::AckPublisher>(aeron,
-                                                         settings.aeron.md_ack_hb.channel,
-                                                         settings.aeron.md_ack_hb.stream_id);
+                                                        settings.aeron.md_ack_hb.channel,
+                                                        settings.aeron.md_ack_hb.stream_id);
     bus.funding_pub = std::make_shared<aeron::FundingRatePublisher>(aeron,
-                                                                     settings.aeron.funding_rate.channel,
-                                                                     settings.aeron.funding_rate.stream_id);
+                                                                    settings.aeron.funding_rate.channel,
+                                                                    settings.aeron.funding_rate.stream_id);
     bus.stats_pub = std::make_shared<aeron::InstrumentStatsPublisher>(aeron,
-                                                                       settings.aeron.instrument_stats.channel,
-                                                                       settings.aeron.instrument_stats.stream_id);
+                                                                      settings.aeron.instrument_stats.channel,
+                                                                      settings.aeron.instrument_stats.stream_id);
     return bus;
 }
 

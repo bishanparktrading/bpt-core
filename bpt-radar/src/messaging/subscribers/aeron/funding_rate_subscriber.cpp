@@ -20,12 +20,11 @@ FundingRateSubscriber::FundingRateSubscriber(std::shared_ptr<::aeron::Aeron> aer
 int FundingRateSubscriber::poll(int fragment_limit) {
     if (!sub_)
         return 0;
-    return sub_->poll(
-        [this](::aeron::AtomicBuffer& buffer,
-               ::aeron::util::index_t offset,
-               ::aeron::util::index_t length,
-               ::aeron::Header& header) { handle_fragment(buffer, offset, length, header); },
-        fragment_limit);
+    return sub_->poll([this](::aeron::AtomicBuffer& buffer,
+                             ::aeron::util::index_t offset,
+                             ::aeron::util::index_t length,
+                             ::aeron::Header& header) { handle_fragment(buffer, offset, length, header); },
+                      fragment_limit);
 }
 
 void FundingRateSubscriber::handle_fragment(::aeron::AtomicBuffer& buffer,

@@ -16,7 +16,7 @@ struct MdServiceHeartbeatMsg {
 class SbeMdServiceHeartbeatCodec {
 public:
     std::span<const std::byte> encode(const MdServiceHeartbeatMsg&, std::span<std::byte> scratch);
-    MdServiceHeartbeatMsg       decode(std::span<const std::byte>);
+    MdServiceHeartbeatMsg decode(std::span<const std::byte>);
 
     static constexpr std::size_t kRecommendedScratchSize = 64;
 };

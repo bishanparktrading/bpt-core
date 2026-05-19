@@ -19,7 +19,7 @@ public:
 
 private:
     std::shared_ptr<::aeron::Subscription> sub_;
-    SbeBacktestAckCodec                    codec_;
+    SbeBacktestAckCodec codec_;
 };
 
 }  // namespace bpt::backtester::messaging::aeron

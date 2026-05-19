@@ -2,14 +2,11 @@
 
 #include <bpt_common/aeron/aeron_utils.h>
 #include <bpt_common/logging.h>
-
 #include <cstddef>
 
 namespace bpt::pricer::messaging::aeron {
 
-StatusPublisher::StatusPublisher(std::shared_ptr<::aeron::Aeron> aeron,
-                                 const std::string& channel,
-                                 int32_t stream_id) {
+StatusPublisher::StatusPublisher(std::shared_ptr<::aeron::Aeron> aeron, const std::string& channel, int32_t stream_id) {
     pub_ = bpt::common::aeron::wait_for_publication(aeron, channel, stream_id);
     bpt::common::log::info("[aeron::StatusPublisher] Publication ready on {} stream {}", channel, stream_id);
 }

@@ -4,11 +4,10 @@
 #include "radar/analysis/max_pain.h"
 #include "radar/analysis/surface_analyzer.h"
 
+#include <algorithm>
 #include <bpt_common/logging.h>
 #include <bpt_common/signal.h>
 #include <bpt_common/util/tsc_clock.h>
-
-#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <thread>
@@ -18,15 +17,24 @@ namespace bpt::radar {
 RadarService::RadarService(config::Settings settings, messaging::RadarBus bus)
     : settings_(std::move(settings)),
       bus_(std::move(bus)) {
-    bus_.surface_sub->on_vol_surface = [this](bpt::messages::VolSurface& s) { on_vol_surface(s); };
-    bus_.stats_sub->on_stats = [this](bpt::messages::InstrumentStats& s) { on_instrument_stats(s); };
-    bus_.funding_sub->on_funding = [this](bpt::messages::FundingRate& fr) { on_funding(fr); };
-    bus_.refdata_perp_sub->on_perp =
-        [this](const messaging::api::RefdataPerpSubscriber::PerpInfo& p) {
-            on_refdata_perp(p.instrument_id, p.underlying, p.exchange_id);
-        };
-    bus_.trade_sub->on_trade = [this](bpt::messages::MdTrade& t) { on_trade(t); };
-    bus_.bbo_sub->on_bbo = [this](bpt::messages::MdMarketData& b) { on_bbo(b); };
+    bus_.surface_sub->on_vol_surface = [this](bpt::messages::VolSurface& s) {
+        on_vol_surface(s);
+    };
+    bus_.stats_sub->on_stats = [this](bpt::messages::InstrumentStats& s) {
+        on_instrument_stats(s);
+    };
+    bus_.funding_sub->on_funding = [this](bpt::messages::FundingRate& fr) {
+        on_funding(fr);
+    };
+    bus_.refdata_perp_sub->on_perp = [this](const messaging::api::RefdataPerpSubscriber::PerpInfo& p) {
+        on_refdata_perp(p.instrument_id, p.underlying, p.exchange_id);
+    };
+    bus_.trade_sub->on_trade = [this](bpt::messages::MdTrade& t) {
+        on_trade(t);
+    };
+    bus_.bbo_sub->on_bbo = [this](bpt::messages::MdMarketData& b) {
+        on_bbo(b);
+    };
 
     bpt::common::log::info(
         "[RadarService] ready — surface={} stats={} funding={} refdata={} md_data={} color={} publish={}ms",
@@ -322,8 +330,7 @@ void RadarService::publish_for(const SurfaceKey& key, std::vector<analysis::Surf
         const double total = buy_notional + sell_notional;
         color.flow_buy_notional_5m = buy_notional;
         color.flow_sell_notional_5m = sell_notional;
-        color.flow_imbalance_5m =
-            total > 0.0 ? (buy_notional - sell_notional) / total : messaging::kNan;
+        color.flow_imbalance_5m = total > 0.0 ? (buy_notional - sell_notional) / total : messaging::kNan;
         color.flow_trade_count_5m = count;
     }
 

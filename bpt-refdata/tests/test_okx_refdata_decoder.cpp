@@ -10,10 +10,10 @@
 #include <gtest/gtest.h>
 #include <memory>
 
-using bpt::refdata::adapter::OKXRefdataDecoder;
 using bpt::refdata::adapter::okx_auth_headers;
-using bpt::refdata::mapping::InstrumentMappingLoader;
+using bpt::refdata::adapter::OKXRefdataDecoder;
 using bpt::refdata::mapping::EXCHANGE_ID_OKX;
+using bpt::refdata::mapping::InstrumentMappingLoader;
 using bpt::refdata::mapping::make_inst_uid;
 using bpt::refdata::model::InstrumentStatus;
 using bpt::refdata::model::InstrumentType;

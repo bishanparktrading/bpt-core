@@ -29,12 +29,12 @@ md::ValidationDropBreaker::Config breaker_cfg_from(const config::AdapterConfig& 
 }  // namespace
 
 MdGatewayService::MdGatewayService(config::Settings cfg,
-                           std::shared_ptr<::aeron::Aeron> aeron,
-                           std::unique_ptr<messaging::api::MdControlSubscriber> control_sub,
-                           std::unique_ptr<messaging::api::AckPublisher> ack_pub,
-                           std::shared_ptr<messaging::api::FundingRatePublisher> funding_pub,
-                           std::shared_ptr<messaging::api::InstrumentStatsPublisher> stats_pub,
-                           const bpt::common::util::Topology& topology)
+                                   std::shared_ptr<::aeron::Aeron> aeron,
+                                   std::unique_ptr<messaging::api::MdControlSubscriber> control_sub,
+                                   std::unique_ptr<messaging::api::AckPublisher> ack_pub,
+                                   std::shared_ptr<messaging::api::FundingRatePublisher> funding_pub,
+                                   std::shared_ptr<messaging::api::InstrumentStatsPublisher> stats_pub,
+                                   const bpt::common::util::Topology& topology)
     : cfg_(std::move(cfg)),
       metrics_(cfg_.metrics_host, cfg_.base.metrics_port),
       funding_pub_(std::move(funding_pub)),
@@ -55,11 +55,11 @@ MdGatewayService::MdGatewayService(config::Settings cfg,
         // so each adapter gets its own publication on (md_data.channel, md_data.stream_id).
         // Aeron handles N publications on the same stream natively (one session-id each).
         auto md_pub = std::make_shared<messaging::MdPublisher>(aeron,
-                                                                cfg_.aeron.md_data.channel,
-                                                                cfg_.aeron.md_data.stream_id,
-                                                                a_cfg.max_price_deviation_pct,
-                                                                breaker_cfg_from(a_cfg),
-                                                                a_cfg.exchange);
+                                                               cfg_.aeron.md_data.channel,
+                                                               cfg_.aeron.md_data.stream_id,
+                                                               a_cfg.max_price_deviation_pct,
+                                                               breaker_cfg_from(a_cfg),
+                                                               a_cfg.exchange);
         auto adapter = adapter::make_md_adapter<messaging::MdPublisher>(*exch_id, a_cfg, std::move(md_pub));
         if (!adapter) {
             throw std::runtime_error(

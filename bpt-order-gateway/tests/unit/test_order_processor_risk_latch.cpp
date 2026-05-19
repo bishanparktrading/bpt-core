@@ -36,6 +36,12 @@
 
 namespace {
 
+using bpt::messages::ExchangeId;
+using bpt::messages::ExecStatus;
+using bpt::messages::OrderSide;
+using bpt::messages::OrderType;
+using bpt::messages::RejectReason;
+using bpt::messages::TimeInForce;
 using bpt::order_gateway::adapter::ExecEvent;
 using bpt::order_gateway::adapter::IOrderAdapter;
 using bpt::order_gateway::messaging::api::ExecReportPublisher;
@@ -45,12 +51,6 @@ using bpt::order_gateway::order::OrderStateManager;
 using bpt::order_gateway::risk::PnlTracker;
 using bpt::order_gateway::risk::RejectRateBreaker;
 using bpt::order_gateway::risk::RiskChecker;
-using bpt::messages::ExchangeId;
-using bpt::messages::ExecStatus;
-using bpt::messages::OrderSide;
-using bpt::messages::OrderType;
-using bpt::messages::RejectReason;
-using bpt::messages::TimeInForce;
 
 // Capturing fake: stores every publish() call in-memory so the test
 // can assert post-conditions without a real Aeron publication.
@@ -85,11 +85,11 @@ struct CapturingExecReportPublisher final : public ExecReportPublisher {
 constexpr int64_t kScale = 100'000'000LL;  // 1e8 fixed-point
 
 ExecEvent make_fill(uint64_t order_id,
-                             ExchangeId::Value exchange,
-                             uint64_t instrument_id,
-                             OrderSide::Value side,
-                             int64_t price_e8,
-                             uint64_t qty_e8) {
+                    ExchangeId::Value exchange,
+                    uint64_t instrument_id,
+                    OrderSide::Value side,
+                    int64_t price_e8,
+                    uint64_t qty_e8) {
     ExecEvent ev{};
     ev.order_id = order_id;
     ev.exchange_id = exchange;
@@ -200,9 +200,7 @@ struct Harness {
     std::vector<std::shared_ptr<IOrderAdapter>> adapters;
     OrderProcessor processor;
 
-    Harness(double max_daily_loss_usd = 10.0,
-            double max_position_usd = 0.0,
-            RejectRateBreaker::Config breaker_cfg = {})
+    Harness(double max_daily_loss_usd = 10.0, double max_position_usd = 0.0, RejectRateBreaker::Config breaker_cfg = {})
         : processor(pub,
                     state_mgr,
                     risk_checker,

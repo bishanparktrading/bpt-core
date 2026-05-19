@@ -20,12 +20,12 @@ using bpt::messages::ExchangeId;
 namespace bpt::order_gateway {
 
 OrderGatewayService::OrderGatewayService(config::Settings cfg,
-                                 std::shared_ptr<messaging::api::OrderSubscriber> control_sub,
-                                 std::shared_ptr<messaging::api::ExecReportPublisher> exec_pub,
-                                 std::shared_ptr<messaging::api::AccountSnapshotPublisher> account_snapshot_pub,
-                                 std::shared_ptr<messaging::api::HeartbeatPublisher> heartbeat_pub,
-                                 std::map<std::string, adapter::ExchangeCredentials> creds,
-                                 const bpt::common::util::Topology& topology)
+                                         std::shared_ptr<messaging::api::OrderSubscriber> control_sub,
+                                         std::shared_ptr<messaging::api::ExecReportPublisher> exec_pub,
+                                         std::shared_ptr<messaging::api::AccountSnapshotPublisher> account_snapshot_pub,
+                                         std::shared_ptr<messaging::api::HeartbeatPublisher> heartbeat_pub,
+                                         std::map<std::string, adapter::ExchangeCredentials> creds,
+                                         const bpt::common::util::Topology& topology)
     : cfg_(std::move(cfg)),
       metrics_(cfg_.base.metrics_port),
       exec_pub_(std::move(exec_pub)),

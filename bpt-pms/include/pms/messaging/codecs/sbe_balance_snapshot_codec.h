@@ -16,7 +16,7 @@ namespace bpt::pms::messaging {
 class SbeBalanceSnapshotCodec {
 public:
     std::span<const std::byte> encode(const adapter::BalanceSnapshot&, std::span<std::byte> scratch);
-    adapter::BalanceSnapshot   decode(std::span<const std::byte>);
+    adapter::BalanceSnapshot decode(std::span<const std::byte>);
 
     /// 256-row max × ~41 bytes/row + header ≈ 11KB worst case. Round up
     /// to 16KB for safety + alignment.

@@ -26,9 +26,7 @@ void AckPublisher::publish_ack(uint64_t correlation_id,
 
 void AckPublisher::publish_subscription_heartbeat(uint64_t instrument_id) {
     alignas(8) std::byte scratch[SbeMdSubscriptionHeartbeatCodec::kRecommendedScratchSize];
-    MdSubscriptionHeartbeatMsg m{WallClock::now_ns(),
-                                 instrument_id,
-                                 seq_.fetch_add(1, std::memory_order_relaxed) + 1};
+    MdSubscriptionHeartbeatMsg m{WallClock::now_ns(), instrument_id, seq_.fetch_add(1, std::memory_order_relaxed) + 1};
     const auto bytes = sub_hb_codec_.encode(m, scratch);
     ::aeron::AtomicBuffer ab(reinterpret_cast<uint8_t*>(scratch), static_cast<::aeron::util::index_t>(bytes.size()));
     publisher_.offer(ab, 0, static_cast<::aeron::util::index_t>(bytes.size()));

@@ -57,8 +57,8 @@ OKXRefdataDecoder::OKXRefdataDecoder(std::shared_ptr<mapping::InstrumentMappingL
     : mapping_(std::move(mapping)) {}
 
 std::vector<model::Instrument> OKXRefdataDecoder::parse_instruments(const std::string& body,
-                                                                      const std::string& inst_type,
-                                                                      uint64_t collected_ts) const {
+                                                                    const std::string& inst_type,
+                                                                    uint64_t collected_ts) const {
     auto j = json::parse(body);
     if (j.value("code", "") != "0") {
         bpt::common::log::error("[OKXRefdataDecoder] instruments API error code={} msg={}",
@@ -144,7 +144,7 @@ std::vector<model::Instrument> OKXRefdataDecoder::parse_instruments(const std::s
 }
 
 std::vector<model::FeeScheduleState> OKXRefdataDecoder::parse_trade_fee(const std::string& body,
-                                                                          uint64_t collected_ts) const {
+                                                                        uint64_t collected_ts) const {
     auto j = json::parse(body);
     if (j.value("code", "") != "0") {
         bpt::common::log::warn("[OKXRefdataDecoder] trade-fee API error code={}", j.value("code", "?"));

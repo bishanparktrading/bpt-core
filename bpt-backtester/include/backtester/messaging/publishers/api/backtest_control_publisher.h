@@ -11,9 +11,7 @@ namespace bpt::backtester::messaging::api {
 class BacktestControlPublisher {
 public:
     virtual ~BacktestControlPublisher() = default;
-    virtual void send(bpt::messages::BacktestCommand::Value cmd,
-                      uint64_t tick_seq_num,
-                      uint64_t simulation_ts) = 0;
+    virtual void send(bpt::messages::BacktestCommand::Value cmd, uint64_t tick_seq_num, uint64_t simulation_ts) = 0;
 };
 
 }  // namespace bpt::backtester::messaging::api

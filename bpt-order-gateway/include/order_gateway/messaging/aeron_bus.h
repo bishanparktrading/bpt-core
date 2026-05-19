@@ -61,7 +61,6 @@ struct OrderGatewayBus {
 
     /// \brief Outbound: OrderGatewayHeartbeat on a fixed cadence.
     std::shared_ptr<api::HeartbeatPublisher> heartbeat_pub;
-
 };
 
 class OrderGatewayAeronBus {

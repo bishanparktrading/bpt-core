@@ -87,7 +87,6 @@ void RefdataSubscriber::send_subscription_request(uint64_t correlation_id) {
         return;
     }
 
-
     // Empty filters — request all instruments, like bpt-strategy does.
     std::size_t buf_size = MessageHeader::encodedLength() + RefDataSubscriptionRequest::sbeBlockLength() +
                            RefDataSubscriptionRequest::Instruments::sbeHeaderSize() +

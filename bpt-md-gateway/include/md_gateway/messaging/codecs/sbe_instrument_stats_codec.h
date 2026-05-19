@@ -11,7 +11,7 @@ namespace bpt::md_gateway::messaging {
 class SbeInstrumentStatsCodec {
 public:
     std::span<const std::byte> encode(const InstrumentStatsUpdate&, std::span<std::byte> scratch);
-    InstrumentStatsUpdate       decode(std::span<const std::byte>);
+    InstrumentStatsUpdate decode(std::span<const std::byte>);
 
     static constexpr std::size_t kRecommendedScratchSize = 256;
 };

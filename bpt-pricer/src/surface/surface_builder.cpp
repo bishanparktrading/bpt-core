@@ -228,9 +228,10 @@ std::vector<VolSurfaceGrid> SurfaceBuilder::build(uint32_t current_date) {
                 continue;
             pt.implied_vol = iv_fit;
             const bool is_call = (pt.option_side == bpt::messages::OptionSide::CALL);
-            const auto greeks = is_call
-                ? pricing::bs_call(pt.forward_price, pt.strike_price, pt.time_to_expiry, risk_free_rate_, iv_fit)
-                : pricing::bs_put(pt.forward_price, pt.strike_price, pt.time_to_expiry, risk_free_rate_, iv_fit);
+            const auto greeks =
+                is_call
+                    ? pricing::bs_call(pt.forward_price, pt.strike_price, pt.time_to_expiry, risk_free_rate_, iv_fit)
+                    : pricing::bs_put(pt.forward_price, pt.strike_price, pt.time_to_expiry, risk_free_rate_, iv_fit);
             pt.delta = greeks.delta;
             pt.gamma = greeks.gamma;
             pt.vega = greeks.vega;

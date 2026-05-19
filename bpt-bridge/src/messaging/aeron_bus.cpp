@@ -37,8 +37,8 @@ BridgeBus BridgeAeronBus::build(std::shared_ptr<::aeron::Aeron> aeron, const con
     }
     if (settings.console_control.stream_id != 0) {
         bus.ctrl_pub = std::make_shared<aeron::ConsoleControlPublisher>(aeron,
-                                                                          settings.console_control.channel,
-                                                                          settings.console_control.stream_id);
+                                                                        settings.console_control.channel,
+                                                                        settings.console_control.stream_id);
     }
 
     return bus;

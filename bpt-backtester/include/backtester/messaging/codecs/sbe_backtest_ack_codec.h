@@ -16,7 +16,7 @@ struct BacktestAckMsg {
 class SbeBacktestAckCodec {
 public:
     std::span<const std::byte> encode(const BacktestAckMsg&, std::span<std::byte> scratch);
-    BacktestAckMsg              decode(std::span<const std::byte>);
+    BacktestAckMsg decode(std::span<const std::byte>);
 
     static constexpr std::size_t kRecommendedScratchSize = 64;
 };

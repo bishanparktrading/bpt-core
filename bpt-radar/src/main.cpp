@@ -16,13 +16,12 @@ int main(int argc, char* argv[]) {
         auto cfg = bpt::radar::config::load(args.config_path);
         bpt::common::logging::init("bpt-radar");
 
-        return bpt::app::run(
-            "bpt-radar",
-            std::move(cfg),
-            [](auto& settings, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
-                auto bus = bpt::radar::messaging::RadarAeronBus::build(ctx.aeron, settings);
-                return std::make_unique<bpt::radar::RadarService>(std::move(settings), std::move(bus));
-            });
+        return bpt::app::run("bpt-radar",
+                             std::move(cfg),
+                             [](auto& settings, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
+                                 auto bus = bpt::radar::messaging::RadarAeronBus::build(ctx.aeron, settings);
+                                 return std::make_unique<bpt::radar::RadarService>(std::move(settings), std::move(bus));
+                             });
     } catch (const std::exception& e) {
         bpt::common::log::error("Fatal: {}", e.what());
         return 1;

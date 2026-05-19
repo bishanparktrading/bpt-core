@@ -14,7 +14,7 @@ namespace bpt::pricer::messaging {
 
 struct PricerReadyMsg {
     uint64_t timestamp_ns;
-    uint8_t  exchanges_loaded;   ///< bitmask
+    uint8_t exchanges_loaded;  ///< bitmask
     uint16_t underlying_count;
     uint32_t point_count;
 };
@@ -22,7 +22,7 @@ struct PricerReadyMsg {
 class SbePricerReadyCodec {
 public:
     std::span<const std::byte> encode(const PricerReadyMsg&, std::span<std::byte> scratch);
-    PricerReadyMsg              decode(std::span<const std::byte>);
+    PricerReadyMsg decode(std::span<const std::byte>);
 
     static constexpr std::size_t kRecommendedScratchSize = 128;
 };

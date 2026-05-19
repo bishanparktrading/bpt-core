@@ -30,10 +30,10 @@ struct Settings;
 namespace messaging {
 
 struct PricerBus {
-    std::unique_ptr<api::VolSurfacePublisher> vol_pub;     ///< port; aeron::VolSurfacePublisher in prod
-    std::unique_ptr<api::StatusPublisher>     status_pub;  ///< port; aeron::StatusPublisher in prod
-    std::unique_ptr<md::api::MdSubscriber> md_sub;            ///< port
-    std::unique_ptr<md::api::MdSubscribeClient> md_ctrl;      ///< port; pricer → md-gateway subscribe batches
+    std::unique_ptr<api::VolSurfacePublisher> vol_pub;             ///< port; aeron::VolSurfacePublisher in prod
+    std::unique_ptr<api::StatusPublisher> status_pub;              ///< port; aeron::StatusPublisher in prod
+    std::unique_ptr<md::api::MdSubscriber> md_sub;                 ///< port
+    std::unique_ptr<md::api::MdSubscribeClient> md_ctrl;           ///< port; pricer → md-gateway subscribe batches
     std::unique_ptr<refdata::api::RefdataSubscriber> refdata_sub;  ///< port
 };
 

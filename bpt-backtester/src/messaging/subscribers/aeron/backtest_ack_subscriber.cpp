@@ -10,8 +10,7 @@ namespace bpt::backtester::messaging::aeron {
 
 using namespace std::chrono_literals;
 
-BacktestAckSubscriber::BacktestAckSubscriber(std::shared_ptr<::aeron::Subscription> sub)
-    : sub_(std::move(sub)) {}
+BacktestAckSubscriber::BacktestAckSubscriber(std::shared_ptr<::aeron::Subscription> sub) : sub_(std::move(sub)) {}
 
 bool BacktestAckSubscriber::wait_for(uint64_t expected_seq, std::chrono::milliseconds timeout) {
     bool found = false;

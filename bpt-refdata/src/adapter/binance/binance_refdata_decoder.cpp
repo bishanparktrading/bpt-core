@@ -53,7 +53,7 @@ BinanceRefdataDecoder::BinanceRefdataDecoder(std::shared_ptr<mapping::Instrument
     : mapping_(std::move(mapping)) {}
 
 std::vector<model::Instrument> BinanceRefdataDecoder::parse_spot_exchange_info(const std::string& body,
-                                                                                 uint64_t collected_ts) const {
+                                                                               uint64_t collected_ts) const {
     auto j = json::parse(body);
     std::vector<model::Instrument> result;
 
@@ -92,7 +92,7 @@ std::vector<model::Instrument> BinanceRefdataDecoder::parse_spot_exchange_info(c
 }
 
 std::vector<model::Instrument> BinanceRefdataDecoder::parse_futures_exchange_info(const std::string& body,
-                                                                                    uint64_t collected_ts) const {
+                                                                                  uint64_t collected_ts) const {
     auto j = json::parse(body);
     std::vector<model::Instrument> result;
 
@@ -137,7 +137,7 @@ std::vector<model::Instrument> BinanceRefdataDecoder::parse_futures_exchange_inf
 }
 
 std::vector<model::FeeScheduleState> BinanceRefdataDecoder::parse_trade_fee(const std::string& body,
-                                                                              uint64_t collected_ts) const {
+                                                                            uint64_t collected_ts) const {
     auto j = json::parse(body);
     std::vector<model::FeeScheduleState> result;
     if (!j.is_array())

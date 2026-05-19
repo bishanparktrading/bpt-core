@@ -86,7 +86,6 @@ void RefdataSnapshotPublisher::publish(const registry::InstrumentRegistry& regis
 
     bpt::common::log::info("Snapshot correlation_id={}: {} instrument(s)", request.correlation_id, matched.size());
 
-
     // Allocate buffer: header + fixed block + group header + N × instrument block
     std::size_t n = matched.size();
     std::size_t buf_size = MessageHeader::encodedLength() + RefDataSnapshot::sbeBlockLength() +

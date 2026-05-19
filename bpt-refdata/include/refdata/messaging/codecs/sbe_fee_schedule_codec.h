@@ -11,7 +11,7 @@ namespace bpt::refdata::messaging {
 class SbeFeeScheduleCodec {
 public:
     std::span<const std::byte> encode(const model::FeeScheduleState&, std::span<std::byte> scratch);
-    model::FeeScheduleState   decode(std::span<const std::byte>);
+    model::FeeScheduleState decode(std::span<const std::byte>);
 
     static constexpr std::size_t kRecommendedScratchSize = 128;
 };

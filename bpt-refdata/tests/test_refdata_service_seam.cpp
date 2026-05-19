@@ -10,10 +10,10 @@
 #include "refdata/config/settings.h"
 #include "refdata/messaging/messages.h"
 #include "refdata/messaging/publishers/api/fee_schedule_publisher.h"
-#include "refdata/messaging/subscribers/api/refdata_control_subscriber.h"
 #include "refdata/messaging/publishers/api/refdata_delta_publisher.h"
 #include "refdata/messaging/publishers/api/refdata_snapshot_publisher.h"
 #include "refdata/messaging/publishers/api/refdata_status_publisher.h"
+#include "refdata/messaging/subscribers/api/refdata_control_subscriber.h"
 #include "refdata/model/funding_rate.h"
 #include "refdata/model/instrument.h"
 #include "refdata/registry/instrument_registry.h"
@@ -54,9 +54,7 @@ public:
     };
     std::vector<Call> calls;
 
-    void publish(const InstrumentRegistry& reg,
-                 const RefdataRequest& request,
-                 uint64_t seq_start) override {
+    void publish(const InstrumentRegistry& reg, const RefdataRequest& request, uint64_t seq_start) override {
         calls.push_back({request.correlation_id, seq_start, reg.count()});
     }
 };
@@ -67,9 +65,7 @@ public:
     std::size_t deltas{0};
     std::size_t heartbeats{0};
 
-    void publish_delta(bpt::messages::DeltaUpdateType::Value /*ut*/, const Instrument& /*inst*/) override {
-        ++deltas;
-    }
+    void publish_delta(bpt::messages::DeltaUpdateType::Value /*ut*/, const Instrument& /*inst*/) override { ++deltas; }
     void publish_heartbeat() override { ++heartbeats; }
     uint64_t current_sequence() const override { return seq; }
 };

@@ -29,7 +29,8 @@ int main(int argc, char** argv) {
                              std::move(settings),
                              [](auto& cfg, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
                                  auto bus = bpt::analytics::messaging::AnalyticsAeronBus::build(ctx.aeron, cfg);
-                                 return std::make_unique<bpt::analytics::AnalyticsService>(std::move(cfg), std::move(bus));
+                                 return std::make_unique<bpt::analytics::AnalyticsService>(std::move(cfg),
+                                                                                           std::move(bus));
                              });
     } catch (const std::exception& e) {
         bpt::common::log::error("Fatal: {}", e.what());

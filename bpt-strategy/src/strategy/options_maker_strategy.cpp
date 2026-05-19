@@ -2,11 +2,6 @@
 
 #include "strategy/strategy/reconciler.h"
 
-#include <bpt_common/logging.h>
-#include <bpt_common/util/tsc_clock.h>
-
-#include <pricer/pricing/black_scholes.h>
-
 #include <messages/ExchangeId.h>
 #include <messages/ExecStatus.h>
 #include <messages/OptionSide.h>
@@ -14,11 +9,13 @@
 #include <messages/OrderType.h>
 #include <messages/TimeInForce.h>
 
-#include <fmt/format.h>
-
 #include <algorithm>
+#include <bpt_common/logging.h>
+#include <bpt_common/util/tsc_clock.h>
 #include <cmath>
+#include <fmt/format.h>
 #include <limits>
+#include <pricer/pricing/black_scholes.h>
 #include <unordered_set>
 #include <vector>
 
@@ -80,10 +77,8 @@ OptionsMakerStrategy::OptionsMakerStrategy(uint64_t correlation_id,
     enable_hedger_ = p["enable_hedger"].value<bool>().value_or(true);
     max_hedge_abs_delta_ = p["max_hedge_abs_delta"].value<double>().value_or(0.05);
     hedge_aggress_bps_ = p["hedge_aggress_bps"].value<double>().value_or(10.0);
-    hedge_cooldown_ns_ =
-        static_cast<uint64_t>(p["hedge_cooldown_ms"].value<double>().value_or(500.0) * 1e6);
-    book_delta_sanity_ceiling_mult_ =
-        p["book_delta_sanity_ceiling_mult"].value<double>().value_or(20.0);
+    hedge_cooldown_ns_ = static_cast<uint64_t>(p["hedge_cooldown_ms"].value<double>().value_or(500.0) * 1e6);
+    book_delta_sanity_ceiling_mult_ = p["book_delta_sanity_ceiling_mult"].value<double>().value_or(20.0);
 
     shutdown_flatten_positions_ = p["shutdown_flatten_positions"].value<bool>().value_or(true);
     shutdown_perp_cross_bps_ = p["shutdown_perp_cross_bps"].value<double>().value_or(20.0);
@@ -233,9 +228,8 @@ void OptionsMakerStrategy::on_vol_surface(bpt::messages::VolSurface& surface) {
         }
 
         if (T > 0.0 && iv > 0.0 && fwd > 0.0 && std::isfinite(iv)) {
-            const auto bs = opt.is_call
-                ? bpt::pricer::pricing::bs_call(fwd, opt.strike, T, risk_free_rate_, iv)
-                : bpt::pricer::pricing::bs_put(fwd, opt.strike, T, risk_free_rate_, iv);
+            const auto bs = opt.is_call ? bpt::pricer::pricing::bs_call(fwd, opt.strike, T, risk_free_rate_, iv)
+                                        : bpt::pricer::pricing::bs_put(fwd, opt.strike, T, risk_free_rate_, iv);
             // Deribit quotes option prices in the underlying (BTC/ETH);
             // bs_call/bs_put return USD prices. Convert back to native units
             // by dividing by the forward, matching the SBE pt.bidPrice()/
@@ -407,7 +401,9 @@ void OptionsMakerStrategy::on_exec_report(const bpt::messages::ExecutionReport& 
         key = inst_it->second;
         bpt::common::log::warn(
             "[OptionsMaker] exec report for unknown order_id={} but instrument {} matches — "
-            "applying as orphan fill", oid, rpt.instrumentId());
+            "applying as orphan fill",
+            oid,
+            rpt.instrumentId());
     }
 
     auto state_it = states_.find(key);
@@ -433,8 +429,7 @@ void OptionsMakerStrategy::on_exec_report(const bpt::messages::ExecutionReport& 
             // in the same units as portfolio_delta — otherwise book_delta =
             // BTC_options + USD_perp produces nonsense and triggers a
             // hedge feedback loop (2026-05-15 cascade post-mortem).
-            const double fill_qty_native =
-                fill_price > 0.0 ? fill_qty / fill_price : 0.0;
+            const double fill_qty_native = fill_price > 0.0 ? fill_qty / fill_price : 0.0;
             const double signed_qty_native = is_buy ? fill_qty_native : -fill_qty_native;
             state.perp_position_qty += signed_qty_native;
             bpt::common::log::info(
@@ -470,14 +465,13 @@ void OptionsMakerStrategy::on_exec_report(const bpt::messages::ExecutionReport& 
         opt.position_qty += signed_qty;
         opt.entry_price = fill_price;
 
-        bpt::common::log::info(
-            "[OptionsMaker] fill {} {} K={:.0f} qty={:.6f} price={:.4f} pos={:.6f}",
-            state.underlying,
-            is_buy ? "BUY" : "SELL",
-            opt.strike,
-            fill_qty,
-            fill_price,
-            opt.position_qty);
+        bpt::common::log::info("[OptionsMaker] fill {} {} K={:.0f} qty={:.6f} price={:.4f} pos={:.6f}",
+                               state.underlying,
+                               is_buy ? "BUY" : "SELL",
+                               opt.strike,
+                               fill_qty,
+                               fill_price,
+                               opt.position_qty);
 
         recompute_greeks(state);
         if (enable_hedger_)
@@ -534,10 +528,9 @@ std::size_t OptionsMakerStrategy::on_account_snapshot(bpt::messages::AccountSnap
 
         auto it = by_symbol.find(symbol);
         if (it == by_symbol.end()) {
-            bpt::common::log::warn(
-                "[OptionsMaker] account position {} qty={} not in refdata — skipping",
-                symbol,
-                static_cast<double>(row.net_qty_e8) / 1e8);
+            bpt::common::log::warn("[OptionsMaker] account position {} qty={} not in refdata — skipping",
+                                   symbol,
+                                   static_cast<double>(row.net_qty_e8) / 1e8);
             continue;
         }
         const auto& inst = it->second;
@@ -545,8 +538,7 @@ std::size_t OptionsMakerStrategy::on_account_snapshot(bpt::messages::AccountSnap
 
         // Match by base currency (matches our state-keying convention).
         // For Deribit, ETHEREUM perp = ETH base, BTC perp = BTC base.
-        const auto state_key_str =
-            state_key(snap.exchangeId(), inst.base_currency);
+        const auto state_key_str = state_key(snap.exchangeId(), inst.base_currency);
         auto sit = states_.find(state_key_str);
         if (sit == states_.end()) {
             bpt::common::log::warn(
@@ -564,14 +556,16 @@ std::size_t OptionsMakerStrategy::on_account_snapshot(bpt::messages::AccountSnap
                 // semantics). Convert to BTC so perp_position_qty stays in
                 // the units portfolio_delta uses. avg_entry_price is the
                 // best price reference available here.
-                const double qty_native =
-                    row.avg_entry_price > 0.0 ? qty / row.avg_entry_price : qty;
+                const double qty_native = row.avg_entry_price > 0.0 ? qty / row.avg_entry_price : qty;
                 st.perp_position_qty = qty_native;
                 ++seeded_perp_legs;
                 touched_state_keys.insert(state_key_str);
                 bpt::common::log::info(
                     "[OptionsMaker] reconciled perp {} qty_usd={:.2f} qty_native={:.6f} entry={:.2f}",
-                    symbol, qty, qty_native, row.avg_entry_price);
+                    symbol,
+                    qty,
+                    qty_native,
+                    row.avg_entry_price);
             }
             continue;
         }
@@ -593,9 +587,11 @@ std::size_t OptionsMakerStrategy::on_account_snapshot(bpt::messages::AccountSnap
         instrument_to_key_[inst.instrument_id] = state_key_str;
         ++seeded_option_legs;
         touched_state_keys.insert(state_key_str);
-        bpt::common::log::info(
-            "[OptionsMaker] reconciled option {} K={:.0f} qty={:.6f} entry={:.4f}",
-            symbol, inst.strike_price, qty, row.avg_entry_price);
+        bpt::common::log::info("[OptionsMaker] reconciled option {} K={:.0f} qty={:.6f} entry={:.4f}",
+                               symbol,
+                               inst.strike_price,
+                               qty,
+                               row.avg_entry_price);
     }
 
     // Refresh book Greeks + fire hedger for every state we just touched.
@@ -701,30 +697,30 @@ std::string OptionsMakerStrategy::get_strategy_state_json() {
     // NaN/Inf as the literal strings "nan"/"inf", which are not valid JSON
     // — bites on expired options whose time_to_expiry → 0 makes BS Greeks
     // diverge.
-    auto j = [](double v) { return std::isfinite(v) ? v : 0.0; };
-    std::string out = fmt::format(
-        R"({{"type":"strategyState","kind":"OptionsMaker","risk_halted":{},"underlyings":[)",
-        risk_halted_);
+    auto j = [](double v) {
+        return std::isfinite(v) ? v : 0.0;
+    };
+    std::string out =
+        fmt::format(R"({{"type":"strategyState","kind":"OptionsMaker","risk_halted":{},"underlyings":[)", risk_halted_);
     bool first = true;
     for (const auto& [_, st] : states_) {
         if (!first)
             out += ',';
         first = false;
-        out += fmt::format(
-            R"({{"underlying":"{}","exchange":"{}","option_count":{},"portfolio_delta":{:.4f},)"
-            R"("portfolio_vega":{:.2f},"portfolio_gamma":{:.4f},"portfolio_theta":{:.2f},)"
-            R"("perp_position":{:.6f},"book_delta":{:.4f},"hedge_in_flight":{},)"
-            R"("active_strikes":[)",
-            st.underlying,
-            bpt::messages::ExchangeId::c_str(st.exchange_id),
-            st.options.size(),
-            j(st.portfolio_delta),
-            j(st.portfolio_vega),
-            j(st.portfolio_gamma),
-            j(st.portfolio_theta),
-            j(st.perp_position_qty),
-            j(st.portfolio_delta + st.perp_position_qty),
-            st.perp_order_id != 0);
+        out += fmt::format(R"({{"underlying":"{}","exchange":"{}","option_count":{},"portfolio_delta":{:.4f},)"
+                           R"("portfolio_vega":{:.2f},"portfolio_gamma":{:.4f},"portfolio_theta":{:.2f},)"
+                           R"("perp_position":{:.6f},"book_delta":{:.4f},"hedge_in_flight":{},)"
+                           R"("active_strikes":[)",
+                           st.underlying,
+                           bpt::messages::ExchangeId::c_str(st.exchange_id),
+                           st.options.size(),
+                           j(st.portfolio_delta),
+                           j(st.portfolio_vega),
+                           j(st.portfolio_gamma),
+                           j(st.portfolio_theta),
+                           j(st.perp_position_qty),
+                           j(st.portfolio_delta + st.perp_position_qty),
+                           st.perp_order_id != 0);
 
         // Strike-level view — include any option in the active universe OR
         // anything we still hold inventory on. Sorted by distance to forward
@@ -742,12 +738,10 @@ std::string OptionsMakerStrategy::get_strategy_state_json() {
             // Held-inventory strikes get distance 0 so they rank ahead of
             // pure quote-only strikes — operator always wants to see what
             // they're holding even at deep wings.
-            const double dist =
-                has_position ? 0.0 : std::abs(opt.strike - st.forward_price);
+            const double dist = has_position ? 0.0 : std::abs(opt.strike - st.forward_price);
             candidates.emplace_back(dist, &opt);
         }
-        std::sort(candidates.begin(), candidates.end(),
-                  [](const auto& a, const auto& b) { return a.first < b.first; });
+        std::sort(candidates.begin(), candidates.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
         if (candidates.size() > kMaxStrikesEmit)
             candidates.resize(kMaxStrikesEmit);
 
@@ -760,19 +754,18 @@ std::string OptionsMakerStrategy::get_strategy_state_json() {
             if (!s_first)
                 out += ',';
             s_first = false;
-            out += fmt::format(
-                R"({{"strike":{:.0f},"expiry":{},"is_call":{},"theo":{:.6f},"venue_mid":{:.6f},)"
-                R"("our_bid":{:.6f},"our_ask":{:.6f},"position":{:.4f},"delta":{:.4f},"vega":{:.4f}}})",
-                j(opt.strike),
-                opt.expiry_date,
-                opt.is_call,
-                j(opt.theo_price),
-                j(venue_mid),
-                opt.bid_order_id != 0 ? j(opt.bid_price) : 0.0,
-                opt.ask_order_id != 0 ? j(opt.ask_price) : 0.0,
-                j(opt.position_qty),
-                j(opt.delta),
-                j(opt.vega));
+            out += fmt::format(R"({{"strike":{:.0f},"expiry":{},"is_call":{},"theo":{:.6f},"venue_mid":{:.6f},)"
+                               R"("our_bid":{:.6f},"our_ask":{:.6f},"position":{:.4f},"delta":{:.4f},"vega":{:.4f}}})",
+                               j(opt.strike),
+                               opt.expiry_date,
+                               opt.is_call,
+                               j(opt.theo_price),
+                               j(venue_mid),
+                               opt.bid_order_id != 0 ? j(opt.bid_price) : 0.0,
+                               opt.ask_order_id != 0 ? j(opt.ask_price) : 0.0,
+                               j(opt.position_qty),
+                               j(opt.delta),
+                               j(opt.vega));
         }
         out += "]}";
     }
@@ -834,18 +827,24 @@ void OptionsMakerStrategy::on_shutdown_flatten() {
             if (opt.venue_bid_price <= 0.0 || opt.venue_ask_price <= opt.venue_bid_price) {
                 bpt::common::log::warn(
                     "[OptionsMaker] shutdown_flatten: option iid={} K={:.0f} qty={:.4f} has no BBO, skipping",
-                    opt.instrument_id, opt.strike, opt.position_qty);
+                    opt.instrument_id,
+                    opt.strike,
+                    opt.position_qty);
                 ++opt_skipped;
                 continue;
             }
             const bool sell = opt.position_qty > 0.0;
             const double price = sell ? opt.venue_bid_price : opt.venue_ask_price;
             const double qty = std::abs(opt.position_qty);
-            const uint64_t oid = order_mgr_->place_order(
-                opt.instrument_id, st.exchange_id,
-                sell ? bpt::messages::OrderSide::SELL : bpt::messages::OrderSide::BUY,
-                bpt::messages::OrderType::LIMIT, bpt::messages::TimeInForce::IOC,
-                price, qty, /*exec_inst=*/0);
+            const uint64_t oid =
+                order_mgr_->place_order(opt.instrument_id,
+                                        st.exchange_id,
+                                        sell ? bpt::messages::OrderSide::SELL : bpt::messages::OrderSide::BUY,
+                                        bpt::messages::OrderType::LIMIT,
+                                        bpt::messages::TimeInForce::IOC,
+                                        price,
+                                        qty,
+                                        /*exec_inst=*/0);
             if (oid == 0) {
                 ++opt_skipped;
                 continue;
@@ -855,7 +854,12 @@ void OptionsMakerStrategy::on_shutdown_flatten() {
             ++opt_unwinds;
             bpt::common::log::info(
                 "[OptionsMaker] shutdown_flatten: option iid={} K={:.0f} {} qty={:.4f} @ {:.4f} → oid={}",
-                opt.instrument_id, opt.strike, sell ? "SELL" : "BUY", qty, price, oid);
+                opt.instrument_id,
+                opt.strike,
+                sell ? "SELL" : "BUY",
+                qty,
+                price,
+                oid);
         }
 
         // Perp — mid +/- shutdown_perp_cross_bps. Tight spread on Deribit
@@ -863,9 +867,9 @@ void OptionsMakerStrategy::on_shutdown_flatten() {
         // maybe_hedge (Deribit `amount` is USD value for inverse perps).
         if (st.perp_position_qty != 0.0 && st.perp_instrument_id != 0) {
             if (st.perp_bid <= 0.0 || st.perp_ask <= st.perp_bid) {
-                bpt::common::log::warn(
-                    "[OptionsMaker] shutdown_flatten: perp iid={} qty={:.6f} has no BBO, skipping",
-                    st.perp_instrument_id, st.perp_position_qty);
+                bpt::common::log::warn("[OptionsMaker] shutdown_flatten: perp iid={} qty={:.6f} has no BBO, skipping",
+                                       st.perp_instrument_id,
+                                       st.perp_position_qty);
                 ++perp_skipped;
             } else {
                 const bool sell = st.perp_position_qty > 0.0;
@@ -874,11 +878,15 @@ void OptionsMakerStrategy::on_shutdown_flatten() {
                 const double price = sell ? mid * (1.0 - cross) : mid * (1.0 + cross);
                 const double qty_native = std::abs(st.perp_position_qty);
                 const double qty_usd = qty_native * price;
-                const uint64_t oid = order_mgr_->place_order(
-                    st.perp_instrument_id, st.exchange_id,
-                    sell ? bpt::messages::OrderSide::SELL : bpt::messages::OrderSide::BUY,
-                    bpt::messages::OrderType::LIMIT, bpt::messages::TimeInForce::IOC,
-                    price, qty_usd, /*exec_inst=*/0);
+                const uint64_t oid =
+                    order_mgr_->place_order(st.perp_instrument_id,
+                                            st.exchange_id,
+                                            sell ? bpt::messages::OrderSide::SELL : bpt::messages::OrderSide::BUY,
+                                            bpt::messages::OrderType::LIMIT,
+                                            bpt::messages::TimeInForce::IOC,
+                                            price,
+                                            qty_usd,
+                                            /*exec_inst=*/0);
                 if (oid == 0) {
                     ++perp_skipped;
                 } else {
@@ -889,7 +897,11 @@ void OptionsMakerStrategy::on_shutdown_flatten() {
                     ++perp_unwinds;
                     bpt::common::log::info(
                         "[OptionsMaker] shutdown_flatten: perp {} qty_native={:.6f} qty_usd={:.2f} @ {:.2f} → oid={}",
-                        sell ? "SELL" : "BUY", qty_native, qty_usd, price, oid);
+                        sell ? "SELL" : "BUY",
+                        qty_native,
+                        qty_usd,
+                        price,
+                        oid);
                 }
             }
         }
@@ -897,7 +909,10 @@ void OptionsMakerStrategy::on_shutdown_flatten() {
 
     bpt::common::log::info(
         "[OptionsMaker] shutdown_flatten: fired {} option IOC + {} perp IOC, skipped {} option + {} perp",
-        opt_unwinds, perp_unwinds, opt_skipped, perp_skipped);
+        opt_unwinds,
+        perp_unwinds,
+        opt_skipped,
+        perp_skipped);
 }
 
 bool OptionsMakerStrategy::has_pending_flatten() const {
@@ -960,13 +975,11 @@ void OptionsMakerStrategy::requote(UnderlyingState& state, OptionQuote& opt, uin
     //       so we never quote into a complete vacuum
     // Size on synthetic strikes is further scaled by `synthetic_size_mult_`
     // below in the qty calc.
-    const bool is_synthetic =
-        (opt.venue_bid_price <= 0.0 || opt.venue_ask_price <= opt.venue_bid_price);
+    const bool is_synthetic = (opt.venue_bid_price <= 0.0 || opt.venue_ask_price <= opt.venue_bid_price);
     if (is_synthetic) {
         if (!quote_synthetic_strikes_)
             return;
-        if (state.last_surface_ns == 0
-            || now_ns - state.last_surface_ns > synthetic_smile_staleness_ns_)
+        if (state.last_surface_ns == 0 || now_ns - state.last_surface_ns > synthetic_smile_staleness_ns_)
             return;
         if (state.forward_price <= 0.0)
             return;
@@ -990,8 +1003,7 @@ void OptionsMakerStrategy::requote(UnderlyingState& state, OptionQuote& opt, uin
     // vega"), but Deribit option prices are quoted in BTC. Convert to native
     // price units by dividing by the underlying forward (USD/BTC). After this
     // half_spread is in BTC, comparable to theo.
-    const double vega_in_price_units =
-        state.forward_price > 0.0 ? opt.vega / state.forward_price : opt.vega;
+    const double vega_in_price_units = state.forward_price > 0.0 ? opt.vega / state.forward_price : opt.vega;
     const double half_spread = vega_in_price_units * vega_edge_vol_pts_;
     double target_bid = opt.theo_price - half_spread;
     double target_ask = opt.theo_price + half_spread;
@@ -1008,8 +1020,14 @@ void OptionsMakerStrategy::requote(UnderlyingState& state, OptionQuote& opt, uin
             bpt::common::log::info(
                 "[OptionsMaker] dislocation iid={} K={:.0f} {} venue_mid={:.5f} theo={:.5f} "
                 "diff={:+.5f} half_spread={:.5f} ratio={:+.2f}x",
-                opt.instrument_id, opt.strike, opt.is_call ? "C" : "P",
-                venue_mid, opt.theo_price, dislocation, half_spread, dislocation / half_spread);
+                opt.instrument_id,
+                opt.strike,
+                opt.is_call ? "C" : "P",
+                venue_mid,
+                opt.theo_price,
+                dislocation,
+                half_spread,
+                dislocation / half_spread);
         }
     }
 
@@ -1038,8 +1056,7 @@ void OptionsMakerStrategy::requote(UnderlyingState& state, OptionQuote& opt, uin
     // in 60s).
     if (opt.bid_order_id != 0 && opt.ask_order_id != 0) {
         const double tolerance = 0.5 * half_spread;
-        if (std::abs(target_bid - opt.bid_price) < tolerance
-            && std::abs(target_ask - opt.ask_price) < tolerance) {
+        if (std::abs(target_bid - opt.bid_price) < tolerance && std::abs(target_ask - opt.ask_price) < tolerance) {
             opt.last_quote_ns = now_ns;  // count this as a successful tick — quote still good
             return;
         }
@@ -1065,12 +1082,12 @@ void OptionsMakerStrategy::requote(UnderlyingState& state, OptionQuote& opt, uin
         const double predicted = current + (is_bid ? +q * per_unit : -q * per_unit);
         return std::abs(predicted) > cap;
     };
-    const bool bid_breaches = exceeds(state.portfolio_delta, opt.delta, qty, max_book_delta_, true)
-                              || exceeds(state.portfolio_vega, opt.vega, qty, max_book_vega_, true)
-                              || exceeds(state.portfolio_gamma, opt.gamma, qty, max_book_gamma_, true);
-    const bool ask_breaches = exceeds(state.portfolio_delta, opt.delta, qty, max_book_delta_, false)
-                              || exceeds(state.portfolio_vega, opt.vega, qty, max_book_vega_, false)
-                              || exceeds(state.portfolio_gamma, opt.gamma, qty, max_book_gamma_, false);
+    const bool bid_breaches = exceeds(state.portfolio_delta, opt.delta, qty, max_book_delta_, true) ||
+                              exceeds(state.portfolio_vega, opt.vega, qty, max_book_vega_, true) ||
+                              exceeds(state.portfolio_gamma, opt.gamma, qty, max_book_gamma_, true);
+    const bool ask_breaches = exceeds(state.portfolio_delta, opt.delta, qty, max_book_delta_, false) ||
+                              exceeds(state.portfolio_vega, opt.vega, qty, max_book_vega_, false) ||
+                              exceeds(state.portfolio_gamma, opt.gamma, qty, max_book_gamma_, false);
 
     // Cancel-and-replace each side. We don't try to detect "price unchanged"
     // and skip — OrderManager dedupes upstream, and quote freshness is more
@@ -1172,7 +1189,9 @@ void OptionsMakerStrategy::maybe_hedge(UnderlyingState& state, uint64_t now_ns) 
             bpt::common::log::error(
                 "[OptionsMaker] book_delta={:.4f} exceeds sanity ceiling {:.4f} "
                 "(= {:.1f}x max_hedge_abs_delta). HALTING strategy — restart to clear.",
-                book_delta, ceiling, book_delta_sanity_ceiling_mult_);
+                book_delta,
+                ceiling,
+                book_delta_sanity_ceiling_mult_);
             risk_halted_ = true;
         }
         return;
@@ -1213,8 +1232,7 @@ void OptionsMakerStrategy::maybe_hedge(UnderlyingState& state, uint64_t now_ns) 
 
     const uint64_t oid = order_mgr_->place_order(state.perp_instrument_id,
                                                  state.exchange_id,
-                                                 sell ? bpt::messages::OrderSide::SELL
-                                                      : bpt::messages::OrderSide::BUY,
+                                                 sell ? bpt::messages::OrderSide::SELL : bpt::messages::OrderSide::BUY,
                                                  bpt::messages::OrderType::LIMIT,
                                                  bpt::messages::TimeInForce::IOC,
                                                  price,

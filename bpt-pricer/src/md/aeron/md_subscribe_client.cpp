@@ -14,9 +14,7 @@ using bpt::messages::MdSubscribeBatch;
 using bpt::messages::MessageHeader;
 using Policy = bpt::common::aeron::Publisher::Policy;
 
-MdSubscribeClient::MdSubscribeClient(std::shared_ptr<::aeron::Aeron> aeron,
-                                     const std::string& channel,
-                                     int stream_id)
+MdSubscribeClient::MdSubscribeClient(std::shared_ptr<::aeron::Aeron> aeron, const std::string& channel, int stream_id)
     : publisher_(std::make_unique<bpt::common::aeron::Publisher>(std::move(aeron),
                                                                  channel,
                                                                  stream_id,

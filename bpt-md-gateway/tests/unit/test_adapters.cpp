@@ -45,7 +45,7 @@ TEST(AdapterSmokeTest, BinanceBookTicker) {
                   0,
                   pub,
                   fr,
-        stats);
+                  stats);
 
     ASSERT_TRUE(pub.last_bbo.has_value());
     EXPECT_EQ(pub.last_bbo->instrument_id, 100ULL);

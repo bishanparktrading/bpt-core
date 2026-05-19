@@ -27,7 +27,6 @@ void RefdataDeltaPublisher::publish_delta(bpt::messages::DeltaUpdateType::Value 
                                           const model::Instrument& inst) {
     ++seq_;
 
-
     // Fixed-size buffer: SBE header (8) + RefDataDelta block (136)
     constexpr std::size_t kBufSize = MessageHeader::encodedLength() + RefDataDelta::sbeBlockLength();
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
@@ -68,7 +67,6 @@ void RefdataDeltaPublisher::publish_delta(bpt::messages::DeltaUpdateType::Value 
 
 void RefdataDeltaPublisher::publish_heartbeat() {
     ++seq_;
-
 
     constexpr std::size_t kBufSize = MessageHeader::encodedLength() + RefDataDelta::sbeBlockLength();
     // Zero-init: heartbeat only sets a handful of fields (updateType, seq,

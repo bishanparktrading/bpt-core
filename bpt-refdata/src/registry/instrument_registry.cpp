@@ -43,7 +43,7 @@ std::optional<model::Instrument> InstrumentRegistry::get(uint64_t inst_uid) cons
 }
 
 std::optional<model::Instrument> InstrumentRegistry::get(const std::string& venue,
-                                                           const std::string& venue_symbol) const {
+                                                         const std::string& venue_symbol) const {
     std::shared_lock lock(mutex_);
     // Linear scan — most callers use venues where symbols are unique per type.
     for (const auto& [uid, inst] : instruments_by_uid_) {
@@ -54,8 +54,8 @@ std::optional<model::Instrument> InstrumentRegistry::get(const std::string& venu
 }
 
 std::optional<model::Instrument> InstrumentRegistry::get(const std::string& venue,
-                                                           const std::string& venue_symbol,
-                                                           model::InstrumentType type) const {
+                                                         const std::string& venue_symbol,
+                                                         model::InstrumentType type) const {
     std::shared_lock lock(mutex_);
     std::string key = venue + ":" + venue_symbol + ":" + std::to_string(static_cast<int>(type));
     auto it_uid = uid_by_venue_symbol_.find(key);

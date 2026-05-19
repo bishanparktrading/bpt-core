@@ -8,9 +8,8 @@
 #include "order_gateway/adapter/deribit/deribit_exec_decoder.h"
 #include "order_gateway/adapter/deribit/deribit_ws_client.h"
 
-#include <boost/json.hpp>
-
 #include <atomic>
+#include <boost/json.hpp>
 #include <future>
 #include <memory>
 #include <mutex>

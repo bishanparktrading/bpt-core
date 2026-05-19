@@ -13,12 +13,12 @@
 
 namespace bpt::order_gateway::refdata {
 
+using bpt::common::util::WallClock;
 using bpt::messages::DeltaUpdateType;
 using bpt::messages::MessageHeader;
 using bpt::messages::RefDataDelta;
 using bpt::messages::RefDataSnapshot;
 using bpt::messages::RefDataSubscriptionRequest;
-using bpt::common::util::WallClock;
 
 RefdataClient::RefdataClient(std::shared_ptr<aeron::Aeron> aeron,
                              const std::string& channel,

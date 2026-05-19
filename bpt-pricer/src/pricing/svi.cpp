@@ -23,14 +23,17 @@ inline double clip(double v, double lo, double hi) {
 }
 
 void enforce_bounds(SviParams& p) {
-    if (p.b < kBMin) p.b = kBMin;
-    if (p.s < kSMin) p.s = kSMin;
+    if (p.b < kBMin)
+        p.b = kBMin;
+    if (p.s < kSMin)
+        p.s = kSMin;
     p.rho = clip(p.rho, -kRhoClip, kRhoClip);
     // Joint no-arb floor: a + b·s·sqrt(1−ρ²) must be ≥ 0. If a drifts too
     // negative, lift it to the floor — preserves the wing shape and only
     // adjusts the vertical level.
     const double floor_a = -p.b * p.s * std::sqrt(1.0 - p.rho * p.rho);
-    if (p.a < floor_a) p.a = floor_a;
+    if (p.a < floor_a)
+        p.a = floor_a;
 }
 
 // Analytic partial derivatives of w(k) = a + b·(ρ·(k−m) + sqrt((k−m)² + s²))
@@ -40,9 +43,9 @@ std::array<double, 5> grad_w(double k, const SviParams& p) noexcept {
     const double km = k - p.m;
     const double r = std::sqrt(km * km + p.s * p.s);
     std::array<double, 5> g{};
-    g[0] = 1.0;                          // ∂w/∂a
-    g[1] = p.rho * km + r;               // ∂w/∂b
-    g[2] = p.b * km;                     // ∂w/∂ρ
+    g[0] = 1.0;             // ∂w/∂a
+    g[1] = p.rho * km + r;  // ∂w/∂b
+    g[2] = p.b * km;        // ∂w/∂ρ
     // ∂w/∂m = b·(−ρ − (k−m)/r)
     g[3] = p.b * (-p.rho - km / r);
     // ∂w/∂s = b · s / r
@@ -64,7 +67,7 @@ SviParams initial_guess(const std::vector<SviFitInput>& points) {
     SviParams g;
     g.a = std::max(0.0, min_var * 0.5);  // slightly below observed min
     g.b = 0.1;
-    g.rho = -0.3;                        // typical negative skew
+    g.rho = -0.3;  // typical negative skew
     g.m = k_at_min;
     g.s = 0.1;
     enforce_bounds(g);
@@ -78,8 +81,7 @@ SviParams initial_guess(const std::vector<SviFitInput>& points) {
 // or std::nullopt if the system is unsolvable.
 //
 // jt_j is column-major flattened 5x5; jt_r is length 5.
-std::optional<std::array<double, 5>> solve_5x5(const std::array<double, 25>& jt_j,
-                                               const std::array<double, 5>& jt_r) {
+std::optional<std::array<double, 5>> solve_5x5(const std::array<double, 25>& jt_j, const std::array<double, 5>& jt_r) {
     constexpr int N = 5;
     constexpr double kRidge = 1e-10;
     std::array<double, 25> A = jt_j;
@@ -178,8 +180,7 @@ std::optional<SviFitResult> svi_fit(const std::vector<SviFitInput>& points,
         enforce_bounds(theta);
 
         result.iterations = iter + 1;
-        const double step_norm = std::sqrt(
-            d[0] * d[0] + d[1] * d[1] + d[2] * d[2] + d[3] * d[3] + d[4] * d[4]);
+        const double step_norm = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2] + d[3] * d[3] + d[4] * d[4]);
         if (step_norm < tolerance) {
             result.converged = true;
             result.params = theta;

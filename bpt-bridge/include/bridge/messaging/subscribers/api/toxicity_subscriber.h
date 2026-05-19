@@ -4,7 +4,6 @@
 /// Port: bpt-analytics ToxicityUpdate subscriber.
 
 #include <analytics/messaging/toxicity_update.h>
-
 #include <functional>
 
 namespace bpt::bridge::messaging::api {

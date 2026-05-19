@@ -50,8 +50,7 @@ TEST(ParametricLatencyModel, DifferentSeedsDifferentSequences) {
     b.set_spec("HYPERLIQUID", LatencyLeg::SUBMIT_TO_MATCH, {0, 1'000'000});
     int diff = 0;
     for (int i = 0; i < 100; ++i) {
-        if (a.draw("HYPERLIQUID", LatencyLeg::SUBMIT_TO_MATCH) !=
-            b.draw("HYPERLIQUID", LatencyLeg::SUBMIT_TO_MATCH))
+        if (a.draw("HYPERLIQUID", LatencyLeg::SUBMIT_TO_MATCH) != b.draw("HYPERLIQUID", LatencyLeg::SUBMIT_TO_MATCH))
             ++diff;
     }
     EXPECT_GT(diff, 90);  // overwhelmingly likely with mt19937 + different seeds
@@ -60,9 +59,9 @@ TEST(ParametricLatencyModel, DifferentSeedsDifferentSequences) {
 TEST(ParametricLatencyModel, PerVenueSpecsAreIndependent) {
     ParametricLatencyModel m(/*seed=*/1);
     m.set_spec("HYPERLIQUID", LatencyLeg::SUBMIT_TO_MATCH, {200'000'000ULL, 0});
-    m.set_spec("OKX",         LatencyLeg::SUBMIT_TO_MATCH, {  2'000'000ULL, 0});
+    m.set_spec("OKX", LatencyLeg::SUBMIT_TO_MATCH, {2'000'000ULL, 0});
     EXPECT_EQ(m.draw("HYPERLIQUID", LatencyLeg::SUBMIT_TO_MATCH), 200'000'000ULL);
-    EXPECT_EQ(m.draw("OKX",         LatencyLeg::SUBMIT_TO_MATCH),   2'000'000ULL);
+    EXPECT_EQ(m.draw("OKX", LatencyLeg::SUBMIT_TO_MATCH), 2'000'000ULL);
 }
 
 TEST(ParametricLatencyModel, UnknownVenueFallsBackToDefault) {
@@ -73,8 +72,8 @@ TEST(ParametricLatencyModel, UnknownVenueFallsBackToDefault) {
 
 TEST(ParametricLatencyModel, LegSpecsAreIndependent) {
     ParametricLatencyModel m(/*seed=*/1);
-    m.set_spec("HYPERLIQUID", LatencyLeg::SUBMIT_TO_MATCH,  {200'000'000ULL, 0});
-    m.set_spec("HYPERLIQUID", LatencyLeg::MATCH_TO_REPORT, { 50'000'000ULL, 0});
-    EXPECT_EQ(m.draw("HYPERLIQUID", LatencyLeg::SUBMIT_TO_MATCH),  200'000'000ULL);
-    EXPECT_EQ(m.draw("HYPERLIQUID", LatencyLeg::MATCH_TO_REPORT),  50'000'000ULL);
+    m.set_spec("HYPERLIQUID", LatencyLeg::SUBMIT_TO_MATCH, {200'000'000ULL, 0});
+    m.set_spec("HYPERLIQUID", LatencyLeg::MATCH_TO_REPORT, {50'000'000ULL, 0});
+    EXPECT_EQ(m.draw("HYPERLIQUID", LatencyLeg::SUBMIT_TO_MATCH), 200'000'000ULL);
+    EXPECT_EQ(m.draw("HYPERLIQUID", LatencyLeg::MATCH_TO_REPORT), 50'000'000ULL);
 }

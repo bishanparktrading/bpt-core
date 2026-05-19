@@ -27,15 +27,15 @@
 namespace bpt::bridge::messaging {
 
 struct BridgeBus {
-    std::unique_ptr<api::MdSubscriber> md_sub;                       ///< port
-    std::unique_ptr<api::ExecSubscriber> exec_sub;                   ///< port
-    std::unique_ptr<api::AccountSubscriber> account_sub;             ///< port
-    std::unique_ptr<api::PortfolioSnapshotSubscriber> portfolio_sub; ///< optional port (null if stream_id == 0)
-    std::unique_ptr<api::ToxicitySubscriber> tox_sub;                ///< optional port
-    std::unique_ptr<api::MarketColorSubscriber> color_sub;           ///< optional port
+    std::unique_ptr<api::MdSubscriber> md_sub;                        ///< port
+    std::unique_ptr<api::ExecSubscriber> exec_sub;                    ///< port
+    std::unique_ptr<api::AccountSubscriber> account_sub;              ///< port
+    std::unique_ptr<api::PortfolioSnapshotSubscriber> portfolio_sub;  ///< optional port (null if stream_id == 0)
+    std::unique_ptr<api::ToxicitySubscriber> tox_sub;                 ///< optional port
+    std::unique_ptr<api::MarketColorSubscriber> color_sub;            ///< optional port
     /// Shared rather than unique so main can hand a `shared_ptr<api::ConsoleControlPublisher>`
     /// view of the same object to BridgeService while the bus still owns it.
-    std::shared_ptr<aeron::ConsoleControlPublisher> ctrl_pub;         ///< optional
+    std::shared_ptr<aeron::ConsoleControlPublisher> ctrl_pub;  ///< optional
 };
 
 class BridgeAeronBus {

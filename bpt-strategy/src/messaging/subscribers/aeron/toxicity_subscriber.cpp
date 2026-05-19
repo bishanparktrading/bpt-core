@@ -5,9 +5,7 @@
 
 namespace bpt::strategy::messaging::aeron {
 
-ToxicitySubscriber::ToxicitySubscriber(std::shared_ptr<::aeron::Aeron> aeron,
-                                       const std::string& channel,
-                                       int stream_id)
+ToxicitySubscriber::ToxicitySubscriber(std::shared_ptr<::aeron::Aeron> aeron, const std::string& channel, int stream_id)
     : sub_(bpt::common::aeron::wait_for_subscription(std::move(aeron), channel, stream_id)) {}
 
 int ToxicitySubscriber::poll(int fragment_limit) {

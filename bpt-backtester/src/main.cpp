@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
                                  bpt::common::log::info("starting_capital=${:.2f}", cfg.results.starting_capital);
                                  auto bus = bpt::backtester::messaging::BacktesterAeronBus::build(ctx.aeron, cfg);
                                  return std::make_unique<bpt::backtester::BacktesterService>(std::move(cfg),
-                                                                                         std::move(bus));
+                                                                                             std::move(bus));
                              });
     } catch (const std::exception& e) {
         bpt::common::log::error("Fatal: {}", e.what());

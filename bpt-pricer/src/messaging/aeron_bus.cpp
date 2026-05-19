@@ -17,9 +17,7 @@ PricerBus PricerAeronBus::build(std::shared_ptr<::aeron::Aeron> aeron, const con
     bus.status_pub = std::make_unique<aeron::StatusPublisher>(aeron,
                                                               settings.pricer_status.channel,
                                                               settings.pricer_status.stream_id);
-    bus.md_sub = std::make_unique<md::aeron::MdSubscriber>(aeron,
-                                                           settings.md_data.channel,
-                                                           settings.md_data.stream_id);
+    bus.md_sub = std::make_unique<md::aeron::MdSubscriber>(aeron, settings.md_data.channel, settings.md_data.stream_id);
     bus.md_ctrl = std::make_unique<md::aeron::MdSubscribeClient>(aeron,
                                                                  settings.md_control.channel,
                                                                  settings.md_control.stream_id);

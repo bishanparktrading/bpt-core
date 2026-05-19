@@ -19,7 +19,7 @@ public:
 
 private:
     std::shared_ptr<::aeron::Publication> publication_;
-    SbeFeeScheduleCodec                   codec_;
+    SbeFeeScheduleCodec codec_;
 };
 
 }  // namespace bpt::refdata::messaging::aeron

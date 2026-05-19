@@ -40,7 +40,7 @@ public:
 
 private:
     bpt::common::aeron::Publisher publisher_;
-    SbeExecutionReportCodec       codec_;
+    SbeExecutionReportCodec codec_;
 };
 
 }  // namespace bpt::order_gateway::messaging::aeron

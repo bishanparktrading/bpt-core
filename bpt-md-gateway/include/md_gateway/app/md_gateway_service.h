@@ -54,12 +54,12 @@ public:
     /// \param stats_pub        publisher for open-interest updates
     /// \param topology         CPU-affinity map for IO/main thread pinning
     MdGatewayService(config::Settings cfg,
-                 std::shared_ptr<::aeron::Aeron> aeron,
-                 std::unique_ptr<messaging::api::MdControlSubscriber> control_sub,
-                 std::unique_ptr<messaging::api::AckPublisher> ack_pub,
-                 std::shared_ptr<messaging::api::FundingRatePublisher> funding_pub,
-                 std::shared_ptr<messaging::api::InstrumentStatsPublisher> stats_pub,
-                 const bpt::common::util::Topology& topology);
+                     std::shared_ptr<::aeron::Aeron> aeron,
+                     std::unique_ptr<messaging::api::MdControlSubscriber> control_sub,
+                     std::unique_ptr<messaging::api::AckPublisher> ack_pub,
+                     std::shared_ptr<messaging::api::FundingRatePublisher> funding_pub,
+                     std::shared_ptr<messaging::api::InstrumentStatsPublisher> stats_pub,
+                     const bpt::common::util::Topology& topology);
 
     /// \brief Block running the main poll loop until stop() is called.
     void run() override;

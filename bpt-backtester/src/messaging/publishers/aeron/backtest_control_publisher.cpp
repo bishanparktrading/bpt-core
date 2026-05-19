@@ -12,8 +12,7 @@ namespace bpt::backtester::messaging::aeron {
 
 using namespace std::chrono_literals;
 
-BacktestControlPublisher::BacktestControlPublisher(std::shared_ptr<::aeron::Publication> pub)
-    : pub_(std::move(pub)) {}
+BacktestControlPublisher::BacktestControlPublisher(std::shared_ptr<::aeron::Publication> pub) : pub_(std::move(pub)) {}
 
 void BacktestControlPublisher::send(bpt::messages::BacktestCommand::Value cmd,
                                     uint64_t tick_seq_num,
@@ -33,7 +32,8 @@ void BacktestControlPublisher::send(bpt::messages::BacktestCommand::Value cmd,
 
         if (result == ::aeron::BACK_PRESSURED || result == ::aeron::NOT_CONNECTED || result == ::aeron::ADMIN_ACTION) {
             if (std::chrono::steady_clock::now() > deadline)
-                throw std::runtime_error("[aeron::BacktestControlPublisher] offer timed out (back-pressure/not-connected)");
+                throw std::runtime_error(
+                    "[aeron::BacktestControlPublisher] offer timed out (back-pressure/not-connected)");
             std::this_thread::sleep_for(100us);
             continue;
         }

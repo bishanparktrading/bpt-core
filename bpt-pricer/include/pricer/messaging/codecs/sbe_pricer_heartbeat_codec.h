@@ -25,7 +25,7 @@ struct PricerHeartbeatMsg {
 class SbePricerHeartbeatCodec {
 public:
     std::span<const std::byte> encode(const PricerHeartbeatMsg&, std::span<std::byte> scratch);
-    PricerHeartbeatMsg          decode(std::span<const std::byte>);
+    PricerHeartbeatMsg decode(std::span<const std::byte>);
 
     static constexpr std::size_t kRecommendedScratchSize = 128;
 };

@@ -59,8 +59,10 @@ std::expected<void, bpt::messages::RejectReason::Value> RiskChecker::check(bpt::
     const uint32_t max_open = max_open_orders_per_venue_.load(std::memory_order_relaxed);
     const uint32_t cur_open = open_orders_[venue_idx].load(std::memory_order_relaxed);
     if (cur_open >= max_open) {
-        bpt::common::log::warn(
-            "[RiskChecker] REJECT order={}: open_orders={} >= max_open={}", order_id, cur_open, max_open);
+        bpt::common::log::warn("[RiskChecker] REJECT order={}: open_orders={} >= max_open={}",
+                               order_id,
+                               cur_open,
+                               max_open);
         return std::unexpected(RR::RISK_REJECTED);
     }
 
@@ -108,11 +110,10 @@ std::expected<void, bpt::messages::RejectReason::Value> RiskChecker::check(bpt::
         double max_notional = bits_to_double(max_notional_bits_.load(std::memory_order_relaxed));
         if (order_size > max_notional) {
             orders_this_window_.fetch_sub(1, std::memory_order_relaxed);
-            bpt::common::log::warn(
-                "[RiskChecker] REJECT order={}: order_size={:.4f} > max_notional={:.2f}",
-                order_id,
-                order_size,
-                max_notional);
+            bpt::common::log::warn("[RiskChecker] REJECT order={}: order_size={:.4f} > max_notional={:.2f}",
+                                   order_id,
+                                   order_size,
+                                   max_notional);
             return std::unexpected(RR::RISK_REJECTED);
         }
     }

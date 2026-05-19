@@ -23,14 +23,14 @@ public:
 
     void publish_heartbeat(uint64_t timestamp_ns, uint64_t seq_num) override;
     void publish_ready(uint64_t timestamp_ns,
-                       uint8_t  exchanges_loaded,
+                       uint8_t exchanges_loaded,
                        uint16_t underlying_count,
                        uint32_t point_count) override;
 
 private:
     std::shared_ptr<::aeron::Publication> pub_;
-    SbePricerHeartbeatCodec               hb_codec_;
-    SbePricerReadyCodec                   ready_codec_;
+    SbePricerHeartbeatCodec hb_codec_;
+    SbePricerReadyCodec ready_codec_;
 };
 
 }  // namespace bpt::pricer::messaging::aeron

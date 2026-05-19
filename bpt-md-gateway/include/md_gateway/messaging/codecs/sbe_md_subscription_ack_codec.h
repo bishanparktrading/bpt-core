@@ -22,7 +22,7 @@ struct MdSubscriptionAckMsg {
 class SbeMdSubscriptionAckCodec {
 public:
     std::span<const std::byte> encode(const MdSubscriptionAckMsg&, std::span<std::byte> scratch);
-    MdSubscriptionAckMsg        decode(std::span<const std::byte>);
+    MdSubscriptionAckMsg decode(std::span<const std::byte>);
 
     static constexpr std::size_t kRecommendedScratchSize = 128;
 };

@@ -72,20 +72,20 @@ int main(int argc, char* argv[]) {
                                                     bpt::common::to_string(cfg.base.environment),
                                                     service_name);
 
-        return bpt::app::run(service_name,
-                             std::move(cfg),
-                             [](auto& settings, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
-                                 auto creds = load_credentials(settings.gateway.adapters, settings.base.environment);
-                                 auto bus = bpt::order_gateway::messaging::OrderGatewayAeronBus::build(ctx.aeron, settings);
-                                 return std::make_unique<bpt::order_gateway::OrderGatewayService>(
-                                     std::move(settings),
-                                     std::move(bus.control_sub),
-                                     std::move(bus.exec_pub),
-                                     std::move(bus.account_snapshot_pub),
-                                     std::move(bus.heartbeat_pub),
-                                     std::move(creds),
-                                     ctx.topology);
-                             });
+        return bpt::app::run(
+            service_name,
+            std::move(cfg),
+            [](auto& settings, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
+                auto creds = load_credentials(settings.gateway.adapters, settings.base.environment);
+                auto bus = bpt::order_gateway::messaging::OrderGatewayAeronBus::build(ctx.aeron, settings);
+                return std::make_unique<bpt::order_gateway::OrderGatewayService>(std::move(settings),
+                                                                                 std::move(bus.control_sub),
+                                                                                 std::move(bus.exec_pub),
+                                                                                 std::move(bus.account_snapshot_pub),
+                                                                                 std::move(bus.heartbeat_pub),
+                                                                                 std::move(creds),
+                                                                                 ctx.topology);
+            });
     } catch (const std::exception& e) {
         bpt::common::log::error("Fatal: {}", e.what());
         return 1;

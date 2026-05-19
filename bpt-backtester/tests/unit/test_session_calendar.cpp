@@ -20,9 +20,9 @@ TEST(SessionCalendarTest, ResolvesUsOpenAcrossDates) {
     const auto out = cal.resolve("us_open", {"2026-05-08", "2026-05-09"});
     ASSERT_EQ(out.size(), 2u);
     EXPECT_EQ(out[0].start, "2026-05-08T13:00:00Z");
-    EXPECT_EQ(out[0].end,   "2026-05-08T15:00:00Z");
+    EXPECT_EQ(out[0].end, "2026-05-08T15:00:00Z");
     EXPECT_EQ(out[1].start, "2026-05-09T13:00:00Z");
-    EXPECT_EQ(out[1].end,   "2026-05-09T15:00:00Z");
+    EXPECT_EQ(out[1].end, "2026-05-09T15:00:00Z");
 }
 
 TEST(SessionCalendarTest, ResolvesAsianOpenAtMidnight) {
@@ -30,7 +30,7 @@ TEST(SessionCalendarTest, ResolvesAsianOpenAtMidnight) {
     const auto out = cal.resolve("asian_open", {"2026-01-01"});
     ASSERT_EQ(out.size(), 1u);
     EXPECT_EQ(out[0].start, "2026-01-01T00:00:00Z");
-    EXPECT_EQ(out[0].end,   "2026-01-01T02:00:00Z");
+    EXPECT_EQ(out[0].end, "2026-01-01T02:00:00Z");
 }
 
 TEST(SessionCalendarTest, UnknownNameThrows) {
@@ -53,7 +53,7 @@ TEST(SessionCalendarTest, AddNamedRegistersCustomWindow) {
     const auto out = cal.resolve("fomc_window", {"2026-06-18"});
     ASSERT_EQ(out.size(), 1u);
     EXPECT_EQ(out[0].start, "2026-06-18T18:00:00Z");
-    EXPECT_EQ(out[0].end,   "2026-06-18T19:30:00Z");
+    EXPECT_EQ(out[0].end, "2026-06-18T19:30:00Z");
 }
 
 TEST(SessionCalendarTest, RejectsMalformedDate) {

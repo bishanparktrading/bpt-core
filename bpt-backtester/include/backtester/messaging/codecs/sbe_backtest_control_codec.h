@@ -19,7 +19,7 @@ struct BacktestControlMsg {
 class SbeBacktestControlCodec {
 public:
     std::span<const std::byte> encode(const BacktestControlMsg&, std::span<std::byte> scratch);
-    BacktestControlMsg          decode(std::span<const std::byte>);
+    BacktestControlMsg decode(std::span<const std::byte>);
 
     // MessageHeader (8) + BacktestControl block (17) = 25; round up for alignment.
     static constexpr std::size_t kRecommendedScratchSize = 64;

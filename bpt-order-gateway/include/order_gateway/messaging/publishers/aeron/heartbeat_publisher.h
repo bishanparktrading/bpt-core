@@ -25,8 +25,8 @@ public:
     void publish(uint8_t service_id, uint16_t orders_in_flight, uint8_t exchange_status) override;
 
 private:
-    bpt::common::aeron::Publisher    publisher_;
-    SbeOrderGatewayHeartbeatCodec    codec_;
+    bpt::common::aeron::Publisher publisher_;
+    SbeOrderGatewayHeartbeatCodec codec_;
 };
 
 }  // namespace bpt::order_gateway::messaging::aeron

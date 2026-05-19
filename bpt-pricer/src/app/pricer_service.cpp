@@ -132,14 +132,17 @@ std::vector<md::api::MdSubscribeClient::InstrumentDesc> PricerService::build_sub
     // Bucket key is "underlying|expiry"; std::string is simpler than a custom
     // hasher for std::pair, and the cost is irrelevant at filter cadence.
     std::unordered_map<std::string, std::vector<OptionDesc>> bucketed;
-    auto bucket_key = [](const std::string& u, uint32_t e) { return u + "|" + std::to_string(e); };
+    auto bucket_key = [](const std::string& u, uint32_t e) {
+        return u + "|" + std::to_string(e);
+    };
 
     std::vector<md::api::MdSubscribeClient::InstrumentDesc> batch;
     batch.reserve(option_universe_.size());
 
     for (const auto& [_, opt] : option_universe_) {
         if (opt.expiry_date == 0) {
-            batch.push_back(md::api::MdSubscribeClient::InstrumentDesc{opt.instrument_id, opt.exchange, opt.venue_symbol, 0});
+            batch.push_back(
+                md::api::MdSubscribeClient::InstrumentDesc{opt.instrument_id, opt.exchange, opt.venue_symbol, 0});
             continue;
         }
         auto kit = kept_expiries.find(opt.underlying);
@@ -155,8 +158,9 @@ std::vector<md::api::MdSubscribeClient::InstrumentDesc> PricerService::build_sub
         // Optional cap: keep strikes closest to the median (stand-in for ATM
         // until forward-aware filtering lands).
         if (max_per_expiry > 0 && opts.size() > max_per_expiry) {
-            std::sort(opts.begin(), opts.end(),
-                      [](const OptionDesc& a, const OptionDesc& b) { return a.strike_price < b.strike_price; });
+            std::sort(opts.begin(), opts.end(), [](const OptionDesc& a, const OptionDesc& b) {
+                return a.strike_price < b.strike_price;
+            });
             const std::size_t median_idx = opts.size() / 2;
             const std::size_t half = max_per_expiry / 2;
             const std::size_t lo = (median_idx > half) ? median_idx - half : 0;
@@ -165,7 +169,8 @@ std::vector<md::api::MdSubscribeClient::InstrumentDesc> PricerService::build_sub
             opts.erase(opts.begin(), opts.begin() + static_cast<std::ptrdiff_t>(lo));
         }
         for (const auto& opt : opts)
-            batch.push_back(md::api::MdSubscribeClient::InstrumentDesc{opt.instrument_id, opt.exchange, opt.venue_symbol, 0});
+            batch.push_back(
+                md::api::MdSubscribeClient::InstrumentDesc{opt.instrument_id, opt.exchange, opt.venue_symbol, 0});
     }
 
     return batch;

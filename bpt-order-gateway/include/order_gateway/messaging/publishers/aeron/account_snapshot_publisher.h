@@ -25,7 +25,7 @@ public:
 
 private:
     bpt::common::aeron::Publisher publisher_;
-    SbeAccountSnapshotCodec       codec_;
+    SbeAccountSnapshotCodec codec_;
 };
 
 }  // namespace bpt::order_gateway::messaging::aeron

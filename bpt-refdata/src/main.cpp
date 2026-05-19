@@ -86,12 +86,12 @@ int main(int argc, char** argv) {
                                  auto bus = bpt::refdata::messaging::RefdataAeronBus::build(ctx.aeron, cfg);
 
                                  return std::make_unique<bpt::refdata::RefdataService>(std::move(cfg),
-                                                                                   std::move(bus.control_sub),
-                                                                                   std::move(bus.snapshot_pub),
-                                                                                   std::move(bus.delta_pub),
-                                                                                   std::move(bus.fee_pub),
-                                                                                   std::move(bus.status_pub),
-                                                                                   std::move(creds));
+                                                                                       std::move(bus.control_sub),
+                                                                                       std::move(bus.snapshot_pub),
+                                                                                       std::move(bus.delta_pub),
+                                                                                       std::move(bus.fee_pub),
+                                                                                       std::move(bus.status_pub),
+                                                                                       std::move(creds));
                              });
     } catch (const std::exception& e) {
         bpt::common::log::error("Fatal: {}", e.what());

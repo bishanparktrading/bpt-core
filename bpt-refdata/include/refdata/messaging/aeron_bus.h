@@ -8,10 +8,10 @@
 /// a new port = one field + one line in build(); main.cpp doesn't change.
 
 #include "refdata/messaging/publishers/api/fee_schedule_publisher.h"
-#include "refdata/messaging/subscribers/api/refdata_control_subscriber.h"
 #include "refdata/messaging/publishers/api/refdata_delta_publisher.h"
 #include "refdata/messaging/publishers/api/refdata_snapshot_publisher.h"
 #include "refdata/messaging/publishers/api/refdata_status_publisher.h"
+#include "refdata/messaging/subscribers/api/refdata_control_subscriber.h"
 
 #include <Aeron.h>
 

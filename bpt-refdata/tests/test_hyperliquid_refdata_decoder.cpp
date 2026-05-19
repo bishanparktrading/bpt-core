@@ -11,8 +11,8 @@
 #include <memory>
 
 using bpt::refdata::adapter::HyperliquidRefdataDecoder;
-using bpt::refdata::mapping::InstrumentMappingLoader;
 using bpt::refdata::mapping::EXCHANGE_ID_HYPERLIQUID;
+using bpt::refdata::mapping::InstrumentMappingLoader;
 using bpt::refdata::mapping::make_inst_uid;
 using bpt::refdata::model::InstrumentStatus;
 using bpt::refdata::model::InstrumentType;

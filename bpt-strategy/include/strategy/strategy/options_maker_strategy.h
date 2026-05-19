@@ -106,7 +106,7 @@ private:
         double ask_qty{0.0};
 
         // Position
-        double position_qty{0.0};   // signed; + = long
+        double position_qty{0.0};  // signed; + = long
         double entry_price{0.0};
 
         // Per-option cadence timestamp — was state-wide last_quote_ns before
@@ -134,8 +134,8 @@ private:
         uint64_t perp_instrument_id{0};
         double perp_bid{0.0};
         double perp_ask{0.0};
-        double perp_position_qty{0.0};       ///< signed; + long perp / − short
-        uint64_t perp_order_id{0};           ///< 0 = no in-flight hedge
+        double perp_position_qty{0.0};  ///< signed; + long perp / − short
+        uint64_t perp_order_id{0};      ///< 0 = no in-flight hedge
         uint64_t last_hedge_ns{0};
 
         // Aggregate Greeks across all option positions
@@ -169,26 +169,32 @@ private:
 
     // Config — captured at construction. The body of the cpp constructor
     // reads these from `cfg.params`.
-    uint32_t front_n_expiries_{1};       ///< quote only the front N expiries on each underlying
-    uint32_t max_strikes_per_expiry_{8}; ///< ATM band size around forward
-    double risk_free_rate_{0.0};         ///< r for BS-from-fitted-IV theo; 0.0 fine for short-dated crypto options
-    bool quote_synthetic_strikes_{false}; ///< Phase 2 gate: when true, also quote strikes with no venue BBO (theo from SVI fit only)
-    double synthetic_size_mult_{0.25};   ///< Phase 2 safeguard: scale quote size on synthetic strikes (sole-maker → lower confidence)
-    double synthetic_max_strike_distance_pct_{0.05}; ///< Phase 2 safeguard: skip synthetic strike if nearest observed-same-expiry strike farther than this fraction of forward
-    uint64_t synthetic_smile_staleness_ns_{30'000'000'000ULL}; ///< Phase 2 safeguard: skip synthetic quoting if no surface tick within this window
-    double vega_edge_vol_pts_{0.005};    ///< half-spread in vol points (0.005 = 50 bps of IV)
-    double per_quote_vega_budget_{20.0}; ///< vega per single live quote
-    double max_book_vega_{500.0};        ///< hard limit on aggregate |vega|
-    double max_book_delta_{1.0};         ///< hard limit on aggregate |delta| (BTC units)
-    double max_book_gamma_{50.0};        ///< hard limit on aggregate |gamma|
+    uint32_t front_n_expiries_{1};        ///< quote only the front N expiries on each underlying
+    uint32_t max_strikes_per_expiry_{8};  ///< ATM band size around forward
+    double risk_free_rate_{0.0};          ///< r for BS-from-fitted-IV theo; 0.0 fine for short-dated crypto options
+    bool quote_synthetic_strikes_{
+        false};  ///< Phase 2 gate: when true, also quote strikes with no venue BBO (theo from SVI fit only)
+    double synthetic_size_mult_{
+        0.25};  ///< Phase 2 safeguard: scale quote size on synthetic strikes (sole-maker → lower confidence)
+    double synthetic_max_strike_distance_pct_{
+        0.05};  ///< Phase 2 safeguard: skip synthetic strike if nearest observed-same-expiry strike farther than this
+                ///< fraction of forward
+    uint64_t synthetic_smile_staleness_ns_{
+        30'000'000'000ULL};  ///< Phase 2 safeguard: skip synthetic quoting if no surface tick within this window
+    double vega_edge_vol_pts_{0.005};                   ///< half-spread in vol points (0.005 = 50 bps of IV)
+    double per_quote_vega_budget_{20.0};                ///< vega per single live quote
+    double max_book_vega_{500.0};                       ///< hard limit on aggregate |vega|
+    double max_book_delta_{1.0};                        ///< hard limit on aggregate |delta| (BTC units)
+    double max_book_gamma_{50.0};                       ///< hard limit on aggregate |gamma|
     uint64_t requote_min_interval_ns_{500'000'000ULL};  ///< 500ms min cadence per option
 
     // Hedger config — embedded, not a separate service for v1.
-    bool enable_hedger_{true};                ///< master kill-switch for the embedded hedger
-    double max_hedge_abs_delta_{0.05};        ///< hedge when |book_delta| exceeds this (BTC units)
-    double hedge_aggress_bps_{10.0};          ///< cross perp BBO by this many bps for IOC fills
+    bool enable_hedger_{true};                    ///< master kill-switch for the embedded hedger
+    double max_hedge_abs_delta_{0.05};            ///< hedge when |book_delta| exceeds this (BTC units)
+    double hedge_aggress_bps_{10.0};              ///< cross perp BBO by this many bps for IOC fills
     uint64_t hedge_cooldown_ns_{500'000'000ULL};  ///< 500ms anti-thrash window between hedges
-    double book_delta_sanity_ceiling_mult_{20.0}; ///< |book_delta| > this × max_hedge_abs_delta latches risk_halted_ (restart to clear)
+    double book_delta_sanity_ceiling_mult_{
+        20.0};  ///< |book_delta| > this × max_hedge_abs_delta latches risk_halted_ (restart to clear)
 
     /// Latched on book-delta sanity-ceiling breach (or any other future
     /// hard-halt condition). Suppresses both `maybe_hedge` and `requote`
@@ -197,8 +203,8 @@ private:
     bool risk_halted_{false};
 
     // Shutdown flatten config — IOC-close positions when the service stops.
-    bool shutdown_flatten_positions_{true};   ///< master switch: send IOC LIMITs to close net positions on shutdown
-    double shutdown_perp_cross_bps_{20.0};    ///< cross perp mid by this many bps for the IOC close
+    bool shutdown_flatten_positions_{true};  ///< master switch: send IOC LIMITs to close net positions on shutdown
+    double shutdown_perp_cross_bps_{20.0};   ///< cross perp mid by this many bps for the IOC close
 
     // Standard plumbing
     uint64_t correlation_id_;

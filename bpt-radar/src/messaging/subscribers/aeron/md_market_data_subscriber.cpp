@@ -20,12 +20,11 @@ MdMarketDataSubscriber::MdMarketDataSubscriber(std::shared_ptr<::aeron::Aeron> a
 int MdMarketDataSubscriber::poll(int fragment_limit) {
     if (!sub_)
         return 0;
-    return sub_->poll(
-        [this](::aeron::AtomicBuffer& buffer,
-               ::aeron::util::index_t offset,
-               ::aeron::util::index_t length,
-               ::aeron::Header& header) { handle_fragment(buffer, offset, length, header); },
-        fragment_limit);
+    return sub_->poll([this](::aeron::AtomicBuffer& buffer,
+                             ::aeron::util::index_t offset,
+                             ::aeron::util::index_t length,
+                             ::aeron::Header& header) { handle_fragment(buffer, offset, length, header); },
+                      fragment_limit);
 }
 
 void MdMarketDataSubscriber::handle_fragment(::aeron::AtomicBuffer& buffer,

@@ -25,7 +25,7 @@ public:
 
 private:
     std::unique_ptr<bpt::common::aeron::Publisher> pub_;
-    PodMarketColorCodec                            codec_;
+    PodMarketColorCodec codec_;
 };
 
 }  // namespace bpt::radar::messaging::aeron

@@ -6,8 +6,8 @@
 namespace bpt::strategy::messaging::aeron {
 
 ConsoleControlSubscriber::ConsoleControlSubscriber(std::shared_ptr<::aeron::Aeron> aeron,
-                                                       const std::string& channel,
-                                                       int stream_id) {
+                                                   const std::string& channel,
+                                                   int stream_id) {
     // Same 5-second poll-and-wait as the inline construction the app
     // used previously. The console publisher may not be up yet; if we
     // can't bind, log at the call site (is_ready() = false) and the

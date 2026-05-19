@@ -16,7 +16,7 @@ HyperliquidRefdataDecoder::HyperliquidRefdataDecoder(std::shared_ptr<mapping::In
     : mapping_(std::move(mapping)) {}
 
 std::vector<model::Instrument> HyperliquidRefdataDecoder::parse_meta(const std::string& body,
-                                                                       uint64_t collected_ts) const {
+                                                                     uint64_t collected_ts) const {
     auto j = json::parse(body);
     const auto& universe = j.value("universe", json::array());
 
@@ -63,7 +63,7 @@ std::vector<model::Instrument> HyperliquidRefdataDecoder::parse_meta(const std::
 }
 
 std::vector<model::Instrument> HyperliquidRefdataDecoder::parse_spot_meta(const std::string& body,
-                                                                            uint64_t collected_ts) const {
+                                                                          uint64_t collected_ts) const {
     auto j = json::parse(body);
     const auto& tokens = j.value("tokens", json::array());
     const auto& universe = j.value("universe", json::array());
@@ -138,7 +138,7 @@ std::vector<model::Instrument> HyperliquidRefdataDecoder::parse_spot_meta(const 
 }
 
 std::vector<model::FeeScheduleState> HyperliquidRefdataDecoder::parse_user_fees(const std::string& body,
-                                                                                  uint64_t collected_ts) const {
+                                                                                uint64_t collected_ts) const {
     auto j = json::parse(body);
     const auto& sched = j.value("feeSchedule", json{});
     if (sched.is_null() || !sched.is_object()) {

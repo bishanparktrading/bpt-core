@@ -126,10 +126,10 @@ void DeribitOrderAdapter::handle_message(const std::string& payload, uint64_t re
         if (auto dit = err.find("data"); dit != err.end())
             data_str = json::serialize(dit->value());
         bpt::common::log::error("DeribitOrderAdapter: JSON-RPC error id={} code={} msg={} data={}",
-                                 rpc_id,
-                                 code,
-                                 errmsg,
-                                 data_str);
+                                rpc_id,
+                                code,
+                                errmsg,
+                                data_str);
         return;
     }
 
@@ -362,8 +362,7 @@ AccountSnapshotData DeribitOrderAdapter::fetch_account_snapshot(uint64_t correla
     snap.timestamp_ns = bpt::common::util::WallClock::now_ns();
 
     if (!logged_in_.load(std::memory_order_acquire)) {
-        bpt::common::log::warn(
-            "DeribitOrderAdapter: fetch_account_snapshot called before auth — returning empty");
+        bpt::common::log::warn("DeribitOrderAdapter: fetch_account_snapshot called before auth — returning empty");
         return snap;
     }
 
@@ -377,9 +376,8 @@ AccountSnapshotData DeribitOrderAdapter::fetch_account_snapshot(uint64_t correla
         const auto env = send_and_wait("private/get_account_summaries", "{}", kTimeout);
         const auto& obj = env.as_object();
         if (auto err_it = obj.find("error"); err_it != obj.end()) {
-            bpt::common::log::error(
-                "DeribitOrderAdapter: get_account_summaries error: {}",
-                json::serialize(err_it->value()));
+            bpt::common::log::error("DeribitOrderAdapter: get_account_summaries error: {}",
+                                    json::serialize(err_it->value()));
         } else if (auto res_it = obj.find("result"); res_it != obj.end() && res_it->value().is_object()) {
             const auto& res = res_it->value().as_object();
             auto sum_it = res.find("summaries");
@@ -412,8 +410,8 @@ AccountSnapshotData DeribitOrderAdapter::fetch_account_snapshot(uint64_t correla
             const auto& obj = env.as_object();
             if (auto err_it = obj.find("error"); err_it != obj.end()) {
                 bpt::common::log::error("DeribitOrderAdapter: get_positions({}) error: {}",
-                                         cb.ccy,
-                                         json::serialize(err_it->value()));
+                                        cb.ccy,
+                                        json::serialize(err_it->value()));
                 continue;
             }
             auto res_it = obj.find("result");
@@ -455,10 +453,9 @@ AccountSnapshotData DeribitOrderAdapter::fetch_account_snapshot(uint64_t correla
     snap.total_equity_e8 = largest_eq;
     snap.available_balance_e8 = largest_avail;
 
-    bpt::common::log::info(
-        "DeribitOrderAdapter: fetched account snapshot — currencies={} positions={}",
-        snap.currency_balances.size(),
-        snap.positions.size());
+    bpt::common::log::info("DeribitOrderAdapter: fetched account snapshot — currencies={} positions={}",
+                           snap.currency_balances.size(),
+                           snap.positions.size());
     return snap;
 }
 

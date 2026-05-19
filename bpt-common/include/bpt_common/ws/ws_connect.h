@@ -110,9 +110,7 @@ public:
     // async_read on shutdown — the read handler sees
     // operation_aborted and returns without re-arming.
     void lowest_layer_cancel(boost::beast::error_code& ec) {
-        visit([&ec](auto& ws) {
-            boost::beast::get_lowest_layer(ws).socket().cancel(ec);
-        });
+        visit([&ec](auto& ws) { boost::beast::get_lowest_layer(ws).socket().cancel(ec); });
     }
 };
 

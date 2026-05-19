@@ -26,9 +26,9 @@
 namespace bpt::radar::analysis {
 
 struct GexResult {
-    double gex{0.0};         ///< Σ ±gamma·OI (sign by option_side)
-    double total_oi{0.0};    ///< Σ OI for strikes that contributed
-    uint32_t strikes{0};     ///< count of strikes that contributed
+    double gex{0.0};       ///< Σ ±gamma·OI (sign by option_side)
+    double total_oi{0.0};  ///< Σ OI for strikes that contributed
+    uint32_t strikes{0};   ///< count of strikes that contributed
 };
 
 GexResult compute_gex(std::span<const SurfacePoint> points);

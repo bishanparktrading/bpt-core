@@ -25,12 +25,12 @@ namespace bpt::order_gateway {
 class OrderGatewayService : public bpt::app::IService {
 public:
     OrderGatewayService(config::Settings cfg,
-                    std::shared_ptr<messaging::api::OrderSubscriber> control_sub,
-                    std::shared_ptr<messaging::api::ExecReportPublisher> exec_pub,
-                    std::shared_ptr<messaging::api::AccountSnapshotPublisher> account_snapshot_pub,
-                    std::shared_ptr<messaging::api::HeartbeatPublisher> heartbeat_pub,
-                    std::map<std::string, adapter::ExchangeCredentials> creds,
-                    const bpt::common::util::Topology& topology);
+                        std::shared_ptr<messaging::api::OrderSubscriber> control_sub,
+                        std::shared_ptr<messaging::api::ExecReportPublisher> exec_pub,
+                        std::shared_ptr<messaging::api::AccountSnapshotPublisher> account_snapshot_pub,
+                        std::shared_ptr<messaging::api::HeartbeatPublisher> heartbeat_pub,
+                        std::map<std::string, adapter::ExchangeCredentials> creds,
+                        const bpt::common::util::Topology& topology);
     void run() override;
     void stop() override;
 

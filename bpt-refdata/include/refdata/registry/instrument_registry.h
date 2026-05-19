@@ -30,11 +30,10 @@ public:
     bool update_if_changed(const model::Instrument& instrument);
 
     [[nodiscard]] std::optional<model::Instrument> get(uint64_t inst_uid) const;
+    [[nodiscard]] std::optional<model::Instrument> get(const std::string& venue, const std::string& venue_symbol) const;
     [[nodiscard]] std::optional<model::Instrument> get(const std::string& venue,
-                                                         const std::string& venue_symbol) const;
-    [[nodiscard]] std::optional<model::Instrument> get(const std::string& venue,
-                                                         const std::string& venue_symbol,
-                                                         model::InstrumentType type) const;
+                                                       const std::string& venue_symbol,
+                                                       model::InstrumentType type) const;
 
     // Returns the number of instruments in the registry.
     [[nodiscard]] std::size_t count() const;

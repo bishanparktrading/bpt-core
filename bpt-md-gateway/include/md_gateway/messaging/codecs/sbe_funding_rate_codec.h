@@ -11,7 +11,7 @@ namespace bpt::md_gateway::messaging {
 class SbeFundingRateCodec {
 public:
     std::span<const std::byte> encode(const FundingRateUpdate&, std::span<std::byte> scratch);
-    FundingRateUpdate           decode(std::span<const std::byte>);
+    FundingRateUpdate decode(std::span<const std::byte>);
 
     static constexpr std::size_t kRecommendedScratchSize = 128;
 };

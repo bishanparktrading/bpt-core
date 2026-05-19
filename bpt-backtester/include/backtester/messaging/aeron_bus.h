@@ -29,7 +29,7 @@ namespace messaging {
 
 struct BacktesterBus {
     std::unique_ptr<api::BacktestControlPublisher> ctrl_pub;
-    std::unique_ptr<api::BacktestAckSubscriber>    ack_sub;
+    std::unique_ptr<api::BacktestAckSubscriber> ack_sub;
 };
 
 class BacktesterAeronBus {

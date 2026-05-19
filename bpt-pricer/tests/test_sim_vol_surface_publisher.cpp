@@ -12,8 +12,8 @@
 #include "pricer/messaging/publishers/sim/vol_surface_publisher.h"
 
 #include <messages/OptionSide.h>
-#include <gtest/gtest.h>
 
+#include <gtest/gtest.h>
 #include <memory>
 #include <vector>
 
@@ -91,8 +91,7 @@ TEST(SimVolSurfacePublisher, SatisfiesPortContract) {
     // upcasting to the port interface and calling through it.
     bool called = false;
     std::unique_ptr<api::VolSurfacePublisher> port =
-        std::make_unique<sim::VolSurfacePublisher>(
-            [&called](const VolSurfaceGrid&, uint64_t) { called = true; });
+        std::make_unique<sim::VolSurfacePublisher>([&called](const VolSurfaceGrid&, uint64_t) { called = true; });
 
     port->publish(make_grid(0, 0), 0);
     EXPECT_TRUE(called);

@@ -5,7 +5,6 @@
 
 #include <bpt_common/logging.h>
 #include <bpt_common/signal.h>
-
 #include <chrono>
 #include <thread>
 #include <utility>
@@ -233,9 +232,7 @@ void BridgeService::run() {
 
     // Wire bus callbacks to public event handlers.
     if (bus_.md_sub)
-        bus_.md_sub->set_handler([this](uint64_t instr, double mid, uint64_t ts_ns) {
-            on_md_tick(instr, mid, ts_ns);
-        });
+        bus_.md_sub->set_handler([this](uint64_t instr, double mid, uint64_t ts_ns) { on_md_tick(instr, mid, ts_ns); });
     if (bus_.exec_sub) {
         bus_.exec_sub->set_order_handler(
             [this](const messaging::api::ExecSubscriber::OrderEvent& ev) { on_exec_order_event(ev); });
@@ -247,11 +244,9 @@ void BridgeService::run() {
     if (bus_.portfolio_sub)
         bus_.portfolio_sub->set_handler([this](std::string_view json) { on_portfolio_json(json); });
     if (bus_.tox_sub)
-        bus_.tox_sub->set_handler(
-            [this](const bpt::analytics::messaging::ToxicityUpdate& u) { on_toxicity(u); });
+        bus_.tox_sub->set_handler([this](const bpt::analytics::messaging::ToxicityUpdate& u) { on_toxicity(u); });
     if (bus_.color_sub)
-        bus_.color_sub->set_handler(
-            [this](const bpt::radar::messaging::MarketColor& mc) { on_market_color(mc); });
+        bus_.color_sub->set_handler([this](const bpt::radar::messaging::MarketColor& mc) { on_market_color(mc); });
 
     // Install console command handler on the broadcaster (IO-thread-safe in
     // production WsServer; tests can drive it synchronously).
@@ -265,12 +260,18 @@ void BridgeService::run() {
     last_tick_bcast_ = std::chrono::steady_clock::now() - std::chrono::seconds(1);
     while (bpt::common::signal::is_running()) {
         int work = 0;
-        if (bus_.md_sub)        work += bus_.md_sub->poll(32);
-        if (bus_.exec_sub)      work += bus_.exec_sub->poll(32);
-        if (bus_.account_sub)   work += bus_.account_sub->poll(8);
-        if (bus_.portfolio_sub) work += bus_.portfolio_sub->poll(1);
-        if (bus_.tox_sub)       work += bus_.tox_sub->poll(4);
-        if (bus_.color_sub)     work += bus_.color_sub->poll(4);
+        if (bus_.md_sub)
+            work += bus_.md_sub->poll(32);
+        if (bus_.exec_sub)
+            work += bus_.exec_sub->poll(32);
+        if (bus_.account_sub)
+            work += bus_.account_sub->poll(8);
+        if (bus_.portfolio_sub)
+            work += bus_.portfolio_sub->poll(1);
+        if (bus_.tox_sub)
+            work += bus_.tox_sub->poll(4);
+        if (bus_.color_sub)
+            work += bus_.color_sub->poll(4);
 
         if (work == 0)
             std::this_thread::sleep_for(std::chrono::microseconds(500));

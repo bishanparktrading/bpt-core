@@ -32,7 +32,7 @@ public:
 
 private:
     bpt::common::aeron::Publisher publisher_;
-    SbeFundingRateCodec           codec_;
+    SbeFundingRateCodec codec_;
 };
 
 }  // namespace bpt::md_gateway::messaging::aeron

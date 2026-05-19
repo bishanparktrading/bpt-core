@@ -11,12 +11,12 @@ namespace {
 
 namespace json = boost::json;
 using bpt::order_gateway::adapter::hyperliquid::AssetMeta;
-using bpt::order_gateway::adapter::hyperliquid::HlTif;
-using bpt::order_gateway::adapter::hyperliquid::float_to_wire;
 using bpt::order_gateway::adapter::hyperliquid::build_cancel_action;
 using bpt::order_gateway::adapter::hyperliquid::build_modify_action;
 using bpt::order_gateway::adapter::hyperliquid::build_order_action;
 using bpt::order_gateway::adapter::hyperliquid::build_schedule_cancel_action;
+using bpt::order_gateway::adapter::hyperliquid::float_to_wire;
+using bpt::order_gateway::adapter::hyperliquid::HlTif;
 using bpt::order_gateway::adapter::hyperliquid::parse_spot_universe_meta;
 using bpt::order_gateway::adapter::hyperliquid::parse_universe_meta;
 

@@ -54,7 +54,7 @@ struct StrategyBus {
     std::unique_ptr<order::IOrderGatewayClient> order_gw;
     std::unique_ptr<vol::VolSurfaceClient> vol;
     std::unique_ptr<backtest::BacktestClient> backtest;
-    std::unique_ptr<api::ToxicitySubscriber> tox;                  ///< port; aeron::ToxicitySubscriber in prod
+    std::unique_ptr<api::ToxicitySubscriber> tox;                 ///< port; aeron::ToxicitySubscriber in prod
     std::unique_ptr<api::ConsoleControlSubscriber> console_ctrl;  ///< port; aeron::ConsoleControlSubscriber in prod
     std::unique_ptr<console::PortfolioSnapshotPublisher> portfolio_snap;
 };

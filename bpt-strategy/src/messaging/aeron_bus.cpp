@@ -77,8 +77,8 @@ StrategyBus StrategyAeronBus::build(std::shared_ptr<::aeron::Aeron> aeron, const
     // replay).
     if (!cfg.backtest_mode && ac.console_control.stream_id != 0) {
         bus.console_ctrl = std::make_unique<aeron::ConsoleControlSubscriber>(aeron,
-                                                                                 ac.console_control.channel,
-                                                                                 ac.console_control.stream_id);
+                                                                             ac.console_control.channel,
+                                                                             ac.console_control.stream_id);
         if (bus.console_ctrl->is_ready()) {
             bpt::common::log::info("Console control subscription ready on stream {}", ac.console_control.stream_id);
         } else {
@@ -87,9 +87,8 @@ StrategyBus StrategyAeronBus::build(std::shared_ptr<::aeron::Aeron> aeron, const
     }
 
     if (!cfg.backtest_mode) {
-        bus.portfolio_snap = std::make_unique<console::PortfolioSnapshotPublisher>(aeron,
-                                                                                     ac.portfolio.channel,
-                                                                                     ac.portfolio.stream_id);
+        bus.portfolio_snap =
+            std::make_unique<console::PortfolioSnapshotPublisher>(aeron, ac.portfolio.channel, ac.portfolio.stream_id);
     }
 
     return bus;

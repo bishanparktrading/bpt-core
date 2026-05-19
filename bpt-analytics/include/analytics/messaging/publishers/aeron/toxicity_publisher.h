@@ -23,7 +23,7 @@ public:
 
 private:
     std::unique_ptr<bpt::common::aeron::Publisher> pub_;
-    PodToxicityCodec                               codec_;
+    PodToxicityCodec codec_;
 };
 
 }  // namespace bpt::analytics::messaging::aeron

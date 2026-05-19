@@ -5,13 +5,13 @@
 #include "refdata/config/settings.h"
 #include "refdata/mapping/instrument_mapping_loader.h"
 #include "refdata/mapping/instrument_mapping_merger.h"
-#include "refdata/messaging/subscription_manager.h"
-#include "refdata/metrics/metrics.h"
 #include "refdata/messaging/publishers/api/fee_schedule_publisher.h"
-#include "refdata/messaging/subscribers/api/refdata_control_subscriber.h"
 #include "refdata/messaging/publishers/api/refdata_delta_publisher.h"
 #include "refdata/messaging/publishers/api/refdata_snapshot_publisher.h"
 #include "refdata/messaging/publishers/api/refdata_status_publisher.h"
+#include "refdata/messaging/subscribers/api/refdata_control_subscriber.h"
+#include "refdata/messaging/subscription_manager.h"
+#include "refdata/metrics/metrics.h"
 #include "refdata/registry/instrument_registry.h"
 
 #include <bpt_app/app.h>
@@ -27,12 +27,12 @@ namespace bpt::refdata {
 class RefdataService : public bpt::app::IService {
 public:
     RefdataService(config::Settings settings,
-               std::unique_ptr<messaging::api::RefdataControlSubscriber> control_sub,
-               std::unique_ptr<messaging::api::RefdataSnapshotPublisher> snapshot_pub,
-               std::shared_ptr<messaging::api::RefdataDeltaPublisher> delta_pub,
-               std::shared_ptr<messaging::api::FeeSchedulePublisher> fee_pub,
-               std::shared_ptr<messaging::api::RefdataStatusPublisher> status_pub,
-               std::map<std::string, adapter::ExchangeCredentials> creds);
+                   std::unique_ptr<messaging::api::RefdataControlSubscriber> control_sub,
+                   std::unique_ptr<messaging::api::RefdataSnapshotPublisher> snapshot_pub,
+                   std::shared_ptr<messaging::api::RefdataDeltaPublisher> delta_pub,
+                   std::shared_ptr<messaging::api::FeeSchedulePublisher> fee_pub,
+                   std::shared_ptr<messaging::api::RefdataStatusPublisher> status_pub,
+                   std::map<std::string, adapter::ExchangeCredentials> creds);
     void run() override;
     void stop() override;
 

@@ -23,7 +23,7 @@ public:
 
 private:
     bpt::common::aeron::Publisher publisher_;
-    SbeBalanceSnapshotCodec       codec_;
+    SbeBalanceSnapshotCodec codec_;
 };
 
 }  // namespace bpt::pms::messaging::aeron

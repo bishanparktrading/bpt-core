@@ -42,9 +42,7 @@ public:
     std::vector<Entry> messages;
     CommandHandler installed_handler;
 
-    void publish(MsgKind kind, std::string message) override {
-        messages.push_back({kind, std::move(message)});
-    }
+    void publish(MsgKind kind, std::string message) override { messages.push_back({kind, std::move(message)}); }
 
     void set_command_handler(CommandHandler h) override { installed_handler = std::move(h); }
 
@@ -88,8 +86,7 @@ bpt::bridge::config::Settings make_test_settings() {
     return s;
 }
 
-std::unique_ptr<BridgeService> make_service(std::shared_ptr<FakeBroadcaster> bc,
-                                            std::shared_ptr<FakeCtrlSink> ctrl) {
+std::unique_ptr<BridgeService> make_service(std::shared_ptr<FakeBroadcaster> bc, std::shared_ptr<FakeCtrlSink> ctrl) {
     return std::make_unique<BridgeService>(make_test_settings(),
                                            bpt::bridge::messaging::BridgeBus{},
                                            std::move(bc),
@@ -110,7 +107,7 @@ TEST(BridgeServiceSeamTest, ExecOrderEventBroadcastsOrderMessage) {
     ev.order_id = 42;
     ev.instrument_id = 100;
     ev.side = bpt::bridge::encode::Side::Buy;
-    ev.status = 0;  // ACKED
+    ev.status = 0;      // ACKED
     ev.order_type = 1;  // LIMIT
     ev.price = 30000.5;
     ev.qty = 1.0;
@@ -153,10 +150,7 @@ TEST(BridgeServiceSeamTest, InstrumentFilterDropsFillsForOtherInstruments) {
 
     auto settings = make_test_settings();
     settings.instrument_id = 100;  // only forward instrument 100
-    auto svc = std::make_unique<BridgeService>(std::move(settings),
-                                               bpt::bridge::messaging::BridgeBus{},
-                                               bc,
-                                               ctrl);
+    auto svc = std::make_unique<BridgeService>(std::move(settings), bpt::bridge::messaging::BridgeBus{}, bc, ctrl);
 
     ExecSubscriber::Fill f{};
     f.instrument_id = 999;  // not the filtered one

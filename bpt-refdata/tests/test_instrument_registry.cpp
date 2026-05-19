@@ -4,10 +4,10 @@
 
 #include <gtest/gtest.h>
 
-using bpt::refdata::registry::InstrumentRegistry;
 using bpt::refdata::model::Instrument;
 using bpt::refdata::model::InstrumentStatus;
 using bpt::refdata::model::InstrumentType;
+using bpt::refdata::registry::InstrumentRegistry;
 
 static Instrument make_instrument(uint64_t uid,
                                   const std::string& venue,

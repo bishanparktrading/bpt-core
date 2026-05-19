@@ -4,9 +4,7 @@
 
 namespace bpt::analytics::messaging::aeron {
 
-ToxicityPublisher::ToxicityPublisher(std::shared_ptr<::aeron::Aeron> aeron,
-                                     const std::string& channel,
-                                     int stream_id)
+ToxicityPublisher::ToxicityPublisher(std::shared_ptr<::aeron::Aeron> aeron, const std::string& channel, int stream_id)
     : pub_(std::make_unique<bpt::common::aeron::Publisher>(std::move(aeron),
                                                            channel,
                                                            stream_id,

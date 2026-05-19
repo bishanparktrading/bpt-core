@@ -84,7 +84,7 @@ private:
     /// Funding rate state per perp instrument_id. Populated by FundingRate
     /// stream; joined to MarketColor entries via perp_id_by_key_ below.
     struct FundingState {
-        double rate_8h{0.0};        ///< decimal (rate_bps from wire ÷ 1e6)
+        double rate_8h{0.0};  ///< decimal (rate_bps from wire ÷ 1e6)
         uint64_t next_funding_ts_ns{0};
     };
     std::unordered_map<uint64_t, FundingState> funding_by_instrument_;
@@ -114,7 +114,7 @@ private:
     /// flow window; pruned on insert and on publish.
     struct TradeEntry {
         uint64_t ts_ns;
-        bool buy;       ///< true = aggressor lifted offer (BUY); false = hit bid (SELL)
+        bool buy;         ///< true = aggressor lifted offer (BUY); false = hit bid (SELL)
         double notional;  ///< price × qty
     };
 

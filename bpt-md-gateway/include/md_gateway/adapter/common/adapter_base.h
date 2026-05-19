@@ -123,9 +123,7 @@ public:
     [[nodiscard]] uint64_t md_published_count() const noexcept override { return md_pub_->published(); }
     [[nodiscard]] uint64_t validation_drop_count() const noexcept override { return md_pub_->validation_drops(); }
     [[nodiscard]] uint64_t md_backpressure_drop_count() const noexcept override { return md_pub_->drop_count(); }
-    [[nodiscard]] bool validation_drop_breaker_tripped() const noexcept override {
-        return md_pub_->breaker_tripped();
-    }
+    [[nodiscard]] bool validation_drop_breaker_tripped() const noexcept override { return md_pub_->breaker_tripped(); }
 
 protected:
     /// \brief Backoff before the next reconnect attempt. Default 1 s.

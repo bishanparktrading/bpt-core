@@ -31,7 +31,7 @@ public:
 
 private:
     bpt::common::aeron::Publisher publisher_;
-    SbeInstrumentStatsCodec       codec_;
+    SbeInstrumentStatsCodec codec_;
 };
 
 }  // namespace bpt::md_gateway::messaging::aeron

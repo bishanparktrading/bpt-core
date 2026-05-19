@@ -79,7 +79,6 @@ struct MdGatewayBus {
     /// Slow-cadence (updates every few seconds) — kept off the BBO firehose so
     /// strategy consumers that don't need OI don't pay decode cost on every tick.
     std::shared_ptr<api::InstrumentStatsPublisher> stats_pub;
-
 };
 
 class MdGatewayAeronBus {

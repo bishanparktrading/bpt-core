@@ -23,7 +23,9 @@ using bpt::messages::RejectReason;
 
 namespace bpt::strategy {
 
-StrategyService::StrategyService(config::AppConfig cfg, messaging::StrategyBus bus, const bpt::common::util::Topology& topology)
+StrategyService::StrategyService(config::AppConfig cfg,
+                                 messaging::StrategyBus bus,
+                                 const bpt::common::util::Topology& topology)
     : cfg_(std::move(cfg)),
       metrics_(cfg_.base.metrics_port),
       bus_(std::move(bus)),

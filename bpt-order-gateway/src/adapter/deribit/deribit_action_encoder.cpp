@@ -1,7 +1,6 @@
 #include "order_gateway/adapter/deribit/deribit_action_encoder.h"
 
 #include <boost/json.hpp>
-
 #include <cmath>
 
 namespace bpt::order_gateway::adapter::deribit {
@@ -69,8 +68,7 @@ static bool is_option(const std::string& instrument_name) {
     if (instrument_name.size() < 2)
         return false;
     const char last = instrument_name.back();
-    return (last == 'C' || last == 'P')
-           && instrument_name[instrument_name.size() - 2] == '-';
+    return (last == 'C' || last == 'P') && instrument_name[instrument_name.size() - 2] == '-';
 }
 
 std::string build_new_order_msg(const OrderSpec& spec, uint64_t req_id) {

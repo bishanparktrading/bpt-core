@@ -18,9 +18,7 @@ namespace bpt::bridge::messaging::aeron {
 
 class ConsoleControlPublisher : public api::ConsoleControlPublisher {
 public:
-    ConsoleControlPublisher(std::shared_ptr<::aeron::Aeron> aeron,
-                              const std::string& channel,
-                              int32_t stream_id);
+    ConsoleControlPublisher(std::shared_ptr<::aeron::Aeron> aeron, const std::string& channel, int32_t stream_id);
 
     void publish_halt() override;
     void publish_resume() override;

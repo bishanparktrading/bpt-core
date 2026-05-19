@@ -11,8 +11,7 @@ namespace bpt::pricer::messaging {
 using bpt::messages::MessageHeader;
 using bpt::messages::PricerHeartbeat;
 
-std::span<const std::byte> SbePricerHeartbeatCodec::encode(const PricerHeartbeatMsg& m,
-                                                           std::span<std::byte> scratch) {
+std::span<const std::byte> SbePricerHeartbeatCodec::encode(const PricerHeartbeatMsg& m, std::span<std::byte> scratch) {
     auto* buf = reinterpret_cast<char*>(scratch.data());
     std::memset(buf, 0, scratch.size());
 

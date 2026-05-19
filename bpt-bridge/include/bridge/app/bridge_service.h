@@ -23,11 +23,10 @@
 #include "bridge/ws/i_broadcaster.h"
 
 #include <analytics/messaging/toxicity_update.h>
-#include <radar/messaging/market_color.h>
-
 #include <bpt_app/app.h>
 #include <chrono>
 #include <memory>
+#include <radar/messaging/market_color.h>
 #include <string>
 #include <string_view>
 

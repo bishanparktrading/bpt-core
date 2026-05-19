@@ -47,11 +47,11 @@ public:
     [[nodiscard]] uint64_t current_seq() const { return seq_.load(std::memory_order_relaxed); }
 
 private:
-    bpt::common::aeron::Publisher       publisher_;
-    SbeMdSubscriptionAckCodec           ack_codec_;
-    SbeMdSubscriptionHeartbeatCodec     sub_hb_codec_;
-    SbeMdServiceHeartbeatCodec          svc_hb_codec_;
-    std::atomic<uint64_t>               seq_{0};
+    bpt::common::aeron::Publisher publisher_;
+    SbeMdSubscriptionAckCodec ack_codec_;
+    SbeMdSubscriptionHeartbeatCodec sub_hb_codec_;
+    SbeMdServiceHeartbeatCodec svc_hb_codec_;
+    std::atomic<uint64_t> seq_{0};
 };
 
 }  // namespace bpt::md_gateway::messaging::aeron

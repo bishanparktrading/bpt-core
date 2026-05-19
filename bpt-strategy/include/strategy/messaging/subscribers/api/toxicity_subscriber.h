@@ -7,7 +7,6 @@
 /// `aeron/toxicity_subscriber.h`.
 
 #include <analytics/messaging/toxicity_update.h>
-
 #include <functional>
 
 namespace bpt::strategy::messaging::api {

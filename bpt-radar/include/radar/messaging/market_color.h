@@ -55,29 +55,29 @@ struct __attribute__((packed)) MarketColor {
     double options_term_spread{kNan};
 
     /// OI-derived (NaN when no InstrumentStats has joined any strike).
-    double options_gex{kNan};               ///< Σ ±gamma·OI; sign by call/put
-    double options_max_pain_strike{kNan};   ///< strike minimising in-the-money payout at front expiry
-    double options_total_oi{kNan};          ///< Σ OI across strikes contributing to GEX
+    double options_gex{kNan};              ///< Σ ±gamma·OI; sign by call/put
+    double options_max_pain_strike{kNan};  ///< strike minimising in-the-money payout at front expiry
+    double options_total_oi{kNan};         ///< Σ OI across strikes contributing to GEX
 
     // Diagnostics for the options section:
-    uint32_t options_strike_count{0};       ///< total IvPoints seen on this surface (call + put)
-    uint32_t options_expiry_count{0};       ///< distinct expiries observed
-    uint32_t options_strikes_with_oi{0};    ///< strikes that had matched OI from InstrumentStats
+    uint32_t options_strike_count{0};     ///< total IvPoints seen on this surface (call + put)
+    uint32_t options_expiry_count{0};     ///< distinct expiries observed
+    uint32_t options_strikes_with_oi{0};  ///< strikes that had matched OI from InstrumentStats
 
     // ─── Perp / futures ─────────────────────────────────────────────────
     // Populated from md-gateway's FundingRate stream joined to this
     // underlying's perp instrument via the refdata snapshot mapping.
     // Funding-related fields are NaN/0 if no perp exists for this
     // underlying or the venue hasn't yet published a funding update.
-    double perp_funding_rate_8h{kNan};      ///< 8-hour funding rate, decimal (e.g. 0.0001 = 1 bp)
-    uint64_t perp_next_funding_ts_ns{0};    ///< wall-time ns of next funding tick (0 = unknown)
+    double perp_funding_rate_8h{kNan};    ///< 8-hour funding rate, decimal (e.g. 0.0001 = 1 bp)
+    uint64_t perp_next_funding_ts_ns{0};  ///< wall-time ns of next funding tick (0 = unknown)
     /// (mark - index) / index × 1e4. Positive = perp trades premium to spot
     /// (contango / longs paying for leverage). Negative = backwardation /
     /// shorts paying. NaN when md-gateway hasn't pushed mark+index for this
     /// underlying's perp, or when the snapshot is stale (>30s).
     double perp_basis_bps{kNan};
-    double perp_mark_price{kNan};           ///< mark price from md-gateway InstrumentStats
-    double perp_index_price{kNan};          ///< index/spot price from md-gateway InstrumentStats
+    double perp_mark_price{kNan};   ///< mark price from md-gateway InstrumentStats
+    double perp_index_price{kNan};  ///< index/spot price from md-gateway InstrumentStats
 
     // ─── Flow ───────────────────────────────────────────────────────────
     // Per-perp aggressor flow over a fixed rolling window (5 min). Populated
@@ -88,7 +88,7 @@ struct __attribute__((packed)) MarketColor {
     /// (buy − sell) / (buy + sell) notional, range [−1, +1]. Positive = aggressors
     /// lifting offers more than hitting bids. NaN when notional total is 0.
     double flow_imbalance_5m{kNan};
-    uint32_t flow_trade_count_5m{0};     ///< # trades inside the window
+    uint32_t flow_trade_count_5m{0};  ///< # trades inside the window
 
     // ─── Vol regime ─────────────────────────────────────────────────────
     // Annualised realized vol of the joined perp's mid, computed over a
@@ -96,8 +96,8 @@ struct __attribute__((packed)) MarketColor {
     // options_front_atm_iv to surface the variance risk premium and a
     // human-friendly regime label, so the classifier stays out of the wire
     // schema and can evolve without forcing consumers to re-deploy.
-    double regime_realized_vol_1h{kNan};   ///< annualised, decimal (0.5 = 50%)
-    uint32_t regime_sample_count{0};       ///< # mid samples inside the window
+    double regime_realized_vol_1h{kNan};  ///< annualised, decimal (0.5 = 50%)
+    uint32_t regime_sample_count{0};      ///< # mid samples inside the window
 };
 
 }  // namespace bpt::radar::messaging

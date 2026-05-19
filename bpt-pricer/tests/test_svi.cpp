@@ -1,22 +1,20 @@
 #include "pricer/pricing/svi.h"
 
-#include <gtest/gtest.h>
-
 #include <cmath>
+#include <gtest/gtest.h>
 #include <vector>
 
-using bpt::pricer::pricing::SviFitInput;
-using bpt::pricer::pricing::SviParams;
 using bpt::pricer::pricing::svi_fit;
 using bpt::pricer::pricing::svi_iv;
 using bpt::pricer::pricing::svi_total_variance;
+using bpt::pricer::pricing::SviFitInput;
+using bpt::pricer::pricing::SviParams;
 
 namespace {
 
 // Generate observed points from a known SVI slice + small noise. Tests that
 // the fitter recovers the params within a tolerance.
-std::vector<SviFitInput> synth_observations(const SviParams& true_params,
-                                            const std::vector<double>& ks) {
+std::vector<SviFitInput> synth_observations(const SviParams& true_params, const std::vector<double>& ks) {
     std::vector<SviFitInput> out;
     out.reserve(ks.size());
     for (double k : ks)
@@ -60,16 +58,14 @@ TEST(SviFit, RecoversKnownParamsFromCleanData) {
 
     auto res = svi_fit(pts);
     ASSERT_TRUE(res.has_value());
-    EXPECT_TRUE(res->converged) << "iterations=" << res->iterations
-                                << " rms=" << res->rms_residual;
+    EXPECT_TRUE(res->converged) << "iterations=" << res->iterations << " rms=" << res->rms_residual;
 
     // Recovered params should fit the data well — even if the params
     // themselves differ slightly (SVI has redundancy in some directions),
     // w(k) at the observation points should match closely.
     for (const auto& pt : pts) {
         const double w_fit = svi_total_variance(pt.k, res->params);
-        EXPECT_NEAR(w_fit, pt.total_var, 1e-4)
-            << "k=" << pt.k << " obs=" << pt.total_var << " fit=" << w_fit;
+        EXPECT_NEAR(w_fit, pt.total_var, 1e-4) << "k=" << pt.k << " obs=" << pt.total_var << " fit=" << w_fit;
     }
     EXPECT_LT(res->rms_residual, 1e-4);
 }

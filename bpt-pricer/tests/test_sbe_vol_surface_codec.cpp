@@ -10,10 +10,10 @@
 #include "pricer/messaging/codecs/sbe_vol_surface_codec.h"
 
 #include <messages/OptionSide.h>
-#include <gtest/gtest.h>
 
 #include <array>
 #include <cstddef>
+#include <gtest/gtest.h>
 #include <stdexcept>
 
 namespace {

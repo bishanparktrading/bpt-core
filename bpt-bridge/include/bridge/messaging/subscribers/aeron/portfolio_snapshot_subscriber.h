@@ -20,9 +20,7 @@ namespace bpt::bridge::messaging::aeron {
 
 class PortfolioSnapshotSubscriber final : public api::PortfolioSnapshotSubscriber {
 public:
-    PortfolioSnapshotSubscriber(std::shared_ptr<::aeron::Aeron> aeron,
-                                const std::string& channel,
-                                int32_t stream_id);
+    PortfolioSnapshotSubscriber(std::shared_ptr<::aeron::Aeron> aeron, const std::string& channel, int32_t stream_id);
 
     int poll(int fragment_limit = 1) override;
 

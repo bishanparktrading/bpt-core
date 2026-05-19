@@ -3,9 +3,8 @@
 /// @file
 /// Port: bpt-radar MarketColor subscriber.
 
-#include <radar/messaging/market_color.h>
-
 #include <functional>
+#include <radar/messaging/market_color.h>
 
 namespace bpt::bridge::messaging::api {
 

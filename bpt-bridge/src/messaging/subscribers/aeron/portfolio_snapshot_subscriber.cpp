@@ -13,17 +13,16 @@ PortfolioSnapshotSubscriber::PortfolioSnapshotSubscriber(std::shared_ptr<::aeron
 
     // FragmentAssembler reassembles multi-fragment Aeron messages before
     // invoking our user-facing handler with the complete JSON payload.
-    assembler_ = std::make_unique<::aeron::FragmentAssembler>(
-        [this](::aeron::AtomicBuffer& buffer,
-               ::aeron::util::index_t offset,
-               ::aeron::util::index_t length,
-               ::aeron::Header& /*hdr*/) {
-            if (!handler_)
-                return;
-            std::string_view json(reinterpret_cast<const char*>(buffer.buffer() + offset),
-                                  static_cast<std::size_t>(length));
-            handler_(json);
-        });
+    assembler_ = std::make_unique<::aeron::FragmentAssembler>([this](::aeron::AtomicBuffer& buffer,
+                                                                     ::aeron::util::index_t offset,
+                                                                     ::aeron::util::index_t length,
+                                                                     ::aeron::Header& /*hdr*/) {
+        if (!handler_)
+            return;
+        std::string_view json(reinterpret_cast<const char*>(buffer.buffer() + offset),
+                              static_cast<std::size_t>(length));
+        handler_(json);
+    });
 }
 
 int PortfolioSnapshotSubscriber::poll(int fragment_limit) {

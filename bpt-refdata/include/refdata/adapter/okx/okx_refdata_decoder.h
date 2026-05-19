@@ -23,8 +23,8 @@ public:
 
     /// \brief Decode `GET /api/v5/public/instruments?instType=SPOT|SWAP|FUTURES` body.
     std::vector<model::Instrument> parse_instruments(const std::string& body,
-                                                       const std::string& inst_type,
-                                                       uint64_t collected_ts) const;
+                                                     const std::string& inst_type,
+                                                     uint64_t collected_ts) const;
 
     /// \brief Decode `GET /api/v5/account/trade-fee?instType=SPOT|SWAP` body.
     std::vector<model::FeeScheduleState> parse_trade_fee(const std::string& body, uint64_t collected_ts) const;

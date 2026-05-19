@@ -174,7 +174,8 @@ void BacktesterService::on_fill(const matching::FillReport& fill) {
             hyperliquid_order_server_->push_fill(fill);
             break;
         default:
-            bpt::common::log::warn("[BacktesterService] No order server for exchange '{}' — fill dropped", fill.exchange);
+            bpt::common::log::warn("[BacktesterService] No order server for exchange '{}' — fill dropped",
+                                   fill.exchange);
             break;
     }
 }

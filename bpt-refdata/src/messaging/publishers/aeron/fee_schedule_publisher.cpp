@@ -2,10 +2,11 @@
 
 #include "refdata/messaging/sbe_utils.h"
 
+#include <messages/ExchangeId.h>
+
 #include <bpt_common/aeron/aeron_utils.h>
 #include <bpt_common/logging.h>
 #include <cstddef>
-#include <messages/ExchangeId.h>
 
 namespace bpt::refdata::messaging::aeron {
 

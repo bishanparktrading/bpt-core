@@ -49,8 +49,8 @@ double svi_total_variance(double k, const SviParams& p) noexcept;
 double svi_iv(double k, double T, const SviParams& p) noexcept;
 
 struct SviFitInput {
-    double k;             ///< log-moneyness ln(K/F)
-    double total_var;     ///< observed total variance σ²·T
+    double k;          ///< log-moneyness ln(K/F)
+    double total_var;  ///< observed total variance σ²·T
 };
 
 struct SviFitResult {

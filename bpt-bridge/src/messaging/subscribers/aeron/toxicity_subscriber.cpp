@@ -2,7 +2,6 @@
 
 #include <bpt_common/aeron/aeron_utils.h>
 #include <bpt_common/logging.h>
-
 #include <cstring>
 
 namespace bpt::bridge::messaging::aeron {

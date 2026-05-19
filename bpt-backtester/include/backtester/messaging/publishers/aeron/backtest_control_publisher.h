@@ -18,7 +18,7 @@ public:
 
 private:
     std::shared_ptr<::aeron::Publication> pub_;
-    SbeBacktestControlCodec               codec_;
+    SbeBacktestControlCodec codec_;
 };
 
 }  // namespace bpt::backtester::messaging::aeron
