@@ -27,6 +27,7 @@
 #include "backtester/data/market_event.h"
 #include "backtester/data/orderbook_record.h"
 #include "backtester/data/trade_record.h"
+#include "backtester/harness/harness_handler.h"
 #include "backtester/matching/matching_engine.h"
 #include "md_gateway/md/md_encoder.h"
 #include "md_gateway/md/md_types.h"
@@ -48,7 +49,7 @@ class HarnessMdPublisher {
 public:
     /// \brief Strategy-only ctor (no matching-engine fan-out — useful for
     ///        unit tests that want to assert the publisher → strategy hop).
-    explicit HarnessMdPublisher(bpt::strategy::md::InProcessMdClient& client) : client_(client) {}
+    explicit HarnessMdPublisher(bpt::strategy::md::InProcessMdClient<HarnessHandler>& client) : client_(client) {}
 
     /// \brief Production ctor for the harness — every published OrderBook/Trade
     ///        is also dispatched to the matching engine so resting LIMITs can
@@ -56,7 +57,7 @@ public:
     ///
     /// The instrument cache resolves instrument_id back to venue (exchange,
     /// symbol) — MatchingEngine's API keys orders by strings, not by canonical id.
-    HarnessMdPublisher(bpt::strategy::md::InProcessMdClient& client,
+    HarnessMdPublisher(bpt::strategy::md::InProcessMdClient<HarnessHandler>& client,
                        matching::MatchingEngine* matching,
                        const bpt::strategy::refdata::InstrumentCache* cache)
         : client_(client),
@@ -193,7 +194,7 @@ public:
     [[nodiscard]] uint64_t orderbook_count() const { return orderbook_count_; }
 
 private:
-    bpt::strategy::md::InProcessMdClient& client_;
+    bpt::strategy::md::InProcessMdClient<HarnessHandler>& client_;
     matching::MatchingEngine* matching_{nullptr};
     const bpt::strategy::refdata::InstrumentCache* cache_{nullptr};
     uint64_t seq_{0};

@@ -3,7 +3,7 @@
 Market-data recorder. Subscribes to the same exchange WebSocket feeds as
 bpt-md-gateway, but instead of normalising to SBE + publishing on Aeron,
 writes the raw frames to disk for later replay (powering the
-bpt-backtester-mono harness).
+bpt-backtester harness).
 
 The "tape" in the name is the trading-floor term for a chronological record
 of market data — what the New York Stock Exchange ticker tape was.
@@ -108,7 +108,7 @@ per (venue, endpoint, day).
 
 - bpt-md-gateway: live → strategy. SBE on Aeron.
 - bpt-tape: live → disk. Raw frames in .wslog.
-- bpt-backtester-mono: disk → strategy. .wslog → same decoders → in-process pub.
+- bpt-backtester: disk → strategy. .wslog → same decoders → in-process pub.
 
 Tape is the bridge between live and backtest. See
 [`project_md_recorder`](../site/docs/architecture.md) and bpt-backtester's

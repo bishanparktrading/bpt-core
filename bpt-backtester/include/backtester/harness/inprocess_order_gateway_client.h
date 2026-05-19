@@ -39,6 +39,7 @@
 #include <messages/TimeInForce.h>
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <unordered_map>
 
@@ -77,6 +78,19 @@ public:
     int poll(int /*fragment_limit*/ = 10) override { return 0; }
 
     [[nodiscard]] uint64_t last_heartbeat_ns() const override { return last_heartbeat_ns_; }
+
+    /// \name Inbound event callbacks
+    /// The base `IOrderGatewayClient` dropped its `std::function` callback
+    /// fields in the LMAX CRTP refactor (live path uses templated dispatch
+    /// into `StrategyService` now). The backtester harness is slow-path
+    /// and benefits from the lambda flexibility, so the concrete
+    /// `InProcessOrderGatewayClient` keeps its own callback fields here.
+    /// Wired by `StrategyHarness` to forward into the strategy.
+    /// @{
+    std::function<void(const bpt::messages::ExecutionReport&)> on_exec_report;
+    std::function<void(const bpt::messages::OrderGatewayHeartbeat&)> on_heartbeat;
+    std::function<void(bpt::messages::AccountSnapshot&)> on_account_snapshot;
+    /// @}
 
     /// \brief Harness-side. Called when the simulated time advances; updates
     ///        the timestamps the strategy's liveness watchdog reads.

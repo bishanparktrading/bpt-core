@@ -33,7 +33,8 @@
 #include "backtester/results/results_collector.h"
 #include "md_gateway/adapter/common/subscription_map.h"
 #include "md_gateway/adapter/hyperliquid/hyperliquid_md_decoder.h"
-#include "md_gateway/messaging/publishers/i_funding_rate_publisher.h"
+#include "md_gateway/messaging/publishers/api/funding_rate_publisher.h"
+#include "md_gateway/messaging/publishers/api/instrument_stats_publisher.h"
 #include "refdata/mapping/instrument_mapping_loader.h"
 #include "strategy/config/config.h"
 #include "strategy/md/inprocess_md_client.h"
@@ -108,18 +109,6 @@ private:
 
     Options opts_;
 
-    // Thin Handler the templated InProcessMdClient<HarnessHandler>
-    // dispatches into. Just forwards to strategy_; the
-    // on_md_service_heartbeat no-op satisfies the Handler shape
-    // (heartbeats aren't meaningful in deterministic backtest replay).
-    struct HarnessHandler {
-        bpt::strategy::strategy::IStrategy* strategy{nullptr};
-        void on_bbo(const bpt::messages::MdMarketData& t) { strategy->on_bbo(t); }
-        void on_trade(const bpt::messages::MdTrade& t) { strategy->on_trade(t); }
-        void on_order_book(const bpt::messages::MdOrderBook& b) { strategy->on_order_book(b); }
-        void on_md_service_heartbeat() {}
-    };
-
     // Harness-owned components — order matters: strategy is constructed
     // last (depends on clients + order manager), destroyed first.
     matching::MatchingEngine matching_;
@@ -137,11 +126,14 @@ private:
     std::unique_ptr<HarnessMdPublisher> hl_publisher_;
     std::unique_ptr<bpt::md_gateway::adapter::HyperliquidMdDecoder<HarnessMdPublisher>> hl_decoder_;
 
-    // Funding-rate callback the decoder requires; AS strategy doesn't
-    // need it (HL funding is on stream 1005 in production but the
-    // strategy reads from refdata's FundingRateCache, not directly).
+    // Funding-rate + instrument-stats callbacks the decoder requires;
+    // AS strategy doesn't need either (HL funding is on stream 1005 in
+    // production but the strategy reads from refdata's FundingRateCache,
+    // not directly; stats aren't consumed by AS at all).
     bpt::md_gateway::messaging::FundingRateCallback noop_funding_cb_{
         [](const bpt::md_gateway::messaging::FundingRateUpdate&) {}};
+    bpt::md_gateway::messaging::InstrumentStatsCallback noop_stats_cb_{
+        [](const bpt::md_gateway::messaging::InstrumentStatsUpdate&) {}};
 
     // Parsed strategy config — owns the TOML tables the strategy
     // params reference.

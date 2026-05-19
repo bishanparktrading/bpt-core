@@ -72,7 +72,7 @@ Every hop inside the trading host is shared-memory (Aeron IPC). Cross-host hops 
 | `bpt-pricer` | C++23 | Black-Scholes implied volatility surface computation |
 | `bpt-pms` | C++23 | Multi-venue balance + position aggregator |
 | `bpt-tape` | C++23 | Market-data recorder (Parquet → S3) for backtest replay |
-| `bpt-backtester` | C++23 | Exchange simulator — replays orderbook tape against the strategy + order-gateway path |
+| `bpt-backtester` | C++23 | Single-process deterministic backtest harness — strategy + matching engine + tape replay in one thread (no Aeron) |
 | `bpt-bridge` | C++23 | Aeron → WebSocket forwarder for the live console |
 | `bpt-console/frontend` | React + TypeScript | Real-time trading console with per-strategy panel + chart registries |
 | `messages` | SBE | Zero-copy / zero-allocation wire schemas (v9+) |

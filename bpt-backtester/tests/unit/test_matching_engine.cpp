@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+using bpt::backtester::data::kOrderBookDepth;
 using bpt::backtester::data::MarketEvent;
 using bpt::backtester::data::OrderBookRecord;
 using bpt::backtester::data::TradeRecord;

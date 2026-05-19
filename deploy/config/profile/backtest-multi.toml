@@ -1,5 +1,0 @@
-# Deployment profile — BACKTEST against bpt-backtester's local WS
-# servers, multi-venue replay (used by md-gateway/order-gateway).
-# See backtest-hl.toml for why exchange_config is omitted.
-environment = "dev"
-exchanges   = ["BINANCE", "OKX", "HYPERLIQUID"]

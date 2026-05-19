@@ -16,7 +16,12 @@
 
 #include "strategy/refdata/i_refdata_client.h"
 
+#include <messages/DeltaUpdateType.h>
+#include <messages/ExchangeId.h>
+#include <messages/RefDataErrorType.h>
+
 #include <cstdint>
+#include <functional>
 #include <utility>
 #include <vector>
 
@@ -75,6 +80,21 @@ public:
     /// Harness pushes a heartbeat at the simulated timestamp so
     /// strategy's stale-gate logic uses replay time, not wallclock.
     void push_heartbeat(uint64_t ts_ns) { last_heartbeat_ns_ = ts_ns; }
+
+    /// \name Inbound event callbacks
+    /// IRefdataClient dropped its std::function callback fields in the
+    /// LMAX CRTP refactor (live path uses templated dispatch into
+    /// StrategyService). Backtest harness is slow-path and benefits
+    /// from the lambda flexibility, so these stay here on the concrete.
+    /// @{
+    std::function<void(const InstrumentCache&)> on_snapshot_complete;
+    std::function<void(const Instrument&, bpt::messages::DeltaUpdateType::Value)> on_delta;
+    std::function<void()> on_gap_detected;
+    std::function<
+        void(uint8_t exchanges_loaded, uint16_t instrument_count, bool fee_schedules_loaded, bool funding_rates_loaded)>
+        on_ready;
+    std::function<void(bpt::messages::RefDataErrorType::Value, bpt::messages::ExchangeId::Value, uint64_t)> on_error;
+    /// @}
 
 private:
     uint64_t last_correlation_id_{0};

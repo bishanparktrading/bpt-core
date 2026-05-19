@@ -3,7 +3,6 @@
 /// \file
 /// \brief ResultsCollector — aggregates fills and writes summary output files.
 
-#include "backtester/config/settings.h"
 #include "backtester/data/market_event.h"
 #include "backtester/matching/open_order.h"
 
@@ -15,6 +14,15 @@
 #include <vector>
 
 namespace bpt::backtester::results {
+
+/// Per-venue maker/taker fee rates in basis points of notional.
+/// Populated by the harness from instrument_mapping / config; fed into
+/// ResultsCollector at construction so per-fill fee attribution is
+/// venue-accurate in summary.json.
+struct FeeRates {
+    double maker_bps{0.0};
+    double taker_bps{0.0};
+};
 
 /// Post-fill markout horizons. Markout = (mid_at_target - fill_price) /
 /// fill_price * 1e4, sign-flipped on SELL so a positive value always
@@ -78,7 +86,7 @@ public:
     ResultsCollector(double starting_capital,
                      std::string output_dir,
                      RunMetadata metadata = {},
-                     std::unordered_map<std::string, config::ResultsConfig::FeeRates> fees_by_venue = {});
+                     std::unordered_map<std::string, FeeRates> fees_by_venue = {});
 
     /// \brief Called on every fill from MatchingEngine.
     void on_fill(const matching::FillReport& fill);
@@ -177,7 +185,7 @@ private:
     /// "no fees charged" (legitimate for fees-disabled tests). Missing
     /// venue at fill time logs a warning once per (venue, role) pair and
     /// charges 0 — a misconfig should be loud, not silently miscompute.
-    std::unordered_map<std::string, config::ResultsConfig::FeeRates> fees_by_venue_;
+    std::unordered_map<std::string, FeeRates> fees_by_venue_;
     double total_fees_paid_{0.0};
     /// Cache of (exchange, role) pairs we've already warned about so
     /// logs aren't spammed once per fill.

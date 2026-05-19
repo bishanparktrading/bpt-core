@@ -49,7 +49,7 @@ std::string ResultsCollector::compose_run_id(const RunMetadata& m,
 ResultsCollector::ResultsCollector(double starting_capital,
                                    std::string output_dir,
                                    RunMetadata metadata,
-                                   std::unordered_map<std::string, config::ResultsConfig::FeeRates> fees_by_venue)
+                                   std::unordered_map<std::string, FeeRates> fees_by_venue)
     : starting_capital_(starting_capital),
       output_dir_(std::move(output_dir)),
       metadata_(std::move(metadata)),

@@ -1,5 +1,4 @@
 // Unit tests for bpt::backtester::results::ResultsCollector
-#include "backtester/config/settings.h"
 #include "backtester/data/market_event.h"
 #include "backtester/data/orderbook_record.h"
 #include "backtester/matching/open_order.h"
@@ -11,7 +10,7 @@
 #include <string>
 
 namespace fs = std::filesystem;
-using bpt::backtester::config::ResultsConfig;
+using bpt::backtester::data::kOrderBookDepth;
 using bpt::backtester::data::MarketEvent;
 using bpt::backtester::data::OrderBookRecord;
 using bpt::backtester::matching::FillReport;
@@ -181,7 +180,7 @@ TEST(ResultsCollectorTest, MakerTakerFeesChargedSeparately) {
     //   total fees: 0.075
     //   gross PnL: 10
     //   final equity: 1000 + 10 - 0.075 = 1009.925
-    std::unordered_map<std::string, ResultsConfig::FeeRates> fees{
+    std::unordered_map<std::string, bpt::backtester::results::FeeRates> fees{
         {"BINANCE", {.maker_bps = 2.0, .taker_bps = 5.0}},
     };
     ResultsCollector rc(1000.0, "/tmp/jorm_rc_mt_test", {}, fees);
@@ -200,7 +199,7 @@ TEST(ResultsCollectorTest, MakerTakerFeesChargedSeparately) {
 TEST(ResultsCollectorTest, MakerRebateProducesNegativeFee) {
     // HL: maker = -1.5 bps (rebate), taker = 4.5 bps.
     // Single MAKER fill: 100 × -1.5bps = -0.015 (rebate, ADDS to equity)
-    std::unordered_map<std::string, ResultsConfig::FeeRates> fees{
+    std::unordered_map<std::string, bpt::backtester::results::FeeRates> fees{
         {"BINANCE", {.maker_bps = -1.5, .taker_bps = 4.5}},
     };
     ResultsCollector rc(1000.0, "/tmp/jorm_rc_rebate_test", {}, fees);
@@ -229,7 +228,7 @@ TEST(ResultsCollectorTest, MissingVenueChargesZeroAndWarns) {
     // Fees configured for BINANCE but a fill arrives for OKX → 0 fee
     // applied (and a one-shot warning, not asserted here). Run still
     // produces sensible equity.
-    std::unordered_map<std::string, ResultsConfig::FeeRates> fees{
+    std::unordered_map<std::string, bpt::backtester::results::FeeRates> fees{
         {"BINANCE", {.maker_bps = 2.0, .taker_bps = 5.0}},
     };
     ResultsCollector rc(1000.0, "/tmp/jorm_rc_missing_test", {}, fees);

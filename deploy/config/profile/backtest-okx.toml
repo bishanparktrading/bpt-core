@@ -1,4 +1,0 @@
-# Deployment profile — BACKTEST against OKX mainnet refdata.
-# See backtest-hl.toml for why exchange_config is omitted.
-environment = "dev"
-exchanges   = ["OKX"]

@@ -2,16 +2,12 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
-# NOTE: `data/data_loader.cpp` + `clock/clock_master.cpp` + `exchange/*` +
-# `messaging/*` + `app/backtester_service.cpp` + `main.cpp` are NOT included —
-# they pull in Arrow/Parquet (no BCR module, rules_foreign_cc CMake build of
-# Arrow is multi-GB and slow) or the Aeron-coupled messaging layer. The three
-# testable pieces (config, matching, results_collector) don't touch any of
-# that, so this narrower lib covers the unit tests that don't need Parquet.
+# Pure-logic pieces of the deterministic backtest harness: config loader,
+# matching engine, results collector. No Aeron, no transport — testable
+# in isolation.
 cc_library(
     name = "backtester_core",
     srcs = [
-        "src/config/loader.cpp",
         "src/matching/matching_engine.cpp",
         "src/matching/matching_engine_book.cpp",
         "src/matching/matching_engine_fills.cpp",
@@ -26,14 +22,12 @@ cc_library(
         "//bpt-common",
         "@boost.json",
         "@fmt",
-        "@tomlplusplus//:tomlplusplus",
     ],
 )
 
 cc_test(
     name = "backtester_unit_tests",
     srcs = [
-        "tests/unit/test_config.cpp",
         "tests/unit/test_matching_engine.cpp",
         "tests/unit/test_results_collector.cpp",
     ],
@@ -43,15 +37,9 @@ cc_test(
     ],
 )
 
-# Deterministic single-process backtest harness. Wires the strategy
-# library directly to the matching engine via the InProcess clients —
-# no Aeron, no WS server, no IPC. Replaces the multi-process backtest
-# stack as a *measurement device* for parameter sweeps; multi-process
-# stack remains as the integration smoke for the live wire.
-#
-# Reads .wslog files directly (skipping the Arrow/Parquet path that
-# keeps the rest of bpt-backtester on CMake) — same recorder format
-# bpt-tape produces, parsed via the existing mdgw venue decoders.
+# Strategy harness — wires the strategy library directly to the matching
+# engine via the InProcess clients. Reads .wslog tape produced by
+# bpt-tape; the existing md-gateway venue decoders parse frames inline.
 cc_library(
     name = "harness_lib",
     srcs = [
@@ -72,8 +60,8 @@ cc_library(
 )
 
 cc_binary(
-    name = "bpt-backtester-mono",
-    srcs = ["src/main_mono.cpp"],
+    name = "bpt-backtester",
+    srcs = ["src/main.cpp"],
     deps = [
         ":harness_lib",
         "@cli11",

@@ -1,85 +1,68 @@
-// Backtester — replay-driven backtest runner.
+/// bpt-backtester — single-process deterministic backtest entry.
+///
+/// Strategy code is linked directly to the matching engine via the
+/// InProcess client classes; every event flows through a single thread —
+/// no Aeron, no IPC scheduler jitter. Same strategy code paths as live
+/// (just a different transport at the bus boundary), so behaviour
+/// transfers verbatim.
 
-#include "backtester/app/backtester_service.h"
-#include "backtester/config/settings.h"
-#include "backtester/messaging/aeron_bus.h"
+#include "backtester/harness/strategy_harness.h"
 
 #include <CLI/CLI.hpp>
-#include <bpt_app/app.h>
-#include <bpt_app/cli.h>
-#include <bpt_common/aeron/chaos_config.h>
-#include <bpt_common/env.h>
 #include <bpt_common/logging.h>
-#include <memory>
-#include <optional>
+#include <iostream>
 #include <string>
+#include <vector>
 
 int main(int argc, char* argv[]) {
-    std::optional<double> starting_capital_override;
+    CLI::App cli{"bpt-backtester — deterministic single-process backtest"};
+
+    std::string strategy_config;
+    std::string instrument_mapping;
+    std::vector<std::string> wslog_paths;
+    std::string output_dir = "results";
+    double starting_capital = 1000.0;
     std::string strategy_name;
     std::string params_hash;
     std::string git_sha;
-    std::string params_file;
 
-    auto args = bpt::app::parse_cli(argc, argv, "bpt-backtester", "replay-driven backtest runner", [&](CLI::App& cli) {
-        cli.add_option("--starting-capital", starting_capital_override, "Override [results].starting_capital");
-        cli.add_option("--strategy-name",
-                       strategy_name,
-                       "Strategy identity (e.g. AvellanedaStoikov) — recorded in summary.json + run_id");
-        cli.add_option("--params-hash",
-                       params_hash,
-                       "sha256 of the strategy config file (orchestrator computes); 8+ chars used in run_id");
-        cli.add_option("--git-sha", git_sha, "Repo HEAD SHA at run time; first 7 chars used in run_id");
-        cli.add_option("--params-file",
-                       params_file,
-                       "Resolved strategy params toml — copied into the run dir as params.toml")
-            ->check(CLI::ExistingFile);
-    });
+    cli.add_option("--strategy-config", strategy_config, "Path to strategy TOML")->required()->check(CLI::ExistingFile);
+    cli.add_option("--instrument-mapping", instrument_mapping, "Path to instrument_mapping.<venue>.json")
+        ->required()
+        ->check(CLI::ExistingFile);
+    cli.add_option("--wslog", wslog_paths, "One or more .wslog files to replay (in timestamp order)")
+        ->required()
+        ->check(CLI::ExistingFile);
+    cli.add_option("--output-dir", output_dir, "Where to write results")->capture_default_str();
+    cli.add_option("--starting-capital", starting_capital, "Starting capital ($) — feeds ResultsCollector")
+        ->capture_default_str();
+    cli.add_option("--strategy-name",
+                   strategy_name,
+                   "Strategy identity (e.g. AvellanedaStoikov) — recorded in summary.json");
+    cli.add_option("--params-hash", params_hash, "sha256 of the strategy config; first 8 chars used in run_id");
+    cli.add_option("--git-sha", git_sha, "Repo HEAD SHA at run time; first 7 chars used in run_id");
 
-    bpt::backtester::config::Settings settings;
-    try {
-        settings = bpt::backtester::config::load(args.config_path);
-    } catch (const std::exception& e) {
-        bpt::common::logging::init("bpt-backtester");
-        bpt::common::log::error("Failed to load config: {}", e.what());
-        return 1;
-    }
+    CLI11_PARSE(cli, argc, argv);
 
-    if (starting_capital_override) {
-        settings.results.starting_capital = *starting_capital_override;
-    }
-    if (!strategy_name.empty())
-        settings.results.strategy_name = std::move(strategy_name);
-    if (!params_hash.empty())
-        settings.results.params_hash = std::move(params_hash);
-    if (!git_sha.empty())
-        settings.results.git_sha = std::move(git_sha);
-    if (!params_file.empty())
-        settings.results.params_file = std::move(params_file);
+    bpt::common::logging::init("bpt-backtester");
 
-    // Optional fault injection (dev/qa only). Must run before bpt::app::run
-    // builds the AeronBus — Subscribers consult the registry at ctor time.
-    try {
-        bpt::common::aeron::install_chaos_from_toml(args.config_path,
-                                                    bpt::common::to_string(settings.base.environment),
-                                                    "bpt-backtester");
-    } catch (const std::exception& e) {
-        bpt::common::logging::init("bpt-backtester");
-        bpt::common::log::error("[chaos] config rejected: {}", e.what());
-        return 1;
-    }
+    bpt::backtester::harness::StrategyHarness::Options opts{
+        .strategy_config_path = strategy_config,
+        .instrument_mapping_path = instrument_mapping,
+        .wslog_paths = wslog_paths,
+        .starting_capital = starting_capital,
+        .output_dir = output_dir,
+        .strategy_name = strategy_name,
+        .params_hash = params_hash,
+        .git_sha = git_sha,
+    };
 
     try {
-        return bpt::app::run("bpt-backtester",
-                             std::move(settings),
-                             [](auto& cfg, auto& ctx) -> std::unique_ptr<bpt::app::IService> {
-                                 bpt::common::log::info("starting_capital=${:.2f}", cfg.results.starting_capital);
-                                 auto bus = bpt::backtester::messaging::BacktesterAeronBus::build(ctx.aeron, cfg);
-                                 return std::make_unique<bpt::backtester::BacktesterService>(std::move(cfg),
-                                                                                             std::move(bus));
-                             });
+        bpt::backtester::harness::StrategyHarness harness(std::move(opts));
+        harness.run();
     } catch (const std::exception& e) {
-        bpt::common::log::error("Fatal: {}", e.what());
+        std::cerr << "fatal: " << e.what() << "\n";
         return 1;
     }
+    return 0;
 }

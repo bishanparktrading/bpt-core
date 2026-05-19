@@ -97,7 +97,7 @@ messaging/publishers/sim/vol_surface_publisher.h    →  sim::VolSurfacePublishe
 ```
 
 `sim::VolSurfacePublisher` dispatches `std::function<void(VolSurfaceGrid&, uint64_t)>`
-directly — no SBE encode, no Aeron offer. Used by `bpt-backtester-mono` when
+directly — no SBE encode, no Aeron offer. Used by `bpt-backtester` when
 running pricer in-process with the strategy.
 
 ## Concepts used

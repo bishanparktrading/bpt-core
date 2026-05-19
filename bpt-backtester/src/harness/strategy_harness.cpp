@@ -171,7 +171,7 @@ uint64_t StrategyHarness::replay() {
                 // "trades" / "activeAssetCtx"), invokes hl_publisher_
                 // for each parsed message — which fans out to both
                 // matching engine and strategy synchronously.
-                hl_decoder_->decode(payload, rec->ts_ns, *hl_publisher_, noop_funding_cb_);
+                hl_decoder_->decode(payload, rec->ts_ns, *hl_publisher_, noop_funding_cb_, noop_stats_cb_);
             }
             // SESSION_*, CHECKPOINT, WS_DISCONNECT/RECONNECT records:
             // don't materially affect strategy output today (no
