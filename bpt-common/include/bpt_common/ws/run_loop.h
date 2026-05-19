@@ -1,15 +1,18 @@
 #pragma once
 
-// yggdrasil/ws/run_loop.h — WebSocket read/send/ping run-loop base.
+// bpt_common/ws/run_loop.h — WebSocket read/send/ping run-loop base.
 //
 // Handles the boilerplate that every long-lived authenticated WS client
 // needs:
 //   - Read loop with configurable per-read timeout so a silent server
 //     disconnect unblocks via `beast::error::timeout` instead of hanging
 //     forever.
-//   - Thread-safe send() callable from any thread (ping thread, order-
-//     entry thread, etc.).
-//   - Optional ping heartbeat thread with configurable cadence + payload.
+//   - Thread-safe send() callable from any thread. Internally, send()
+//     posts the write onto the IO thread's io_context so the actual
+//     ws_->write() always executes on the single IO thread — the WS
+//     stream is a single-writer resource. No mutex needed.
+//   - Optional ping heartbeat driven by an asio steady_timer on the
+//     IO thread (no separate ping std::thread).
 //   - Clean shutdown on stop_flag and on exceptions thrown from any hook.
 //
 // What subclasses provide:
@@ -48,17 +51,16 @@
 
 #include <atomic>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/post.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 #include <chrono>
 #include <exception>
 #include <functional>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <thread>
 
 namespace bpt::common::ws {
 
@@ -104,10 +106,17 @@ public:
              std::chrono::milliseconds read_timeout = std::chrono::seconds(30),
              std::chrono::milliseconds liveness_timeout = std::chrono::milliseconds(0));
 
-    // Thread-safe write. Returns false if the stream is not currently
-    // connected (before run() starts, after run() returns, or during a
-    // failed state). Safe to call from a dedicated ping thread or from
-    // the adapter's command-handling thread.
+    // Async write. Posts the write onto the IO thread's io_context, so
+    // the actual ws_->write happens on the single IO thread (single-
+    // writer principle). Returns true if the work was queued; false if
+    // run() isn't currently active. Callers do not get synchronous
+    // confirmation of the bytes being on the wire — for the runtime-
+    // subscribe / ping use cases this is fine.
+    //
+    // Safe to call from any thread. The posted handler captures msg
+    // by value (one heap allocation per send — only happens at sub
+    // events, off the hot path) and runs on whichever thread is driving
+    // ioc_.run_one() — that's the IO thread.
     bool send(const std::string& msg);
 
 protected:
@@ -117,12 +126,21 @@ protected:
     virtual std::optional<PingConfig> ping_config() const { return std::nullopt; }
 
 private:
-    void ping_thread_fn(std::atomic<bool>& stop_flag, PingConfig cfg);
-
-    std::mutex send_mu_;
-    // Valid only between the `text(true)` call in run() and the close
-    // at end-of-run; guarded by send_mu_. A null pointer means send()
-    // short-circuits, which is the correct behavior during reconnect.
+    // `running_` is the synchronization between send() callers (any thread)
+    // and run() (IO thread). Set true at the bottom of run() entry, before
+    // exiting run() it's flipped false → posted lambdas re-check this
+    // and short-circuit if run() has exited.
+    //
+    // `ws_` and `ioc_` are accessed by:
+    //   - run() entry/exit (IO thread): writes
+    //   - posted send() lambdas (IO thread): reads
+    //   - send() callers (any thread): reads ioc_ pointer to do the post
+    //
+    // The send() caller's read of ioc_ is unsynchronized intentionally —
+    // it's guarded by the running_.load(acquire). If running_ is true,
+    // ioc_ was published with release ordering and is safe to read.
+    std::atomic<bool> running_{false};
+    boost::asio::io_context* ioc_ = nullptr;
     AnyWsStream* ws_ = nullptr;
 };
 
@@ -137,67 +155,63 @@ inline void RunLoop::run(AnyWsStream ws,
     ws.text(true);
     // Clear any sync-read deadline — async_read drives its own timer.
     ws.expires_never();
-    {
-        std::lock_guard<std::mutex> lk(send_mu_);
-        ws_ = &ws;
-    }
 
-    // Ensure the send pointer is cleared before this function returns,
-    // whether via stop_flag (clean exit) or exception (WS error). This
-    // guarantees any concurrent send() called after run() exits will
-    // return false instead of writing into freed memory.
-    struct SendGuard {
+    // Publish the IO-thread-owned resources. Order matters:
+    //   1. Write pointers (relaxed — only the IO thread reads them now).
+    //   2. Release-store running_ = true. send() callers that load
+    //      running_ with acquire ordering will then see ioc_/ws_ as set.
+    ws_ = &ws;
+    ioc_ = &ioc;
+    running_.store(true, std::memory_order_release);
+
+    // Clear the published resources on exit (clean or exceptional). Posted
+    // send() lambdas check running_ and short-circuit when it's false, so
+    // pending work doesn't access freed memory after we return.
+    struct ExitGuard {
         RunLoop* self;
-        ~SendGuard() {
-            std::lock_guard<std::mutex> lk(self->send_mu_);
+        ~ExitGuard() {
+            self->running_.store(false, std::memory_order_release);
             self->ws_ = nullptr;
+            self->ioc_ = nullptr;
         }
-    } send_guard{this};
+    } exit_guard{this};
 
-    // Run the subclass auth hook while we're already tracking the stream
-    // so on_handshake_complete() can call send() to transmit a login
-    // message if it needs to.
+    // Run the subclass auth hook while we're already tracking the stream.
+    // on_handshake_complete() may call send() to transmit a login message;
+    // the posted handler will be the first thing the run_one loop below
+    // processes, preserving auth ordering.
     on_handshake_complete();
 
     connected.store(true, std::memory_order_relaxed);
 
-    // Ping thread lifecycle is scoped to run(): constructed before the
-    // read loop, joined on exit (normal or exceptional).
-    std::thread ping_thread;
-    std::atomic<bool> ping_stop{false};
-    if (auto cfg = ping_config()) {
-        ping_thread = std::thread([this, &ping_stop, &stop_flag, cfg = *cfg] {
-            // Use a combined stop: the outer stop_flag OR our own ping_stop
-            // (set on run() exit). The ping thread observes both to ensure
-            // it wakes on BOTH shutdown paths.
-            while (!stop_flag.load(std::memory_order_relaxed) && !ping_stop.load(std::memory_order_relaxed)) {
-                std::this_thread::sleep_for(cfg.interval);
-                if (stop_flag.load(std::memory_order_relaxed) || ping_stop.load(std::memory_order_relaxed))
-                    break;
+    // Ping is now a steady_timer driven on the IO thread — no separate
+    // std::thread. Single-writer for the WS stream.
+    boost::asio::steady_timer ping_timer(ioc);
+    std::optional<PingConfig> ping_cfg = ping_config();
+    std::function<void()> arm_ping;
+    if (ping_cfg) {
+        arm_ping = [this, &arm_ping, &ping_timer, &stop_flag, cfg = *ping_cfg]() {
+            ping_timer.expires_after(cfg.interval);
+            ping_timer.async_wait([this, &arm_ping, &stop_flag, cfg](beast::error_code ec) {
+                if (ec)
+                    return;  // cancelled (shutdown / exit)
+                if (stop_flag.load(std::memory_order_relaxed))
+                    return;
                 try {
-                    send(cfg.payload());
+                    if (ws_)
+                        ws_->write(boost::asio::buffer(cfg.payload()));
                 } catch (...) {
-                    // Ping write errors are expected on disconnect —
-                    // the read loop will observe the same failure and
-                    // propagate. Swallow here so the ping thread exits
-                    // cleanly rather than terminating via unhandled
-                    // exception.
+                    // Ping write errors are expected on disconnect — the
+                    // read handler will observe the same failure on its
+                    // next async_read completion and propagate. Don't
+                    // re-arm.
                     return;
                 }
-            }
-        });
+                arm_ping();
+            });
+        };
+        arm_ping();
     }
-
-    // Similarly scope the ping thread join to run exit.
-    struct PingGuard {
-        std::thread* t;
-        std::atomic<bool>* stop;
-        ~PingGuard() {
-            stop->store(true, std::memory_order_relaxed);
-            if (t->joinable())
-                t->join();
-        }
-    } ping_guard{&ping_thread, &ping_stop};
 
     // Track the wall-clock time of the last inbound frame so the
     // liveness watchdog can fire on a silently-dead connection.
@@ -229,12 +243,13 @@ inline void RunLoop::run(AnyWsStream ws,
     std::function<void()> arm_tick;
 
     auto trigger_exit = [&]() {
-        // Cancel both pending ops so the outer run_one() loop drains
+        // Cancel all pending ops so the outer run_one() loop drains
         // and exits. Each cancel races safely with the other handler;
         // whichever fires first sees operation_aborted and returns
         // without re-arming.
         beast::error_code ce;
         tick_timer.cancel();
+        ping_timer.cancel();
         ws.lowest_layer_cancel(ce);
     };
 
@@ -318,6 +333,7 @@ inline void RunLoop::run(AnyWsStream ws,
     {
         beast::error_code ce;
         tick_timer.cancel();
+        ping_timer.cancel();
         ws.lowest_layer_cancel(ce);
         while (ioc.poll_one() > 0) {
         }
@@ -340,11 +356,25 @@ inline void RunLoop::run(AnyWsStream ws,
 }
 
 inline bool RunLoop::send(const std::string& msg) {
-    std::lock_guard<std::mutex> lk(send_mu_);
-    if (ws_ == nullptr)
+    // Acquire-load running_; if true, ioc_ was published with release
+    // ordering earlier and is safe to read here.
+    if (!running_.load(std::memory_order_acquire))
         return false;
-    namespace net = boost::asio;
-    ws_->write(net::buffer(msg));
+    boost::asio::post(*ioc_, [this, msg]() {
+        // Runs on the IO thread (the only thread driving ioc_.run_one).
+        // running_ is re-checked here because by the time the handler
+        // fires, run() may have exited and cleared ws_/ioc_.
+        if (!running_.load(std::memory_order_acquire) || ws_ == nullptr)
+            return;
+        try {
+            ws_->write(boost::asio::buffer(msg));
+        } catch (...) {
+            // The read loop's async_read will observe the same WS error
+            // on its next completion and propagate to the reconnect
+            // path. Swallowing here keeps the IO thread alive to drain
+            // remaining handlers.
+        }
+    });
     return true;
 }
 
