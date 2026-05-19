@@ -52,28 +52,20 @@ public:
         return decoder_.decode_lat_;
     }
 
-    /// \brief Push the subscribe frame immediately when connected.
+protected:
+    /// \brief Send the OKX subscribe frame from the publisher-thread drain.
     ///
-    /// Bypasses on_tick — in this Beast version on_tick may not fire
-    /// while OKX is actively responding to our ping thread, which would
-    /// delay the subscribe past the timeout.
-    void subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth = 0) override {
-        // Push through the base class so subs_ tracks the state (connect-time
-        // replay, requeue after disconnect, etc).
-        Base::subscribe(instrument_id, symbol, depth);
-
-        // Flush the new subscription to the OKX WS immediately if we're
-        // connected. ws_client_.send returns false when the stream is null
-        // (between reconnects); the frame will be picked up by
-        // connect_and_subscribe at the next reconnect via subs_.snapshot().
-        if (ws_client_.send(okx::build_subscribe_payload(symbol, depth))) {
+    /// Runs *after* subs_ has been updated, so the decoder is ready to
+    /// translate the incoming BBO's symbol → instrument_id. ws_client_.send
+    /// returns false when the WS isn't yet connected (between reconnects);
+    /// in that case the frame is sent on next reconnect via subs_.snapshot().
+    void do_send_subscribe_frame(std::string_view symbol, uint8_t depth) override {
+        if (ws_client_.send(okx::build_subscribe_payload(std::string(symbol), depth))) {
             bpt::common::log::info("OkxMdAdapter: runtime subscribe {} depth={}", symbol, depth);
-            // Drain pending to avoid on_tick double-sending this entry.
-            this->subs_.take_pending();
         }
     }
 
-protected:
+
     std::unique_ptr<bpt::common::ws::AnyWsStream> connect_and_subscribe() override {
         namespace beast = boost::beast;
         namespace websocket = beast::websocket;

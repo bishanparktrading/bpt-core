@@ -47,22 +47,6 @@ public:
         ws_client_.set_frame_handler([this](std::string_view p, uint64_t t) { this->handle_frame(p, t); });
     }
 
-    /// \brief Unsubscribe + clear gap-detection state for the instrument in the decoder.
-    void unsubscribe(uint64_t instrument_id) override {
-        std::string symbol = this->subs_.unsubscribe(instrument_id);
-        if (!symbol.empty())
-            decoder_.forget(symbol);
-    }
-
-    /// \brief Push subscribe frames immediately on connect (bypassing on_tick).
-    void subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth = 0) override {
-        Base::subscribe(instrument_id, symbol, depth);
-        if (ws_client_.send(deribit::build_subscribe_rpc(ws_client_.next_rpc_id(), symbol, depth))) {
-            bpt::common::log::info("DeribitMdAdapter: runtime subscribe {} depth={}", symbol, depth);
-            this->subs_.take_pending();
-        }
-    }
-
     [[nodiscard]] const char* exchange_name() const override { return "DERIBIT"; }
     [[nodiscard]] bpt::common::util::LatencyHistogram& decode_latency_hist() noexcept override {
         return decoder_.decode_lat_;
@@ -71,6 +55,24 @@ public:
 protected:
     /// \brief 2 s back-off — Deribit is slower to recover than the CEXs.
     std::chrono::milliseconds reconnect_delay() const override { return std::chrono::seconds(2); }
+
+    /// \brief Send the Deribit subscribe RPC from the publisher-thread drain.
+    void do_send_subscribe_frame(std::string_view symbol, uint8_t depth) override {
+        if (ws_client_.send(deribit::build_subscribe_rpc(ws_client_.next_rpc_id(), std::string(symbol), depth))) {
+            bpt::common::log::info("DeribitMdAdapter: runtime subscribe {} depth={}", symbol, depth);
+        }
+    }
+
+    /// \brief Send Deribit unsubscribe RPC + clear the decoder's per-instrument
+    ///        gap-detection state. Runs on publisher thread (same thread the
+    ///        decoder runs on, so the forget() is single-writer-safe).
+    void do_send_unsubscribe_frame(std::string_view symbol) override {
+        // (the protocol-level unsubscribe RPC would go here; Deribit's WS
+        // doesn't currently have a public unsubscribe verb in the same
+        // shape, so we leave the protocol send as a future addition and
+        // just clean decoder state — same behaviour as before this refactor.)
+        decoder_.forget(std::string(symbol));
+    }
 
     std::unique_ptr<bpt::common::ws::AnyWsStream> connect_and_subscribe() override {
         namespace beast = boost::beast;

@@ -32,7 +32,10 @@
 #include <bpt_common/util/thread_pin.h>
 #include <bpt_common/ws/ws_connect.h>
 #include <chrono>
+#include <cstdint>
+#include <deque>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <utility>
@@ -61,6 +64,68 @@ inline std::string pub_thread_name(const char* exchange) {
 }
 
 }  // namespace detail
+
+/// \brief Subscription command crossed from control thread to publisher thread.
+///
+/// IAdapter::subscribe() and unsubscribe() used to mutate SubscriptionMap
+/// directly from the control thread (under a shared_mutex). Single-writer
+/// principle: only one thread should ever write to a piece of state.
+/// Now the control thread enqueues a SubCmd; the publisher thread drains
+/// the queue at the top of every publish_loop iteration and applies the
+/// commands to subs_ — making the publisher thread the sole writer.
+struct SubCmd {
+    enum class Op : uint8_t { Subscribe, Unsubscribe };
+    Op op{Op::Subscribe};
+    uint64_t instrument_id{0};
+    std::string symbol;
+    uint8_t depth{0};
+};
+
+/// \brief Thread-safe pending-command buffer for cross-thread subscription updates.
+///
+/// Mutex+deque rather than lock-free because subscribe/unsubscribe events
+/// are rare (~ once per session) — mutex contention is effectively zero.
+/// Producer side: control thread (push). Consumer side: publisher thread
+/// (drain). Locking only happens during the brief push or the
+/// swap-then-drain in the consumer; the consumer holds no lock while
+/// processing the swapped-out commands.
+class SubCmdQueue {
+public:
+    void push(SubCmd cmd) {
+        std::lock_guard<std::mutex> lk(mu_);
+        q_.push_back(std::move(cmd));
+        pending_.store(true, std::memory_order_release);
+    }
+
+    /// \brief Drain all queued commands and invoke `f(SubCmd&&)` on each.
+    ///
+    /// Fast path when the queue is empty: a single atomic load (no mutex).
+    /// On the publisher's hot spin loop this is essentially free. When
+    /// there's work, the lock is held only long enough to swap the deque
+    /// out; the application callback runs lock-free. Returns the number
+    /// drained.
+    template <class F>
+    size_t drain(F&& f) {
+        if (!pending_.load(std::memory_order_acquire))
+            return 0;
+        std::deque<SubCmd> tmp;
+        {
+            std::lock_guard<std::mutex> lk(mu_);
+            tmp.swap(q_);
+            pending_.store(false, std::memory_order_release);
+        }
+        for (auto& c : tmp)
+            f(std::move(c));
+        return tmp.size();
+    }
+
+private:
+    std::mutex mu_;
+    std::deque<SubCmd> q_;
+    // Producer→consumer signal. Lets the consumer skip the mutex when
+    // there's nothing to do — the common case on the hot loop.
+    std::atomic<bool> pending_{false};
+};
 
 /// \brief Base class for every exchange market-data adapter.
 ///
@@ -119,11 +184,16 @@ public:
 
     ~AdapterBase() override = default;
 
+    /// IAdapter contract; called from the control thread. We do NOT mutate
+    /// subs_ here — that's reserved for the publisher thread (single-writer
+    /// principle). Instead, queue a SubCmd and let publish_loop drain it.
     void subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth = 0) override {
-        subs_.subscribe(instrument_id, std::move(symbol), depth);
+        sub_cmd_q_.push(SubCmd{SubCmd::Op::Subscribe, instrument_id, std::move(symbol), depth});
     }
 
-    void unsubscribe(uint64_t instrument_id) override { subs_.unsubscribe(instrument_id); }
+    void unsubscribe(uint64_t instrument_id) override {
+        sub_cmd_q_.push(SubCmd{SubCmd::Op::Unsubscribe, instrument_id, std::string{}, 0});
+    }
 
     void start() override {
         pub_thread_ = std::thread([this]() { publish_loop(); });
@@ -164,6 +234,25 @@ protected:
     ///
     /// Implementations run the venue parser then call md_pub_ publish methods.
     virtual void parse_frame(std::string_view payload, uint64_t recv_ns) = 0;
+
+    /// \brief Publisher-thread hook to send a runtime subscribe frame to the
+    ///        venue. Called from the SubCmd drain *after* subs_ has been
+    ///        updated, so the ordering guarantee is:
+    ///            1. subs_ knows about (symbol → instrument_id)
+    ///            2. Frame goes out to the exchange
+    ///            3. Exchange starts streaming BBOs for that symbol
+    ///            4. Decoder's find_id(symbol) succeeds (state already in place)
+    ///
+    /// Default no-op: Binance bakes subscriptions into the URL, so it
+    /// reconnects to subscribe at runtime — no protocol-level send.
+    /// OKX / HL / Deribit override this to push the venue-specific
+    /// subscribe payload via ws_client_.send (which is thread-safe via
+    /// its internal mutex).
+    virtual void do_send_subscribe_frame(std::string_view /*symbol*/, uint8_t /*depth*/) {}
+
+    /// \brief Publisher-thread hook to send a runtime unsubscribe frame.
+    /// Same ordering guarantee as do_send_subscribe_frame.
+    virtual void do_send_unsubscribe_frame(std::string_view /*symbol*/) {}
 
     /// \brief IO-thread seam invoked by the venue ws-client for each application frame.
     ///
@@ -207,7 +296,12 @@ protected:
     /// cfg_.io_thread_cpu TOML knob.
     const bpt::common::util::Topology* topology_{nullptr};
 
+    /// Subscription state — owned by the publisher thread post Phase 2.
+    /// Control thread writes via sub_cmd_q_; publisher thread drains and
+    /// applies. Reads still take SubscriptionMap's internal shared_mutex
+    /// since the IO thread also reads (at reconnect via snapshot()).
     SubscriptionMap subs_;
+    SubCmdQueue sub_cmd_q_;
     boost::asio::io_context ioc_;
     boost::asio::ssl::context ssl_ctx_;
 
@@ -271,6 +365,30 @@ private:
         constexpr int kSpinBudget = 1000;
         int empty_iters = 0;
         while (!stop_flag_.load(std::memory_order_relaxed)) {
+            // Apply any pending subscribe/unsubscribe commands from the
+            // control thread. Single-writer to subs_ — only this thread
+            // ever calls subscribe/unsubscribe on the SubscriptionMap.
+            // Drains rarely (commands arrive ~once per session), so the
+            // overhead on the hot loop is one mutex lock + empty-deque
+            // check per iteration. Negligible.
+            sub_cmd_q_.drain([this](SubCmd&& c) {
+                if (c.op == SubCmd::Op::Subscribe) {
+                    const std::string symbol = c.symbol;  // copy before move
+                    const uint8_t depth = c.depth;
+                    subs_.subscribe(c.instrument_id, std::move(c.symbol), c.depth);
+                    // Order matters: state first, then frame. Decoder must be
+                    // able to find_id(symbol) before BBOs for it start arriving.
+                    do_send_subscribe_frame(symbol, depth);
+                } else {
+                    // unsubscribe returns the venue symbol (for the frame);
+                    // applied BEFORE the frame goes out so the decoder won't
+                    // try to find an entry already in the process of leaving.
+                    const std::string symbol = subs_.unsubscribe(c.instrument_id);
+                    if (!symbol.empty())
+                        do_send_unsubscribe_frame(symbol);
+                }
+            });
+
             const bool processed = frame_queue_.try_pop(
                 [this](uint64_t recv_ns, std::string_view payload) { parse_frame(payload, recv_ns); });
             if (processed) {

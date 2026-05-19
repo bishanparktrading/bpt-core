@@ -63,21 +63,21 @@ public:
         return decoder_.decode_lat_;
     }
 
-    /// \brief Push the 3 subscribe frames (l2Book, trades, activeAssetCtx) immediately on connect.
-    void subscribe(uint64_t instrument_id, std::string symbol, uint8_t depth = 0) override {
-        Base::subscribe(instrument_id, symbol, depth);
+protected:
+    /// \brief Send the 3 Hyperliquid subscribe frames (l2Book, trades, activeAssetCtx)
+    ///        from the publisher-thread drain, after subs_ is updated.
+    void do_send_subscribe_frame(std::string_view symbol, uint8_t /*depth*/) override {
+        std::string sym(symbol);
         bool sent = false;
         for (const char* type : {"l2Book", "trades", "activeAssetCtx"}) {
-            if (ws_client_.send(hyperliquid::build_subscribe_payload(type, symbol)))
+            if (ws_client_.send(hyperliquid::build_subscribe_payload(type, sym)))
                 sent = true;
         }
-        if (sent) {
+        if (sent)
             bpt::common::log::info("HyperliquidMdAdapter: runtime subscribe {}", symbol);
-            this->subs_.take_pending();
-        }
     }
 
-protected:
+
     std::unique_ptr<bpt::common::ws::AnyWsStream> connect_and_subscribe() override {
         namespace beast = boost::beast;
         namespace websocket = beast::websocket;
