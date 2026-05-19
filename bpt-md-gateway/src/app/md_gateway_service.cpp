@@ -2,6 +2,8 @@
 
 #include "md_gateway/adapter/common/md_adapter_factory.h"
 #include "md_gateway/md/validation_drop_breaker.h"
+#include "md_gateway/messaging/publishers/aeron/funding_rate_publisher.h"
+#include "md_gateway/messaging/publishers/aeron/instrument_stats_publisher.h"
 #include "md_gateway/messaging/publishers/md_publisher.h"
 
 #include <messages/ExchangeRegistry.h>
@@ -32,13 +34,9 @@ MdGatewayService::MdGatewayService(config::Settings cfg,
                                    std::shared_ptr<::aeron::Aeron> aeron,
                                    std::unique_ptr<messaging::api::MdControlSubscriber> control_sub,
                                    std::unique_ptr<messaging::api::AckPublisher> ack_pub,
-                                   std::shared_ptr<messaging::api::FundingRatePublisher> funding_pub,
-                                   std::shared_ptr<messaging::api::InstrumentStatsPublisher> stats_pub,
                                    const bpt::common::util::Topology& topology)
     : cfg_(std::move(cfg)),
       metrics_(cfg_.metrics_host, cfg_.base.metrics_port),
-      funding_pub_(std::move(funding_pub)),
-      stats_pub_(std::move(stats_pub)),
       ack_pub_(std::move(ack_pub)),
       ctrl_sub_(std::move(control_sub)) {
     for (const auto& a_cfg : cfg_.adapters) {
@@ -51,29 +49,35 @@ MdGatewayService::MdGatewayService(config::Settings cfg,
             throw std::runtime_error(
                 fmt::format("Unknown exchange '{}' in mdgw config — not in messages/exchanges.yaml", a_cfg.exchange));
         }
-        // One MdPublisher per adapter — validator state is publisher-thread-confined,
-        // so each adapter gets its own publication on (md_data.channel, md_data.stream_id).
-        // Aeron handles N publications on the same stream natively (one session-id each).
+        // Per-adapter publishers. Each venue owns its own Aeron publications
+        // on md_data, funding_rate, and instrument_stats. Aeron supports
+        // N publications on the same (channel, stream_id) natively — the
+        // subscriber sees N session-ids interleaved. MdPublisher's validator
+        // state is publisher-thread-confined; funding/stats publishers
+        // could in principle be shared but per-adapter ownership matches
+        // the "adapter owns what it produces" greenfield principle and
+        // gives free per-venue metrics granularity.
         auto md_pub = std::make_shared<messaging::MdPublisher>(aeron,
                                                                cfg_.aeron.md_data.channel,
                                                                cfg_.aeron.md_data.stream_id,
                                                                a_cfg.max_price_deviation_pct,
                                                                breaker_cfg_from(a_cfg),
                                                                a_cfg.exchange);
-        auto adapter = adapter::make_md_adapter<messaging::MdPublisher>(*exch_id, a_cfg, std::move(md_pub));
+        auto funding_pub = std::make_shared<messaging::aeron::FundingRatePublisher>(
+            aeron, cfg_.aeron.funding_rate.channel, cfg_.aeron.funding_rate.stream_id);
+        auto stats_pub = std::make_shared<messaging::aeron::InstrumentStatsPublisher>(
+            aeron, cfg_.aeron.instrument_stats.channel, cfg_.aeron.instrument_stats.stream_id);
+
+        auto adapter = adapter::make_md_adapter<messaging::MdPublisher>(*exch_id,
+                                                                        a_cfg,
+                                                                        std::move(md_pub),
+                                                                        std::move(funding_pub),
+                                                                        std::move(stats_pub));
         if (!adapter) {
             throw std::runtime_error(
                 fmt::format("Exchange '{}' is in the registry but mdgw has no adapter implementation for it",
                             a_cfg.exchange));
         }
-
-        adapter->on_funding_rate = [this](const messaging::FundingRateUpdate& fr) {
-            funding_pub_->publish(fr);
-        };
-
-        adapter->on_instrument_stats = [this](const messaging::InstrumentStatsUpdate& oi) {
-            stats_pub_->publish(oi);
-        };
 
         // Use raw pointers into the metrics families — these are stable for the
         // lifetime of MdGatewayService (metrics_ is a member).

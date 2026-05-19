@@ -13,29 +13,29 @@
 ///     │    *MdWsClient        ─── WIRE        │
 ///     │    *MdDecoder<Pub>    ─── EXT CODEC   │
 ///     │      (JSON → domain via simdjson)     │
-///     │                                       │
-///     │  refs (non-owning):                   │
-///     │    MdPublisher        (the hot sink)  │
-///     │    funding_cb, stats_cb               │
+///     │    MdPublisher        ─── HOT PATH    │
+///     │    FundingRatePublisher  ─── slow     │
+///     │    InstrumentStatsPublisher ─── slow  │
 ///     └───────────────────────────────────────┘
 ///
 ///   inbound flow:
 ///     [exchange WS] ──frame──→ ws_client ──→ adapter ──→ decoder
 ///                                                          │
-///                                            ┌─────────────┼─────────────┐
-///                                            ↓             ↓             ↓
-///                                       pub.publish   funding_cb     stats_cb
-///                                       (MdBbo,        (Funding-      (Instrument-
-///                                        MdTrade,       RateUpdate)    StatsUpdate)
-///                                        MdOrderBook)
+///                              ┌──────────────┬────────────┴───────────┐
+///                              ↓              ↓                        ↓
+///                          md_pub        funding_pub             stats_pub
+///                          (MdBbo,       (FundingRateUpdate)     (InstrumentStatsUpdate)
+///                           MdTrade,
+///                           MdOrderBook)
 ///
 ///   outbound flow:
 ///     adapter ──→ encoder.build_streams_query(subs) ──→ ws_client.send ──→ [exchange WS]
 ///
+/// All three publishers are owned by the adapter itself (greenfield: adapter
+/// owns everything it produces). The service wires nothing into the adapter's
+/// data path — it just builds adapters and steps out of the way.
+///
 /// See docs/service-anatomy.md for where this fits in the overall service stack.
-
-#include "md_gateway/messaging/publishers/api/funding_rate_publisher.h"
-#include "md_gateway/messaging/publishers/api/instrument_stats_publisher.h"
 
 #include <bpt_common/util/latency_histogram.h>
 #include <bpt_common/util/topology.h>
@@ -99,12 +99,6 @@ public:
     ///
     /// Exposed for the periodic Prometheus gauge sampler in MdGatewayService.
     [[nodiscard]] virtual bool validation_drop_breaker_tripped() const noexcept { return false; }
-
-    /// Called from the adapter's IO thread when a funding-rate update arrives. Set before start().
-    messaging::FundingRateCallback on_funding_rate;
-
-    /// Called from the adapter's IO thread when an open-interest update arrives. Set before start().
-    messaging::InstrumentStatsCallback on_instrument_stats;
 
     /// \name Connection-lifecycle hooks
     ///

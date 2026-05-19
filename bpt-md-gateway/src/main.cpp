@@ -36,8 +36,6 @@ int main(int argc, char* argv[]) {
                                                                                             ctx.aeron,
                                                                                             std::move(bus.control_sub),
                                                                                             std::move(bus.ack_pub),
-                                                                                            std::move(bus.funding_pub),
-                                                                                            std::move(bus.stats_pub),
                                                                                             ctx.topology);
                              });
     } catch (const std::exception& e) {

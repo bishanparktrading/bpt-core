@@ -47,18 +47,18 @@ class MdGatewayService : public bpt::app::IService {
 public:
     /// \brief Construct.
     /// \param cfg              loaded settings (ownership taken)
-    /// \param aeron            shared Aeron client — used to mint per-adapter MdPublishers
+    /// \param aeron            shared Aeron client — used to mint per-adapter publishers
     /// \param control_sub      subscriber on the strategy → gateway control stream
     /// \param ack_pub          publisher for acks + heartbeats
-    /// \param funding_pub      publisher for funding-rate updates
-    /// \param stats_pub        publisher for open-interest updates
     /// \param topology         CPU-affinity map for IO/main thread pinning
+    ///
+    /// Per-venue funding-rate + instrument-stats publishers are constructed
+    /// per-adapter inside the loop (greenfield: each adapter owns everything
+    /// it produces). Aeron natively supports N publications on one stream.
     MdGatewayService(config::Settings cfg,
                      std::shared_ptr<::aeron::Aeron> aeron,
                      std::unique_ptr<messaging::api::MdControlSubscriber> control_sub,
                      std::unique_ptr<messaging::api::AckPublisher> ack_pub,
-                     std::shared_ptr<messaging::api::FundingRatePublisher> funding_pub,
-                     std::shared_ptr<messaging::api::InstrumentStatsPublisher> stats_pub,
                      const bpt::common::util::Topology& topology);
 
     /// \brief Block running the main poll loop until stop() is called.
@@ -70,8 +70,6 @@ public:
 private:
     config::Settings cfg_;
     metrics::MdGatewayMetrics metrics_;
-    std::shared_ptr<messaging::api::FundingRatePublisher> funding_pub_;
-    std::shared_ptr<messaging::api::InstrumentStatsPublisher> stats_pub_;
     std::unique_ptr<messaging::api::AckPublisher> ack_pub_;
     std::unique_ptr<messaging::api::MdControlSubscriber> ctrl_sub_;
     subscription::SubscriptionManager sub_mgr_;

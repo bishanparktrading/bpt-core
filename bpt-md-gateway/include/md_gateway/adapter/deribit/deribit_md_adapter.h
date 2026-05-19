@@ -37,8 +37,11 @@ class DeribitMdAdapter : public AdapterBase<Pub> {
 public:
     using Base = AdapterBase<Pub>;
 
-    explicit DeribitMdAdapter(const config::AdapterConfig& cfg, std::shared_ptr<Pub> md_pub)
-        : Base(cfg, std::move(md_pub)),
+    explicit DeribitMdAdapter(const config::AdapterConfig& cfg,
+                              std::shared_ptr<Pub> md_pub,
+                              std::shared_ptr<messaging::api::FundingRatePublisher> funding_pub,
+                              std::shared_ptr<messaging::api::InstrumentStatsPublisher> stats_pub)
+        : Base(cfg, std::move(md_pub), std::move(funding_pub), std::move(stats_pub)),
           decoder_(this->subs_),
           ws_client_(this->cfg_, this->subs_) {
         ws_client_.set_frame_handler([this](std::string_view p, uint64_t t) { this->handle_frame(p, t); });

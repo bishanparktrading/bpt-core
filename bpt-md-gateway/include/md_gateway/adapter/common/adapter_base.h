@@ -19,6 +19,8 @@
 #include "md_gateway/adapter/common/i_adapter.h"
 #include "md_gateway/adapter/common/subscription_map.h"
 #include "md_gateway/config/settings.h"
+#include "md_gateway/messaging/publishers/api/funding_rate_publisher.h"
+#include "md_gateway/messaging/publishers/api/instrument_stats_publisher.h"
 
 #include <atomic>
 #include <boost/asio/io_context.hpp>
@@ -86,14 +88,33 @@ public:
     static constexpr size_t SLOT_BYTES = 16384;
     using FrameQueue = bpt::common::util::SpscQueue<QUEUE_CAPACITY, SLOT_BYTES>;
 
-    AdapterBase(const config::AdapterConfig& cfg, std::shared_ptr<Pub> md_pub)
+    AdapterBase(const config::AdapterConfig& cfg,
+                std::shared_ptr<Pub> md_pub,
+                std::shared_ptr<messaging::api::FundingRatePublisher> funding_pub,
+                std::shared_ptr<messaging::api::InstrumentStatsPublisher> stats_pub)
         : cfg_(cfg),
           md_pub_(std::move(md_pub)),
+          funding_pub_(std::move(funding_pub)),
+          stats_pub_(std::move(stats_pub)),
           ssl_ctx_(boost::asio::ssl::context::tls_client) {
         ssl_ctx_.set_default_verify_paths();
         ssl_ctx_.set_verify_mode(boost::asio::ssl::verify_peer);
         // Enforce TLS 1.2 minimum — disable weak protocol versions.
         ssl_ctx_.set_options(boost::asio::ssl::context::no_tlsv1 | boost::asio::ssl::context::no_tlsv1_1);
+
+        // Self-wire the slow-path callbacks to this adapter's own publishers.
+        // The service used to inject these from outside; greenfield principle
+        // is that the adapter owns everything it produces, so the wiring is
+        // local. The decoders still take FundingRateCallback / InstrumentStatsCallback
+        // by reference — the indirection lets bpt-tape inject no-op variants.
+        on_funding_rate = [this](const messaging::FundingRateUpdate& fr) {
+            if (funding_pub_)
+                funding_pub_->publish(fr);
+        };
+        on_instrument_stats = [this](const messaging::InstrumentStatsUpdate& oi) {
+            if (stats_pub_)
+                stats_pub_->publish(oi);
+        };
     }
 
     ~AdapterBase() override = default;
@@ -170,6 +191,16 @@ protected:
 
     config::AdapterConfig cfg_;
     std::shared_ptr<Pub> md_pub_;
+    /// Slow-path publishers owned by the adapter, not the service.
+    /// Each venue gets its own Aeron publication on funding_rate / instrument_stats.
+    /// Aeron handles N publications on one stream natively (multi-session).
+    std::shared_ptr<messaging::api::FundingRatePublisher> funding_pub_;
+    std::shared_ptr<messaging::api::InstrumentStatsPublisher> stats_pub_;
+    /// Decoder-facing callbacks. Initialized in the constructor to forward
+    /// into funding_pub_ / stats_pub_. Protected (not public) because they're
+    /// implementation detail of the adapter, not part of IAdapter's contract.
+    messaging::FundingRateCallback on_funding_rate;
+    messaging::InstrumentStatsCallback on_instrument_stats;
     /// Optional CPU-affinity topology. Pointer (not reference) because the
     /// base can be constructed before topology is known; set via
     /// set_topology() before start(). nullptr = fall back to the legacy

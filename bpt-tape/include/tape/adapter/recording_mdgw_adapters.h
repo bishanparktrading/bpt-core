@@ -47,7 +47,10 @@ namespace bpt::tape::adapter {
         Class(std::shared_ptr<::bpt::tape::io::Tape> tape,                                \
               const ::bpt::md_gateway::config::AdapterConfig& cfg,                        \
               std::shared_ptr<Pub> md_pub)                                                \
-            : ::bpt::md_gateway::adapter::BaseClass<Pub>(cfg, std::move(md_pub)),         \
+            : ::bpt::md_gateway::adapter::BaseClass<Pub>(cfg,                             \
+                                                         std::move(md_pub),               \
+                                                         nullptr, /* funding_pub */       \
+                                                         nullptr  /* stats_pub  */ ),     \
               tape_(std::move(tape)) {}                                                   \
                                                                                           \
     protected:                                                                            \
