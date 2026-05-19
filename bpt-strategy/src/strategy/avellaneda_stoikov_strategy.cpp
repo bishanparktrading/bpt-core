@@ -1317,6 +1317,18 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
         // Must cancel if at max inventory, adverse selection, or drift suppression.
         if (at_max_long || adverse || final_suppress_bids) {
             // Hard cancel — don't amend.
+            //
+            // Set bid_cancel_pending BEFORE the call so the in-process
+            // backtest path — where cancel_order() runs the CANCELLED
+            // ExecReport synchronously inside the call before returning
+            // — sees the flag as `true` when on_exec_report tries to
+            // clear it. Otherwise: sync handler clears the flag (which
+            // wasn't set yet), call returns, caller sets flag to true,
+            // and nothing ever clears it again → strategy goes silent
+            // forever after the first cancel. The Aeron path is
+            // unaffected (still async, still gets cleared by the next
+            // poll-loop iteration's on_exec_report).
+            st.bid_cancel_pending = true;
             if (order_mgr_) {
                 bpt::common::log::debug(kLog(),
                                         "Cancel bid order_id={} {} @ {} reason={}",
@@ -1328,7 +1340,6 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
                                                               : "adverse");
                 order_mgr_->cancel_order(st.bid_order_id, st.exchange_id, instrument_id);
             }
-            st.bid_cancel_pending = true;
         } else if (stale) {
             // Price drift — amend in place to preserve queue position.
             if (order_mgr_) {
@@ -1367,6 +1378,8 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
         const bool stale =
             st.last_ask_price > 0.0 && std::abs(new_ask - st.last_ask_price) / st.last_ask_price > requote_threshold_;
         if (at_max_short || adverse || final_suppress_asks) {
+            // Set before the call — see bid-side comment above.
+            st.ask_cancel_pending = true;
             if (order_mgr_) {
                 bpt::common::log::debug(kLog(),
                                         "Cancel ask order_id={} {} @ {} reason={}",
@@ -1378,7 +1391,6 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
                                                               : "adverse");
                 order_mgr_->cancel_order(st.ask_order_id, st.exchange_id, instrument_id);
             }
-            st.ask_cancel_pending = true;
         } else if (stale) {
             if (order_mgr_) {
                 double price = new_ask;

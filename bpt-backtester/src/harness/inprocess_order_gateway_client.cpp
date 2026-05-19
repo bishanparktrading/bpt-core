@@ -349,6 +349,8 @@ void InProcessOrderGatewayClient::publish_fill(const matching::FillReport& fr) {
                            fr.last_fill_price,
                            fr.last_fill_qty,
                            fr.liquidity_role == matching::LiquidityRole::MAKER ? "MAKER" : "TAKER");
+    if (results_)
+        results_->on_fill(fr);
     auto& lo = it->second;
 
     const uint64_t fill_qty_scaled = static_cast<uint64_t>(fr.last_fill_qty * kQtyScale + 0.5);

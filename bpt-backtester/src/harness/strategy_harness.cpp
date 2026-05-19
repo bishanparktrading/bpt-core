@@ -68,11 +68,28 @@ void StrategyHarness::initialize() {
             inst.quote_currency =
                 (venue.id == bpt::messages::ExchangeId::HYPERLIQUID) ? std::string{"USD"} : e.info.quote;
             inst.type = map_inst_type(e.info.type);
-            // tick_size / lot_size left at 0 — strategy treats 0 as
-            // "unknown" and skips tick rounding. For full fidelity
-            // these would come from a venue-meta snapshot (HL meta.json
-            // etc.); deferred until the harness needs realistic
-            // rounding behavior.
+            // tick_size / lot_size: HL exposes its tick/lot rules via the
+            // `/info` meta endpoint (szDecimals + pxDecimals per coin).
+            // The mapping JSON we load doesn't carry those today, so seed
+            // realistic defaults for HL perps — small enough to give the
+            // strategy headroom on cheap coins (APE, DOGE) and large
+            // enough on majors that AS's post-touch cap fires.
+            //
+            // Why this matters: AS's compute_quotes() gates the post-touch
+            // cap on `tick_size > 0`. With tick_size == 0 the cap is
+            // skipped entirely and the AS formula can produce quotes that
+            // cross the book — strategy then quote-cycles forever
+            // (cancel+replace on every BBO tick) without ever resting in
+            // the book long enough to fill.
+            //
+            // HL APE: pxDecimals=4 → tick=0.0001, szDecimals=0 → lot=1.
+            // Most other HL perps share these decimals at sub-$1
+            // notional; majors (BTC, ETH) have larger tick. Hardcoded
+            // here pending a real meta-snapshot loader.
+            if (venue.id == bpt::messages::ExchangeId::HYPERLIQUID) {
+                inst.tick_size = 0.0001;
+                inst.lot_size = 1.0;
+            }
             seed.push_back(std::move(inst));
         }
     }
@@ -121,6 +138,11 @@ void StrategyHarness::initialize() {
     // (RunMetadata fields populated from opts_ once we wire identity propagation.)
     results_ =
         std::make_unique<bpt::backtester::results::ResultsCollector>(opts_.starting_capital, opts_.output_dir, md_meta);
+    // Pipe matching-engine fills into the results collector. Without
+    // this every FILLED ExecReport reaches the strategy (P&L tracker)
+    // but summary.json / trades.csv stay empty — collector aggregates
+    // off the FillReport stream, not ExecReports.
+    order_gw_->set_results_collector(results_.get());
 
     // HL decoder + publisher. Publisher fans out to BOTH the strategy
     // (via InProcessMdClient) AND the matching engine (via

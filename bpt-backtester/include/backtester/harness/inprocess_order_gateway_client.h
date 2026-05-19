@@ -26,6 +26,7 @@
 
 #include "backtester/matching/matching_engine.h"
 #include "backtester/matching/open_order.h"
+#include "backtester/results/results_collector.h"
 #include "strategy/order/i_order_gateway_client.h"
 
 #include <messages/AccountSnapshot.h>
@@ -50,6 +51,12 @@ public:
     /// \param matching shared engine the harness drives with market
     ///                 events; submit/cancel route through it.
     explicit InProcessOrderGatewayClient(matching::MatchingEngine& matching);
+
+    /// Wire a ResultsCollector to receive each FillReport. Called by the
+    /// harness after both objects are constructed (results_ depends on
+    /// strategy_cfg_ which is loaded later, so we can't pass it through
+    /// the ctor).
+    void set_results_collector(results::ResultsCollector* results) noexcept { results_ = results; }
 
     [[nodiscard]] bool send_new_order(uint64_t order_id,
                                       bpt::messages::ExchangeId::Value exchange_id,
@@ -173,6 +180,12 @@ private:
     /// Diagnostic — counts POST_ONLY-would-cross rejections. Useful
     /// for operators investigating why a backtest produced zero fills.
     uint64_t rejected_count_{0};
+
+    /// Optional — when set, every FillReport from the matching engine is
+    /// also forwarded to the results collector so summary.json / trades.csv
+    /// reflect the run's P&L. Owned by the harness; nullptr is valid
+    /// (unit tests that don't need result aggregation).
+    results::ResultsCollector* results_{nullptr};
 };
 
 }  // namespace bpt::backtester::harness

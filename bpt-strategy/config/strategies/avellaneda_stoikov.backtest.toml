@@ -41,13 +41,13 @@ kappa_halflife_s = 45.0
 kappa_warmup_ticks = 10
 kappa_min = 5.0
 
-max_half_spread_bps = 12.0
+max_half_spread_bps = 3.0
 
 # APE tick is much smaller than XMR. Median spread observed ~10 bps;
 # market price ~$0.18 = ~0.018 USD spread. order_qty 50 APE ≈ ~$9 notional;
 # max_inventory 500 APE ≈ ~$90. Adjust as backtest results suggest.
 order_qty = 50
-requote_threshold = 0.0005
+requote_threshold = 0.002
 max_inventory = 500.0
 
 # Subscribe to L2 ladder (depth 5) so the deterministic backtest harness's
@@ -60,7 +60,7 @@ order_book_depth = 5
 order_qty_fraction      = 0
 order_qty_min           = 50
 max_inventory_fraction  = 0
-min_half_spread_bps     = 4.0   # full quote = 8 bps, matches HL APE's ~8 bps median spread
+min_half_spread_bps     = 1.0   # full quote = 8 bps, matches HL APE's ~8 bps median spread
 
 # Backtest knobs: real HL APE shows drift ≈ 6.7 bps/√s and σ² ≈ 1.6e-4
 # at steady state, well above the prod 3.0 bps drift_suppress and the
