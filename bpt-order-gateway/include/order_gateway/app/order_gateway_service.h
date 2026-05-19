@@ -2,6 +2,7 @@
 
 #include "order_gateway/adapter/common/credentials.h"
 #include "order_gateway/adapter/common/i_order_adapter.h"
+#include "order_gateway/app/account_snap_executor.h"
 #include "order_gateway/config/settings.h"
 #include "order_gateway/messaging/publishers/api/account_snapshot_publisher.h"
 #include "order_gateway/messaging/publishers/api/exec_report_publisher.h"
@@ -46,6 +47,7 @@ private:
     order::OrderStateManager state_mgr_;
     std::vector<std::shared_ptr<adapter::IOrderAdapter>> adapters_;
     std::unique_ptr<order::OrderProcessor> processor_;
+    std::unique_ptr<app::AccountSnapExecutor> snap_executor_;
     const bpt::common::util::Topology& topology_;
 };
 

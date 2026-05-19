@@ -57,7 +57,12 @@ public:
     virtual void stop() = 0;
 
     /// \name Order entry
-    /// Thread-safe — called from the hot-path thread.
+    /// Non-blocking: each call extracts the SBE fields onto a value-typed
+    /// `SendWorkItem` and pushes onto the per-adapter send-work queue.
+    /// The send-executor thread drains the queue and invokes the
+    /// venue-specific blocking work (HTTPS POST / WS send + future wait).
+    /// Resulting `ExecEvent`s are delivered via `drain_exec_events()`.
+    /// Called from the main poll thread.
     /// @{
     virtual void send_new_order(const bpt::messages::NewOrder& order) = 0;
     virtual void send_cancel(const bpt::messages::CancelOrder& cancel, const std::string& native_symbol) = 0;
@@ -98,7 +103,7 @@ public:
 
     /// \brief Fetch current account positions and balance from the exchange REST API.
     ///
-    /// Blocking — must be called from a dedicated thread, not the poll
+    /// Blocking — runs on the `AccountSnapExecutor` thread, not the poll
     /// loop.
     /// \return A populated AccountSnapshotData.
     /// \throws std::exception on failure.

@@ -129,20 +129,19 @@ void OKXOrderAdapter::connect_and_run() {
     ws_client_.run(stop_flag_, connected_);
 }
 
-void OKXOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
-    const std::string exchange_symbol = order.getExchangeSymbolAsString();
-    const std::string cloid = session_prefix_ + "G" + std::to_string(order.orderId());
-    decoder_.register_order(cloid, order.orderId());
+void OKXOrderAdapter::do_send_new_order_blocking(const util::NewOrderRequest& req) {
+    const std::string cloid = session_prefix_ + "G" + std::to_string(req.order_id);
+    decoder_.register_order(cloid, req.order_id);
 
     const okx::OrderSpec spec{
-        exchange_symbol,
-        order.side(),
-        order.orderType(),
-        order.timeInForce(),
-        order.price(),
-        order.quantity(),
+        req.exchange_symbol,
+        req.side,
+        req.order_type,
+        req.tif,
+        req.price,
+        req.quantity,
         cloid,
-        order.execInst(),
+        req.exec_inst,
     };
     const uint64_t req_id = ws_req_id_.fetch_add(1, std::memory_order_relaxed);
     const std::string frame = json::serialize(
@@ -150,18 +149,17 @@ void OKXOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
     auto emit_rejection = [&]() {
         uint64_t ts = WallClock::now_ns();
         ExecEvent rej;
-        rej.order_id = order.orderId();
+        rej.order_id = req.order_id;
         rej.exchange_id = bpt::messages::ExchangeId::OKX;
-        rej.instrument_id = 0;
+        rej.instrument_id = req.instrument_id;
         rej.local_ts_ns = ts;
         rej.exchange_ts_ns = ts;
-        rej.side = (order.side() == bpt::messages::OrderSide::BUY) ? bpt::messages::OrderSide::BUY
-                                                                   : bpt::messages::OrderSide::SELL;
-        rej.order_type = order.orderType();
+        rej.side = req.side;
+        rej.order_type = req.order_type;
         rej.status = bpt::messages::ExecStatus::REJECTED;
         rej.reject_reason = bpt::messages::RejectReason::EXCHANGE_ERROR;
-        if (!exec_queue_.try_push(rej))
-            bpt::common::log::error("[OKX] exec_queue full — dropped rejection order_id={}", rej.order_id);
+        if (!rest_exec_queue_.try_push(rej))
+            bpt::common::log::error("[OKX] rest_exec_queue full — dropped rejection order_id={}", rej.order_id);
     };
 
     try {
@@ -169,7 +167,7 @@ void OKXOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
             bpt::common::log::warn(
                 "OKXOrderAdapter: send_new_order: WS not connected, "
                 "rejecting order={}",
-                order.orderId());
+                req.order_id);
             emit_rejection();
         }
     } catch (const std::exception& e) {
@@ -178,10 +176,10 @@ void OKXOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
     }
 }
 
-void OKXOrderAdapter::send_cancel(const bpt::messages::CancelOrder& cancel, const std::string& native_symbol) {
-    const std::string cloid = session_prefix_ + "G" + std::to_string(cancel.orderId());
+void OKXOrderAdapter::do_send_cancel_blocking(const util::CancelRequest& req) {
+    const std::string cloid = session_prefix_ + "G" + std::to_string(req.order_id);
     const uint64_t req_id = ws_req_id_.fetch_add(1, std::memory_order_relaxed);
-    const std::string frame = json::serialize(okx::build_cancel_action(native_symbol, cloid, req_id));
+    const std::string frame = json::serialize(okx::build_cancel_action(req.native_symbol, cloid, req_id));
 
     try {
         ws_client_.send(frame);
@@ -190,16 +188,16 @@ void OKXOrderAdapter::send_cancel(const bpt::messages::CancelOrder& cancel, cons
     }
 }
 
-void OKXOrderAdapter::send_cancel_all(uint64_t instrument_id) {
-    bpt::common::log::warn("OKXOrderAdapter: send_cancel_all called instrument_id={}", instrument_id);
+void OKXOrderAdapter::do_send_cancel_all_blocking(const util::CancelAllRequest& req) {
+    bpt::common::log::warn("OKXOrderAdapter: send_cancel_all called instrument_id={}", req.instrument_id);
 }
 
-void OKXOrderAdapter::send_modify(const bpt::messages::ModifyOrder& modify, const std::string& native_symbol) {
-    const std::string cloid = session_prefix_ + "G" + std::to_string(modify.orderId());
-    const std::string frame = json::serialize(okx::build_modify_action(native_symbol,
+void OKXOrderAdapter::do_send_modify_blocking(const util::ModifyRequest& req) {
+    const std::string cloid = session_prefix_ + "G" + std::to_string(req.order_id);
+    const std::string frame = json::serialize(okx::build_modify_action(req.native_symbol,
                                                                        cloid,
-                                                                       modify.newPrice(),
-                                                                       modify.newQuantity(),
+                                                                       req.new_price,
+                                                                       req.new_quantity,
                                                                        instruments_.contract_sizes()));
 
     try {

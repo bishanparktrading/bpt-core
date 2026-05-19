@@ -233,7 +233,7 @@ void HyperliquidOrderAdapter::connect_and_run() {
     ws_client_->run(stop_flag_, connected_);
 }
 
-void HyperliquidOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
+void HyperliquidOrderAdapter::do_send_new_order_blocking(const util::NewOrderRequest& req) {
     if (!enabled_ || !signer_) {
         bpt::common::log::error("HyperliquidOrderAdapter: disabled, cannot send order");
         return;
@@ -243,10 +243,9 @@ void HyperliquidOrderAdapter::send_new_order(const bpt::messages::NewOrder& orde
     using OT = bpt::messages::OrderType;
     using TIF = bpt::messages::TimeInForce;
 
-    const std::string exchange_symbol = order.getExchangeSymbolAsString();
-    const bool is_buy = (order.side() == OS::BUY);
-    const double price_d = static_cast<double>(order.price()) / kScale;
-    const double size_d = static_cast<double>(order.quantity()) / kScale;
+    const bool is_buy = (req.side == OS::BUY);
+    const double price_d = static_cast<double>(req.price) / kScale;
+    const double size_d = static_cast<double>(req.quantity) / kScale;
 
     // Map (OrderType, TimeInForce, execInst) onto HL's limit tif string.
     //   execInst & POST_ONLY → Alo  (HL rejects the order if it would cross — maker only)
@@ -255,98 +254,67 @@ void HyperliquidOrderAdapter::send_new_order(const bpt::messages::NewOrder& orde
     //                 limit price with IOC semantics)
     //   everything else → Gtc
     const auto hl_tif = [&]() {
-        if (order.execInst() & bpt::messages::kExecInstPostOnly)
+        if (req.exec_inst & bpt::messages::kExecInstPostOnly)
             return hlcodec::HlTif::Alo;
-        if (order.timeInForce() == TIF::IOC || order.orderType() == OT::MARKET)
+        if (req.tif == TIF::IOC || req.order_type == OT::MARKET)
             return hlcodec::HlTif::Ioc;
         return hlcodec::HlTif::Gtc;
     }();
 
-    // Resolve coin → AssetMeta. If the meta table is empty (load failed at
-    // startup) or the coin is not listed on HL, REJECT before we stamp an
-    // invalid `a` value into the wire JSON — HL returns an opaque "Error
-    // parsing JSON into valid websocket request" on out-of-range asset
-    // indices, which is much worse diagnostically than a clean reject.
-    const auto meta_it = asset_meta_.find(exchange_symbol);
+    const hyperliquid::OrderContext ctx{
+        req.order_id,
+        req.instrument_id,
+        req.side,
+        req.order_type,
+        req.price,
+        req.quantity,
+    };
+
+    const auto meta_it = asset_meta_.find(req.exchange_symbol);
     if (meta_it == asset_meta_.end()) {
-        bpt::common::log::warn("HyperliquidOrderAdapter: unknown symbol {} — rejecting", exchange_symbol);
-        const hyperliquid::OrderContext ctx{
-            order.orderId(),
-            order.instrumentId(),
-            order.side(),
-            order.orderType(),
-            order.price(),
-            order.quantity(),
-        };
+        bpt::common::log::warn("HyperliquidOrderAdapter: unknown symbol {} — rejecting", req.exchange_symbol);
         exec_emitter_.emit_rejected(ctx);
         return;
     }
     const hlcodec::AssetMeta meta = meta_it->second;
 
     try {
-        // Build Hyperliquid order action JSON via the pure codec helper.
-        // Do NOT mutate `action` after signing — the signer msgpacks the
-        // exact bytes we pass to ws_client_->post_action, so any post-sign mutation
-        // desyncs the signature from the wire payload.
         const json::value action = hlcodec::build_order_action(meta, is_buy, price_d, size_d, hl_tif);
 
         const uint64_t nonce = signer_->next_nonce();
         auto tx = signer_->sign_l1_action(action, nonce);
 
-        // Post over the existing order-gateway WS (shared with userFills sub)
-        // instead of opening a fresh HTTPS /exchange request. Response
-        // payload shape is identical to the REST body, so downstream
-        // parsing below is unchanged.
         const std::string resp = ws_client_->post_action(action, nonce, tx);
         bpt::common::log::info("HyperliquidOrderAdapter: new order id={} side={} tif={} px={} sz={} resp={}",
-                               order.orderId(),
+                               req.order_id,
                                is_buy ? "BUY" : "SELL",
                                hlcodec::tif_to_string(hl_tif),
                                price_d,
                                size_d,
                                resp);
 
-        const hyperliquid::OrderContext ctx{
-            order.orderId(),
-            order.instrumentId(),
-            order.side(),
-            order.orderType(),
-            order.price(),
-            order.quantity(),
-        };
         exec_emitter_.emit_order_response(
             resp,
             ctx,
-            [this, client_id = order.orderId(), qty_e8 = order.quantity()](uint64_t exch_oid) {
+            [this, client_id = req.order_id, qty_e8 = req.quantity](uint64_t exch_oid) {
                 client_to_exch_oid_[client_id] = exch_oid;
                 exch_oid_to_client_[exch_oid] = client_id;
-                // Register with the parser so userFills entries for this oid
-                // can be resolved to a client_order_id AND tracked across
-                // multiple partial-fill slices.
                 decoder_.register_order(exch_oid, client_id, qty_e8);
             });
     } catch (const std::exception& e) {
-        // post_action threw: either the WS was already disconnected,
-        // the connection dropped mid-flight (PendingGuard in ws_client
-        // fails every in-flight future), or the 5 s timeout elapsed.
-        // All three cases share the same blind spot: HL may have
-        // accepted the signed action even though no response reached us.
-        // Instead of emitting REJECTED and letting the strategy's view
-        // diverge, defer to the reconciler — it waits 3 s then REST-
-        // polls /info openOrders + /info userFills to find the truth.
         bpt::common::log::warn(
             "HyperliquidOrderAdapter: send_new_order id={} threw "
             "({}) — deferring to reconciler",
-            order.orderId(),
+            req.order_id,
             e.what());
         reconciler_->reconcile_async(hyperliquid::HyperliquidReconciler::Candidate{
-            order.orderId(),
-            order.instrumentId(),
-            order.side(),
-            order.orderType(),
-            order.price(),
-            order.quantity(),
-            exchange_symbol,
+            req.order_id,
+            req.instrument_id,
+            req.side,
+            req.order_type,
+            req.price,
+            req.quantity,
+            req.exchange_symbol,
             WallClock::now_ns(),
         });
     }
@@ -425,29 +393,26 @@ void HyperliquidOrderAdapter::on_reconcile_terminal(const hyperliquid::Hyperliqu
     }
 }
 
-void HyperliquidOrderAdapter::send_cancel(const bpt::messages::CancelOrder& cancel, const std::string& native_symbol) {
+void HyperliquidOrderAdapter::do_send_cancel_blocking(const util::CancelRequest& req) {
     if (!enabled_ || !signer_) {
         bpt::common::log::error("HyperliquidOrderAdapter: disabled, cannot cancel order");
         return;
     }
 
-    // HL's cancel-by-oid requires the EXCHANGE oid from the "resting"
-    // response, not our client order_id. Look it up in the map that
-    // send_new_order populated when it received the ACK.
-    auto it = client_to_exch_oid_.find(cancel.orderId());
+    auto it = client_to_exch_oid_.find(req.order_id);
     if (it == client_to_exch_oid_.end()) {
         bpt::common::log::warn(
             "HyperliquidOrderAdapter: cancel id={}: no exch_oid mapping — order never ACKed or already terminal",
-            cancel.orderId());
+            req.order_id);
         return;
     }
     const uint64_t exch_oid = it->second;
 
-    const auto cancel_meta_it = asset_meta_.find(native_symbol);
+    const auto cancel_meta_it = asset_meta_.find(req.native_symbol);
     if (cancel_meta_it == asset_meta_.end()) {
         bpt::common::log::warn("HyperliquidOrderAdapter: cancel id={} unknown symbol {} — skipping",
-                               cancel.orderId(),
-                               native_symbol);
+                               req.order_id,
+                               req.native_symbol);
         return;
     }
 
@@ -458,9 +423,9 @@ void HyperliquidOrderAdapter::send_cancel(const bpt::messages::CancelOrder& canc
         auto tx = signer_->sign_l1_action(action, nonce);
 
         const std::string resp = ws_client_->post_action(action, nonce, tx);
-        bpt::common::log::info("HyperliquidOrderAdapter: cancel id={} resp={}", cancel.orderId(), resp);
+        bpt::common::log::info("HyperliquidOrderAdapter: cancel id={} resp={}", req.order_id, resp);
 
-        exec_emitter_.emit_cancel_response(resp, cancel.orderId(), [this, client_id = cancel.orderId(), exch_oid]() {
+        exec_emitter_.emit_cancel_response(resp, req.order_id, [this, client_id = req.order_id, exch_oid]() {
             client_to_exch_oid_.erase(client_id);
             exch_oid_to_client_.erase(exch_oid);
         });
@@ -469,7 +434,8 @@ void HyperliquidOrderAdapter::send_cancel(const bpt::messages::CancelOrder& canc
     }
 }
 
-void HyperliquidOrderAdapter::send_cancel_all(uint64_t instrument_id) {
+void HyperliquidOrderAdapter::do_send_cancel_all_blocking(const util::CancelAllRequest& req) {
+    const uint64_t instrument_id = req.instrument_id;
     // HL doesn't expose a native per-instrument cancel-all. We implement
     // this as: fetch the wallet's open orders via /info, build a batch
     // cancel action covering every returned oid, sign, POST /exchange.
@@ -555,26 +521,25 @@ void HyperliquidOrderAdapter::send_cancel_all(uint64_t instrument_id) {
     }
 }
 
-void HyperliquidOrderAdapter::send_modify(const bpt::messages::ModifyOrder& modify, const std::string& native_symbol) {
+void HyperliquidOrderAdapter::do_send_modify_blocking(const util::ModifyRequest& req) {
     if (!enabled_ || !signer_) {
         bpt::common::log::error("HyperliquidOrderAdapter: disabled, cannot modify order");
         return;
     }
 
-    const auto modify_meta_it = asset_meta_.find(native_symbol);
+    const auto modify_meta_it = asset_meta_.find(req.native_symbol);
     if (modify_meta_it == asset_meta_.end()) {
         bpt::common::log::warn("HyperliquidOrderAdapter: modify id={} unknown symbol {} — skipping",
-                               modify.orderId(),
-                               native_symbol);
+                               req.order_id,
+                               req.native_symbol);
         return;
     }
 
     try {
-        const double price_d = static_cast<double>(modify.newPrice()) / kScale;
-        const double size_d = static_cast<double>(modify.newQuantity()) / kScale;
+        const double price_d = static_cast<double>(req.new_price) / kScale;
+        const double size_d = static_cast<double>(req.new_quantity) / kScale;
 
-        const json::value action =
-            hlcodec::build_modify_action(modify_meta_it->second, modify.orderId(), price_d, size_d);
+        const json::value action = hlcodec::build_modify_action(modify_meta_it->second, req.order_id, price_d, size_d);
 
         const uint64_t nonce = signer_->next_nonce();
         auto tx = signer_->sign_l1_action(action, nonce);

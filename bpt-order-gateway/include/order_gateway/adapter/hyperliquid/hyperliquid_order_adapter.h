@@ -54,11 +54,6 @@ class HyperliquidOrderAdapter : public OrderAdapterBase {
 public:
     HyperliquidOrderAdapter(const config::AdapterConfig& cfg, const ExchangeCredentials& creds);
 
-    void send_new_order(const bpt::messages::NewOrder& order) override;
-    void send_cancel(const bpt::messages::CancelOrder& cancel, const std::string& native_symbol) override;
-    void send_cancel_all(uint64_t instrument_id) override;
-    void send_modify(const bpt::messages::ModifyOrder& modify, const std::string& native_symbol) override;
-
     [[nodiscard]] bpt::messages::ExchangeId::Value exchange_id() const override {
         return bpt::messages::ExchangeId::HYPERLIQUID;
     }
@@ -69,6 +64,11 @@ public:
 
 protected:
     void connect_and_run() override;
+
+    void do_send_new_order_blocking(const util::NewOrderRequest& req) override;
+    void do_send_cancel_blocking(const util::CancelRequest& req) override;
+    void do_send_cancel_all_blocking(const util::CancelAllRequest& req) override;
+    void do_send_modify_blocking(const util::ModifyRequest& req) override;
 
 private:
     /// \brief Reconciler terminal callback.
@@ -84,7 +84,7 @@ private:
     HyperliquidAccountMode account_mode_{HyperliquidAccountMode::kUnknown};
     std::unique_ptr<HyperliquidSigner> signer_;
     HyperliquidExecDecoder decoder_;
-    hyperliquid::HyperliquidExecEmitter exec_emitter_{exec_queue_};
+    hyperliquid::HyperliquidExecEmitter exec_emitter_{rest_exec_queue_};
     std::unique_ptr<hyperliquid::HyperliquidWsClient> ws_client_;
 
     /// client_order_id → HL exchange oid (from the "resting" response).

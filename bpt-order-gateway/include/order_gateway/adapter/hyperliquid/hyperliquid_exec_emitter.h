@@ -39,7 +39,11 @@ struct OrderContext {
 
 class HyperliquidExecEmitter {
 public:
-    explicit HyperliquidExecEmitter(util::ExecEventQueue& queue) : queue_(queue) {}
+    /// \param queue Destination MPSC queue. HL's reconciler worker thread
+    ///        invokes the emit_recovered_* methods concurrently with
+    ///        the send-executor thread's emit_order_response — the
+    ///        queue's mutex serialises both producers.
+    explicit HyperliquidExecEmitter(util::MpscExecEventQueue& queue) : queue_(queue) {}
 
     /// \brief Parse an order-action response and emit the corresponding ExecEvent.
     ///
@@ -92,7 +96,7 @@ public:
     /// @}
 
 private:
-    util::ExecEventQueue& queue_;
+    util::MpscExecEventQueue& queue_;
 };
 
 }  // namespace bpt::order_gateway::adapter::hyperliquid

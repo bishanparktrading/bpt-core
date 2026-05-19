@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 
 namespace bpt::order_gateway::util {
@@ -61,6 +62,41 @@ private:
     alignas(64) std::atomic<std::size_t> tail_{0};
     const std::size_t mask_;
     std::unique_ptr<adapter::ExecEvent[]> slots_;
+};
+
+/// \brief MPSC variant — same ring, mutex-serialised producers.
+///
+/// Used for `rest_exec_queue_` where the send-executor thread is the
+/// primary producer, but secondary producers can fire on rare paths
+/// (e.g. the HL reconciler worker thread emits recovered ExecEvents).
+/// Pop side remains lockless (single consumer = main poll thread).
+///
+/// Cost is one mutex acquisition per push; at ogw event rates (~10s/sec)
+/// this is negligible and the queue stays correct under multi-producer.
+class MpscExecEventQueue {
+public:
+    explicit MpscExecEventQueue(std::size_t capacity) : q_(capacity) {}
+
+    MpscExecEventQueue(const MpscExecEventQueue&) = delete;
+    MpscExecEventQueue& operator=(const MpscExecEventQueue&) = delete;
+
+    [[nodiscard]] std::size_t capacity() const noexcept { return q_.capacity(); }
+
+    /// Producer side. Any thread; multiple producers serialise on `mu_`.
+    [[nodiscard]] bool try_push(const adapter::ExecEvent& ev) noexcept {
+        std::lock_guard<std::mutex> g(mu_);
+        return q_.try_push(ev);
+    }
+
+    /// Consumer side — single thread. Lockless.
+    template <typename Fn>
+    bool try_pop(Fn&& fn) noexcept {
+        return q_.try_pop(std::forward<Fn>(fn));
+    }
+
+private:
+    std::mutex mu_;
+    ExecEventQueue q_;
 };
 
 }  // namespace bpt::order_gateway::util

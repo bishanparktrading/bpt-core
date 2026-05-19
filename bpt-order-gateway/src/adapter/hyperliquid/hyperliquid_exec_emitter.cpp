@@ -36,9 +36,9 @@ ExecEvent make_skeleton(const OrderContext& ctx, uint64_t now_ns) {
     return ev;
 }
 
-void push_or_log(util::ExecEventQueue& queue, const ExecEvent& ev, const char* tag) {
+void push_or_log(util::MpscExecEventQueue& queue, const ExecEvent& ev, const char* tag) {
     if (!queue.try_push(ev))
-        bpt::common::log::error("[Hyperliquid] exec_queue full — dropped {} ExecEvent", tag);
+        bpt::common::log::error("[Hyperliquid] rest_exec_queue full — dropped {} ExecEvent", tag);
 }
 
 }  // namespace

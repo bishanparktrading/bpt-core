@@ -18,10 +18,10 @@ namespace bpt::order_gateway::messaging::api {
 
 /// \brief Contract for the AccountSnapshot outbound port.
 ///
-/// Called from a detached worker thread spawned per
-/// AccountSnapshotRequest (REST fetch is blocking — must not run on
-/// the poll loop). Implementations must be thread-safe for concurrent
-/// publish() across worker threads from different adapters.
+/// Called from a single dedicated executor thread (`AccountSnapExecutor`),
+/// not the poll loop. The executor serialises all fetch + publish calls
+/// across adapters, so implementations do NOT need to be thread-safe for
+/// concurrent multi-writer use.
 class AccountSnapshotPublisher {
 public:
     virtual ~AccountSnapshotPublisher() = default;

@@ -193,18 +193,17 @@ void DeribitOrderAdapter::connect_and_run() {
     ws_client_.run(stop_flag_, connected_);
 }
 
-void DeribitOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
-    const std::string exchange_symbol = order.getExchangeSymbolAsString();
-    const std::string label = session_prefix_ + "G" + std::to_string(order.orderId());
-    decoder_.register_order(label, order.orderId());
+void DeribitOrderAdapter::do_send_new_order_blocking(const util::NewOrderRequest& req) {
+    const std::string label = session_prefix_ + "G" + std::to_string(req.order_id);
+    decoder_.register_order(label, req.order_id);
 
     const deribit::OrderSpec spec{
-        exchange_symbol,
-        order.side(),
-        order.orderType(),
-        order.timeInForce(),
-        order.price(),
-        order.quantity(),
+        req.exchange_symbol,
+        req.side,
+        req.order_type,
+        req.tif,
+        req.price,
+        req.quantity,
         label,
     };
     const std::string frame = deribit::build_new_order_msg(spec, jsonrpc_id_.fetch_add(1, std::memory_order_relaxed));
@@ -212,24 +211,24 @@ void DeribitOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
     auto emit_rejection = [&]() {
         const uint64_t ts = bpt::common::util::WallClock::now_ns();
         ExecEvent rej{};
-        rej.order_id = order.orderId();
+        rej.order_id = req.order_id;
         rej.exchange_id = bpt::messages::ExchangeId::DERIBIT;
-        rej.instrument_id = 0;
+        rej.instrument_id = req.instrument_id;
         rej.local_ts_ns = ts;
         rej.exchange_ts_ns = ts;
-        rej.side = order.side();
-        rej.order_type = order.orderType();
+        rej.side = req.side;
+        rej.order_type = req.order_type;
         rej.status = bpt::messages::ExecStatus::REJECTED;
         rej.reject_reason = bpt::messages::RejectReason::EXCHANGE_ERROR;
-        if (!exec_queue_.try_push(rej))
-            bpt::common::log::error("[Deribit] exec_queue full — dropped rejection order_id={}", rej.order_id);
+        if (!rest_exec_queue_.try_push(rej))
+            bpt::common::log::error("[Deribit] rest_exec_queue full — dropped rejection order_id={}", rej.order_id);
     };
 
     if (!logged_in_.load(std::memory_order_acquire)) {
         bpt::common::log::info(
             "DeribitOrderAdapter: queuing order {} (not yet "
             "authenticated)",
-            order.orderId());
+            req.order_id);
         std::lock_guard<std::mutex> lk(pending_mu_);
         pending_sends_.push_back(frame);
         return;
@@ -240,7 +239,7 @@ void DeribitOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
             bpt::common::log::warn(
                 "DeribitOrderAdapter: send_new_order: WS not "
                 "connected, rejecting order={}",
-                order.orderId());
+                req.order_id);
             emit_rejection();
         }
     } catch (const std::exception& e) {
@@ -249,14 +248,14 @@ void DeribitOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
     }
 }
 
-void DeribitOrderAdapter::send_cancel(const bpt::messages::CancelOrder& cancel, const std::string& /*native_symbol*/) {
+void DeribitOrderAdapter::do_send_cancel_blocking(const util::CancelRequest& req) {
     // Deribit cancel uses exchange order_id, not instrument symbol.
-    const std::string exch_oid = decoder_.get_exchange_order_id(cancel.orderId());
+    const std::string exch_oid = decoder_.get_exchange_order_id(req.order_id);
     if (exch_oid.empty()) {
         bpt::common::log::warn(
             "DeribitOrderAdapter: send_cancel: no exchange "
             "order_id for order={}",
-            cancel.orderId());
+            req.order_id);
         return;
     }
 
@@ -268,26 +267,26 @@ void DeribitOrderAdapter::send_cancel(const bpt::messages::CancelOrder& cancel, 
     }
 }
 
-void DeribitOrderAdapter::send_cancel_all(uint64_t instrument_id) {
+void DeribitOrderAdapter::do_send_cancel_all_blocking(const util::CancelAllRequest& req) {
     bpt::common::log::warn(
         "DeribitOrderAdapter: send_cancel_all called "
         "instrument_id={} — not supported without instrument name",
-        instrument_id);
+        req.instrument_id);
 }
 
-void DeribitOrderAdapter::send_modify(const bpt::messages::ModifyOrder& modify, const std::string& /*native_symbol*/) {
-    const std::string exch_oid = decoder_.get_exchange_order_id(modify.orderId());
+void DeribitOrderAdapter::do_send_modify_blocking(const util::ModifyRequest& req) {
+    const std::string exch_oid = decoder_.get_exchange_order_id(req.order_id);
     if (exch_oid.empty()) {
         bpt::common::log::warn(
             "DeribitOrderAdapter: send_modify: no exchange "
             "order_id for order={}",
-            modify.orderId());
+            req.order_id);
         return;
     }
 
     const std::string frame = deribit::build_edit_msg(exch_oid,
-                                                      modify.newPrice(),
-                                                      modify.newQuantity(),
+                                                      req.new_price,
+                                                      req.new_quantity,
                                                       jsonrpc_id_.fetch_add(1, std::memory_order_relaxed));
     try {
         ws_client_.send(frame);

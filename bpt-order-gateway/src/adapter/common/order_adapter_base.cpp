@@ -1,11 +1,17 @@
 #include "order_gateway/adapter/common/order_adapter_base.h"
 
+#include <messages/CancelOrder.h>
+#include <messages/ModifyOrder.h>
+#include <messages/NewOrder.h>
+
 #include <bpt_common/logging.h>
 #include <bpt_common/util/strings.h>
 #include <bpt_common/util/thread_name.h>
 #include <bpt_common/util/thread_pin.h>
 #include <bpt_common/util/tsc_clock.h>
 #include <string>
+#include <utility>
+#include <variant>
 
 namespace bpt::order_gateway::adapter {
 
@@ -13,19 +19,16 @@ namespace ssl = boost::asio::ssl;
 
 namespace {
 
-// Topology role name for the order-gw IO thread per adapter.
-// Convention: "ogw.<venue-lower>.io". Matches the service_name shape
-// (bpt-ogw-<venue>) so operators see a consistent vocabulary.
 std::string io_role(const char* exchange) {
     return "ogw." + bpt::common::util::to_lower(exchange) + ".io";
 }
 
-// OS thread name for the adapter IO thread. Venue in the middle so
-// sort order groups all OKX threads adjacent (ogw-okx-io + ogw-okx-log)
-// — matches the existing quill-backend and topology-role ordering.
-// Truncated to 15 chars by set_thread_name if the venue name is long.
 std::string io_thread_name(const char* exchange) {
     return "ogw-" + bpt::common::util::to_lower(exchange) + "-io";
+}
+
+std::string send_thread_name(const char* exchange) {
+    return "ogw-" + bpt::common::util::to_lower(exchange) + "-sx";
 }
 
 }  // namespace
@@ -33,25 +36,68 @@ std::string io_thread_name(const char* exchange) {
 OrderAdapterBase::OrderAdapterBase(const config::AdapterConfig& cfg)
     : cfg_(cfg),
       ssl_ctx_(ssl::context::tls_client),
-      exec_queue_(cfg.exec_queue_capacity) {
+      exec_queue_(cfg.exec_queue_capacity),
+      rest_exec_queue_(cfg.exec_queue_capacity) {
     ssl_ctx_.set_default_verify_paths();
     ssl_ctx_.set_verify_mode(ssl::verify_peer);
 }
 
 void OrderAdapterBase::start() {
     thread_ = std::thread([this] { run(); });
+    send_executor_thread_ = std::thread([this] { run_send_executor(); });
 }
 
 void OrderAdapterBase::stop() {
     stop_flag_.store(true, std::memory_order_relaxed);
+    send_work_queue_.close();
     ioc_.stop();
     if (thread_.joinable())
         thread_.join();
+    if (send_executor_thread_.joinable())
+        send_executor_thread_.join();
+}
+
+void OrderAdapterBase::send_new_order(const bpt::messages::NewOrder& order) {
+    util::NewOrderRequest req;
+    req.order_id = order.orderId();
+    req.instrument_id = order.instrumentId();
+    req.price = order.price();
+    req.quantity = order.quantity();
+    req.side = order.side();
+    req.order_type = order.orderType();
+    req.tif = order.timeInForce();
+    req.exec_inst = order.execInst();
+    req.exchange_symbol = order.getExchangeSymbolAsString();
+    send_work_queue_.push(util::SendWorkItem{std::move(req)});
+}
+
+void OrderAdapterBase::send_cancel(const bpt::messages::CancelOrder& cancel, const std::string& native_symbol) {
+    util::CancelRequest req;
+    req.order_id = cancel.orderId();
+    req.native_symbol = native_symbol;
+    send_work_queue_.push(util::SendWorkItem{std::move(req)});
+}
+
+void OrderAdapterBase::send_cancel_all(uint64_t instrument_id) {
+    util::CancelAllRequest req;
+    req.instrument_id = instrument_id;
+    send_work_queue_.push(util::SendWorkItem{std::move(req)});
+}
+
+void OrderAdapterBase::send_modify(const bpt::messages::ModifyOrder& modify, const std::string& native_symbol) {
+    util::ModifyRequest req;
+    req.order_id = modify.orderId();
+    req.new_price = modify.newPrice();
+    req.new_quantity = modify.newQuantity();
+    req.native_symbol = native_symbol;
+    send_work_queue_.push(util::SendWorkItem{std::move(req)});
 }
 
 int OrderAdapterBase::drain_exec_events(const std::function<void(const ExecEvent&)>& fn) {
     int n = 0;
     while (exec_queue_.try_pop([&](const ExecEvent& ev) { fn(ev); }))
+        ++n;
+    while (rest_exec_queue_.try_pop([&](const ExecEvent& ev) { fn(ev); }))
         ++n;
     return n;
 }
@@ -62,8 +108,6 @@ std::chrono::milliseconds OrderAdapterBase::reconnect_delay() const {
 
 void OrderAdapterBase::run() {
     bpt::common::util::set_thread_name(io_thread_name(exchange_name()));
-    // Pin policy: prefer topology role when set, fall back to legacy
-    // cfg_.io_cpu knob. Mirrors md-gw adapter pinning.
     bool pinned_via_topology = false;
     if (topology_)
         pinned_via_topology =
@@ -81,11 +125,6 @@ void OrderAdapterBase::run() {
                                         exchange_name(),
                                         e.what(),
                                         reconnect_delay().count());
-                // Disconnect-rate breaker: treat every caught exception as
-                // one disconnect event. We only count on caught errors
-                // (not on clean shutdown), so the breaker won't trip at
-                // service stop. Latch check runs before the sleep so the
-                // loud ERROR log lands promptly after the trip.
                 const bool was_tripped = disconnect_breaker_.tripped();
                 disconnect_breaker_.record(bpt::common::util::TscClock::now_epoch_ns());
                 if (!was_tripped && disconnect_breaker_.tripped()) {
@@ -102,6 +141,33 @@ void OrderAdapterBase::run() {
             }
         }
         connected_.store(false, std::memory_order_relaxed);
+    }
+}
+
+void OrderAdapterBase::run_send_executor() {
+    bpt::common::util::set_thread_name(send_thread_name(exchange_name()));
+    while (true) {
+        auto item_opt = send_work_queue_.pop_blocking();
+        if (!item_opt)
+            return;
+        try {
+            std::visit(
+                [this](auto&& req) {
+                    using T = std::decay_t<decltype(req)>;
+                    if constexpr (std::is_same_v<T, util::NewOrderRequest>) {
+                        do_send_new_order_blocking(req);
+                    } else if constexpr (std::is_same_v<T, util::CancelRequest>) {
+                        do_send_cancel_blocking(req);
+                    } else if constexpr (std::is_same_v<T, util::CancelAllRequest>) {
+                        do_send_cancel_all_blocking(req);
+                    } else if constexpr (std::is_same_v<T, util::ModifyRequest>) {
+                        do_send_modify_blocking(req);
+                    }
+                },
+                *item_opt);
+        } catch (const std::exception& e) {
+            bpt::common::log::error("{}: send executor caught exception: {}", exchange_name(), e.what());
+        }
     }
 }
 

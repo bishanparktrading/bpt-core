@@ -25,9 +25,13 @@ BinanceOrderAdapter::BinanceOrderAdapter(const config::AdapterConfig& cfg, const
       secret_key_(creds.secret_key),
       https_client_(cfg_, creds),
       user_data_ws_(ioc_, ssl_ctx_, cfg_, https_client_) {
-    decoder_.on_exec_event = [this](const ExecEvent& ev) {
+    decoder_.on_ws_exec_event = [this](const ExecEvent& ev) {
         if (!exec_queue_.try_push(ev))
-            bpt::common::log::error("[Binance] exec_queue full — dropped ExecEvent order_id={}", ev.order_id);
+            bpt::common::log::error("[Binance] exec_queue full — dropped WS ExecEvent order_id={}", ev.order_id);
+    };
+    decoder_.on_rest_exec_event = [this](const ExecEvent& ev) {
+        if (!rest_exec_queue_.try_push(ev))
+            bpt::common::log::error("[Binance] rest_exec_queue full — dropped REST ExecEvent order_id={}", ev.order_id);
     };
     user_data_ws_.set_message_handler(
         [this](const std::string& payload, uint64_t recv_ns) { handle_user_data_message(payload, recv_ns); });
@@ -44,20 +48,19 @@ void BinanceOrderAdapter::connect_and_run() {
     user_data_ws_.run(stop_flag_, connected_);
 }
 
-void BinanceOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
-    const std::string exchange_symbol = order.getExchangeSymbolAsString();
-    const std::string cloid = "G" + std::to_string(order.orderId());
-    decoder_.register_order(cloid, order.orderId());
+void BinanceOrderAdapter::do_send_new_order_blocking(const util::NewOrderRequest& req) {
+    const std::string cloid = "G" + std::to_string(req.order_id);
+    decoder_.register_order(cloid, req.order_id);
 
     const binance::OrderSpec spec{
-        exchange_symbol,
-        order.side(),
-        order.orderType(),
-        order.timeInForce(),
-        order.price(),
-        order.quantity(),
+        req.exchange_symbol,
+        req.side,
+        req.order_type,
+        req.tif,
+        req.price,
+        req.quantity,
         cloid,
-        order.execInst(),
+        req.exec_inst,
     };
     const std::string params = binance::build_new_order_params(spec);
     const std::string signed_params = binance::sign_query(secret_key_, params);
@@ -65,40 +68,37 @@ void BinanceOrderAdapter::send_new_order(const bpt::messages::NewOrder& order) {
     auto emit_rejection = [&]() {
         const uint64_t ts = bpt::common::util::WallClock::now_ns();
         ExecEvent rej;
-        rej.order_id = order.orderId();
+        rej.order_id = req.order_id;
         rej.exchange_id = bpt::messages::ExchangeId::BINANCE;
-        rej.instrument_id = 0;
+        rej.instrument_id = req.instrument_id;
         rej.local_ts_ns = ts;
         rej.exchange_ts_ns = ts;
-        rej.side = order.side();
-        rej.order_type = order.orderType();
+        rej.side = req.side;
+        rej.order_type = req.order_type;
         rej.status = bpt::messages::ExecStatus::REJECTED;
         rej.reject_reason = bpt::messages::RejectReason::EXCHANGE_ERROR;
-        if (!exec_queue_.try_push(rej))
-            bpt::common::log::error("[Binance] exec_queue full — dropped rejection order_id={}", rej.order_id);
+        if (!rest_exec_queue_.try_push(rej))
+            bpt::common::log::error("[Binance] rest_exec_queue full — dropped rejection order_id={}", rej.order_id);
     };
 
     try {
         const std::string resp = https_client_.request("POST", "/api/v3/order?" + signed_params, "", true);
-        // Raw body intentionally not logged — parser below surfaces the
-        // structured fields (orderId/status/executedQty) via exec events.
-        // Byte count is enough for a "did we get a response?" trace.
         bpt::common::log::debug("BinanceOrderAdapter: new order resp (bytes={})", resp.size());
 
         const uint64_t recv_ns = bpt::common::util::WallClock::now_ns();
         auto root = json::parse(resp);
         if (!root.is_object())
             return;
-        decoder_.handle_order_response(root.as_object(), order.orderId(), order.side(), order.orderType(), recv_ns);
+        decoder_.handle_order_response(root.as_object(), req.order_id, req.side, req.order_type, recv_ns);
     } catch (const std::exception& e) {
         bpt::common::log::error("BinanceOrderAdapter: send_new_order failed: {}", e.what());
         emit_rejection();
     }
 }
 
-void BinanceOrderAdapter::send_cancel(const bpt::messages::CancelOrder& cancel, const std::string& native_symbol) {
-    const std::string cloid = "G" + std::to_string(cancel.orderId());
-    const std::string params = binance::build_cancel_params(native_symbol, cloid);
+void BinanceOrderAdapter::do_send_cancel_blocking(const util::CancelRequest& req) {
+    const std::string cloid = "G" + std::to_string(req.order_id);
+    const std::string params = binance::build_cancel_params(req.native_symbol, cloid);
     const std::string signed_params = binance::sign_query(secret_key_, params);
 
     try {
@@ -109,24 +109,23 @@ void BinanceOrderAdapter::send_cancel(const bpt::messages::CancelOrder& cancel, 
     }
 }
 
-void BinanceOrderAdapter::send_cancel_all(uint64_t instrument_id) {
-    (void)instrument_id;
+void BinanceOrderAdapter::do_send_cancel_all_blocking(const util::CancelAllRequest& req) {
     bpt::common::log::warn(
         "BinanceOrderAdapter: send_cancel_all called with "
         "instrument_id={}",
-        instrument_id);
+        req.instrument_id);
 }
 
-void BinanceOrderAdapter::send_modify(const bpt::messages::ModifyOrder& modify, const std::string& native_symbol) {
+void BinanceOrderAdapter::do_send_modify_blocking(const util::ModifyRequest& req) {
     // Binance has no native amend — cancel + replace.
-    const std::string cloid = "G" + std::to_string(modify.orderId());
+    const std::string cloid = "G" + std::to_string(req.order_id);
     const std::string new_cloid = cloid + "m";
 
-    const std::string cancel_params = binance::build_cancel_params(native_symbol, cloid);
+    const std::string cancel_params = binance::build_cancel_params(req.native_symbol, cloid);
     const std::string signed_cancel = binance::sign_query(secret_key_, cancel_params);
 
     const std::string new_params =
-        binance::build_modify_replace_params(native_symbol, new_cloid, modify.newPrice(), modify.newQuantity());
+        binance::build_modify_replace_params(req.native_symbol, new_cloid, req.new_price, req.new_quantity);
     const std::string signed_new = binance::sign_query(secret_key_, new_params);
 
     try {

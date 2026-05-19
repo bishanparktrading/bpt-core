@@ -11,7 +11,6 @@
 #include <chrono>
 #include <map>
 #include <string>
-#include <thread>
 #include <x86intrin.h>
 
 using namespace std::chrono_literals;
@@ -106,31 +105,17 @@ OrderGatewayService::OrderGatewayService(config::Settings cfg,
     order_sub_->on_modify = [this](const bpt::messages::ModifyOrder& m) {
         processor_->on_modify(m);
     };
+    snap_executor_ = std::make_unique<app::AccountSnapExecutor>(*account_snap_pub_);
+    snap_executor_->start();
+
     order_sub_->on_account_snapshot_request = [this](const bpt::messages::AccountSnapshotRequest& req) {
         const auto exchange_id = req.exchangeId();
         const uint64_t correlation_id = req.correlationId();
 
-        // Find the matching adapter and dispatch the blocking REST fetch to a
-        // dedicated thread so the poll loop is not stalled.
         for (auto& adapter : adapters_) {
             if (adapter->exchange_id() != exchange_id)
                 continue;
-            std::thread([this, adapter, exchange_id, correlation_id]() {
-                try {
-                    auto snap = adapter->fetch_account_snapshot(correlation_id);
-                    account_snap_pub_->publish(snap);
-                } catch (const std::exception& e) {
-                    bpt::common::log::error("AccountSnapshot fetch failed for exchange={}: {}",
-                                            bpt::messages::ExchangeId::c_str(exchange_id),
-                                            e.what());
-                    // Publish empty snapshot so Strategy's gate doesn't hang.
-                    adapter::AccountSnapshotData empty;
-                    empty.exchange_id = exchange_id;
-                    empty.correlation_id = correlation_id;
-                    empty.timestamp_ns = bpt::common::util::WallClock::now_ns();
-                    account_snap_pub_->publish(empty);
-                }
-            }).detach();
+            snap_executor_->request_fetch(adapter, correlation_id);
             return;
         }
         bpt::common::log::warn("AccountSnapshotRequest for unconfigured exchange={}",
@@ -204,25 +189,15 @@ void OrderGatewayService::run() {
             last_hb_ns = now_ns;
         }
 
-        // Periodic account snapshot republish — fetches are blocking REST
-        // calls so dispatch to a detached thread (same pattern as the
-        // on_account_snapshot_request handler).
+        // Periodic account snapshot republish — push onto the executor;
+        // fetches are blocking REST calls so the executor thread owns
+        // them, not this poll loop.
         if (now_ns - last_account_snap_ns >= kAccountSnapIntervalNs) {
             last_account_snap_ns = now_ns;
             for (auto& adapter : adapters_) {
                 if (!adapter->is_connected())
                     continue;
-                auto a = adapter;  // capture the shared_ptr by value
-                std::thread([this, a]() {
-                    try {
-                        auto snap = a->fetch_account_snapshot(/*correlation_id=*/0);
-                        account_snap_pub_->publish(snap);
-                    } catch (const std::exception& e) {
-                        bpt::common::log::warn("Periodic AccountSnapshot fetch failed for {}: {}",
-                                               bpt::messages::ExchangeId::c_str(a->exchange_id()),
-                                               e.what());
-                    }
-                }).detach();
+                snap_executor_->request_fetch(adapter, /*correlation_id=*/0);
             }
         }
 
@@ -235,6 +210,12 @@ void OrderGatewayService::stop() {
     // Called by bpt::app::run() after the poll loop exits. Drains
     // adapter WS/REST threads + Prometheus exposer so teardown is
     // symmetric with the startup side-effects.
+    //
+    // Stop the snapshot executor BEFORE adapters — pending fetches
+    // would call into adapter->fetch_account_snapshot() which is about
+    // to be destroyed.
+    if (snap_executor_)
+        snap_executor_->stop();
     for (auto& a : adapters_)
         a->stop();
     metrics_.shutdown();

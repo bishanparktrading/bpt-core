@@ -24,7 +24,11 @@ namespace bpt::order_gateway::adapter {
 /// from two places.
 class BinanceExecDecoder {
 public:
-    std::function<void(const ExecEvent&)> on_exec_event;
+    /// \brief Fired by `handle_execution_report` — invoked on the WS IO thread.
+    std::function<void(const ExecEvent&)> on_ws_exec_event;
+
+    /// \brief Fired by `handle_order_response` — invoked on the send-executor thread.
+    std::function<void(const ExecEvent&)> on_rest_exec_event;
 
     /// \brief Register a client order ID before the order is sent.
     void register_order(const std::string& cloid, uint64_t order_id);

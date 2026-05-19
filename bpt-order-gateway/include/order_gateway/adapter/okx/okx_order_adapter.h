@@ -35,11 +35,6 @@ public:
     /// \brief Fetch instIdCodes via REST, then spawn the IO thread.
     void start() override;
 
-    void send_new_order(const bpt::messages::NewOrder& order) override;
-    void send_cancel(const bpt::messages::CancelOrder& cancel, const std::string& native_symbol) override;
-    void send_cancel_all(uint64_t instrument_id) override;
-    void send_modify(const bpt::messages::ModifyOrder& modify, const std::string& native_symbol) override;
-
     [[nodiscard]] bpt::messages::ExchangeId::Value exchange_id() const override {
         return bpt::messages::ExchangeId::OKX;
     }
@@ -50,6 +45,11 @@ public:
 
 protected:
     void connect_and_run() override;
+
+    void do_send_new_order_blocking(const util::NewOrderRequest& req) override;
+    void do_send_cancel_blocking(const util::CancelRequest& req) override;
+    void do_send_cancel_all_blocking(const util::CancelAllRequest& req) override;
+    void do_send_modify_blocking(const util::ModifyRequest& req) override;
 
 private:
     void handle_message(const std::string& payload, uint64_t recv_ns);

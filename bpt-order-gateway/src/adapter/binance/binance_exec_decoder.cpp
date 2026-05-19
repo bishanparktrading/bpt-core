@@ -89,8 +89,8 @@ void BinanceExecDecoder::handle_execution_report(const json::object& obj, uint64
         return;  // ignore PENDING_CANCEL and other types
     }
 
-    if (on_exec_event)
-        on_exec_event(ev);
+    if (on_ws_exec_event)
+        on_ws_exec_event(ev);
 }
 
 void BinanceExecDecoder::handle_order_response(const json::object& obj,
@@ -121,8 +121,8 @@ void BinanceExecDecoder::handle_order_response(const json::object& obj,
         ev.exchange_ts_ns = recv_ns;
         ev.status = ES::REJECTED;
         ev.reject_reason = RR::EXCHANGE_ERROR;
-        if (on_exec_event)
-            on_exec_event(ev);
+        if (on_rest_exec_event)
+            on_rest_exec_event(ev);
         return;
     }
 
@@ -165,8 +165,8 @@ void BinanceExecDecoder::handle_order_response(const json::object& obj,
         ev.reject_reason = RR::EXCHANGE_ERROR;
     }
 
-    if (on_exec_event)
-        on_exec_event(ev);
+    if (on_rest_exec_event)
+        on_rest_exec_event(ev);
 }
 
 }  // namespace bpt::order_gateway::adapter
