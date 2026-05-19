@@ -47,7 +47,7 @@ OptionsMakerStrategy::OptionsMakerStrategy(uint64_t correlation_id,
                                            refdata::IRefdataClient& refdata,
                                            md::IMdClient* md,
                                            order::OrderManager* order_mgr,
-                                           vol::VolSurfaceClient* vol_client)
+                                           vol::IVolSurfaceClient* vol_client)
     : correlation_id_(correlation_id),
       md_exchanges_(cfg.md_exchanges),
       venue_exec_(cfg.venue_exec),

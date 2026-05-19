@@ -20,7 +20,7 @@ public:
                                              refdata::IRefdataClient& refdata,
                                              md::IMdClient* md,
                                              order::OrderManager* order_mgr,
-                                             vol::VolSurfaceClient* vol_client = nullptr);
+                                             vol::IVolSurfaceClient* vol_client = nullptr);
 };
 
 }  // namespace bpt::strategy::strategy

@@ -2,30 +2,39 @@
 
 /// @file
 /// IRefdataClient — abstract interface for the strategy's refdata client.
-///
 /// Implementations:
-///   AeronRefdataClient   — production path; consumes refdata snapshots,
-///                          deltas, fees, funding, and status over Aeron.
-///   InProcessRefdataClient — deterministic backtest path; loads the
-///                          refdata snapshot from a JSON file synchronously.
+///   AeronRefdataClient<Handler>     — production path; consumes refdata
+///                                      snapshots, deltas, fees, funding,
+///                                      and status over Aeron.
+///   InProcessRefdataClient<Handler> — deterministic backtest path; loads
+///                                      the refdata snapshot from JSON
+///                                      synchronously.
 ///
-/// Strategy code holds an IRefdataClient&; the bus factory injects whichever
-/// implementation matches the run mode. Cache types (InstrumentCache,
-/// FeeCache, FundingRateCache) are value/cache classes — kept here so both
-/// implementations can populate the same cache shape.
+/// Strategy code holds an IRefdataClient&; the bus factory injects
+/// whichever implementation matches the run mode. The per-frame
+/// dispatch path was lifted to a CRTP-templated concrete client so the
+/// optimiser sees the full chain (fragment → handler) without
+/// std::function indirection.
+///
+/// The Handler is required to define:
+///   void on_refdata_ready(uint8_t exchanges, uint16_t inst_count,
+///                         bool fees_loaded, bool funding_loaded);
+///   void on_refdata_error(RefDataErrorType::Value, ExchangeId::Value,
+///                         uint64_t instrument_id);
+///   void on_refdata_snapshot_complete(const InstrumentCache&);
+///   void on_refdata_delta(const Instrument&, DeltaUpdateType::Value);
+///   void on_refdata_gap_detected();
+///
+/// In prod the Handler is `StrategyService`.
 
 #include "strategy/refdata/fee_cache.h"
 #include "strategy/refdata/funding_rate_cache.h"
 #include "strategy/refdata/instrument.h"
 #include "strategy/refdata/instrument_cache.h"
 
-#include <messages/DeltaUpdateType.h>
-#include <messages/ExchangeId.h>
 #include <messages/InstrumentType.h>
-#include <messages/RefDataErrorType.h>
 
 #include <cstdint>
-#include <functional>
 #include <string>
 #include <vector>
 
@@ -33,9 +42,6 @@ namespace bpt::strategy::refdata {
 
 class IRefdataClient {
 public:
-    using OnSnapshotFn = std::function<void(const InstrumentCache&)>;
-    using OnDeltaFn = std::function<void(const Instrument&, bpt::messages::DeltaUpdateType::Value)>;
-
     /// Canonical filter entry to pre-filter the snapshot server-side.
     /// An empty exchange means "any exchange".
     struct CanonicalFilter {
@@ -64,30 +70,6 @@ public:
     [[nodiscard]] virtual const InstrumentCache& cache() const = 0;
     [[nodiscard]] virtual const FeeCache& fee_cache() const = 0;
     [[nodiscard]] virtual const FundingRateCache& funding_rate_cache() const = 0;
-
-    /// Fired once after the snapshot for our correlation ID is fully received.
-    OnSnapshotFn on_snapshot_complete;
-
-    /// Fired for every delta received after snapshot.
-    OnDeltaFn on_delta;
-
-    /// Fired when a delta sequence gap is detected. The cache has already
-    /// been reset; the handler should trigger a resubscription
-    /// (e.g. call subscribe() again).
-    std::function<void()> on_gap_detected;
-
-    /// Fired when the refdata service signals it has completed startup
-    /// for all configured exchanges.
-    /// exchanges_loaded: bitmask — bit0=BINANCE, bit1=OKX, bit2=HYPERLIQUID.
-    std::function<
-        void(uint8_t exchanges_loaded, uint16_t instrument_count, bool fee_schedules_loaded, bool funding_rates_loaded)>
-        on_ready;
-
-    /// Fired when the refdata service reports a runtime error Strategy must act on.
-    std::function<void(bpt::messages::RefDataErrorType::Value error_type,
-                       bpt::messages::ExchangeId::Value exchange_id,
-                       uint64_t instrument_id)>
-        on_error;
 };
 
 }  // namespace bpt::strategy::refdata

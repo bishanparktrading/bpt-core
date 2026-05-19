@@ -18,15 +18,16 @@ StrategyBus StrategyAeronBus::build(std::shared_ptr<::aeron::Aeron> aeron, const
 
     StrategyBus bus;
 
-    bus.refdata = std::make_unique<refdata::AeronRefdataClient>(aeron,
-                                                                ac.refdata_control.channel,
-                                                                ac.refdata_control.stream_id,
-                                                                ac.refdata_snapshot.stream_id,
-                                                                ac.refdata_delta.stream_id,
-                                                                ac.fee_schedule.stream_id,
-                                                                ac.funding_rate.stream_id,
-                                                                ac.refdata_status.stream_id,
-                                                                fc.strategy.schedule.max_refdata_staleness_ns);
+    bus.refdata = std::make_unique<refdata::AeronRefdataClient<StrategyService>>(
+        aeron,
+        ac.refdata_control.channel,
+        ac.refdata_control.stream_id,
+        ac.refdata_snapshot.stream_id,
+        ac.refdata_delta.stream_id,
+        ac.fee_schedule.stream_id,
+        ac.funding_rate.stream_id,
+        ac.refdata_status.stream_id,
+        fc.strategy.schedule.max_refdata_staleness_ns);
 
     if (ac.md_control.stream_id != 0) {
         bus.md = std::make_unique<md::AeronMdClient<StrategyService>>(aeron,
@@ -37,26 +38,28 @@ StrategyBus StrategyAeronBus::build(std::shared_ptr<::aeron::Aeron> aeron, const
     }
 
     if (ac.order.stream_id != 0) {
-        bus.order_gw = std::make_unique<order::AeronOrderGatewayClient>(aeron,
-                                                                        ac.order.channel,
-                                                                        ac.order.stream_id,
-                                                                        ac.exec_report.stream_id,
-                                                                        ac.heartbeat.stream_id,
-                                                                        ac.account_snapshot.stream_id);
+        bus.order_gw =
+            std::make_unique<order::AeronOrderGatewayClient<StrategyService>>(aeron,
+                                                                              ac.order.channel,
+                                                                              ac.order.stream_id,
+                                                                              ac.exec_report.stream_id,
+                                                                              ac.heartbeat.stream_id,
+                                                                              ac.account_snapshot.stream_id);
     }
 
     if (ac.vol_surface.stream_id != 0) {
-        bus.vol = std::make_unique<vol::VolSurfaceClient>(aeron,
-                                                          ac.vol_surface.channel,
-                                                          ac.vol_surface.stream_id,
-                                                          ac.pricer_status.stream_id);
+        bus.vol = std::make_unique<vol::VolSurfaceClient<StrategyService>>(aeron,
+                                                                            ac.vol_surface.channel,
+                                                                            ac.vol_surface.stream_id,
+                                                                            ac.pricer_status.stream_id);
         bpt::common::log::info("VolSurfaceClient ready: surface={} status={}",
                                ac.vol_surface.stream_id,
                                ac.pricer_status.stream_id);
     }
 
     if (ac.toxicity.stream_id != 0) {
-        bus.tox = std::make_unique<aeron::ToxicitySubscriber>(aeron, ac.toxicity.channel, ac.toxicity.stream_id);
+        bus.tox = std::make_unique<aeron::ToxicitySubscriber<StrategyService>>(
+            aeron, ac.toxicity.channel, ac.toxicity.stream_id);
         bpt::common::log::info("Analytics toxicity subscription ready: {} stream {}",
                                ac.toxicity.channel,
                                ac.toxicity.stream_id);
@@ -77,9 +80,8 @@ StrategyBus StrategyAeronBus::build(std::shared_ptr<::aeron::Aeron> aeron, const
     // has its own control channel; portfolio snapshots are noise during
     // replay).
     if (!cfg.backtest_mode && ac.console_control.stream_id != 0) {
-        bus.console_ctrl = std::make_unique<aeron::ConsoleControlSubscriber>(aeron,
-                                                                             ac.console_control.channel,
-                                                                             ac.console_control.stream_id);
+        bus.console_ctrl = std::make_unique<aeron::ConsoleControlSubscriber<StrategyService>>(
+            aeron, ac.console_control.channel, ac.console_control.stream_id);
         if (bus.console_ctrl->is_ready()) {
             bpt::common::log::info("Console control subscription ready on stream {}", ac.console_control.stream_id);
         } else {

@@ -8,6 +8,18 @@
 #include "strategy/strategy/i_strategy.h"
 #include "strategy/strategy/refdata_stale_gate.h"
 
+#include <analytics/messaging/toxicity_update.h>
+#include <messages/AccountSnapshot.h>
+#include <messages/DeltaUpdateType.h>
+#include <messages/ExchangeId.h>
+#include <messages/ExecutionReport.h>
+#include <messages/MdMarketData.h>
+#include <messages/MdOrderBook.h>
+#include <messages/MdTrade.h>
+#include <messages/OrderGatewayHeartbeat.h>
+#include <messages/RefDataErrorType.h>
+#include <messages/VolSurface.h>
+
 #include <bpt_app/app.h>
 #include <bpt_common/util/latency_histogram.h>
 #include <bpt_common/util/topology.h>
@@ -15,11 +27,6 @@
 #include <cstdint>
 #include <memory>
 
-namespace bpt::messages {
-class MdMarketData;
-class MdTrade;
-class MdOrderBook;
-}  // namespace bpt::messages
 
 namespace bpt::strategy {
 
@@ -29,15 +36,43 @@ public:
     void run() override;
     void stop() override;
 
-    /// \name MD client Handler interface — called by `AeronMdClient<StrategyService>`.
-    /// Public because the templated client dispatches into them directly
+    /// \name Handler methods — called by the templated clients in the bus.
+    /// Public because every templated client dispatches into them directly
     /// (no vtable, no std::function indirection). Single-threaded — only
     /// the strategy poll thread ever calls these.
     /// @{
+    // MdClient
     void on_bbo(const bpt::messages::MdMarketData& tick) noexcept;
     void on_trade(const bpt::messages::MdTrade& tick) noexcept;
     void on_order_book(const bpt::messages::MdOrderBook& book) noexcept;
     void on_md_service_heartbeat() noexcept;
+
+    // RefdataClient
+    void on_refdata_ready(uint8_t exchanges_loaded,
+                          uint16_t instrument_count,
+                          bool fee_schedules_loaded,
+                          bool funding_rates_loaded);
+    void on_refdata_error(bpt::messages::RefDataErrorType::Value error_type,
+                          bpt::messages::ExchangeId::Value exchange_id,
+                          uint64_t instrument_id);
+    void on_refdata_snapshot_complete(const refdata::InstrumentCache& cache);
+    void on_refdata_delta(const refdata::Instrument& inst, bpt::messages::DeltaUpdateType::Value update_type);
+    void on_refdata_gap_detected();
+
+    // VolSurfaceClient
+    void on_vol_surface(bpt::messages::VolSurface& surface);
+    void on_pricer_ready(uint8_t exchanges_loaded, uint16_t underlying_count, uint32_t point_count);
+
+    // OrderGatewayClient
+    void on_exec_report(const bpt::messages::ExecutionReport& rpt);
+    void on_og_heartbeat(const bpt::messages::OrderGatewayHeartbeat& hb);
+    void on_account_snapshot(bpt::messages::AccountSnapshot& snap);
+
+    // ToxicitySubscriber
+    void on_toxicity_update(const bpt::analytics::messaging::ToxicityUpdate& u);
+
+    // ConsoleControlSubscriber
+    void on_console_command(uint8_t cmd);
     /// @}
 
 private:

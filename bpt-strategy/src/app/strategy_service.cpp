@@ -53,6 +53,10 @@ StrategyService::StrategyService(config::AppConfig cfg,
     wire_md_callbacks();
     wire_vol_callbacks();
     wire_order_callbacks();
+    if (bus_.tox)
+        bus_.tox->set_handler(this);
+    if (bus_.console_ctrl)
+        bus_.console_ctrl->set_handler(this);
 }
 
 void StrategyService::run() {
@@ -107,35 +111,11 @@ void StrategyService::run() {
             frags += bus_.vol->poll();
         if (bus_.order_gw)
             frags += bus_.order_gw->poll();
-        if (bus_.tox) {
-            // Bind the callback once on first iteration (cheap, idempotent).
-            // Doing it here keeps the strategy_->on_toxicity_update target
-            // co-located with the poll site; the alternative is wiring it
-            // in the constructor, which spreads tox plumbing across files.
-            if (!bus_.tox->on_update) {
-                bus_.tox->on_update = [this](const bpt::analytics::messaging::ToxicityUpdate& u) {
-                    strategy_->on_toxicity_update(u);
-                };
-            }
+        if (bus_.tox)
             frags += bus_.tox->poll();
-        }
 
-        if (bus_.console_ctrl) {
-            if (!bus_.console_ctrl->on_command) {
-                bus_.console_ctrl->on_command = [this](uint8_t cmd) {
-                    if (cmd == 0x00 && !trading_halted_) {
-                        trading_halted_ = true;
-                        metrics_.trading_halted->Set(1.0);
-                        bpt::common::log::warn("TRADING HALTED via console kill-switch");
-                    } else if (cmd == 0x01 && trading_halted_) {
-                        trading_halted_ = false;
-                        metrics_.trading_halted->Set(0.0);
-                        bpt::common::log::info("Trading RESUMED via console");
-                    }
-                };
-            }
+        if (bus_.console_ctrl)
             frags += bus_.console_ctrl->poll();
-        }
 
         // Refdata watchdog runs unconditionally — it must fire during
         // the WaitRefdata startup phase so we don't hang forever if

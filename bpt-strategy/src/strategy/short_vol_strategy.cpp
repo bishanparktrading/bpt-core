@@ -38,7 +38,7 @@ ShortVolStrategy::ShortVolStrategy(uint64_t correlation_id,
                                    refdata::IRefdataClient& refdata,
                                    md::IMdClient* md,
                                    order::OrderManager* order_mgr,
-                                   vol::VolSurfaceClient* vol_client)
+                                   vol::IVolSurfaceClient* vol_client)
     : correlation_id_(correlation_id),
       instruments_(cfg.instruments),
       md_exchanges_(cfg.md_exchanges),

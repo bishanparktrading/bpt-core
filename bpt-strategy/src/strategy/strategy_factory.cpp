@@ -23,7 +23,7 @@ std::unique_ptr<IStrategy> StrategyFactory::create(const config::EngineConfig& c
                                                    refdata::IRefdataClient& refdata,
                                                    md::IMdClient* md,
                                                    order::OrderManager* order_mgr,
-                                                   vol::VolSurfaceClient* vol_client) {
+                                                   vol::IVolSurfaceClient* vol_client) {
     const std::string& type = cfg.strategy.type;
 
     bpt::common::log::info("[StrategyFactory] Instantiating strategy type: {}", type);

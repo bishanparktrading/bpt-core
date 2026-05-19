@@ -1,44 +1,39 @@
 #pragma once
 
-// Abstract base for the "order gateway" the strategy talks to.
-//
-//   AeronOrderGatewayClient — production path; publishes NewOrder /
-//     CancelOrder / ModifyOrder messages to bpt-order-gateway over
-//     Aeron and consumes the exec-report / heartbeat / account-snapshot
-//     streams it publishes back.
-//
-// The interface is kept narrow on purpose — everything the strategy
-// actually does with the gateway (send, cancel, modify, poll, snapshot
-// request) is here; Aeron details live only in the Aeron impl.
-//
-// Historical note: a PaperOrderGatewayClient used to sit alongside
-// Aeron as an in-process synthetic exchange driven by a PaperFillEngine.
-// Removed 2026-04-22 after a session showed it gave systematically
-// optimistic (misleading) fill behaviour; see
-// `feedback_avoid_synthetic_fills.md` for the rationale and why future
-// "paper" capabilities — if ever needed — should live as peer venue
-// adapters rather than modal mutations of the strategy path.
+/// @file
+/// Abstract interface for the "order gateway" the strategy talks to.
+/// Implementations:
+///
+///   AeronOrderGatewayClient<Handler> — production path; publishes
+///     NewOrder / CancelOrder / ModifyOrder messages to bpt-order-gateway
+///     over Aeron and consumes the exec-report / heartbeat /
+///     account-snapshot streams it publishes back. Templated on the
+///     Handler that receives parsed inbound events (Handler is
+///     `StrategyService` in prod).
+///
+/// The interface is kept narrow on purpose — only the send + poll surface
+/// strategies actually call. Inbound dispatch is via the templated
+/// concrete (handler->on_exec_report etc., direct calls, no
+/// std::function indirection).
+///
+/// Historical note: a PaperOrderGatewayClient used to sit alongside
+/// Aeron as an in-process synthetic exchange driven by a PaperFillEngine.
+/// Removed 2026-04-22 after a session showed it gave systematically
+/// optimistic (misleading) fill behaviour; see
+/// `feedback_avoid_synthetic_fills.md`.
 
-#include <messages/AccountSnapshot.h>
 #include <messages/ExchangeId.h>
-#include <messages/ExecutionReport.h>
-#include <messages/OrderGatewayHeartbeat.h>
 #include <messages/OrderSide.h>
 #include <messages/OrderType.h>
 #include <messages/TimeInForce.h>
 
 #include <cstdint>
-#include <functional>
 #include <string>
 
 namespace bpt::strategy::order {
 
 class IOrderGatewayClient {
 public:
-    using OnExecReportFn = std::function<void(const bpt::messages::ExecutionReport&)>;
-    using OnHeartbeatFn = std::function<void(const bpt::messages::OrderGatewayHeartbeat&)>;
-    using OnAccountSnapshotFn = std::function<void(bpt::messages::AccountSnapshot&)>;
-
     virtual ~IOrderGatewayClient() = default;
 
     // Send a new order. See AeronOrderGatewayClient for validation rules
@@ -79,12 +74,6 @@ public:
     // Monotonic wall-clock ns of the most recent gateway heartbeat —
     // consumed by StrategyService's liveness gate.
     [[nodiscard]] virtual uint64_t last_heartbeat_ns() const = 0;
-
-    // Callbacks are shared data — set by StrategyService once, fired by
-    // whichever concrete impl actually received / generated the event.
-    OnExecReportFn on_exec_report;
-    OnHeartbeatFn on_heartbeat;
-    OnAccountSnapshotFn on_account_snapshot;
 };
 
 }  // namespace bpt::strategy::order

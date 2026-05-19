@@ -53,7 +53,7 @@ public:
                          refdata::IRefdataClient& refdata,
                          md::IMdClient* md,
                          order::OrderManager* order_mgr,
-                         vol::VolSurfaceClient* vol_client);
+                         vol::IVolSurfaceClient* vol_client);
 
     void start() override;
     void on_snapshot(const refdata::InstrumentCache& cache) override;
@@ -216,7 +216,7 @@ private:
     refdata::IRefdataClient& refdata_;
     md::IMdClient* md_client_;
     order::OrderManager* order_mgr_;
-    vol::VolSurfaceClient* vol_client_;
+    vol::IVolSurfaceClient* vol_client_;
 
     // Keyed by "exchange_id:underlying" — mirrors ShortVolStrategy's
     // canonical key shape so the console can resolve cross-strategy

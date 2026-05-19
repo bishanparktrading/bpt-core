@@ -20,10 +20,10 @@
 #include "strategy/backtest/backtest_client.h"
 #include "strategy/console/portfolio_snapshot_publisher.h"
 #include "strategy/md/md_client.h"
-#include "strategy/messaging/subscribers/api/console_control_subscriber.h"
-#include "strategy/messaging/subscribers/api/toxicity_subscriber.h"
-#include "strategy/order/i_order_gateway_client.h"
-#include "strategy/refdata/i_refdata_client.h"
+#include "strategy/messaging/subscribers/aeron/console_control_subscriber.h"
+#include "strategy/messaging/subscribers/aeron/toxicity_subscriber.h"
+#include "strategy/order/aeron_order_gateway_client.h"
+#include "strategy/refdata/refdata_client.h"
 #include "strategy/vol/vol_surface_client.h"
 
 #include <Aeron.h>
@@ -49,17 +49,20 @@ namespace messaging {
 /// off-hot-path (vol, console) or only used in production paths
 /// (backtest, tox); promoting them to interfaces is deferred until a
 /// concrete consumer needs the substitution.
+/// Each client is the concrete CRTP-templated instantiation on
+/// StrategyService. Templated clients dispatch fragments directly into
+/// StrategyService::on_* with zero vtable / std::function indirection
+/// on the per-frame path. Strategies that hold the interface-shaped
+/// pointer (e.g. `IMdClient*`) can still do so — concrete-to-base
+/// conversion via `.get()` works.
 struct StrategyBus {
-    std::unique_ptr<refdata::IRefdataClient> refdata;
-    /// Templated on StrategyService — the templated client dispatches
-    /// fragments directly into StrategyService::on_bbo etc. with zero
-    /// vtable / std::function indirection.
+    std::unique_ptr<refdata::AeronRefdataClient<StrategyService>> refdata;
     std::unique_ptr<md::AeronMdClient<StrategyService>> md;
-    std::unique_ptr<order::IOrderGatewayClient> order_gw;
-    std::unique_ptr<vol::VolSurfaceClient> vol;
+    std::unique_ptr<order::AeronOrderGatewayClient<StrategyService>> order_gw;
+    std::unique_ptr<vol::VolSurfaceClient<StrategyService>> vol;
     std::unique_ptr<backtest::BacktestClient> backtest;
-    std::unique_ptr<api::ToxicitySubscriber> tox;                 ///< port; aeron::ToxicitySubscriber in prod
-    std::unique_ptr<api::ConsoleControlSubscriber> console_ctrl;  ///< port; aeron::ConsoleControlSubscriber in prod
+    std::unique_ptr<aeron::ToxicitySubscriber<StrategyService>> tox;
+    std::unique_ptr<aeron::ConsoleControlSubscriber<StrategyService>> console_ctrl;
     std::unique_ptr<console::PortfolioSnapshotPublisher> portfolio_snap;
 };
 

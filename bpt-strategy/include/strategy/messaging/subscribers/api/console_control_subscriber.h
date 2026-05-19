@@ -4,19 +4,21 @@
 /// Port: console kill-switch / resume control subscriber.
 /// 1-byte messages: 0x00 = HALT, 0x01 = RESUME. The bridge sends these
 /// via the console_control stream when an operator clicks the
-/// console button. Strategy translates HALT into trading_halted_=true
-/// and stops sending orders. Aeron concrete in
-/// `aeron/console_control_subscriber.h`.
+/// console button.
+///
+/// Strategies that just want subscribe/poll semantics hold an
+/// `api::ConsoleControlSubscriber*`. The per-frame dispatch path was
+/// lifted to a CRTP-templated concrete client — see
+/// `aeron::ConsoleControlSubscriber<Handler>` (Handler is
+/// `StrategyService` in prod). Removing the `std::function` callback
+/// kills one indirection per command.
 
 #include <cstdint>
-#include <functional>
 
 namespace bpt::strategy::messaging::api {
 
 class ConsoleControlSubscriber {
 public:
-    using OnCommandFn = std::function<void(uint8_t cmd)>;
-
     virtual ~ConsoleControlSubscriber() = default;
 
     /// True when the underlying subscription connected within the
@@ -24,8 +26,6 @@ public:
     [[nodiscard]] virtual bool is_ready() const = 0;
 
     virtual int poll(int fragment_limit = 1) = 0;
-
-    OnCommandFn on_command;
 };
 
 }  // namespace bpt::strategy::messaging::api
