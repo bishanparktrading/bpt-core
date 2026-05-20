@@ -70,6 +70,13 @@ const MAX_FUNDING_SAMPLES = 1800
 // hedger is keeping book_delta inside the operator's threshold band.
 const MAX_BOOK_DELTA_SAMPLES = 1200
 
+// Rolling history of bid/ask markout 5s, fed by 'toxicity' messages.
+// bpt-analytics publishes ToxicityUpdate roughly every ~2s when fills
+// are happening; 240 samples ≈ 8 minutes of history at that cadence,
+// enough to see whether adverse selection is trending or just noise.
+// Backing store for the TCA sparkline in ToxicityPanel.
+const MAX_TOXICITY_SAMPLES = 240
+
 // Time-series sample of a funding-arb pair's two legs. Persisted in the
 // store so DualLegChart survives HMR / panel remounts — without this,
 // the chart instance loses all history on every re-render.
@@ -87,6 +94,16 @@ export interface BookDeltaSample {
   bookDelta: number // portfolio_delta + perp_position (≈ 0 when hedged)
   portfolioDelta: number // option-leg delta only
   perpPosition: number // signed perp inventory
+}
+
+// One sample of bid/ask markout-5s, captured from each 'toxicity' message.
+// Drives the TCA sparkline inside ToxicityPanel. NaN markouts (warmup)
+// are preserved in the array so the chart can render gaps honestly
+// rather than backfilling with the last good value.
+export interface ToxicitySample {
+  ts: number // ms epoch, monotonic
+  bidMarkout5s: number
+  askMarkout5s: number
 }
 
 interface State {
@@ -175,6 +192,10 @@ interface State {
   // panel remounts the same way FundingSample drives DualLegChart.
   bookDeltaHistory: Record<string, BookDeltaSample[]>
 
+  // Rolling history of bid/ask markout-5s from 'toxicity' messages.
+  // Drives the TCA sparkline in ToxicityPanel. Capped to MAX_TOXICITY_SAMPLES.
+  toxicityHistory: ToxicitySample[]
+
   // Kill-switch state: tracks the previous status so resume() can restore
   // the connection dot to whatever it was before the halt.  In slice (a)
   // this is pure client state; slice (b) will drive it from server acks.
@@ -220,6 +241,7 @@ const initialState = {
   strategyState: null as State['strategyState'],
   fundingHistory: [] as FundingSample[],
   toxicity: null as State['toxicity'],
+  toxicityHistory: [] as ToxicitySample[],
   marketColor: null as State['marketColor'],
   bookDeltaHistory: {} as Record<string, BookDeltaSample[]>,
   preHaltStatus: null as ConnectionStatus | null,
@@ -444,7 +466,22 @@ export const useStore = create<State>((set) => ({
           return { strategyState: msg }
         }
 
-        case 'toxicity':
+        case 'toxicity': {
+          // Append to rolling history, capped at MAX_TOXICITY_SAMPLES.
+          // Use Date.now() not msg.timestamp_ns — toxicity messages don't
+          // carry a ts field today (it's a plain POD struct from
+          // bpt-analytics, see toxicity_update.h). Wall-clock at receive
+          // time is close enough for a sparkline that's only used for
+          // trend visualisation.
+          const sample: ToxicitySample = {
+            ts: Date.now(),
+            bidMarkout5s: msg.bidMarkout5s,
+            askMarkout5s: msg.askMarkout5s,
+          }
+          const nextHistory =
+            state.toxicityHistory.length >= MAX_TOXICITY_SAMPLES
+              ? [...state.toxicityHistory.slice(-(MAX_TOXICITY_SAMPLES - 1)), sample]
+              : [...state.toxicityHistory, sample]
           return {
             toxicity: {
               bidMarkout5s: msg.bidMarkout5s,
@@ -460,7 +497,9 @@ export const useStore = create<State>((set) => ({
               bidTtfMs: msg.bidTtfMs,
               askTtfMs: msg.askTtfMs,
             },
+            toxicityHistory: nextHistory,
           }
+        }
 
         case 'marketColor':
           return {
