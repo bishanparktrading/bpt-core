@@ -88,12 +88,26 @@ std::string order(uint64_t ts_ns,
                   double remaining_qty,
                   std::string_view status);
 
-// { "type":"toxicity", "bidMarkout5s":..., "askMarkout5s":...,
+// { "type":"toxicity",
+//   "bidMarkout1s":..., "askMarkout1s":...,
+//   "bidMarkout5s":..., "askMarkout5s":...,
+//   "bidMarkout30s":..., "askMarkout30s":...,
 //   "bidAdverseRate":..., "askAdverseRate":...,
 //   "bidSamples":..., "askSamples":...,
-//   "bidToxScore":..., "askToxScore":... }
-std::string toxicity(double bid_markout_5s,
+//   "bidToxScore":..., "askToxScore":...,
+//   "bidFillRate":..., "askFillRate":...,
+//   "bidTtfMs":..., "askTtfMs":... }
+//
+// 1s catches latency-sensitive adverse selection; 5s is the canonical
+// microstructure toxicity horizon; 30s catches slower informed-flow drift.
+// adverse_rate and tox_score are defined off the 5s horizon (don't
+// change the convention).
+std::string toxicity(double bid_markout_1s,
+                     double ask_markout_1s,
+                     double bid_markout_5s,
                      double ask_markout_5s,
+                     double bid_markout_30s,
+                     double ask_markout_30s,
                      double bid_adverse_rate,
                      double ask_adverse_rate,
                      uint32_t bid_samples,

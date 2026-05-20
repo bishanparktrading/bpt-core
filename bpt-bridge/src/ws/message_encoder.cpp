@@ -148,8 +148,12 @@ std::string order(uint64_t ts_ns,
         .dump();
 }
 
-std::string toxicity(double bid_markout_5s,
+std::string toxicity(double bid_markout_1s,
+                     double ask_markout_1s,
+                     double bid_markout_5s,
                      double ask_markout_5s,
+                     double bid_markout_30s,
+                     double ask_markout_30s,
                      double bid_adverse_rate,
                      double ask_adverse_rate,
                      uint32_t bid_samples,
@@ -162,8 +166,12 @@ std::string toxicity(double bid_markout_5s,
                      double ask_ttf_ms) {
     return json{
         {"type", "toxicity"},
+        {"bidMarkout1s", bid_markout_1s},
+        {"askMarkout1s", ask_markout_1s},
         {"bidMarkout5s", bid_markout_5s},
         {"askMarkout5s", ask_markout_5s},
+        {"bidMarkout30s", bid_markout_30s},
+        {"askMarkout30s", ask_markout_30s},
         {"bidAdverseRate", bid_adverse_rate},
         {"askAdverseRate", ask_adverse_rate},
         {"bidSamples", bid_samples},

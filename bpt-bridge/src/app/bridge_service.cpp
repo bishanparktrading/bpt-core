@@ -129,8 +129,12 @@ void BridgeService::on_toxicity(const bpt::analytics::messaging::ToxicityUpdate&
     if (!broadcaster_)
         return;
     broadcaster_->publish(MsgKind::Toxicity,
-                          encode::toxicity(u.bid_markout_5s_bps,
+                          encode::toxicity(u.bid_markout_1s_bps,
+                                           u.ask_markout_1s_bps,
+                                           u.bid_markout_5s_bps,
                                            u.ask_markout_5s_bps,
+                                           u.bid_markout_30s_bps,
+                                           u.ask_markout_30s_bps,
                                            u.bid_adverse_rate,
                                            u.ask_adverse_rate,
                                            u.bid_sample_count,
