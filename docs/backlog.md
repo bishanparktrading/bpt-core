@@ -279,3 +279,263 @@ Low-priority but worth picking up next time the file is open:
   no producer in the codebase. Either implement the periodic-heartbeat
   write the comment promises, or remove the enum value so readers
   don't think they're missing something.
+
+## bpt-canon (derived event tape)
+
+Shipped 2026-05-20 with wslog→canon parity + OKX trades/L2 ingesters + merger
++ backtester `--canon` reader. Three known gaps documented during the OKX
+sanity-check run:
+
+### OKX L2 ingester accumulates stale levels
+
+**Status:** open, observed on the OKX BTC-USDT-SWAP 2026-04-30 day.
+
+**Symptom:** End-of-run `[AS] Book #6030000` log line shows
+`ladder bids=13347 asks=13326 best_bid=76620.9 best_ask=75281.5` — bid above
+ask. Real OKX top-of-book is 400 levels per side; the ingester maintains
+the full historical price set in `std::map<double, double>` and never
+trims. Over 24h the tail accumulates 30× more stale levels than ever
+existed live.
+
+**Why it didn't break the sanity check:** top-of-book is still correct
+because OKX always re-emits the live top-400. The crossed-book at the very
+end is a transient where a fast-moving price left an old best-bid behind
+without OKX explicitly removing it (the level fell off the top-400 stream
+and the ingester has no way to know that — only `size=0` removes a level).
+The matching engine walks deque-front so the strategy still trades against
+sensible top-of-book; queue-position estimates further back are wrong.
+
+**Fix:** after each apply, cap each side to top-400 by price (drop
+worst-priced entries beyond the cap). Or: trust the snapshot lines (which
+fire every ~15 min in this archive) to fully replace the book.
+
+**Relevant code:** `bpt-canon/src/ingest_okx_l2_main.cpp` — `BookState`
+struct and `apply_level` methods.
+
+### OKX fee schedule not loaded into backtester
+
+**Status:** open, observed when first OKX canon backtest produced
+`fee_paid=0` for every fill across 360 fills.
+
+**Symptom:** `trades.csv` reports zero fees for all OKX fills. On
+BTC-USDT-SWAP this hides ~5 bps taker cost / -2 bps maker rebate per fill,
+which on 360 fills across $76k notional adds up to noticeable unmodeled
+P&L. The HL backtest path produces correct PnL because the HL backtest
+config wires fees through the venue-exec block; the equivalent isn't
+loaded for OKX in the harness's refdata seed.
+
+**Why:** `StrategyHarness::initialize()` populates
+`refdata_client_->cache()` from `instrument_mapping.<venue>.json` but
+never seeds `FeeCache`. The live refdata service loads
+`config/exchanges/{mainnet,testnet}.toml` fee tables; harness doesn't
+call that path.
+
+**Fix:** wire `bpt-refdata`'s fee-schedule loader into the harness
+initialize path. Load the venue fee tables, seed `refdata_client_`'s
+fee cache. `ResultsCollector::apply_fill` already reads through that
+cache — no consumer changes needed.
+
+**Relevant code:**
+- `bpt-backtester/src/harness/strategy_harness.cpp::initialize()` — loads
+  InstrumentMappingLoader but not FeeScheduleLoader.
+- `bpt-refdata/include/refdata/fee/...` — loader already exists.
+
+### OKX tick/lot hardcoded in StrategyHarness
+
+**Status:** open.
+
+**Symptom:** `strategy_harness.cpp::initialize()` hard-codes
+`if (e.venue_symbol == "BTC-USDT-SWAP") { inst.tick_size = 0.1; inst.lot_size = 0.01; }`
+because `instrument_mapping.okx.json` doesn't carry tick/lot fields.
+Every new OKX instrument I want to backtest needs a code edit + rebuild.
+
+**Why it matters:** AS's post-touch quote cap is gated on `tick_size > 0`.
+Instruments not in the hardcoded allowlist fall back to `tick_size = 0`
+and quotes can cross the book, producing a quote-storm of immediate
+fills/cancels (this was the HL APE bug fixed 2026-05-20).
+
+**Fix:** persist `tickSz`/`lotSz` into `instrument_mapping.okx.json` so
+the harness reads them like any other field. Either: (a) the
+`bpt-universe` pipeline calls OKX `GET /api/v5/public/instruments` at
+mapping-refresh time and stores the values; or (b) write a small one-off
+script that does the same. (a) is cleaner because universe-refresh
+already runs periodically.
+
+**Relevant code:**
+- `bpt-backtester/src/harness/strategy_harness.cpp::initialize()` — the
+  hardcoded `if (venue.id == OKX)` block.
+- `bpt-universe/...` — natural home for an OKX instrument-meta fetcher.
+
+## Trading-floor tooling (HFT-trader desk parity)
+
+These map onto what a real prop-shop trader has in front of them all day.
+The existing stack (Grafana for ops, React dashboard for trading) already
+covers most of it; this section is the gap.
+
+Reference for what's already shipped — don't rebuild these:
+
+- Grafana: service health, exchange connectivity, order/MD rates, order
+  ACK RTT histograms (p50/p90/p99), tape recorder metrics
+  (`monitoring/dashboards/bpt_system_overview.dashboard.py`,
+  `bpt_tape.dashboard.py`)
+- React `/`: live PnL, position, working orders
+- React `/archive`: backtest archive view
+- React `/radar`: vol smile, heatmap, calendar, funding-rate panels
+- Alertmanager → Discord for critical/warning ops alerts
+
+### MD wire→decode latency histogram
+
+**Status:** open, partial.
+
+**Symptom:** Grafana has order ACK RTT (the round-trip after we send an
+order) but not the *inbound* latency from venue wire to strategy
+callback. A 1 ms regression in BBO decode would not surface today until
+it manifested as a missed-fill PnL drag, which is days too late.
+
+**Fix:** wire a histogram metric from the HL/OKX decoder hot path
+(`bpt-md-gateway/src/messaging/publishers/md_publisher.cpp` already
+records latencies internally — just needs a `prometheus_cpp::Histogram`
+exposed). Then add a Grafana panel mirroring the order-ACK RTT shape.
+
+**Relevant code:**
+- `bpt-md-gateway/include/md_gateway/md/md_publisher_concept.h` — Pub
+  concept (would need a `record_latency` method, or a sibling metric
+  surface).
+- `bpt-md-gateway/src/messaging/publishers/md_publisher.cpp` — the actual
+  publish hot path already times itself (TscClock::now_mono_ns deltas).
+
+### MD decode→strategy fan-out latency
+
+**Status:** open.
+
+**Symptom:** no metric exists for "decoder finished, strategy on_bbo
+returned." If the strategy spends 500µs on every BBO (vs the 20µs we
+think it does), it's silently bleeding alpha and the only signal is fills
+landing 480µs later than they should.
+
+**Fix:** wrap the `client_.push_bbo(msg)` call in
+`bpt-md-gateway/include/md_gateway/messaging/publishers/md_publisher.h`
+(or equivalent strategy-side md-client receive path) with a TscClock
+delta into a histogram. Per-handler granularity — `strategy_md_callback_ns`
+keyed by message type.
+
+### Live trade blotter (React dashboard)
+
+**Status:** open, would be a new route or panel on `/`.
+
+**Symptom:** trades.csv exists after a backtest, but during a live session
+there's no chronological "every fill in order" view. Trader has to grep
+logs to answer "what was that last fill?"
+
+**Fix:** new `<TradesBlotter>` React component subscribing to
+ExecReport events from the WS bridge. Filter/sort by venue, symbol, side,
+strategy, time. ~1 day.
+
+**Relevant code:**
+- `bpt-bridge/src/app/bridge_service.cpp` — WS bridge that fans
+  ExecReports out to the React frontend.
+- `bpt-console/...` (or wherever the React dashboard lives) — sibling
+  to the existing PnL panel.
+
+### Cross-strategy risk aggregator
+
+**Status:** open, becomes important the first time we run >1 strategy
+concurrently.
+
+**Symptom:** each strategy enforces its own `max_position_usd`,
+`max_daily_loss_usd`, etc. But across multiple strategies on the same
+underlying (or multiple underlyings highly correlated), the aggregate
+exposure can be far above intent. Today: nothing shows total exposure
+across strategies.
+
+**Fix:** new panel on React `/` that subscribes to all strategies'
+PositionUpdate events and shows total net notional by venue, by asset,
+by side. Plus aggregate daily P&L. Plus a hard kill-switch
+(`/kill` endpoint that signals all strategies to stop quoting).
+
+**Relevant code:**
+- `bpt-strategy/include/strategy/strategy/position_tracker.h` — per-strategy
+  position. Need cross-strategy aggregation surface.
+- `bpt-bridge/...` — would need to fan position updates to dashboard.
+
+### TCA / markout dashboard (live)
+
+**Status:** open, partial — bpt-analytics computes markouts already.
+
+**Symptom:** `bpt-analytics` computes markouts at 50ms/1s/5s/30s after
+fill and exposes them on stream 5001 (per `[[project_tyr_service]]`
+memory). But there's no UI showing the rolling markout distribution per
+strategy in real time. Today: read trades.csv after the run, plot in
+notebook. Slow loop.
+
+**Fix:** new `<TcaPanel>` React component on `/` or as new route
+`/tca`. Subscribes to bpt-analytics's MarkoutReport stream. Rolling
+window: per-strategy avg markout, p25/p50/p75, buy-vs-sell asymmetry.
+Sparkline per symbol.
+
+**Relevant code:**
+- `bpt-analytics/include/analytics/messaging/publishers/toxicity_publisher.h`
+  — already publishes the data.
+- `bpt-bridge/...` — needs the MarkoutReport fan-out wiring.
+
+### Strategy state machine visualization
+
+**Status:** open.
+
+**Symptom:** AS strategy can be running, paused (cooldown), halted (vol
+gate), suppressed (drift, toxicity, queue ahead), or fully stopped
+(daily-loss hit). Today: read log lines to figure out which. No glanceable
+visual answer to "why isn't my strategy quoting?"
+
+**Fix:** new panel on `/` showing per-strategy state machine + reason
+code. Last 60s of state transitions with timestamps. Suppression
+breakdown: which gate (drift / vol / tox / queue) is firing, current
+value vs threshold.
+
+**Relevant code:**
+- `bpt-strategy/src/strategy/avellaneda_stoikov_strategy.cpp` — already
+  computes all this state internally for log lines. Needs to publish as
+  a structured event.
+
+### L3 order book heatmap (Bookmap-style)
+
+**Status:** open, nice-to-have.
+
+**Symptom:** the React dashboard shows top-of-book and L2 ladder
+snapshots but no time × price × resting-size heatmap. This is the
+canonical "what does the market look like?" view at any HFT desk and
+genuinely useful for spotting iceberg orders, spoofing patterns, and
+post-trade book reactions.
+
+**Fix:** new `<BookHeatmap>` component using canvas (not SVG — 1000s of
+cells refresh per second). Subscribe to L2 updates, accumulate
+`(timestamp_bucket, price_bucket) → size` matrix, render with viridis
+color scale. Tick scroll horizontally; pause to inspect.
+
+This is more work than the others (~1 week of frontend) and the
+Bookmap-style viz is more of a "feel" thing than a strict need; defer
+until other items above are done.
+
+### PnL / risk alert routing
+
+**Status:** open, partial — alertmanager exists, ops alerts wired up.
+
+**Symptom:** Discord routing covers critical/warning ops alerts
+(`bpt-alerts.yml`) but not strategy-PnL alerts. If AS hits its daily-loss
+threshold and pauses, the operator finds out by reading logs, not by
+phone vibrating.
+
+**Fix:** new Prometheus alert rules group `bpt-trading` with rules like:
+- `StrategyPauseDailyLoss` — strategy_trading_paused == 1 for >30s
+- `StrategyPositionApproachingMax` — pos_pct_of_max > 0.8 for >60s
+- `MarkoutsTurnedNegative` — avg_markout_5s_bps < -10 over 50 fills
+- `FillRateCollapsed` — fill_rate over 1h falls below 1/3 trailing 7d
+
+Routed to Discord with `trading` tag so operator can distinguish from
+ops alerts.
+
+**Relevant code:**
+- `monitoring/rules/bpt-alerts.yml` — append a `bpt-trading` rules
+  group.
+- `monitoring/alertmanager/alertmanager.yml` — already has Discord
+  receiver, just needs a route for `severity=trading`.
