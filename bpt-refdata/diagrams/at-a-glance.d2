@@ -1,0 +1,181 @@
+# bpt-refdata "at a glance" diagram
+# Render: ./render.sh at-a-glance
+# Source-of-truth — the .svg next to it is generated.
+#
+# Reflects the POST-Path-A reality: instruments come from the secmaster
+# snapshot file (S3 → puller → /opt/bpt/data/instrument_mapping.json);
+# fee schedules still come from per-venue REST adapters living here.
+# bpt-refdata's role is the Aeron-side cache + republisher; no longer
+# the source-of-truth for instrument data.
+
+direction: down
+
+classes: {
+  card: {
+    style: {
+      fill: "#64748b"
+      stroke: "#cbd5e1"
+      stroke-width: 1
+      font-color: "#f8fafc"
+      shadow: true
+      border-radius: 20
+    }
+  }
+  bus-card: {
+    shape: queue
+    style: {
+      fill: "#64748b"
+      stroke: "#cbd5e1"
+      stroke-width: 1
+      font-color: "#f8fafc"
+    }
+  }
+  multi-card: {
+    style: {
+      fill: "#64748b"
+      stroke: "#cbd5e1"
+      stroke-width: 1
+      font-color: "#f8fafc"
+      shadow: true
+      border-radius: 20
+      multiple: true
+    }
+  }
+  swimlane-ext: {
+    style: {
+      fill: "#0f172a"
+      stroke: "#475569"
+      stroke-width: 1
+      font-color: "#e2e8f0"
+    }
+  }
+  swimlane-refdata: {
+    style: {
+      fill: "#1e293b"
+      stroke: "#64748b"
+      stroke-width: 1
+      font-color: "#cbd5e1"
+    }
+  }
+  swimlane-inner: {
+    style: {
+      fill: "#334155"
+      stroke: "#94a3b8"
+      stroke-width: 1
+      font-color: "#e2e8f0"
+    }
+  }
+  # Instrument path: cold-load from secmaster snapshot at startup.
+  cold: {
+    style: {
+      stroke: "#ef4444"
+      stroke-width: 3
+    }
+  }
+  # Slow path: periodic REST polling (fees) + Aeron publish.
+  slow: {
+    style: {
+      stroke: "#10b981"
+      stroke-width: 2
+    }
+  }
+  # Control path: subscriber-driven snapshot requests.
+  control: {
+    style: {
+      stroke: "#22d3ee"
+      stroke-width: 2
+    }
+  }
+}
+
+# ─────────────────── Sources of reference data ───────────────────────
+sources: External sources {
+  class: swimlane-ext
+  label.near: outside-top-center
+  direction: right
+
+  secmaster_file: "secmaster snapshot\n/opt/bpt/data/instrument_mapping.json\n(produced by bpt-secmaster\nS3 puller, see SECMASTER.d2)" { class: card }
+
+  venues: "Exchange REST APIs\n(Binance · OKX · HL · Deribit)\nfor fee schedules only" { class: card }
+}
+
+# ─────────────────────────── bpt-refdata ─────────────────────────────
+refdata: bpt-refdata {
+  class: swimlane-refdata
+  label.near: outside-top-center
+
+  loader: "InstrumentMappingLoader\nreads JSON · builds forward/reverse maps" { class: card }
+
+  registry: "InstrumentRegistry\ncanonical_id → Instrument" { class: card }
+
+  resolver: "InstrumentResolver\nvenue ↔ canonical lookup" { class: card }
+
+  adapter: "Per-venue Adapter (fees only)" {
+    class: swimlane-inner
+    label.near: outside-top-center
+    direction: right
+    rest_client: "RestClient\n(Boost.Beast over TLS)" { class: card }
+    decoder: "<venue>FeeDecoder\nJSON → FeeSchedule" { class: card }
+  }
+
+  snapshot_pub: "snapshot_pub\nRefDataSnapshot · stream 1001" { class: card }
+  delta_pub: "delta_pub\nRefDataDelta · stream 1002" { class: card }
+  fee_pub: "fee_pub\nFeeSchedule · stream 1004" { class: card }
+  status_pub: "status_pub\nRefDataReady / Error · stream 1006" { class: card }
+  ctrl_sub: "control_sub\nstream 1003 (in)" { class: card }
+}
+
+# Aeron bus — shared with the rest of the trading stack.
+aeron: "Aeron — shared-memory log buffers" {
+  class: bus-card
+  icon: aeron-logo.png
+  icon.near: top-center
+  label.near: bottom-center
+}
+
+# ─────────────────────────── Consumers ───────────────────────────────
+clients: Aeron consumers {
+  class: swimlane-ext
+  label.near: outside-top-center
+  direction: right
+  subscribers: "Subscribers\nstrategy · ogw · mdgw · pricer · radar\nconsume RefDataSnapshot · Delta · FeeSchedule · Status" { class: multi-card }
+  requester: "Snapshot requester\n(any subscriber on cold start)\nsends RefDataSubscriptionRequest" { class: card }
+}
+
+# ─────────────── Cold path: instrument data from secmaster ───────────
+# At startup the loader reads the JSON file (produced upstream by
+# bpt-secmaster) and hydrates the in-memory registry + resolver.
+# This is the ONLY way instruments enter the registry post-Path-A —
+# bpt-refdata no longer pulls instruments from venue REST.
+sources.secmaster_file -> refdata.loader: "open() at startup" { class: cold }
+refdata.loader -> refdata.registry: "populate" { class: cold }
+refdata.loader -> refdata.resolver: "populate" { class: cold }
+
+# ─────────────── Slow path: fee schedules from venue REST ────────────
+# Per-venue adapters still poll exchange REST endpoints for fee
+# schedules — these aren't in the secmaster snapshot yet. Future work:
+# move into secmaster's schema and delete these adapters.
+sources.venues -> refdata.adapter.rest_client: "poll" { class: slow }
+refdata.adapter.rest_client -> refdata.adapter.decoder: { class: slow }
+refdata.adapter.decoder -> refdata.registry: "fee rows" { class: slow }
+
+# ─────────────── Slow path: Aeron publish to consumers ───────────────
+# Registry feeds the publishers; publishers SBE-encode and offer onto
+# Aeron streams; consumers subscribe via shared memory.
+refdata.registry -> refdata.snapshot_pub: { class: slow }
+refdata.registry -> refdata.delta_pub: { class: slow }
+refdata.registry -> refdata.fee_pub: { class: slow }
+refdata.registry -> refdata.status_pub: { class: slow }
+refdata.snapshot_pub -> aeron: { class: slow }
+refdata.delta_pub -> aeron: { class: slow }
+refdata.fee_pub -> aeron: { class: slow }
+refdata.status_pub -> aeron: { class: slow }
+aeron -> clients.subscribers: deliver via shared memory { class: slow }
+
+# ─────────────── Control path: snapshot requests ─────────────────────
+# Subscribers send a RefDataSubscriptionRequest on the control stream
+# when they cold-start; control_sub forwards to snapshot_pub which
+# offers a fresh full snapshot.
+clients.requester -> aeron: stream 1003 { class: control }
+aeron -> refdata.ctrl_sub: { class: control }
+refdata.ctrl_sub -> refdata.snapshot_pub: trigger snapshot { class: control }

@@ -1,72 +1,29 @@
 # bpt-refdata
 
-Reference data service. Pulls instrument metadata (symbols, tick sizes, lot
-sizes, expiries, strikes) + fee schedules from venue REST APIs; normalises
-into a canonical `Instrument` model; publishes snapshots + deltas + fee
-schedules over Aeron. Same external-facing shape as md-gateway but with REST
-instead of WebSocket transport (cadence is once + periodic refresh, not
-streaming).
+Trading-host-side reference data service. Reads the **secmaster snapshot**
+(`/opt/bpt/data/instrument_mapping.json`, produced upstream by
+[`bpt-secmaster`](../bpt-secmaster/)) and polls per-venue REST APIs for fee
+schedules. Normalises into a canonical `Instrument` model; publishes
+snapshots + deltas + fee schedules over Aeron for the rest of the trading
+stack (strategy, ogw, mdgw, pricer, radar).
+
+bpt-refdata is **not** the source of truth for instruments — that's
+secmaster (AWS RDS, see [`SECMASTER.d2`](../SECMASTER.d2) at the repo root).
+bpt-refdata is the Aeron-side cache + SBE encoder; consumers talk to it via
+Aeron streams, never reach back to RDS or the snapshot file directly.
+
+Fee schedules are still pulled directly from venue REST here. Future work:
+move into secmaster's schema and delete the per-venue fee adapters
+(would shrink this service to a thin "JSON → SBE → Aeron" shim).
 
 See [service-anatomy.md](../docs/service-anatomy.md) for the canonical service shape.
 
 ## At a glance
 
-```mermaid
-%%{init: {
-  'theme': 'base',
-  'themeVariables': {
-    'fontFamily': '"SF Mono", "JetBrains Mono", "Cascadia Code", Consolas, monospace',
-    'fontSize': '14px',
-    'lineColor': '#475569',
-    'primaryColor': '#1e293b',
-    'primaryTextColor': '#f8fafc',
-    'primaryBorderColor': '#0f172a'
-  }
-}}%%
-flowchart TD
-    exchanges["<b>EXCHANGES (REST)</b><br/>Binance /exchangeInfo<br/>OKX /api/v5/public<br/>Deribit /get_instruments<br/>Hyperliquid /info"]
-    consumers["<b>INTERNAL CONSUMERS</b><br/>strategy · pricer<br/>md-gateway · radar"]
-    requester["any subscriber<br/>(RefDataSubscriptionRequest)"]
+![bpt-refdata at-a-glance](diagrams/at-a-glance.svg)
 
-    subgraph refdata["bpt-refdata"]
-        subgraph adapter["per-venue Adapter"]
-            rest_client["RestClient<br/>(Boost.Beast over TLS)"]
-            decoder["*RefdataDecoder<br/>(JSON → Instrument)"]
-        end
-
-        registry["<b>InstrumentRegistry</b><br/>(canonical IDs)"]
-        resolver["<b>InstrumentResolver</b><br/>(venue ↔ canonical)"]
-
-        snapshot["snapshot_pub<br/>RefDataSnapshot"]
-        delta["delta_pub<br/>RefDataDelta + heartbeat"]
-        fee["fee_pub<br/>FeeSchedule"]
-        status["status_pub<br/>RefDataReady / Error"]
-        ctrl["control_sub"]
-
-        decoder --> registry
-        decoder --> resolver
-        ctrl --> snapshot
-        registry --> snapshot
-        registry --> delta
-        registry --> fee
-        registry --> status
-    end
-
-    exchanges -->|"poll"| rest_client
-    rest_client --> decoder
-    requester --> ctrl
-    snapshot --> consumers
-    delta --> consumers
-    fee --> consumers
-    status --> consumers
-
-    classDef external fill:#fff3cd,stroke:#856404,color:#000
-    classDef domain fill:#dbeafe,stroke:#1e40af,stroke-width:2px,color:#000
-    classDef layer fill:#f5f5f5,stroke:#333,color:#000
-    class exchanges,consumers,requester external
-    class registry,resolver domain
-    class rest_client,decoder,snapshot,delta,fee,status,ctrl layer
-```
+Source: [`diagrams/at-a-glance.d2`](diagrams/at-a-glance.d2). Rebuild with
+`./diagrams/render.sh at-a-glance`.
 
 ## Streams produced
 
