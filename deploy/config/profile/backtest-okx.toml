@@ -1,0 +1,6 @@
+# Deployment profile — BACKTEST against OKX mainnet refdata.
+#
+# Used by bpt-strategy when running under the deterministic backtest
+# harness against canon files produced by bpt-canon-ingest-okx-*.
+environment = "dev"
+exchanges   = ["OKX"]
