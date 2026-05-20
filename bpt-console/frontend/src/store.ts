@@ -165,8 +165,15 @@ interface State {
 
   // bpt-analytics toxicity scores — updated by 'toxicity' messages from the bridge.
   toxicity: {
+    // Per-horizon mean markouts. 1s + 30s landed alongside the existing
+    // 5s in a cross-stack commit; adverse_rate + tox_score remain
+    // 5s-based (canonical microstructure convention).
+    bidMarkout1s: number
+    askMarkout1s: number
     bidMarkout5s: number
     askMarkout5s: number
+    bidMarkout30s: number
+    askMarkout30s: number
     bidAdverseRate: number
     askAdverseRate: number
     bidSamples: number
@@ -484,8 +491,12 @@ export const useStore = create<State>((set) => ({
               : [...state.toxicityHistory, sample]
           return {
             toxicity: {
+              bidMarkout1s: msg.bidMarkout1s,
+              askMarkout1s: msg.askMarkout1s,
               bidMarkout5s: msg.bidMarkout5s,
               askMarkout5s: msg.askMarkout5s,
+              bidMarkout30s: msg.bidMarkout30s,
+              askMarkout30s: msg.askMarkout30s,
               bidAdverseRate: msg.bidAdverseRate,
               askAdverseRate: msg.askAdverseRate,
               bidSamples: msg.bidSamples,

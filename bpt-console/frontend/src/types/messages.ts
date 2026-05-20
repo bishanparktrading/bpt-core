@@ -168,8 +168,16 @@ export interface PortfolioMsg {
 // Live toxicity scores from bpt-analytics via the bridge.
 export interface ToxicityMsg {
   type: 'toxicity'
+  // Mean markout in bps at three horizons. 1s = latency-sensitive
+  // (sniped by a faster maker), 5s = canonical microstructure horizon
+  // (also drives adverse_rate + tox_score), 30s = slower informed-flow
+  // drift. All NaN during warmup.
+  bidMarkout1s: number
+  askMarkout1s: number
   bidMarkout5s: number
   askMarkout5s: number
+  bidMarkout30s: number
+  askMarkout30s: number
   bidAdverseRate: number
   askAdverseRate: number
   bidSamples: number
@@ -298,13 +306,13 @@ export interface FundingArbStrategyState extends BaseStrategyState {
 // orphan positions are visible even after rolling out of the universe).
 export interface OptionsMakerStrike {
   strike: number
-  expiry: number       // YYYYMMDD
+  expiry: number // YYYYMMDD
   is_call: boolean
-  theo: number         // smile-fitted BS theo in native units (BTC for Deribit)
-  venue_mid: number    // 0 if no observed venue BBO (synthetic strike)
-  our_bid: number      // 0 if no resting bid; else the limit price we posted
+  theo: number // smile-fitted BS theo in native units (BTC for Deribit)
+  venue_mid: number // 0 if no observed venue BBO (synthetic strike)
+  our_bid: number // 0 if no resting bid; else the limit price we posted
   our_ask: number
-  position: number     // signed; + long
+  position: number // signed; + long
   delta: number
   vega: number
 }
@@ -317,8 +325,8 @@ export interface OptionsMakerUnderlyingState {
   portfolio_vega: number
   portfolio_gamma: number
   portfolio_theta: number
-  perp_position: number   // signed; + long perp / − short
-  book_delta: number      // portfolio_delta + perp_position (≈ 0 when hedged)
+  perp_position: number // signed; + long perp / − short
+  book_delta: number // portfolio_delta + perp_position (≈ 0 when hedged)
   hedge_in_flight: boolean
   active_strikes: OptionsMakerStrike[]
 }
@@ -369,29 +377,29 @@ export interface OptionsMarketColor {
 // Fields are null when radar hasn't joined a perp to this underlying yet
 // (refdata snapshot hasn't arrived, no perp exists at this venue, etc.).
 export interface PerpMarketColor {
-  fundingRate8h: number | null   // decimal (e.g. 0.0001 = 1 bps)
-  nextFundingTs: number | null   // ns since epoch; null = not yet known
-  basisBps: number | null        // (mark - index) / index * 1e4; null if stale or missing
-  markPrice: number | null       // perp mark from md-gateway InstrumentStats
-  indexPrice: number | null      // index/spot from md-gateway InstrumentStats
+  fundingRate8h: number | null // decimal (e.g. 0.0001 = 1 bps)
+  nextFundingTs: number | null // ns since epoch; null = not yet known
+  basisBps: number | null // (mark - index) / index * 1e4; null if stale or missing
+  markPrice: number | null // perp mark from md-gateway InstrumentStats
+  indexPrice: number | null // index/spot from md-gateway InstrumentStats
 }
 
 // Flow section — perp-side aggressor flow over a 5min rolling window.
 // All notional fields are in quote currency (USD-equivalent for crypto perps).
 // Nulls when no trades observed yet for the joined perp.
 export interface FlowMarketColor {
-  buyNotional5m: number | null   // Σ price × qty where aggressor lifted offer
-  sellNotional5m: number | null  // Σ price × qty where aggressor hit bid
-  imbalance5m: number | null     // (buy − sell) / total; range [−1, +1]
-  tradeCount5m: number           // # of trades inside the window
+  buyNotional5m: number | null // Σ price × qty where aggressor lifted offer
+  sellNotional5m: number | null // Σ price × qty where aggressor hit bid
+  imbalance5m: number | null // (buy − sell) / total; range [−1, +1]
+  tradeCount5m: number // # of trades inside the window
 }
 
 // Vol-regime section — annualised realized vol of the joined perp's mid over
 // a 1h window. Frontend joins this with `options.frontAtmIv` to surface the
 // variance risk premium and label the regime.
 export interface RegimeMarketColor {
-  realizedVol1h: number | null   // annualised, decimal (0.5 = 50%); null < 2 samples
-  sampleCount: number            // # mid samples used
+  realizedVol1h: number | null // annualised, decimal (0.5 = 50%); null < 2 samples
+  sampleCount: number // # mid samples used
 }
 
 export interface MarketColorMsg {

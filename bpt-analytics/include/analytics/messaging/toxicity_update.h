@@ -15,10 +15,17 @@ struct __attribute__((packed)) ToxicityUpdate {
     uint64_t instrument_id;
     uint64_t timestamp_ns;
 
-    // Rolling mean markout at the 5-second horizon, per side.
-    // NaN when insufficient samples.
+    // Rolling mean markout at the 1s / 5s / 30s horizons, per side.
+    // NaN when insufficient samples. 1s catches latency-sensitive
+    // adverse selection (you got sniped by a faster maker); 5s is the
+    // traditional "microstructure toxicity" horizon; 30s catches
+    // slower informed-flow drift.
+    double bid_markout_1s_bps;
+    double ask_markout_1s_bps;
     double bid_markout_5s_bps;
     double ask_markout_5s_bps;
+    double bid_markout_30s_bps;
+    double ask_markout_30s_bps;
 
     // Fraction of fills on each side that had negative 5s markout.
     // 0.0–1.0 range. NaN when insufficient samples.

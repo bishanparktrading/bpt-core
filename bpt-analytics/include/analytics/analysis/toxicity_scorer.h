@@ -35,7 +35,13 @@ public:
 
 private:
     struct SideStats {
+        // Per-horizon mean markout in bps. adverse_rate + toxicity_score
+        // are still defined off the 5s horizon (the canonical microstructure
+        // toxicity convention); 1s and 30s are surfaced for richer trader
+        // diagnostics (latency-sensitive vs slow-drift adverse selection).
+        double mean_markout_1s_bps{0.0};
         double mean_markout_5s_bps{0.0};
+        double mean_markout_30s_bps{0.0};
         double adverse_rate{0.0};
         double toxicity_score{0.0};
         uint32_t count{0};

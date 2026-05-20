@@ -172,7 +172,14 @@ export function ToxicityPanel() {
         <thead>
           <tr>
             <th></th>
-            <th className="num">Markout 5s</th>
+            {/* Three markout horizons. 1s = latency-sensitive (sniped by
+                faster maker); 5s = canonical microstructure horizon (and
+                what adverse + score are computed off); 30s = slower
+                informed-flow drift. Wider table; trader sees adverse-vs-
+                neutral-vs-favourable pattern across all three at a glance. */}
+            <th className="num">M 1s</th>
+            <th className="num">M 5s</th>
+            <th className="num">M 30s</th>
             <th className="num">Adverse %</th>
             <th className="num">Score</th>
             <th className="num">Fill Rate</th>
@@ -182,8 +189,14 @@ export function ToxicityPanel() {
         <tbody>
           <tr>
             <td style={{ fontWeight: 600 }}>BID</td>
+            <td className={`num ${scoreClass(mask(tox.bidMarkout1s, bidWarmup))}`}>
+              {fmt1(mask(tox.bidMarkout1s, bidWarmup))}
+            </td>
             <td className={`num ${scoreClass(mask(tox.bidMarkout5s, bidWarmup))}`}>
-              {fmt1(mask(tox.bidMarkout5s, bidWarmup))} bps
+              {fmt1(mask(tox.bidMarkout5s, bidWarmup))}
+            </td>
+            <td className={`num ${scoreClass(mask(tox.bidMarkout30s, bidWarmup))}`}>
+              {fmt1(mask(tox.bidMarkout30s, bidWarmup))}
             </td>
             <td className={`num ${rateClass(mask(tox.bidAdverseRate, bidWarmup))}`}>
               {fmtPct(mask(tox.bidAdverseRate, bidWarmup))}
@@ -196,8 +209,14 @@ export function ToxicityPanel() {
           </tr>
           <tr>
             <td style={{ fontWeight: 600 }}>ASK</td>
+            <td className={`num ${scoreClass(mask(tox.askMarkout1s, askWarmup))}`}>
+              {fmt1(mask(tox.askMarkout1s, askWarmup))}
+            </td>
             <td className={`num ${scoreClass(mask(tox.askMarkout5s, askWarmup))}`}>
-              {fmt1(mask(tox.askMarkout5s, askWarmup))} bps
+              {fmt1(mask(tox.askMarkout5s, askWarmup))}
+            </td>
+            <td className={`num ${scoreClass(mask(tox.askMarkout30s, askWarmup))}`}>
+              {fmt1(mask(tox.askMarkout30s, askWarmup))}
             </td>
             <td className={`num ${rateClass(mask(tox.askAdverseRate, askWarmup))}`}>
               {fmtPct(mask(tox.askAdverseRate, askWarmup))}
