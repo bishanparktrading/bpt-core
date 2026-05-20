@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars (gitignored) and fill in real values.
+
+# Your trading host's public IP. CIDR form, /32 for a single IP.
+# Find it: `curl ifconfig.me` from the trading host.
+trading_host_cidr = "203.0.113.42/32"
+
+# Optional Discord webhook for the daily ingest summary.
+# Create one in your server: Settings → Integrations → Webhooks → New Webhook.
+# Leave empty string to disable.
+discord_webhook_url = ""
+
+# AWS region. Default ap-northeast-1 matches the existing bpt-tape-archive
+# bucket. Change only if you're consolidating into a different region.
+# aws_region = "ap-northeast-1"
+
+# Override if you want to stand up a parallel test stack:
+# name_prefix = "bpt-secmaster-test"
