@@ -539,3 +539,75 @@ ops alerts.
   group.
 - `monitoring/alertmanager/alertmanager.yml` — already has Discord
   receiver, just needs a route for `severity=trading`.
+
+## bpt-secmaster (post-Path-A cleanup)
+
+Three gaps from the secmaster build that aren't blocking but matter as
+the universe grows.
+
+### Delisting detection in the refresher
+
+**Status:** open. Discovered while documenting the delisting propagation
+path 2026-05-21. Currently a delisted instrument silently stays
+`status='live'` in secmaster forever — the refresher only UPSERTS what
+the venue currently returns, it never marks the missing ones as
+delisted. Trading stack catches delisting reactively via MD-staleness
+and order-reject breakers, not via clean catalog signal.
+
+**Fix (minimal):** in the Lambda handler after each per-venue upsert,
+run a closing pass that finds (exchange_id, venue_native_symbol) rows
+that were live before the run but absent from this run's normalized
+output, and SCD-2 them to `status='delisted'`. ~30 lines of SQL.
+
+**Fix (proper, deferred):** plumb status through the rendered JSON
+(currently only carries instrument identity, not state) + extend
+`InstrumentMappingLoader` to parse it + bpt-refdata publishes status
+changes on the delta stream + strategies grow an `on_status_change`
+handler that cancels working orders and suppresses quotes. ~200 LOC
+across several services; only worth it when delistings become frequent
+enough to bite (i.e. trading >20-30 instruments).
+
+**Relevant code:**
+- `bpt-secmaster/lambda/refresh/handler.py` — the refresh loop, where
+  the closing-pass SQL would land.
+- `bpt-secmaster/lambda/refresh/db.py` — `upsert_listing` already
+  supports SCD-2 close; just needs a `mark_missing_delisted(cur,
+  exchange_id, seen_natives)` helper.
+- `bpt-secmaster/lambda/refresh/render.py` — would need a `status`
+  field per row for step 2.
+
+### Exchange catalog not surfaced to the trading stack
+
+**Status:** open. Secmaster has an `exchange` table with structural
+metadata (id, code, display_name, mic, region, asset_classes,
+base_maker/taker_bps, status) but none of it flows out to consumers.
+Trading stack derives exchange identity from three other places:
+ABI-stable SBE enum in `messages/`, per-env config TOML in
+`bpt-refdata/config/exchanges/`, and hardcoded `EXCHANGE_ID_*`
+constants in `bpt-refdata/include/refdata/mapping/`.
+
+**Why it doesn't bite yet:** 4 venues. Adding the 5th is a code edit
+in 3 places — annoying but trivial. The catalog metadata is mostly
+UI/safety-check stuff (display names, supported asset classes), not
+hot-path data. Hot-path config (REST host, TLS pinning, secret name)
+SHOULD live in env config TOML, not secmaster.
+
+**Fix (when worth doing):** when next adding a venue (Bybit etc.),
+take the opportunity to:
+1. Extend `render.py` to emit an `exchanges` block in the snapshot JSON.
+2. Extend `InstrumentMappingLoader` to parse + expose `Exchange exchange(id)`. ~20 LOC.
+3. Fold the catalog into the existing `RefDataSnapshot` SBE message as
+   a new repeating group — no new Aeron stream needed.
+4. Delete the hardcoded `EXCHANGE_ID_*` constants in favour of the
+   registry. Optional.
+
+**Total:** ~2-3 hours of focused work; pure waste before there's a
+fifth venue to motivate it.
+
+**Relevant code:**
+- `bpt-secmaster/schema/001_initial.sql` — the `exchange` table is here.
+- `bpt-secmaster/lambda/refresh/render.py` — add exchange block.
+- `bpt-refdata/include/refdata/mapping/instrument_mapping_loader.h` —
+  hardcoded `EXCHANGE_ID_*` constants live here.
+- `messages/schema/bpt-protocol.xml` — `RefDataSnapshot` message would
+  grow a `Exchanges` group.
