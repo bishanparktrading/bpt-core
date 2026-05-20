@@ -187,10 +187,16 @@ class DeribitIngester(VenueIngester):
                 return None
             expiry = datetime.fromtimestamp(int(exp_ms) / 1000, tz=timezone.utc).date()
             putcall = "C" if opt_type == "call" else "P"
+            # Deribit reports quote_currency=BTC for BTC options (they're
+            # BTC-denominated for premium), but the STRIKE is in USD. For
+            # our canonical_symbol we want the strike currency as the
+            # quote slot — use counter_currency if present, fall back to
+            # USD which is correct for every Deribit option listed today.
+            opt_quote = row.get("counter_currency", "USD").upper() or "USD"
             key = symbology.CanonicalKey(
                 class_=symbology.OPTION,
                 base_ccy=base,
-                quote_ccy=quote,
+                quote_ccy=opt_quote,
                 settle_ccy=settle,
                 expiry=expiry,
                 strike=Decimal(str(strike)),
@@ -200,7 +206,7 @@ class DeribitIngester(VenueIngester):
                 canonical_symbol=symbology.derive_canonical(key),
                 class_=symbology.OPTION,
                 base_ccy=base,
-                quote_ccy=quote,
+                quote_ccy=opt_quote,
                 settle_ccy=settle,
                 multiplier=multiplier,
                 expiry=expiry,
