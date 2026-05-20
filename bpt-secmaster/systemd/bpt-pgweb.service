@@ -1,0 +1,44 @@
+[Unit]
+Description=bpt-secmaster pgweb (browseable Postgres UI on :8081)
+Documentation=https://github.com/sosedoff/pgweb
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bpt-pgweb
+Group=bpt-pgweb
+
+# DSN delivered via systemd-creds (encrypted at rest with host TPM key).
+# The wrapper script reads $CREDENTIALS_DIRECTORY/secmaster-dsn at start.
+LoadCredentialEncrypted=secmaster-dsn:/etc/bpt/creds/bpt-secmaster-dsn.cred
+
+ExecStart=/usr/local/bin/bpt-pgweb-start
+
+# Restart on crash; pgweb is robust but RDS connection blips happen.
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Sandboxing. pgweb only needs to talk to RDS + serve HTTP locally.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bpt-pgweb
+
+[Install]
+WantedBy=multi-user.target
