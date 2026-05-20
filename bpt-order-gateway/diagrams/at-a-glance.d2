@@ -1,0 +1,166 @@
+# bpt-order-gateway "at a glance" diagram
+# Render: ./render.sh at-a-glance
+# Source-of-truth — the .svg next to it is generated.
+
+direction: down
+
+classes: {
+  card: {
+    style: {
+      fill: "#64748b"
+      stroke: "#cbd5e1"
+      stroke-width: 1
+      font-color: "#f8fafc"
+      shadow: true
+      border-radius: 20
+    }
+  }
+  bus-card: {
+    shape: queue
+    style: {
+      fill: "#64748b"
+      stroke: "#cbd5e1"
+      stroke-width: 1
+      font-color: "#f8fafc"
+    }
+  }
+  multi-card: {
+    style: {
+      fill: "#64748b"
+      stroke: "#cbd5e1"
+      stroke-width: 1
+      font-color: "#f8fafc"
+      shadow: true
+      border-radius: 20
+      multiple: true
+    }
+  }
+  swimlane-ext: {
+    style: {
+      fill: "#0f172a"
+      stroke: "#475569"
+      stroke-width: 1
+      font-color: "#e2e8f0"
+    }
+  }
+  swimlane-ogw: {
+    style: {
+      fill: "#1e293b"
+      stroke: "#64748b"
+      stroke-width: 1
+      font-color: "#cbd5e1"
+    }
+  }
+  swimlane-inner: {
+    style: {
+      fill: "#334155"
+      stroke: "#94a3b8"
+      stroke-width: 1
+      font-color: "#e2e8f0"
+    }
+  }
+  # Hot path: order entry and exec returns on the trading-critical timeline.
+  hot: {
+    style: {
+      stroke: "#ef4444"
+      stroke-width: 3
+    }
+  }
+  # Slow path: heartbeats, account snapshots — periodic, off the order timeline.
+  slow: {
+    style: {
+      stroke: "#10b981"
+      stroke-width: 2
+    }
+  }
+  # Risk/breaker side-channels: latches, kill switches.
+  control: {
+    style: {
+      stroke: "#22d3ee"
+      stroke-width: 2
+    }
+  }
+}
+
+ext: External {
+  class: swimlane-ext
+  label.near: outside-top-center
+  direction: right
+  strategy: "Strategy\npublishes NewOrder · CancelOrder ·\nModifyOrder · CancelAll" { class: card }
+  venue: "Exchange\n(Binance · OKX · Deribit · HL)\nREST POST + WS exec stream" { class: card }
+}
+
+ogw: bpt-order-gateway {
+  class: swimlane-ogw
+  label.near: outside-top-center
+
+  ctrl: "OrderSubscriber\nstream 3001 in" { class: card }
+
+  proc: "OrderProcessor\n(main poll thread)\nrisk · state · pnl · rate breaker" { class: card }
+
+  adapter: "Per-venue OrderAdapter" {
+    class: swimlane-inner
+    label.near: outside-top-center
+    direction: right
+    send_exec: "send-executor thread\nblocking REST/WS sends" { class: card }
+    io: "IO thread\nWS exec stream read +\nJSON decode" { class: card }
+    reconciler: "Reconciler (HL only)\nperiodic /info\nsync of openOrders" { class: card }
+  }
+
+  snap_exec: "AccountSnapExecutor\ndedicated thread,\nperiodic REST GET" { class: card }
+
+  outbound: "Outbound publishers" {
+    class: swimlane-inner
+    label.near: outside-top-center
+    direction: right
+    exec_pub: "ExecReportPublisher\nstream 3002" { class: card }
+    hb_pub: "HeartbeatPublisher\nstream 3003" { class: card }
+    snap_pub: "AccountSnapshotPublisher\nstream 3004" { class: card }
+  }
+}
+
+aeron: "Aeron — shared-memory log buffers" {
+  class: bus-card
+  icon: aeron-logo.png
+  icon.near: top-center
+  label.near: bottom-center
+}
+
+# Hot path — order entry (red, top to bottom)
+# Strategy publishes order on stream 3001 → ogw routes → venue REST.
+ext.strategy -> aeron: NewOrder / Cancel /\nModify / CancelAll { class: hot }
+aeron -> ogw.ctrl: stream 3001 { class: hot }
+ogw.ctrl -> ogw.proc: dispatch { class: hot }
+ogw.proc -> ogw.adapter: send_* (non-blocking;\nMPSC send_work_queue) { class: hot }
+ogw.adapter.send_exec -> ext.venue: HTTPS POST / WS send { class: hot }
+
+# Hot path — exec report return (red, bottom to top)
+# Venue WS pushes exec → adapter IO thread decodes → exec_queue → main
+# poll drains → ExecReportPublisher → Aeron stream 3002 → strategy.
+ext.venue -> ogw.adapter.io: WS exec frame { class: hot }
+ogw.adapter.io -> ogw.proc: drain exec_queue\n(SPSC: ws → main) { class: hot }
+ogw.adapter.send_exec -> ogw.proc: drain rest_exec_queue\n(SPSC: send_exec → main) { class: hot }
+ogw.proc -> ogw.outbound.exec_pub: publish { class: hot }
+ogw.outbound.exec_pub -> aeron: { class: hot }
+aeron -> ext.strategy: stream 3002 / 3003 / 3004 { class: hot }
+
+# Slow path — account snapshot (emerald)
+# AccountSnapExecutor periodically calls each adapter's blocking
+# fetch_account_snapshot off the poll thread, publishes positions +
+# balances on stream 3004.
+ogw.snap_exec -> ogw.adapter: fetch_account_snapshot { class: slow }
+ext.venue -> ogw.snap_exec: positions + balances { class: slow }
+ogw.snap_exec -> ogw.outbound.snap_pub: { class: slow }
+ogw.outbound.snap_pub -> aeron: { class: slow }
+
+# Slow path — heartbeat sampler on the poll thread mirrors
+# RiskChecker / RejectRateBreaker / DisconnectRateBreaker state into a
+# heartbeat frame on stream 3003 (the strategy uses this as a liveness
+# signal; alertmanager scrapes the breaker latches via Prometheus).
+ogw.proc -> ogw.outbound.hb_pub: latched-breaker state { class: slow }
+ogw.outbound.hb_pub -> aeron: { class: slow }
+
+# Control side-channel — reconciler (HL only) feeds the same exec
+# queue as the WS path, so the main poll thread sees reconciled fills
+# the same way it sees live ones.
+ogw.adapter.reconciler -> ogw.adapter.io: synthesised exec events { class: control }
