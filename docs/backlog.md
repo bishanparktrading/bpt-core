@@ -611,3 +611,92 @@ fifth venue to motivate it.
   hardcoded `EXCHANGE_ID_*` constants live here.
 - `messages/schema/bpt-protocol.xml` — `RefDataSnapshot` message would
   grow a `Exchanges` group.
+
+## Trader-tooling follow-ups (from 2026-05-21 panel session)
+
+Three small items deferred during the Blotter v2 / TCA / multi-horizon
+markout work. None blocking; each becomes worth doing when the
+triggering condition fires.
+
+### Blotter — venue + strategy columns
+
+**Status:** open, partial. Blotter v2 (commit cfef7e9) added the
+symbol column, filter pills, and 500-row cap, all frontend-only.
+Venue and strategy columns were deliberately deferred — they require
+extending FillMsg + the bridge's encode::fill() with two new fields,
+which couples to either (a) multi-venue trading, or (b) multi-strategy
+running. Neither is true today.
+
+**Trigger:** the day you actually trade on >1 venue or run >1 strategy
+concurrently. At that point: extend FillMsg in
+`bpt-bridge/src/ws/message_encoder.cpp` + `bpt-console/frontend/src/types/messages.ts`,
+add two columns + two filter-pill rows to Blotter.tsx. The
+filter-pill mechanism is already generic — just declare two more
+groups. ~2 hours.
+
+**Relevant code:**
+- `bpt-bridge/src/ws/message_encoder.cpp` — `encode::fill()`
+- `bpt-bridge/src/app/bridge_service.cpp` — `on_exec_fill()` reads
+  ExecutionReport, hardcodes `settings_.symbol`; would need to read
+  venue + strategy from the ExecReport or from the bridge's startup config
+- `bpt-console/frontend/src/components/Blotter.tsx` — column rendering
+  + pill UI
+
+### TCA panel — per-symbol toxicity breakdown
+
+**Status:** open. ToxicityPanel today is single-instrument — the
+active strategy's symbol. Multi-symbol view requires bpt-analytics
+to publish a separate ToxicityUpdate per (instrument, side) pair
+(it already keys internally by instrument_id; just needs the
+publisher loop to iterate).
+
+**Trigger:** running >1 instrument concurrently, OR running
+OptionsMaker across multiple strikes.
+
+**Fix:** loop the publisher over distinct instrument_ids; bridge
+keys the store map by instrument_id; ToxicityPanel renders one row
+per instrument. ~3 hours cross-stack. Pairs naturally with the
+cross-strategy risk aggregator's per-strategy breakdown — same
+multi-key store pattern.
+
+### TCA panel — markout distribution histograms
+
+**Status:** open, nice-to-have. The current TCA view shows MEAN
+markout per side per horizon. A distribution (p25/p50/p75 or full
+histogram) over recent fills would let traders see "is the toxicity
+concentrated in a few bad fills or systemic across all fills?" —
+totally different responses.
+
+**Trigger:** when you start chasing a specific adverse-selection
+problem and the mean alone isn't telling you enough.
+
+**Fix:** bpt-analytics ToxicityScorer keeps a rolling window of
+Observations; just need to emit percentile stats alongside the
+existing mean. Then add a small histogram component in ToxicityPanel
+(below the sparkline; reuse inline-SVG pattern). ~half day.
+
+### Cross-strategy aggregator — prerequisite: multi-bridge architecture
+
+**Status:** open, prerequisite of the cross-strategy risk aggregator
+backlog item (above). The current dashboard model is
+**one bridge → one strategy → one console connection**
+(`bridge_service.cpp` filters by `settings_.instrument_id`,
+`PositionPanel` reads `s.netQty` singular, KillSwitch halts "the
+strategy"). For a real cross-strategy aggregator to do anything, one
+of these has to change:
+
+1. **Multiple bridge instances + console multi-connect:** ~1 day
+   console-side; store keyed by strategy name. Bridge unchanged.
+2. **New aggregator bridge** that subscribes to all per-strategy
+   Aeron streams + fans out an aggregate view: ~half day bridge work
+   + half day UI.
+3. **Single multi-tenant bridge** that drops the instrument_id
+   filter: ~half day bridge; biggest behavioural change to existing
+   panels.
+
+**Trigger:** actually planning to run >1 strategy concurrently.
+
+**Recommendation when triggered:** option 2 (aggregator bridge) —
+keeps the existing per-strategy bridges untouched (so each strategy
+can still have its own dedicated console), adds the aggregate as a
+separate concern.
