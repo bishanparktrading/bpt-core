@@ -29,7 +29,7 @@ Source: [`diagrams/at-a-glance.d2`](diagrams/at-a-glance.d2). Rebuild with
 
 | Stream | ID | Contents | Cadence |
 |---|---|---|---|
-| `refdata_snapshot` | 1001 | `RefDataSnapshot` (full registry on subscriber request) | on-demand |
+| `refdata_snapshot` | 1001 | `RefDataSnapshot` — scoped to the subscriber's filters (see below); full registry if no filters | on-demand (one snapshot per `RefDataSubscriptionRequest`) |
 | `refdata_delta` | 1002 | `RefDataDelta` (per-instrument adds / status changes / heartbeat) | per-event + Hz heartbeat |
 | `fee_schedule` | 1004 | `FeeSchedule` (per-instrument maker/taker bps) | one-shot at boot + on refresh |
 | `refdata_status` | 1006 | `RefDataReady` (all enabled exchanges loaded), `RefDataError` | once at boot + per error |
@@ -38,7 +38,26 @@ Source: [`diagrams/at-a-glance.d2`](diagrams/at-a-glance.d2). Rebuild with
 
 | Stream | ID | Contents |
 |---|---|---|
-| `refdata_control` | 1003 | `RefDataSubscriptionRequest` from subscribers (asks for snapshot push) |
+| `refdata_control` | 1003 | `RefDataSubscriptionRequest` from subscribers (asks for snapshot push, with optional filters) |
+
+### Snapshot filtering
+
+`RefDataSubscriptionRequest` carries two filter groups:
+
+- **`canonicalFilter`** (preferred) — match by base/quote/instrument_type
+  + optional exchange. Venue-agnostic; one filter can match the same
+  instrument on multiple venues. e.g. `{base: "BTC", quote: "USDT",
+  type: PERPETUAL, exchange: ""}` matches BTC/USDT perp on every venue.
+- **`instruments`** (legacy) — match by venue-native `(symbol, exchange)`
+  tuple. Tighter but venue-specific.
+
+Resolution order in `refdata_snapshot_publisher.cpp::matches()`:
+
+1. If `canonical_filters` non-empty → match against canonical filters only.
+2. Else if `instruments` non-empty → match against legacy filters.
+3. Else (both empty) → match all; return the full registry.
+
+**All 8 strategies pass `canonicalFilter`s today** (see `bpt-strategy/src/strategy/*.cpp`). The "full registry" path is reserved for research/admin tools that explicitly want everything (pgweb-equivalent uses, dashboard universe view).
 
 ## Layers (which this service has)
 
