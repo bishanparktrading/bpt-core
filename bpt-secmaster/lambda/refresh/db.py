@@ -101,7 +101,10 @@ INSTRUMENT_DIFF_FIELDS = (
     "base_ccy",
     "quote_ccy",
     "settle_ccy",
-    "multiplier",
+    # NOTE: multiplier intentionally NOT here — it's venue-specific
+    # (OKX BTC-USDT-SWAP=0.01, Binance BTCUSDT=1, Deribit=10 etc.) and
+    # lives on the listing table per migration 002. Keeping it on
+    # instrument would oscillate-SCD-2 each venue's refresh.
     "expiry",
     "strike",
     "putcall",
@@ -122,7 +125,7 @@ def upsert_instrument(
     cur.execute(
         """
         SELECT id, class, base_ccy, quote_ccy, settle_ccy,
-               multiplier, expiry, strike, putcall
+               expiry, strike, putcall
         FROM instrument
         WHERE canonical_symbol = %s AND valid_to IS NULL
         FOR UPDATE
@@ -136,7 +139,6 @@ def upsert_instrument(
         "base_ccy": inst.base_ccy.upper(),
         "quote_ccy": inst.quote_ccy.upper(),
         "settle_ccy": inst.settle_ccy.upper(),
-        "multiplier": inst.multiplier,
         "expiry": inst.expiry,
         "strike": inst.strike,
         "putcall": inst.putcall,
@@ -148,10 +150,10 @@ def upsert_instrument(
             """
             INSERT INTO instrument
                 (canonical_symbol, class, base_ccy, quote_ccy, settle_ccy,
-                 multiplier, expiry, strike, putcall,
+                 expiry, strike, putcall,
                  valid_from, changed_by, change_source)
                 VALUES
-                (%s, %s, %s, %s, %s, %s, %s, %s, %s,
+                (%s, %s, %s, %s, %s, %s, %s, %s,
                  now(), 'system', %s)
             RETURNING id
             """,
@@ -161,7 +163,6 @@ def upsert_instrument(
                 fields_now["base_ccy"],
                 fields_now["quote_ccy"],
                 fields_now["settle_ccy"],
-                inst.multiplier,
                 inst.expiry,
                 inst.strike,
                 inst.putcall,
@@ -174,33 +175,21 @@ def upsert_instrument(
     if _fields_equal(current, fields_now, INSTRUMENT_DIFF_FIELDS):
         return current["id"], "unchanged"
 
-    # SCD-2: close old row, insert new row (preserves the same canonical_symbol).
-    # internal_id is allocated fresh — see note below.
+    # SCD-2: close old row, insert new row. After this we also need
+    # to re-point any current listings that reference the old id to
+    # the new id — handled by the caller via _repoint_listings.
     cur.execute(
         "UPDATE instrument SET valid_to = now() WHERE id = %s",
         (current["id"],),
     )
-    # NOTE: A new SCD-2 row gets a *new* primary key id. This is a
-    # deliberate trade. Pros: simpler schema, clean partial-unique
-    # index. Cons: downstream systems that hold instrument_id need to
-    # be aware that "current id for this canonical_symbol" can change.
-    # In practice they re-load at restart, so the change is invisible
-    # except across long-running sessions — and we restart strategies
-    # daily anyway.
-    #
-    # If this becomes a problem later (e.g. long-lived backtests that
-    # need stable ids across SCD updates), the fix is a separate
-    # `instrument_identity` table with a stable id, and `instrument`
-    # becomes the SCD-2 attribute table referencing it. Not worth the
-    # extra complexity at v1.
     cur.execute(
         """
         INSERT INTO instrument
             (canonical_symbol, class, base_ccy, quote_ccy, settle_ccy,
-             multiplier, expiry, strike, putcall,
+             expiry, strike, putcall,
              valid_from, changed_by, change_source)
             VALUES
-            (%s, %s, %s, %s, %s, %s, %s, %s, %s,
+            (%s, %s, %s, %s, %s, %s, %s, %s,
              now(), 'system', %s)
         RETURNING id
         """,
@@ -210,7 +199,6 @@ def upsert_instrument(
             fields_now["base_ccy"],
             fields_now["quote_ccy"],
             fields_now["settle_ccy"],
-            inst.multiplier,
             inst.expiry,
             inst.strike,
             inst.putcall,
@@ -218,6 +206,20 @@ def upsert_instrument(
         ),
     )
     new_id = cur.fetchone()["id"]
+
+    # Re-point any other-venue listings that referenced the old
+    # instrument row. Without this, those listings would still point
+    # at a closed instrument and disappear from current-state queries.
+    cur.execute(
+        """
+        UPDATE listing
+        SET instrument_id = %s
+        WHERE instrument_id = %s
+          AND valid_to IS NULL
+        """,
+        (new_id, current["id"]),
+    )
+
     return new_id, "modified"
 
 
@@ -232,6 +234,7 @@ LISTING_DIFF_FIELDS = (
     "min_notional",
     "maker_bps",
     "taker_bps",
+    "multiplier",
     "status",
 )
 
@@ -249,7 +252,8 @@ def upsert_listing(
     cur.execute(
         """
         SELECT id, venue_native_symbol, tick_size, lot_size,
-               min_qty, min_notional, maker_bps, taker_bps, status
+               min_qty, min_notional, maker_bps, taker_bps,
+               multiplier, status
         FROM listing
         WHERE instrument_id = %s AND exchange_id = %s AND valid_to IS NULL
         FOR UPDATE
@@ -266,6 +270,7 @@ def upsert_listing(
         "min_notional": inst.min_notional,
         "maker_bps": inst.maker_bps,
         "taker_bps": inst.taker_bps,
+        "multiplier": inst.multiplier,
         "status": inst.status,
     }
 
@@ -275,10 +280,10 @@ def upsert_listing(
             INSERT INTO listing
                 (instrument_id, exchange_id, venue_native_symbol,
                  tick_size, lot_size, min_qty, min_notional,
-                 maker_bps, taker_bps, listed_at, status,
+                 maker_bps, taker_bps, multiplier, listed_at, status,
                  valid_from, changed_by, change_source)
                 VALUES
-                (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                  now(), 'system', %s)
             RETURNING id
             """,
@@ -292,6 +297,7 @@ def upsert_listing(
                 inst.min_notional,
                 inst.maker_bps,
                 inst.taker_bps,
+                inst.multiplier,
                 inst.listed_at,
                 inst.status,
                 change_source,
@@ -312,10 +318,10 @@ def upsert_listing(
         INSERT INTO listing
             (instrument_id, exchange_id, venue_native_symbol,
              tick_size, lot_size, min_qty, min_notional,
-             maker_bps, taker_bps, listed_at, status,
+             maker_bps, taker_bps, multiplier, listed_at, status,
              valid_from, changed_by, change_source)
             VALUES
-            (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+            (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
              now(), 'system', %s)
         RETURNING id
         """,
@@ -329,6 +335,7 @@ def upsert_listing(
             inst.min_notional,
             inst.maker_bps,
             inst.taker_bps,
+            inst.multiplier,
             inst.listed_at,
             inst.status,
             change_source,
