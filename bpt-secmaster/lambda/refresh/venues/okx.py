@@ -33,31 +33,48 @@ log = logging.getLogger(__name__)
 
 OKX_REST_BASE = "https://www.okx.com"
 
+# OKX requires `instFamily` (or per-instId) when querying instType=OPTION.
+# The /api/v5/public/instruments endpoint 400s on a bare instType=OPTION
+# call. Iterate the underlyings we care about; adding a new option
+# underlying = adding a string here.
+OKX_OPTION_FAMILIES = ("BTC-USD", "ETH-USD", "SOL-USD")
+
 
 class OkxIngester(VenueIngester):
     exchange_code = "okx"
 
     def fetch(self) -> Iterable[NormalizedInstrument]:
-        for inst_type in ("SPOT", "SWAP", "FUTURES", "OPTION"):
-            payload = self._fetch_inst_type(inst_type)
-            for row in payload.get("data", []):
-                try:
-                    norm = self._normalize(inst_type, row)
-                    if norm is not None:
-                        yield norm
-                except Exception as e:
-                    log.warning(
-                        "OKX: skipping %s row instId=%s: %s",
-                        inst_type,
-                        row.get("instId"),
-                        e,
-                    )
+        for inst_type in ("SPOT", "SWAP", "FUTURES"):
+            yield from self._fetch_and_normalize(inst_type)
+        # OPTION needs per-family fetches.
+        for family in OKX_OPTION_FAMILIES:
+            yield from self._fetch_and_normalize("OPTION", inst_family=family)
+
+    def _fetch_and_normalize(
+        self, inst_type: str, inst_family: str | None = None
+    ) -> Iterable[NormalizedInstrument]:
+        payload = self._fetch_inst_type(inst_type, inst_family=inst_family)
+        for row in payload.get("data", []):
+            try:
+                norm = self._normalize(inst_type, row)
+                if norm is not None:
+                    yield norm
+            except Exception as e:
+                log.warning(
+                    "OKX: skipping %s row instId=%s: %s",
+                    inst_type,
+                    row.get("instId"),
+                    e,
+                )
 
     # ─────────────────────────── HTTP fetch ──────────────────────────
 
-    def _fetch_inst_type(self, inst_type: str) -> dict:
+    def _fetch_inst_type(self, inst_type: str, inst_family: str | None = None) -> dict:
         url = f"{OKX_REST_BASE}/api/v5/public/instruments"
-        r = self.http.get(url, params={"instType": inst_type}, timeout=30.0)
+        params: dict[str, str] = {"instType": inst_type}
+        if inst_family:
+            params["instFamily"] = inst_family
+        r = self.http.get(url, params=params, timeout=30.0)
         r.raise_for_status()
         body = r.json()
         if body.get("code") != "0":
