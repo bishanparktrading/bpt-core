@@ -1,0 +1,5 @@
+# Lambda runtime deps. Pinned for reproducible container builds.
+# Bumped manually when CVEs or breaking changes warrant it.
+
+psycopg[binary]==3.2.3
+httpx[http2]==0.27.2
