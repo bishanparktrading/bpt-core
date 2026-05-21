@@ -916,3 +916,79 @@ those land, the discovery loop starts feeling like 2024-era quant
 research instead of "wait, how do I even load this data?". Items 4-6
 multiply value. Item 7 only matters once you have a strategy worth
 sizing up.
+
+## include-folder naming convention (repo-wide inconsistency)
+
+**Status:** open, needs thinking. Surfaced 2026-05-22 while extracting
+bpt-features and asking whether `include/features/` should instead be
+`include/bpt_features/`.
+
+**The observation:** the principled C++ convention is that public
+headers live under a project-namespaced subfolder (`include/<project>/`)
+so they don't collide when many libraries install into `/usr/include/`
+— e.g., `absl/strings/string_view.h`, `fmt/format.h`,
+`boost/asio.hpp`. The bpt-core repo violates this for most packages:
+
+| Package | Include folder | Pattern |
+|---|---|---|
+| bpt-canon | `canon/` | drops prefix |
+| bpt-bridge | `bridge/` | drops prefix |
+| bpt-refdata | `refdata/` | drops prefix |
+| bpt-analytics | `analytics/` | drops prefix |
+| bpt-md-gateway | `md_gateway/` | drops prefix |
+| bpt-strategy | `strategy/` | drops prefix |
+| bpt-features | `features/` | drops prefix |
+| **bpt-common** | **`bpt_common/`** | **keeps prefix** — odd one out |
+
+bpt-common is either the only one following the strict convention,
+or the only one violating the de-facto repo convention, depending
+on which you consider authoritative.
+
+**Why dropping the prefix works in this codebase:** bpt-core isn't
+installed anywhere external — headers are only consumed via Bazel
+labels (`//bpt-features:features`) within the monorepo. Bazel labels
+already carry the package prefix (`//bpt-bridge:...`), so the include
+path's namespacing job is done by Bazel. The include folder name
+ends up doing only documentation/grouping work, not collision
+avoidance.
+
+**Why it's still worth thinking about:**
+1. bpt-common's inconsistency is real noise — readers wonder if the
+   prefix means something special.
+2. If any of these packages ever get extracted into a standalone
+   published library, they'd need the strict convention. The prefix
+   earns its keep then.
+3. New engineers reading the code expect the strict convention; the
+   pragmatic version is a small surprise.
+
+**Three options:**
+
+**A. Accept current state.** Drop-prefix is fine for an internal-only
+codebase; bpt-common's prefix is just a stray. Zero work. Cost: the
+inconsistency stays, future-you wonders.
+
+**B. Drop prefix everywhere (rename bpt-common's folder).**
+`bpt-common/include/bpt_common/` → `bpt-common/include/common/`.
+~150 callsite updates, all mechanical sed. Cheapest cleanup; removes
+the inconsistency by making everyone drop-prefix. ~30 min.
+
+**C. Add prefix everywhere (strict convention).** Every package
+`include/<name>/` → `include/bpt_<name>/`. ~500+ callsite updates,
+every #include in the codebase touched. Most principled but biggest
+refactor. Worth doing only if there's a real chance of extracting a
+package into a standalone published library someday.
+
+**Trigger to revisit:** the next time touching a meaningful number
+of #includes across the repo for unrelated reasons, fold the chosen
+option into that change. Or when extracting a package for external
+publication.
+
+**Recommendation when decided:** B is the cheapest cleanup, makes
+the repo internally consistent. C is correct in principle but pays
+off only on external publication. A means living with the noise.
+
+**Relevant files (for reference when picking up):**
+- bpt-common/BUILD — would change `hdrs = glob(["include/bpt_common/**/*.h"])`
+- ~10 #include sites across consumers per package — all mechanical
+- MODULE.bazel — no changes needed; Bazel label resolution is
+  orthogonal to include-path conventions
