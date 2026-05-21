@@ -11,19 +11,26 @@
 // "internal C extension, don't import directly"); the public Python
 // package `bpt_features` re-exports the bits people should use.
 
+#include "bpt_common/book/order_book_state.h"
 #include "features/fair_value.h"
 #include "features/ofi.h"
+#include "features/queue.h"
 #include "features/realized_vol.h"
 #include "features/vol_gate.h"
+
+#include <messages/OrderSide.h>
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>  // for std::vector ↔ Python list conversion
 
 namespace py = pybind11;
+using bpt::common::book::OrderBookState;
 using bpt::features::FairValueEstimator;
 using bpt::features::OFICalculator;
+using bpt::features::QueueTracker;
 using bpt::features::RealizedVolEstimator;
 using bpt::features::VolatilityGate;
+using bpt::messages::OrderSide;
 
 PYBIND11_MODULE(_core, m) {
     m.doc() = "bpt-features C++ extension — compiled from bpt-features/python/bindings.cpp";
@@ -141,4 +148,123 @@ PYBIND11_MODULE(_core, m) {
         .def("max_bps_per_window", &VolatilityGate::max_bps_per_window)
         .def("set_max_bps_per_window", &VolatilityGate::set_max_bps_per_window,
              py::arg("max_bps"));
+
+    // ─────────────────────────── OrderSide enum ──────────────────────────
+    // Wire-format enum from messages/OrderSide.h. Exposed here so
+    // QueueTracker callers can pass `bf.OrderSide.Buy` / `.Sell` instead
+    // of raw ints. NULL_VALUE is the SBE sentinel; not typically used
+    // from Python but exposed for completeness.
+    py::enum_<OrderSide::Value>(m, "OrderSide")
+        .value("Buy", OrderSide::BUY)
+        .value("Sell", OrderSide::SELL)
+        .value("Null", OrderSide::NULL_VALUE);
+
+    // ────────────────────────── OrderBookState ───────────────────────────
+    // Per-instrument L2 book state. Lives in bpt-common as a shared
+    // domain type (md-gateway, tape, backtester all plausibly consume).
+    // Bound here because the features that use it (FairValueEstimator's
+    // L2 mode, QueueTracker) are the typical Python consumers; keeping
+    // all the Python bindings in one .so avoids forcing bpt-common to
+    // grow its own pybind11 target.
+    //
+    // The MdOrderBook overload of apply() is NOT bound — that path is
+    // for the live md-gateway adapter feeding SBE-decoded frames; from
+    // Python you construct ladders directly via the vector overload.
+    py::class_<OrderBookState> obs(m, "OrderBookState",
+                                   "Stateful L2 order book ladder");
+
+    py::class_<OrderBookState::Level>(obs, "Level")
+        .def(py::init<>())
+        .def_readwrite("price", &OrderBookState::Level::price)
+        .def_readwrite("qty", &OrderBookState::Level::qty);
+
+    obs.def(py::init<>())
+        // The vector overload — research-friendly. Pass lists of Levels;
+        // pybind11/stl.h converts Python list-of-Level to C++ vector.
+        // is_snapshot=true wipes the ladder before applying (use for
+        // full-book snapshots like OKX books5); false (default) is
+        // delta semantics (qty=0 removes a level).
+        .def("apply",
+             py::overload_cast<const std::vector<OrderBookState::Level>&,
+                               const std::vector<OrderBookState::Level>&,
+                               uint64_t, uint64_t, bool>(&OrderBookState::apply),
+             py::arg("bid_levels"), py::arg("ask_levels"),
+             py::arg("seq_num"), py::arg("timestamp_ns"),
+             py::arg("is_snapshot") = false,
+             "Fold a book frame into the ladder.")
+        .def("reset", &OrderBookState::reset, "Clear all state.")
+        .def("ready", &OrderBookState::ready,
+             "True once both sides have at least one level.")
+        // Top-of-book accessors — undefined if !ready().
+        .def("best_bid", &OrderBookState::best_bid)
+        .def("best_ask", &OrderBookState::best_ask)
+        .def("best_bid_qty", &OrderBookState::best_bid_qty)
+        .def("best_ask_qty", &OrderBookState::best_ask_qty)
+        .def("mid", &OrderBookState::mid)
+        // Exact-price + cumulative lookups (always safe).
+        .def("size_at_bid", &OrderBookState::size_at_bid, py::arg("price"))
+        .def("size_at_ask", &OrderBookState::size_at_ask, py::arg("price"))
+        .def("bid_vol_above", &OrderBookState::bid_vol_above, py::arg("price"),
+             "Sum of qty at all bid prices STRICTLY greater than `price`.")
+        .def("ask_vol_below", &OrderBookState::ask_vol_below, py::arg("price"),
+             "Sum of qty at all ask prices STRICTLY less than `price`.")
+        // Value-return top-N accessors. (The buffer-fill overloads are
+        // hot-path optimisations not relevant to Python.)
+        .def("top_bids",
+             py::overload_cast<size_t>(&OrderBookState::top_bids, py::const_),
+             py::arg("n"), "Top n bid levels, best first.")
+        .def("top_asks",
+             py::overload_cast<size_t>(&OrderBookState::top_asks, py::const_),
+             py::arg("n"), "Top n ask levels, best first.")
+        .def("n_bid_levels", &OrderBookState::n_bid_levels)
+        .def("n_ask_levels", &OrderBookState::n_ask_levels)
+        .def("last_seq_num", &OrderBookState::last_seq_num)
+        .def("last_update_ns", &OrderBookState::last_update_ns);
+
+    // ─────────────────────────── QueueTracker ────────────────────────────
+    // Per-resting-order queue-position tracker. Lifecycle is event-driven:
+    //   track(...)       — register a new resting order
+    //   on_trade(...)    — public trade arrived, decrement queue_ahead
+    //   on_fill(...)     — our order filled (partial or full)
+    //   on_cancel(...)   — our order cancelled
+    //   fill_probability(...) — read the current signal
+    //
+    // No per-row function wrapper today — the call pattern is too
+    // event-shaped for a simple DataFrame mapping. Once we have a canon
+    // reader that yields (book_state, my_fills, trades) streams together,
+    // a `bf.queue_position_history(...)` wrapper becomes natural.
+    py::class_<QueueTracker> qt(m, "QueueTracker",
+                                "Estimates queue position for resting orders");
+
+    py::class_<QueueTracker::Entry>(qt, "Entry")
+        .def_readonly("side", &QueueTracker::Entry::side)
+        .def_readonly("price", &QueueTracker::Entry::price)
+        .def_readonly("our_qty", &QueueTracker::Entry::our_qty)
+        .def_readonly("queue_ahead", &QueueTracker::Entry::queue_ahead)
+        .def_readonly("placed_ns", &QueueTracker::Entry::placed_ns);
+
+    qt.def(py::init<>())
+        .def("track", &QueueTracker::track,
+             py::arg("order_id"), py::arg("side"), py::arg("price"),
+             py::arg("our_qty"), py::arg("ts_ns"), py::arg("book"),
+             "Register a newly acked resting order; snapshots queue_ahead from the current book.")
+        .def("on_fill", &QueueTracker::on_fill,
+             py::arg("order_id"), py::arg("filled_qty"))
+        .def("on_cancel", &QueueTracker::on_cancel, py::arg("order_id"))
+        .def("on_trade", &QueueTracker::on_trade,
+             py::arg("aggressor"), py::arg("trade_price"),
+             py::arg("trade_qty"), py::arg("ts_ns"),
+             "Public-market trade printed; decrements queue_ahead for matching passive entries.")
+        // lookup() returns a pointer that may be nullptr; pybind11 needs
+        // an explicit reference-policy + nullable-check. Use a lambda
+        // that returns Optional[Entry] instead.
+        .def("lookup", [](const QueueTracker& self, uint64_t order_id) -> py::object {
+            const auto* e = self.lookup(order_id);
+            if (e == nullptr) return py::none();
+            return py::cast(*e);  // copy the Entry into Python
+        }, py::arg("order_id"))
+        .def("fill_probability", &QueueTracker::fill_probability,
+             py::arg("order_id"),
+             "p = our_qty / (our_qty + queue_ahead). 0 if order_id unknown.")
+        .def("size", &QueueTracker::size, "Number of tracked entries.");
 }
