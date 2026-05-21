@@ -700,3 +700,51 @@ of these has to change:
 keeps the existing per-strategy bridges untouched (so each strategy
 can still have its own dedicated console), adds the aggregate as a
 separate concern.
+
+### Per-panel popout (`/popout/<panel-name>` URLs)
+
+**Status:** open, deferred. Pattern emerged 2026-05-22 during the
+"frontend layout — how many screens?" discussion.
+
+**Symptom:** Today the trader UI is one integrated `/` route stacking
+every panel in a grid. Real HFT desks let a trader drag focused views
+onto specific physical monitors — "Blotter on monitor 2, Charts on
+monitor 3" — which the single-page model can't do. Reverse problem
+also true: the integrated `/` is the *only* way to glance at multiple
+things at once, with no way to focus on one panel in isolation.
+
+**Fix:** add a popout wrapper, two pieces:
+
+1. New `<PanelHeader>` component that wraps the existing
+   `.panel-header` and adds a `[↗]` button on the right. Click opens
+   `/popout/<panel-name>` in a new window via `window.open(...,
+   'popup', 'width=...')`.
+2. New `/popout/:name` route in `main.tsx` that renders the matching
+   panel component full-window with no chrome. Lookup table from
+   name → component lives next to the route.
+
+Both pieces ~50 LOC. The popout URLs become **stable** — Chrome
+remembers window positions per URL, so the trader's monitor layout
+persists across sessions.
+
+**Why not just split `/` into per-view URLs now:** at current 5-6
+panels, the integrated `/` is still the most useful default view. The
+popout pattern gives you HFT-shape multi-monitor capability *without*
+forcing the architectural split. When you eventually outgrow the
+integrated view (10+ panels, or fully dedicated multi-monitor setup),
+you stop using `/` and bookmark the popouts — the URL structure is
+already there.
+
+**Trigger:** the next time the panel count grows enough that the
+integrated `/` feels crowded — concretely, when the **strategy state
+machine viz** lands and `/` has 8+ panels stacked. At that point the
+popout pattern starts paying off; before then it's a UI addition for
+no current pain.
+
+**Relevant code:**
+- `bpt-console/frontend/src/main.tsx` — routing switch, add `/popout/:name`
+- `bpt-console/frontend/src/components/` — most panels already have
+  a consistent `.panel-header` div; add `<PanelHeader>` wrapper there
+- The components themselves don't need to change — they already render
+  inside a `.panel` div, the popout route just gives them a full-window
+  container instead of a grid cell.
