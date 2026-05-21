@@ -23,7 +23,7 @@
 #include <utility>
 #include <vector>
 
-namespace bpt::strategy::strategy {
+namespace bpt::features {
 
 class OFICalculator {
 public:
@@ -80,4 +80,4 @@ private:
     bool warm_{false};
 };
 
-}  // namespace bpt::strategy::strategy
+}  // namespace bpt::features

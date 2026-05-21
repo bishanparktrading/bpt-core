@@ -1,10 +1,10 @@
-#include "strategy/strategy/ofi_calculator.h"
+#include "features/ofi_calculator.h"
 
 #include <gtest/gtest.h>
 
 namespace {
 
-using bpt::strategy::strategy::OFICalculator;
+using bpt::features::OFICalculator;
 using Level = OFICalculator::Level;
 
 constexpr uint64_t SEC = 1'000'000'000ULL;
