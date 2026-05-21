@@ -17,7 +17,8 @@ class TestExportsPresent(unittest.TestCase):
     def test_module_exports(self):
         # Raw C++ classes
         for cls in ["OFICalculator", "FairValueEstimator",
-                    "RealizedVolEstimator", "VolatilityGate"]:
+                    "RealizedVolEstimator", "VolatilityGate",
+                    "OrderBookState", "OrderSide", "QueueTracker"]:
             self.assertTrue(hasattr(bf, cls), f"missing class: {cls}")
         # Function wrappers
         for fn in ["ofi", "microprice", "mid_price", "fair_value_ewma",
@@ -112,6 +113,104 @@ class TestVolGateSmoke(unittest.TestCase):
         halted = gate.update_and_check(101.0, 1_010_000_000)
         self.assertTrue(halted)
         self.assertGreater(gate.last_trip_bps(), 50.0)
+
+
+class TestOrderBookStateSmoke(unittest.TestCase):
+    def _level(self, price, qty):
+        lvl = bf.OrderBookState.Level()
+        lvl.price = price
+        lvl.qty = qty
+        return lvl
+
+    def test_apply_and_accessors(self):
+        obs = bf.OrderBookState()
+        self.assertFalse(obs.ready())
+
+        bids = [self._level(100.0, 5.0), self._level(99.9, 10.0)]
+        asks = [self._level(100.1, 3.0), self._level(100.2, 8.0)]
+        obs.apply(bid_levels=bids, ask_levels=asks,
+                  seq_num=1, timestamp_ns=1_000_000_000, is_snapshot=True)
+
+        self.assertTrue(obs.ready())
+        self.assertAlmostEqual(obs.best_bid(), 100.0)
+        self.assertAlmostEqual(obs.best_ask(), 100.1)
+        self.assertAlmostEqual(obs.mid(), 100.05, places=6)
+        self.assertAlmostEqual(obs.size_at_bid(100.0), 5.0)
+        self.assertAlmostEqual(obs.size_at_ask(100.1), 3.0)
+
+        # bid_vol_above(100.0): nothing strictly above best bid → 0
+        self.assertEqual(obs.bid_vol_above(100.0), 0.0)
+        # bid_vol_above(99.9): only price strictly above 99.9 is 100.0 (qty 5) → 5
+        self.assertAlmostEqual(obs.bid_vol_above(99.9), 5.0)
+
+    def test_delta_apply_removes_level(self):
+        obs = bf.OrderBookState()
+        obs.apply([self._level(100.0, 5.0)], [self._level(100.1, 3.0)],
+                  seq_num=1, timestamp_ns=1_000_000_000, is_snapshot=True)
+        self.assertAlmostEqual(obs.size_at_bid(100.0), 5.0)
+
+        # Delta: qty=0 removes the bid level
+        obs.apply([self._level(100.0, 0.0)], [],
+                  seq_num=2, timestamp_ns=1_001_000_000, is_snapshot=False)
+        self.assertEqual(obs.size_at_bid(100.0), 0.0)
+
+
+class TestQueueTrackerSmoke(unittest.TestCase):
+    def _level(self, price, qty):
+        lvl = bf.OrderBookState.Level()
+        lvl.price = price
+        lvl.qty = qty
+        return lvl
+
+    def test_track_then_lookup(self):
+        # Build a book with 8.0 worth of bids at our price.
+        obs = bf.OrderBookState()
+        obs.apply([self._level(100.0, 8.0)], [self._level(100.1, 3.0)],
+                  seq_num=1, timestamp_ns=1_000_000_000, is_snapshot=True)
+
+        qt = bf.QueueTracker()
+        qt.track(order_id=42, side=bf.OrderSide.Buy, price=100.0,
+                 our_qty=2.0, ts_ns=1_000_001_000, book=obs)
+
+        self.assertEqual(qt.size(), 1)
+        entry = qt.lookup(42)
+        self.assertIsNotNone(entry)
+        self.assertAlmostEqual(entry.our_qty, 2.0)
+        self.assertAlmostEqual(entry.queue_ahead, 8.0)  # all 8 of size_at_bid is ahead
+        self.assertEqual(entry.side, bf.OrderSide.Buy)
+
+        # fill_probability = our_qty / (our_qty + queue_ahead) = 2/10
+        self.assertAlmostEqual(qt.fill_probability(42), 0.2, places=6)
+
+    def test_on_trade_decrements_queue_ahead(self):
+        obs = bf.OrderBookState()
+        obs.apply([self._level(100.0, 10.0)], [self._level(100.1, 5.0)],
+                  seq_num=1, timestamp_ns=1_000_000_000, is_snapshot=True)
+
+        qt = bf.QueueTracker()
+        qt.track(1, bf.OrderSide.Buy, 100.0, our_qty=1.0,
+                 ts_ns=1_000_001_000, book=obs)
+        before = qt.lookup(1).queue_ahead
+
+        # Aggressive SELL at our price → passive bid-side fill → ahead drops
+        qt.on_trade(aggressor=bf.OrderSide.Sell, trade_price=100.0,
+                    trade_qty=3.0, ts_ns=1_002_000_000)
+        after = qt.lookup(1).queue_ahead
+        self.assertLess(after, before)
+
+    def test_on_cancel_removes_entry(self):
+        obs = bf.OrderBookState()
+        obs.apply([self._level(100.0, 5.0)], [self._level(100.1, 3.0)],
+                  seq_num=1, timestamp_ns=1_000_000_000, is_snapshot=True)
+
+        qt = bf.QueueTracker()
+        qt.track(99, bf.OrderSide.Buy, 100.0, our_qty=1.0,
+                 ts_ns=1_000_001_000, book=obs)
+        self.assertIsNotNone(qt.lookup(99))
+
+        qt.on_cancel(99)
+        self.assertIsNone(qt.lookup(99))
+        self.assertEqual(qt.size(), 0)
 
 
 if __name__ == "__main__":

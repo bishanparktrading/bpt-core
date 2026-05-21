@@ -24,6 +24,9 @@ Usage:
 from bpt_features._core import (  # noqa: F401
     FairValueEstimator,
     OFICalculator,
+    OrderBookState,
+    OrderSide,
+    QueueTracker,
     RealizedVolEstimator,
     VolatilityGate,
 )
@@ -43,6 +46,9 @@ __all__ = [
     # Raw C++ classes
     "FairValueEstimator",
     "OFICalculator",
+    "OrderBookState",
+    "OrderSide",
+    "QueueTracker",
     "RealizedVolEstimator",
     "VolatilityGate",
     # Function-style wrappers
