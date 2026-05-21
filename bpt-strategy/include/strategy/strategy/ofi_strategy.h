@@ -6,7 +6,7 @@
 #include "strategy/refdata/refdata_client.h"
 #include "strategy/strategy/canonical_resolver.h"
 #include "strategy/strategy/i_strategy.h"
-#include "strategy/strategy/ofi_calculator.h"
+#include "features/ofi_calculator.h"
 #include "strategy/strategy/volatility_gate.h"
 
 #include <messages/ExchangeId.h>
@@ -23,6 +23,8 @@
 #include <vector>
 
 namespace bpt::strategy::strategy {
+
+using bpt::features::OFICalculator;
 
 // Standalone Order-Flow-Imbalance strategy.
 //

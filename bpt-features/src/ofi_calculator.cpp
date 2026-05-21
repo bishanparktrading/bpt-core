@@ -1,9 +1,9 @@
-#include "strategy/strategy/ofi_calculator.h"
+#include "features/ofi_calculator.h"
 
 #include <algorithm>
 #include <cmath>
 
-namespace bpt::strategy::strategy {
+namespace bpt::features {
 
 namespace {
 
@@ -120,4 +120,4 @@ double OFICalculator::avg_depth() const {
     return running_depth_ / static_cast<double>(window_.size());
 }
 
-}  // namespace bpt::strategy::strategy
+}  // namespace bpt::features

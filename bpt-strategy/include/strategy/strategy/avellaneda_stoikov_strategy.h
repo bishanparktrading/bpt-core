@@ -7,7 +7,7 @@
 #include "strategy/strategy/canonical_resolver.h"
 #include "strategy/strategy/fair_value_estimator.h"
 #include "strategy/strategy/i_strategy.h"
-#include "strategy/strategy/ofi_calculator.h"
+#include "features/ofi_calculator.h"
 #include "strategy/strategy/order_book_state.h"
 #include "strategy/strategy/position_tracker.h"
 #include "strategy/strategy/queue_tracker.h"
@@ -29,6 +29,8 @@
 #include <vector>
 
 namespace bpt::strategy::strategy {
+
+using bpt::features::OFICalculator;
 
 // Avellaneda-Stoikov market-making strategy.
 //

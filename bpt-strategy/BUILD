@@ -8,7 +8,6 @@ cc_library(
     name = "strategy_core",
     srcs = [
         "src/strategy/hurst_estimator.cpp",
-        "src/strategy/ofi_calculator.cpp",
         "src/strategy/order_book_state.cpp",
         "src/strategy/position_tracker.cpp",
         "src/strategy/queue_tracker.cpp",
@@ -21,6 +20,7 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
+        "//bpt-features:features",
         "//messages",
         "//bpt-app",
         "//bpt-analytics:analytics_core",
@@ -32,7 +32,6 @@ cc_test(
     srcs = [
         "tests/unit/test_fair_value_estimator.cpp",
         "tests/unit/test_instrument_cache.cpp",
-        "tests/unit/test_ofi_calculator.cpp",
         "tests/unit/test_order_book_state.cpp",
         "tests/unit/test_position_tracker.cpp",
         "tests/unit/test_queue_tracker.cpp",
