@@ -748,3 +748,171 @@ no current pain.
 - The components themselves don't need to change — they already render
   inside a `.panel` div, the popout route just gives them a full-window
   container instead of a grid cell.
+
+## Research stack (strategy discovery — the under-built side)
+
+The execution stack (mdgw, ogw, strategy, refdata, monitoring, secmaster,
+tape) is mature. The *discovery* loop — "I have a hypothesis → I test
+it → I get a number → I iterate" — is high-friction. bpt-core can run
+strategies in production but provides little infrastructure for
+inventing them.
+
+Concrete gaps vs how a real quant research team works, in priority
+order. Each item is independent and shippable on its own.
+
+### 1. Python canon reader
+
+**Status:** open, highest priority. The keystone that unlocks
+everything else below.
+
+**Symptom:** `bpt-canon` files (the schema-stable event tape) are
+C++-only readable today. To do research you have to write C++ or
+manually replay through the backtester. There's no
+`df = bpt_canon.read("okx-btc-2026-05-20.canon")` → pandas
+DataFrame path. Without this, every other research workflow has a
+data-access friction tax.
+
+**Fix:** ~50 lines of Python in `bpt-canon/python/reader.py`. The
+on-disk format (`canon_format.h`) is already clean: 96-byte header
++ stream of `{ts_ns, event_t, sbe_len, sbe_blob}` records. Parse the
+header, iterate records, decode each via SBE Python bindings (or just
+struct.unpack for the simple fields), emit a DataFrame with columns
+`(ts_ns, event_type, instrument_id, bid, ask, last_trade_price, ...)`.
+
+**Relevant code:**
+- `bpt-canon/include/canon/canon_format.h` — on-disk structs
+- `bpt-canon/include/canon/canon_reader.h` — C++ reader to mirror
+- `bpt-canon/python/` — new directory, mirrors the existing
+  `bpt-canon-replay` etc. binaries
+
+### 2. Feature library
+
+**Status:** open. Each strategy today computes its own features
+inside its C++ class — OFI in `ofi_strategy.cpp`, microprice in
+`l2_fair_value.cpp`, queue imbalance in `queue_tracker.cpp`, etc.
+None of it is reusable from a notebook.
+
+**Fix:** new `bpt-research/features/` Python module. Vectorised
+functions over canon DataFrames: OFI (configurable window), microprice,
+queue imbalance, realized vol (Garman-Klass, Yang-Zhang, Parkinson),
+return windows, funding rate moves, basis (perp vs spot), volume
+profile, VWAP. Each function takes a DataFrame and returns a feature
+column. Start with 5-6, add as needed. ~1 week to a useful set,
+evolves indefinitely.
+
+**Relevant code:**
+- New: `bpt-research/features/{ofi,microprice,vol,returns,funding}.py`
+- Reference C++ implementations:
+  - `bpt-strategy/src/strategy/ofi_strategy.cpp` — OFI
+  - `bpt-strategy/include/strategy/microstructure/l2_fair_value.h`
+  - `bpt-strategy/include/strategy/microstructure/queue_tracker.h`
+
+### 3. Experiment tracking
+
+**Status:** open. Today `bpt-backtester` runs dump CSVs into
+`results/<run_id>/`. There's no aggregated view of "what did I try
+across N runs, sorted by metric." You discover whether a parameter
+sweep produced anything good by manually browsing directories.
+
+**Fix:** SQLite file `bpt-research/experiments.db` with one row per
+backtest run — columns: `run_id`, `strategy_name`, `config_hash`,
+`git_sha`, `start_ts`, `end_ts`, `instruments`, `total_pnl`,
+`sharpe`, `max_drawdown`, `fill_count`, `params_json`. Append on
+backtest completion (small Python hook called from
+`bpt-backtester/src/main.cpp` via subprocess, or wrapped at the
+shell level in `scripts/backtest.sh`). Then notebooks query with
+DuckDB: `SELECT * FROM experiments WHERE sharpe > 1.5 ORDER BY pnl DESC LIMIT 20`.
+~half day.
+
+**Relevant code:**
+- New: `bpt-research/experiments.db` (gitignored)
+- New: `bpt-research/track.py` — appends a row given a run_id
+- `scripts/backtest.sh` — call track.py after successful run
+
+### 4. Notebook templates
+
+**Status:** open. New idea → "where do I start?" is currently a
+blank notebook. Lowers the activation energy meaningfully.
+
+**Fix:** half-dozen starter notebooks in `bpt-research/notebooks/`:
+- `01_load_canon.ipynb` — read canon, plot prices, compute basic stats
+- `02_feature_predictiveness.ipynb` — IC analysis of one feature
+  against forward returns
+- `03_regime_classification.ipynb` — tag canon files by realized vol
+  bucket
+- `04_walk_forward_results.ipynb` — load experiments.db, plot
+  in-sample vs out-of-sample Sharpe per split, deflated Sharpe
+- `05_signal_combination.ipynb` — combine multiple features, fit
+  a tiny linear model, evaluate
+- `06_capacity_estimate.ipynb` — rough capacity for a strategy
+  (when capacity model lands)
+
+~half day of writing + a permanent "what idioms work in this codebase"
+artifact.
+
+### 5. Statistical significance layer
+
+**Status:** open. Walk-forward harness exists
+(`scripts/sweep_lib/walk_forward.py`) but emits raw per-split
+PnL/Sharpe. No way to ask "is this strategy actually predictive or
+just lucky over N splits."
+
+**Fix:** ~half day wrapping a small Lopez-de-Prado-inspired module
+(or `pyfolio`/`quantstats`): Deflated Sharpe Ratio, Probabilistic
+Sharpe Ratio, multiple-testing correction across the param grid.
+Integrate into the sweep aggregator so each backtest result shows
+its significance-adjusted Sharpe alongside the raw one. Filters
+spurious "great in backtest" results.
+
+**Relevant code:**
+- `scripts/sweep.py` — aggregator at the end of the sweep
+- New: `bpt-research/stats/{deflated_sharpe,psr}.py`
+
+### 6. Regime tagging
+
+**Status:** open. Backtest results today are aggregated across
+whatever time window the canon covers. No way to say "this strategy
+is great in high-vol regimes, terrible in trending ones."
+
+**Fix:** classifier that tags each canon file (or rolling windows
+within it) by:
+- Realized vol bucket (quartile of 30-day rolling)
+- Trend strength (signed autocorrelation of returns)
+- Funding rate regime (positive/negative/whipsawing)
+- Liquidity regime (top-of-book depth)
+
+Stored as sidecar JSON next to each canon file or in a new table.
+Backtest results then sliceable by regime in the notebook layer.
+~few days to a useful tagger; evolves with how much regime
+sensitivity matters.
+
+**Relevant code:**
+- New: `bpt-research/regimes/tagger.py`
+- New: sidecar `.regime.json` next to canon files
+
+### 7. Capacity / impact model
+
+**Status:** open, hardest. Backtester assumes infinite liquidity at
+top of book. In reality your fills move the book — "I made $X
+at backtest size, but at 10× size the spread eats it all."
+
+**Fix:** depth-of-book simulation in the backtester's matching
+engine. Each fill consumes liquidity at successive levels;
+microstructure-aware slippage. Requires plumbing L2 deltas into
+the matching engine (not just top-of-book).
+
+**Trigger:** when a strategy's backtest claims meaningful PnL and
+you want to know "would this still work at $1M notional?" Defer
+until that becomes an actual question.
+
+**Relevant code:**
+- `bpt-backtester/src/harness/matching_engine.cpp` — currently
+  top-of-book; needs L2 ladder consumption
+
+---
+
+**The honest reframing:** items 1-3 are the load-bearing ones. After
+those land, the discovery loop starts feeling like 2024-era quant
+research instead of "wait, how do I even load this data?". Items 4-6
+multiply value. Item 7 only matters once you have a strategy worth
+sizing up.
