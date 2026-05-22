@@ -97,6 +97,11 @@ public:
     void load_state(const std::string& path, uint64_t max_age_s) override;
 
 private:
+    // OrderState::tag values used by AS — dispatched on in on_exec_report.
+    static constexpr uint8_t kTagQuote = 0;            // resting bid/ask
+    static constexpr uint8_t kTagUnwindNormal = 1;     // inventory-cap auto-unwind
+    static constexpr uint8_t kTagUnwindShutdown = 2;   // shutdown-drain unwind
+
     struct InstrumentState {
         // EWMA volatility state.
         // σ²_t = λ_t * σ²_{t-1} + (1 - λ_t) * norm_ret²
@@ -121,18 +126,15 @@ private:
         std::size_t kappa_ticks{0};  // trade ticks seen (warmup guard)
         uint64_t last_trade_ns{0};   // timestamp of last trade (ns)
 
-        // Two-sided quoting: one resting order per side (0 = no live order).
-        uint64_t bid_order_id{0};
-        uint64_t ask_order_id{0};
-
-        // Set when a cancel request has been sent but the CANCELLED confirm not yet received.
-        // While pending, do not send a new order on that side.
-        bool bid_cancel_pending{false};
-        bool ask_cancel_pending{false};
+        // Two-sided quoting: one resting order per side. OM owns lifecycle;
+        // CancelPending status is read from the handle (replaces the old
+        // bid_cancel_pending / ask_cancel_pending flags).
+        order::OrderHandle h_bid;
+        order::OrderHandle h_ask;
 
         // LIMIT IOC order to unwind inventory when it hits max_inventory_.
-        // Non-zero while an unwind order is live (waiting for terminal status).
-        uint64_t unwind_order_id{0};
+        // valid() while an unwind is in flight.
+        order::OrderHandle h_unwind;
 
         // Remaining retry attempts if a shutdown-path unwind IOC is
         // rejected or partial-fills + cancels leaving residual position.
@@ -141,12 +143,8 @@ private:
         // unwinds (inventory-cap breaches) don't auto-retry.
         uint32_t unwind_retries_left{0};
 
-        // True only when the currently in-flight unwind was issued by
-        // on_shutdown_flatten() (vs by inventory-cap auto-unwind in
-        // on_exec_report). Gates the "SHUTDOWN RETRIES EXHAUSTED" log
-        // so it doesn't spam on every normal-path unwind terminal.
-        // Cleared when the unwind reaches a terminal status.
-        bool unwind_is_shutdown_drain{false};
+        // Source-of-unwind (shutdown drain vs inventory-cap auto-unwind) is
+        // encoded in h_unwind.state->tag (kTagUnwindShutdown / kTagUnwindNormal).
 
         // Prices of the currently live (or most recently placed) orders.
         // Used to detect whether the quote has drifted beyond requote_threshold_.
@@ -413,19 +411,20 @@ private:
                                                        double new_ask) const;
 
     // Place a LIMIT IOC order at an aggressive price to unwind inventory.
-    // Returns the assigned order_id (0 on failure).
-    uint64_t send_unwind_order(uint64_t instrument_id,
-                               InstrumentState& st,
-                               bpt::messages::OrderSide::Value side,
-                               double mid,
-                               double qty);
+    // `tag` is kTagUnwindNormal for inventory-cap unwinds, kTagUnwindShutdown
+    // when called from on_shutdown_flatten.
+    order::OrderHandle send_unwind_order(uint64_t instrument_id,
+                                         InstrumentState& st,
+                                         bpt::messages::OrderSide::Value side,
+                                         double mid,
+                                         double qty,
+                                         uint8_t tag);
 
-    // Place a LIMIT GTC order and return the assigned order_id (0 on failure).
-    uint64_t send_limit_order(uint64_t instrument_id,
-                              InstrumentState& st,
-                              bpt::messages::OrderSide::Value side,
-                              double price,
-                              double qty);
+    order::OrderHandle send_limit_order(uint64_t instrument_id,
+                                        InstrumentState& st,
+                                        bpt::messages::OrderSide::Value side,
+                                        double price,
+                                        double qty);
 
     uint64_t correlation_id_;
 
@@ -634,8 +633,7 @@ private:
     refdata::IRefdataClient& refdata_;
     md::IMdClient* md_client_;
     order::OrderManager* order_mgr_;
-    std::unordered_map<uint64_t, InstrumentState> state_;         // keyed by instrument_id
-    std::unordered_map<uint64_t, uint64_t> order_to_instrument_;  // order_id → instrument_id
+    std::unordered_map<uint64_t, InstrumentState> state_;  // keyed by instrument_id
     PositionTracker positions_;
 
     // Exchange-authoritative position cache, keyed by (exchange_id,

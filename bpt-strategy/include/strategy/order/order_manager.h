@@ -2,10 +2,12 @@
 
 #include "bpt_common/util/tsc_clock.h"
 #include "strategy/order/i_order_gateway_client.h"
+#include "strategy/order/order_handle.h"
 #include "strategy/order/requests.h"
 #include "strategy/refdata/instrument_cache.h"
 
 #include <messages/ExchangeId.h>
+#include <messages/ExecutionReport.h>
 #include <messages/OrderSide.h>
 #include <messages/OrderType.h>
 #include <messages/TimeInForce.h>
@@ -13,7 +15,9 @@
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
+#include <deque>
 #include <functional>
+#include <unordered_map>
 
 namespace bpt::strategy::order {
 
@@ -45,6 +49,7 @@ public:
     // Place a new order.  Returns the assigned order_id (> 0) on success, or 0
     // if any pre-flight check fails (instrument unknown/inactive, zero quantity,
     // non-positive price for a LIMIT order, etc.).
+    [[deprecated("use send_new_order(NewOrderRequest)")]]
     [[nodiscard]] uint64_t place_order(uint64_t instrument_id,
                                        bpt::messages::ExchangeId::Value exchange_id,
                                        bpt::messages::OrderSide::Value side,
@@ -54,11 +59,21 @@ public:
                                        double quantity,
                                        uint8_t exec_inst = 0);
 
-    // Typed-request entry points (mlp-algo-style). Forward to place_order /
-    // cancel_order under the hood for now — Phase 2 makes these the primary
-    // path and the args-based methods the facades.
-    [[nodiscard]] uint64_t send_new_order(const NewOrderRequest& req);
+    // Typed entry points (mlp-algo-style). send_new_order tracks lifecycle
+    // and returns a handle that stays valid for the process lifetime.
+    // `tag` is strategy-defined intent (e.g. Quote vs Unwind); OM does
+    // not interpret it. Returns an invalid handle on validation failure.
+    [[nodiscard]] OrderHandle send_new_order(const NewOrderRequest& req, uint8_t tag = 0);
+    void send_cancel(OrderHandle& handle);
     void send_cancel(const CancelOrderRequest& req);
+
+    // Strategy forwards every ExecutionReport here so OM can update the
+    // matching OrderState before strategy-level dispatch runs.
+    void on_exec_report(const bpt::messages::ExecutionReport& rpt);
+
+    // Lookup the live or terminal record by exchange-assigned order_id.
+    // Returns invalid handle if unknown.
+    [[nodiscard]] OrderHandle find_by_id(uint64_t order_id);
 
     // Called by StrategyService to measure MD-to-order latency. Set before strategy callbacks.
     // Invoked synchronously inside place_order on success, before returning to the caller.
@@ -70,6 +85,7 @@ public:
 
     // Thin delegations to the underlying gateway — strategies should use these
     // rather than holding a raw IOrderGatewayClient pointer.
+    [[deprecated("use send_cancel(OrderHandle&) or send_cancel(CancelOrderRequest)")]]
     void cancel_order(uint64_t order_id, bpt::messages::ExchangeId::Value exchange_id, uint64_t instrument_id);
 
     void cancel_all(bpt::messages::ExchangeId::Value exchange_id, uint64_t instrument_id);
@@ -83,6 +99,12 @@ public:
                       uint64_t new_quantity);
 
 private:
+    // Live + historical order records. deque preserves stable pointers
+    // under push_back; lookup_ holds raw pointers into the deque keyed by
+    // exchange-assigned order_id. No pruning yet (Phase 3 concern).
+    std::deque<OrderState> store_;
+    std::unordered_map<uint64_t, OrderState*> lookup_;
+
     IOrderGatewayClient& gw_;
     const refdata::InstrumentCache& cache_;
     // High 32 bits = Unix timestamp at construction (seconds), low 32 bits = counter.

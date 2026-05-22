@@ -238,7 +238,6 @@ void AvellanedaStoikovStrategy::start() {
 void AvellanedaStoikovStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
     bpt::common::log::info(kLog(), "Snapshot ({} instruments), resolving universe...", cache.size());
     state_.clear();
-    order_to_instrument_.clear();
     positions_.clear_all();
     // PositionTracker is now at 0; the next AccountSnapshot becomes
     // the baseline against which SPOT reconcile measures delta.
@@ -567,14 +566,10 @@ void AvellanedaStoikovStrategy::on_bbo(const bpt::messages::MdMarketData& tick) 
                                st.vol_gate.last_trip_bps(),
                                vol_gate_cfg_.halt_duration_ns / 1'000'000);
         if (order_mgr_) {
-            if (st.bid_order_id != 0 && !st.bid_cancel_pending) {
-                order_mgr_->send_cancel(order::CancelOrderRequest{st.bid_order_id, st.exchange_id, tick.instrumentId()});
-                st.bid_cancel_pending = true;
-            }
-            if (st.ask_order_id != 0 && !st.ask_cancel_pending) {
-                order_mgr_->send_cancel(order::CancelOrderRequest{st.ask_order_id, st.exchange_id, tick.instrumentId()});
-                st.ask_cancel_pending = true;
-            }
+            if (st.h_bid.live())
+                order_mgr_->send_cancel(st.h_bid);
+            if (st.h_ask.live())
+                order_mgr_->send_cancel(st.h_ask);
         }
     } else if (was_halted && !now_halted) {
         bpt::common::log::info(kLog(), "{} vol halt cleared — quoting re-enabled", st.symbol);
@@ -603,17 +598,18 @@ void AvellanedaStoikovStrategy::on_bbo(const bpt::messages::MdMarketData& tick) 
 }
 
 void AvellanedaStoikovStrategy::on_exec_report(const bpt::messages::ExecutionReport& rpt) {
+    // OM owns lifecycle — let it update OrderState before we dispatch.
+    order_mgr_->on_exec_report(rpt);
+
     const uint64_t order_id = rpt.orderId();
-    const uint64_t instrument_id = rpt.instrumentId();
     const auto status = rpt.status();
 
-    auto inst_it = order_to_instrument_.find(order_id);
-    if (inst_it == order_to_instrument_.end())
+    auto handle = order_mgr_->find_by_id(order_id);
+    if (!handle.valid())
         return;
+    order::OrderState* const os = handle.state;
+    const uint64_t canonical_id = os->instrument_id;
 
-    // Use the canonical instrument_id we stored at order placement — the exec
-    // report's instrumentId() may be 0 if the gateway doesn't carry canonical IDs.
-    const uint64_t canonical_id = inst_it->second;
     auto state_it = state_.find(canonical_id);
     if (state_it == state_.end())
         return;
@@ -672,7 +668,7 @@ void AvellanedaStoikovStrategy::on_exec_report(const bpt::messages::ExecutionRep
         // clock — backtest replays compress 11h of sim time into a few
         // seconds of wall clock, so a wall-clock cooldown would span
         // the whole run.
-        if (post_fill_markout_threshold_bps_ < 0.0 && order_id != st.unwind_order_id) {
+        if (post_fill_markout_threshold_bps_ < 0.0 && os->tag == kTagQuote) {
             const double fill_px = static_cast<double>(rpt.price()) / 1e8;
             if (rpt.side() == bpt::messages::TradeSide::BUY) {
                 st.pending_buy_fill_price = fill_px;
@@ -725,37 +721,32 @@ void AvellanedaStoikovStrategy::on_exec_report(const bpt::messages::ExecutionRep
                                        pause_below_rpnl_usd_,
                                        pause_cooldown_s_);
                 if (order_mgr_) {
-                    if (st.bid_order_id != 0 && !st.bid_cancel_pending) {
-                        order_mgr_->send_cancel(order::CancelOrderRequest{st.bid_order_id, st.exchange_id, canonical_id});
-                        st.bid_cancel_pending = true;
-                    }
-                    if (st.ask_order_id != 0 && !st.ask_cancel_pending) {
-                        order_mgr_->send_cancel(order::CancelOrderRequest{st.ask_order_id, st.exchange_id, canonical_id});
-                        st.ask_cancel_pending = true;
-                    }
+                    if (st.h_bid.live())
+                        order_mgr_->send_cancel(st.h_bid);
+                    if (st.h_ask.live())
+                        order_mgr_->send_cancel(st.h_ask);
                 }
             }
         }
     }
 
-    // Terminal statuses: clear order slot and cancel-pending flags.
+    // Terminal statuses: drop our handle so the next requote can place a fresh order.
+    // The OrderState itself stays in OM's store_ for the process lifetime.
     bool was_unwind_terminal = false;
+    bool was_shutdown_unwind = (os->tag == kTagUnwindShutdown);
     if (status == ExecStatus::FILLED || status == ExecStatus::CANCELLED || status == ExecStatus::REJECTED) {
         st.queue.on_cancel(order_id);
-        if (st.bid_order_id == order_id) {
-            st.bid_order_id = 0;
-            st.bid_cancel_pending = false;
-        } else if (st.ask_order_id == order_id) {
-            st.ask_order_id = 0;
-            st.ask_cancel_pending = false;
-        } else if (st.unwind_order_id == order_id) {
-            st.unwind_order_id = 0;
+        if (st.h_bid.state == os)
+            st.h_bid.reset();
+        else if (st.h_ask.state == os)
+            st.h_ask.reset();
+        else if (st.h_unwind.state == os) {
+            st.h_unwind.reset();
             was_unwind_terminal = true;
         }
-        order_to_instrument_.erase(order_id);
     }
-    // PARTIAL: order still live — keep order_id and pending flags unchanged.
-    // ACKED:   acknowledged but not yet filled — keep order_id.
+    // PARTIAL: order still live — handles untouched.
+    // ACKED:   acknowledged but not yet filled — handles untouched.
 
     // Shutdown retry: if this terminal was an unwind and residual
     // position remains (reject with no fill, or partial+IOC-cancel),
@@ -774,12 +765,15 @@ void AvellanedaStoikovStrategy::on_exec_report(const bpt::messages::ExecutionRep
                                    st.exchange,
                                    residual,
                                    st.unwind_retries_left);
-            send_unwind_order(canonical_id, st, retry_side, st.last_mid, residual);
+            const uint8_t retry_tag = was_shutdown_unwind ? kTagUnwindShutdown : kTagUnwindNormal;
+            auto h = send_unwind_order(canonical_id, st, retry_side, st.last_mid, residual, retry_tag);
+            if (h.valid())
+                st.h_unwind = h;
         } else {
             // Flat — clear budget so has_pending_flatten() settles.
             st.unwind_retries_left = 0;
         }
-    } else if (was_unwind_terminal && st.unwind_retries_left == 0 && st.unwind_is_shutdown_drain) {
+    } else if (was_unwind_terminal && st.unwind_retries_left == 0 && was_shutdown_unwind) {
         const int64_t net_qty_e8 = positions_.net_qty(canonical_id, st.exchange_id);
         if (net_qty_e8 != 0) {
             bpt::common::log::error(
@@ -790,8 +784,6 @@ void AvellanedaStoikovStrategy::on_exec_report(const bpt::messages::ExecutionRep
                 static_cast<double>(std::abs(net_qty_e8)) / 1e8);
         }
     }
-    if (was_unwind_terminal)
-        st.unwind_is_shutdown_drain = false;
 
     // Exchange-error backoff: consecutive EXCHANGE-sourced rejections trigger
     // increasing cooldowns so we don't flood a broken/unfunded account.
@@ -903,7 +895,7 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
     const bool final_suppress_asks = supp.ask_signal();
 
     // ── Bid side ──────────────────────────────────────────────────────────
-    if (st.bid_order_id != 0 && !st.bid_cancel_pending) {
+    if (st.h_bid.live()) {
         // Adverse selection guard: cancel if mid has risen significantly since
         // we placed this bid — informed flow is pushing against us.
         const bool adverse =
@@ -911,34 +903,22 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
         // Model drift: modify-in-place if the AS model wants a different price.
         const bool stale =
             st.last_bid_price > 0.0 && std::abs(new_bid - st.last_bid_price) / st.last_bid_price > requote_threshold_;
-        // Must cancel if at max inventory, adverse selection, or drift suppression.
         if (at_max_long || adverse || final_suppress_bids) {
-            // Hard cancel — don't amend.
-            //
-            // Set bid_cancel_pending BEFORE the call so the in-process
-            // backtest path — where cancel_order() runs the CANCELLED
-            // ExecReport synchronously inside the call before returning
-            // — sees the flag as `true` when on_exec_report tries to
-            // clear it. Otherwise: sync handler clears the flag (which
-            // wasn't set yet), call returns, caller sets flag to true,
-            // and nothing ever clears it again → strategy goes silent
-            // forever after the first cancel. The Aeron path is
-            // unaffected (still async, still gets cleared by the next
-            // poll-loop iteration's on_exec_report).
-            st.bid_cancel_pending = true;
+            // Hard cancel — don't amend. OM marks CancelPending before the
+            // gateway call so the sync backtest path can't lose the
+            // terminal status (see OrderManager::send_cancel comment).
             if (order_mgr_) {
                 bpt::common::log::debug(kLog(),
                                         "Cancel bid order_id={} {} @ {} reason={}",
-                                        st.bid_order_id,
+                                        st.h_bid.order_id(),
                                         st.symbol,
                                         st.exchange,
                                         at_max_long           ? "max_inv"
                                         : final_suppress_bids ? "suppress"
                                                               : "adverse");
-                order_mgr_->send_cancel(order::CancelOrderRequest{st.bid_order_id, st.exchange_id, instrument_id});
+                order_mgr_->send_cancel(st.h_bid);
             }
         } else if (stale) {
-            // Price drift — amend in place to preserve queue position.
             if (order_mgr_) {
                 double price = new_bid;
                 if (st.tick_size > 0.0)
@@ -947,46 +927,43 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
                 const uint64_t qty_fp = static_cast<uint64_t>(std::round(eff_qty * 1e8));
                 bpt::common::log::debug(kLog(),
                                         "Modify bid order_id={} {} @ {} → {:.6f}",
-                                        st.bid_order_id,
+                                        st.h_bid.order_id(),
                                         st.symbol,
                                         st.exchange,
                                         price);
-                order_mgr_->modify_order(st.bid_order_id, st.exchange_id, instrument_id, price_fixed, qty_fp);
+                order_mgr_->modify_order(st.h_bid.order_id(), st.exchange_id, instrument_id, price_fixed, qty_fp);
             }
             st.last_bid_price = new_bid;
             st.bid_placed_mid = mid;
         }
     }
 
-    if (st.bid_order_id == 0 && !st.bid_cancel_pending && !at_max_long && !final_suppress_bids) {
-        const uint64_t oid = send_limit_order(instrument_id, st, bpt::messages::OrderSide::BUY, new_bid, eff_qty);
-        if (oid != 0) {
-            st.bid_order_id = oid;
+    if (!st.h_bid.valid() && !at_max_long && !final_suppress_bids) {
+        auto h = send_limit_order(instrument_id, st, bpt::messages::OrderSide::BUY, new_bid, eff_qty);
+        if (h.valid()) {
+            st.h_bid = h;
             st.last_bid_price = new_bid;
             st.bid_placed_mid = mid;
         }
     }
 
     // ── Ask side ──────────────────────────────────────────────────────────
-    if (st.ask_order_id != 0 && !st.ask_cancel_pending) {
-        // Adverse selection guard: cancel if mid has dropped since we placed this ask.
+    if (st.h_ask.live()) {
         const bool adverse =
             st.ask_placed_mid > 0.0 && (st.ask_placed_mid - mid) / st.ask_placed_mid > requote_threshold_;
         const bool stale =
             st.last_ask_price > 0.0 && std::abs(new_ask - st.last_ask_price) / st.last_ask_price > requote_threshold_;
         if (at_max_short || adverse || final_suppress_asks) {
-            // Set before the call — see bid-side comment above.
-            st.ask_cancel_pending = true;
             if (order_mgr_) {
                 bpt::common::log::debug(kLog(),
                                         "Cancel ask order_id={} {} @ {} reason={}",
-                                        st.ask_order_id,
+                                        st.h_ask.order_id(),
                                         st.symbol,
                                         st.exchange,
                                         at_max_short          ? "max_inv"
                                         : final_suppress_asks ? "suppress"
                                                               : "adverse");
-                order_mgr_->send_cancel(order::CancelOrderRequest{st.ask_order_id, st.exchange_id, instrument_id});
+                order_mgr_->send_cancel(st.h_ask);
             }
         } else if (stale) {
             if (order_mgr_) {
@@ -997,51 +974,49 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
                 const uint64_t qty_fp = static_cast<uint64_t>(std::round(eff_qty * 1e8));
                 bpt::common::log::debug(kLog(),
                                         "Modify ask order_id={} {} @ {} → {:.6f}",
-                                        st.ask_order_id,
+                                        st.h_ask.order_id(),
                                         st.symbol,
                                         st.exchange,
                                         price);
-                order_mgr_->modify_order(st.ask_order_id, st.exchange_id, instrument_id, price_fixed, qty_fp);
+                order_mgr_->modify_order(st.h_ask.order_id(), st.exchange_id, instrument_id, price_fixed, qty_fp);
             }
             st.last_ask_price = new_ask;
             st.ask_placed_mid = mid;
         }
     }
 
-    if (st.ask_order_id == 0 && !st.ask_cancel_pending && !at_max_short && !final_suppress_asks) {
-        const uint64_t oid = send_limit_order(instrument_id, st, bpt::messages::OrderSide::SELL, new_ask, eff_qty);
-        if (oid != 0) {
-            st.ask_order_id = oid;
+    if (!st.h_ask.valid() && !at_max_short && !final_suppress_asks) {
+        auto h = send_limit_order(instrument_id, st, bpt::messages::OrderSide::SELL, new_ask, eff_qty);
+        if (h.valid()) {
+            st.h_ask = h;
             st.last_ask_price = new_ask;
             st.ask_placed_mid = mid;
         }
     }
 
     // ── Active inventory unwind ────────────────────────────────────────────
-    // When inventory exceeds max_inventory_, send an aggressive LIMIT IOC order
-    // to reduce it rather than waiting passively for resting orders to fill.
-    if (st.unwind_order_id == 0) {
+    if (!st.h_unwind.valid()) {
         if (at_max_long) {
-            const uint64_t oid = send_unwind_order(instrument_id, st, bpt::messages::OrderSide::SELL, mid, eff_qty);
-            if (oid != 0)
-                st.unwind_order_id = oid;
+            auto h = send_unwind_order(instrument_id, st, bpt::messages::OrderSide::SELL, mid, eff_qty, kTagUnwindNormal);
+            if (h.valid())
+                st.h_unwind = h;
         } else if (at_max_short) {
-            const uint64_t oid = send_unwind_order(instrument_id, st, bpt::messages::OrderSide::BUY, mid, eff_qty);
-            if (oid != 0)
-                st.unwind_order_id = oid;
+            auto h = send_unwind_order(instrument_id, st, bpt::messages::OrderSide::BUY, mid, eff_qty, kTagUnwindNormal);
+            if (h.valid())
+                st.h_unwind = h;
         }
     }
 }
 
-uint64_t AvellanedaStoikovStrategy::send_limit_order(uint64_t instrument_id,
-                                                     InstrumentState& st,
-                                                     bpt::messages::OrderSide::Value side,
-                                                     double price,
-                                                     double qty) {
+order::OrderHandle AvellanedaStoikovStrategy::send_limit_order(uint64_t instrument_id,
+                                                                InstrumentState& st,
+                                                                bpt::messages::OrderSide::Value side,
+                                                                double price,
+                                                                double qty) {
     const auto vex_it = venue_exec_.find(st.exchange);
     if (vex_it == venue_exec_.end() || !vex_it->second.enabled) {
         bpt::common::log::debug(kLog(), "Venue {} not enabled — quote suppressed", st.exchange);
-        return 0;
+        return {};
     }
 
     if (!order_mgr_) {
@@ -1051,7 +1026,7 @@ uint64_t AvellanedaStoikovStrategy::send_limit_order(uint64_t instrument_id,
                                st.symbol,
                                st.exchange,
                                price);
-        return 0;
+        return {};
     }
 
     // Note: OrderManager rounds BUY up and SELL down. For market-making, we want
@@ -1063,7 +1038,7 @@ uint64_t AvellanedaStoikovStrategy::send_limit_order(uint64_t instrument_id,
             price = std::ceil(price / st.tick_size) * st.tick_size;
     }
 
-    const uint64_t order_id = order_mgr_->send_new_order(order::NewOrderRequest{
+    auto handle = order_mgr_->send_new_order(order::NewOrderRequest{
         .instrument_id = instrument_id,
         .exchange_id = st.exchange_id,
         .side = side,
@@ -1072,10 +1047,11 @@ uint64_t AvellanedaStoikovStrategy::send_limit_order(uint64_t instrument_id,
         .price = price,
         .qty = qty,
         .exec_inst = {.post_only = true},
-    });
-    if (order_id == 0)
-        return 0;
+    }, kTagQuote);
+    if (!handle.valid())
+        return {};
 
+    const uint64_t order_id = handle.order_id();
     bpt::common::log::info(kLog(),
                            "{} {} {} @ {:.6f} → order_id={}",
                            (side == OrderSide::BUY ? "BID" : "ASK"),
@@ -1084,7 +1060,6 @@ uint64_t AvellanedaStoikovStrategy::send_limit_order(uint64_t instrument_id,
                            price,
                            order_id);
 
-    order_to_instrument_[order_id] = instrument_id;
     st.queue.track(order_id, side, price, qty, bpt::common::util::WallClock::now_ns(), st.book);
     if (const auto* e = st.queue.lookup(order_id)) {
         bpt::common::log::info(kLog(),
@@ -1097,17 +1072,18 @@ uint64_t AvellanedaStoikovStrategy::send_limit_order(uint64_t instrument_id,
                                e->queue_ahead,
                                st.queue.fill_probability(order_id));
     }
-    return order_id;
+    return handle;
 }
 
-uint64_t AvellanedaStoikovStrategy::send_unwind_order(uint64_t instrument_id,
-                                                      InstrumentState& st,
-                                                      bpt::messages::OrderSide::Value side,
-                                                      double mid,
-                                                      double qty) {
+order::OrderHandle AvellanedaStoikovStrategy::send_unwind_order(uint64_t instrument_id,
+                                                                 InstrumentState& st,
+                                                                 bpt::messages::OrderSide::Value side,
+                                                                 double mid,
+                                                                 double qty,
+                                                                 uint8_t tag) {
     const auto vex_it = venue_exec_.find(st.exchange);
     if (vex_it == venue_exec_.end() || !vex_it->second.enabled)
-        return 0;
+        return {};
 
     if (!order_mgr_) {
         bpt::common::log::info(kLog(),
@@ -1116,7 +1092,7 @@ uint64_t AvellanedaStoikovStrategy::send_unwind_order(uint64_t instrument_id,
                                st.symbol,
                                st.exchange,
                                mid);
-        return 0;
+        return {};
     }
 
     // Cross the spread aggressively — shutdown_cross_bps through mid — to
@@ -1128,7 +1104,7 @@ uint64_t AvellanedaStoikovStrategy::send_unwind_order(uint64_t instrument_id,
     const double cross_factor = 1.0 + (shutdown_cross_bps_ / 10000.0);
     const double price = (side == OrderSide::BUY) ? mid * cross_factor : mid / cross_factor;
 
-    const uint64_t order_id = order_mgr_->send_new_order(order::NewOrderRequest{
+    auto handle = order_mgr_->send_new_order(order::NewOrderRequest{
         .instrument_id = instrument_id,
         .exchange_id = st.exchange_id,
         .side = side,
@@ -1136,9 +1112,9 @@ uint64_t AvellanedaStoikovStrategy::send_unwind_order(uint64_t instrument_id,
         .tif = TimeInForce::IOC,
         .price = price,
         .qty = qty,
-    });
-    if (order_id == 0)
-        return 0;
+    }, tag);
+    if (!handle.valid())
+        return {};
 
     bpt::common::log::info(kLog(),
                            "UNWIND {} {} @ {} price={:.6f} mid={:.6f} → order_id={}",
@@ -1147,10 +1123,8 @@ uint64_t AvellanedaStoikovStrategy::send_unwind_order(uint64_t instrument_id,
                            st.exchange,
                            price,
                            mid,
-                           order_id);
-
-    order_to_instrument_[order_id] = instrument_id;
-    return order_id;
+                           handle.order_id());
+    return handle;
 }
 
 // ── Toxicity feedback from Analytics ──────────────────────────────────────────────
@@ -1193,14 +1167,11 @@ void AvellanedaStoikovStrategy::on_refdata_stale_changed(bool stale) {
         if (!order_mgr_)
             return;
         for (auto& [inst_id, st] : state_) {
-            if (st.bid_order_id != 0 && !st.bid_cancel_pending) {
-                order_mgr_->send_cancel(order::CancelOrderRequest{st.bid_order_id, st.exchange_id, inst_id});
-                st.bid_cancel_pending = true;
-            }
-            if (st.ask_order_id != 0 && !st.ask_cancel_pending) {
-                order_mgr_->send_cancel(order::CancelOrderRequest{st.ask_order_id, st.exchange_id, inst_id});
-                st.ask_cancel_pending = true;
-            }
+            (void)inst_id;
+            if (st.h_bid.live())
+                order_mgr_->send_cancel(st.h_bid);
+            if (st.h_ask.live())
+                order_mgr_->send_cancel(st.h_ask);
         }
     } else {
         bpt::common::log::info(kLog(), "Refdata heartbeat resumed — quoting re-enabled");

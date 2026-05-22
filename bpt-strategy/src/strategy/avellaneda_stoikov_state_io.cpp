@@ -64,16 +64,18 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     double ask_queue_ahead = 0.0;
     double bid_fill_prob = 0.0;
     double ask_fill_prob = 0.0;
-    if (st.bid_order_id != 0) {
-        if (const auto* e = st.queue.lookup(st.bid_order_id)) {
+    if (st.h_bid.valid()) {
+        const uint64_t oid = st.h_bid.order_id();
+        if (const auto* e = st.queue.lookup(oid)) {
             bid_queue_ahead = e->queue_ahead;
-            bid_fill_prob = st.queue.fill_probability(st.bid_order_id);
+            bid_fill_prob = st.queue.fill_probability(oid);
         }
     }
-    if (st.ask_order_id != 0) {
-        if (const auto* e = st.queue.lookup(st.ask_order_id)) {
+    if (st.h_ask.valid()) {
+        const uint64_t oid = st.h_ask.order_id();
+        if (const auto* e = st.queue.lookup(oid)) {
             ask_queue_ahead = e->queue_ahead;
-            ask_fill_prob = st.queue.fill_probability(st.ask_order_id);
+            ask_fill_prob = st.queue.fill_probability(oid);
         }
     }
 
@@ -140,8 +142,8 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     j["volGateTrips"] = st.vol_gate.trips_total();
 
     // Orders
-    j["bidOrderLive"] = st.bid_order_id != 0;
-    j["askOrderLive"] = st.ask_order_id != 0;
+    j["bidOrderLive"] = st.h_bid.live();
+    j["askOrderLive"] = st.h_ask.live();
     j["bidPrice"] = st.last_bid_price;
     j["askPrice"] = st.last_ask_price;
 
