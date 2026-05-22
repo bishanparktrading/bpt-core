@@ -760,30 +760,22 @@ inventing them.
 Concrete gaps vs how a real quant research team works, in priority
 order. Each item is independent and shippable on its own.
 
-### 1. Python canon reader
+### 1. Python canon reader — DONE 2026-05-22
 
-**Status:** open, highest priority. The keystone that unlocks
-everything else below.
+Pure-Python reader at `bpt-canon/python/bpt_canon/reader.py`:
+`read_header`, `iter_records` (streaming), `read_bbos` / `read_trades`
+(DataFrame). Hand-decodes SBE block offsets against
+MdMarketData / MdTrade — no SBE codegen on the Python side. Round-trip
+test (`bazel test //bpt-canon/python:test_reader`) synthesizes a
+3-record file in-memory and verifies all decoders.
 
-**Symptom:** `bpt-canon` files (the schema-stable event tape) are
-C++-only readable today. To do research you have to write C++ or
-manually replay through the backtester. There's no
-`df = bpt_canon.read("okx-btc-2026-05-20.canon")` → pandas
-DataFrame path. Without this, every other research workflow has a
-data-access friction tax.
-
-**Fix:** ~50 lines of Python in `bpt-canon/python/reader.py`. The
-on-disk format (`canon_format.h`) is already clean: 96-byte header
-+ stream of `{ts_ns, event_t, sbe_len, sbe_blob}` records. Parse the
-header, iterate records, decode each via SBE Python bindings (or just
-struct.unpack for the simple fields), emit a DataFrame with columns
-`(ts_ns, event_type, instrument_id, bid, ask, last_trade_price, ...)`.
-
-**Relevant code:**
-- `bpt-canon/include/canon/canon_format.h` — on-disk structs
-- `bpt-canon/include/canon/canon_reader.h` — C++ reader to mirror
-- `bpt-canon/python/` — new directory, mirrors the existing
-  `bpt-canon-replay` etc. binaries
+Follow-ups (deferred until a real research task needs them):
+- BOOK / FUNDING / MARK decoders (only BBO + TRADE today).
+- Multi-instrument symbol-table lookup — `read_bbos` returns numeric
+  `instrument_id`; joining to canonical symbols still needs the
+  refdata snapshot.
+- Pandas wired into MODULE.bazel as a `@pypi//` dep — lazy-imported
+  from system Python today, same pattern as bpt-features/python.
 
 ### 2. Feature library
 
