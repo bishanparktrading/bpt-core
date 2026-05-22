@@ -7,9 +7,11 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 cc_library(
     name = "features",
     srcs = [
+        "src/hurst.cpp",
         "src/ofi.cpp",
         "src/queue.cpp",
         "src/realized_vol.cpp",
+        "src/regime_detector.cpp",
     ],
     hdrs = glob(["include/features/*.h"]),
     includes = ["include"],

@@ -1,12 +1,12 @@
-#include "strategy/strategy/regime_detector.h"
+#include "features/regime_detector.h"
 
-#include "strategy/strategy/hurst_estimator.h"
+#include "features/hurst.h"
 
 #include <algorithm>
 #include <cmath>
 #include <vector>
 
-namespace bpt::strategy::strategy {
+namespace bpt::features {
 
 void RegimeDetector::update(double mid) {
     if (mid <= 0.0)
@@ -113,4 +113,4 @@ void RegimeDetector::restore_state(const StateSnapshot& snap) {
         returns_.push_back(snap.returns[i]);
 }
 
-}  // namespace bpt::strategy::strategy
+}  // namespace bpt::features

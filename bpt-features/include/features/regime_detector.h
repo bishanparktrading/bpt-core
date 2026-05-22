@@ -19,7 +19,7 @@
 #include <deque>
 #include <vector>
 
-namespace bpt::strategy::strategy {
+namespace bpt::features {
 
 class RegimeDetector {
 public:
@@ -109,4 +109,4 @@ private:
     std::size_t tick_count_{0};
 };
 
-}  // namespace bpt::strategy::strategy
+}  // namespace bpt::features

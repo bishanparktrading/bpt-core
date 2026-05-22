@@ -2,7 +2,7 @@
 
 #include "strategy/md/subscribe_helpers.h"
 #include "strategy/refdata/exchange_id.h"
-#include "strategy/strategy/hurst_estimator.h"
+#include "features/hurst.h"
 
 #include <messages/DeltaUpdateType.h>
 #include <messages/ExchangeId.h>
@@ -26,6 +26,8 @@ using bpt::messages::RejectSource;
 using bpt::messages::TimeInForce;
 
 namespace bpt::strategy::strategy {
+
+using bpt::features::compute_hurst_multi_window;
 
 namespace {
 // Sub-module logger — auto-prefixed with "RS" via %(logger) in the default
