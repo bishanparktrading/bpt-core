@@ -213,6 +213,37 @@ class TestQueueTrackerSmoke(unittest.TestCase):
         self.assertEqual(qt.size(), 0)
 
 
+class TestRegimeSmoke(unittest.TestCase):
+    def test_hurst_random_walk_near_half(self):
+        import random
+        random.seed(42)
+        returns = [random.gauss(0, 0.01) for _ in range(500)]
+        h = bf.compute_hurst_multi_window(returns, max_window=500)
+        # Random walk → H ≈ 0.5. Loose bound since 500 samples is small.
+        self.assertGreater(h, 0.3)
+        self.assertLess(h, 0.7)
+
+    def test_regime_detector_constructs_and_updates(self):
+        cfg = bf.RegimeDetector.Config()
+        cfg.hurst_window = 50
+        cfg.warmup_samples = 30
+        rd = bf.RegimeDetector(cfg)
+        self.assertFalse(rd.is_warm())
+        mid = 100.0
+        for i in range(100):
+            mid *= 1.0 + (0.0001 if i % 2 == 0 else -0.0001)
+            rd.update(mid)
+        self.assertTrue(rd.is_warm())
+        self.assertIn(rd.regime_name(), ("MEAN_REVERT", "NEUTRAL", "TRENDING"))
+
+    def test_regime_classifier_flat_price_is_quiet(self):
+        rc = bf.RegimeClassifier()
+        for i in range(1, 100):
+            rc.update(100.0, i * 1_000_000_000)
+        regime = rc.classify(100 * 1_000_000_000)
+        self.assertEqual(regime, bf.RegimeClassifier.Regime.QUIET)
+
+
 class TestEwmaSmoke(unittest.TestCase):
     def test_ewma_variance_zero_on_flat_price(self):
         v = bf.EwmaVariance(halflife_s=1.0)

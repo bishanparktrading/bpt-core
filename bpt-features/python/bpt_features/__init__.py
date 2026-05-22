@@ -31,8 +31,12 @@ from bpt_features._core import (  # noqa: F401
     OrderSide,
     QueueTracker,
     RealizedVolEstimator,
+    RegimeClassifier,
+    RegimeDetector,
     TimeWeightedEwma,
     VolatilityGate,
+    compute_hurst,
+    compute_hurst_multi_window,
 )
 
 # Function-style wrappers for the typical research idiom.
@@ -45,10 +49,11 @@ from bpt_features.fair_value import (  # noqa: F401
 from bpt_features.ewma import ewma_drift, ewma_variance  # noqa: F401
 from bpt_features.ofi import ofi  # noqa: F401
 from bpt_features.realized_vol import realized_vol  # noqa: F401
+from bpt_features.regime import regime_detector, regime_classifier  # noqa: F401
 from bpt_features.vol_gate import vol_gate  # noqa: F401
 
 __all__ = [
-    # Raw C++ classes
+    # Raw C++ classes + free functions
     "EwmaDrift",
     "EwmaVariance",
     "FairValueEstimator",
@@ -58,9 +63,13 @@ __all__ = [
     "OrderSide",
     "QueueTracker",
     "RealizedVolEstimator",
+    "RegimeClassifier",
+    "RegimeDetector",
     "TimeWeightedEwma",
     "VolatilityGate",
-    # Function-style wrappers
+    "compute_hurst",
+    "compute_hurst_multi_window",
+    # Function-style DataFrame wrappers
     "ewma_drift",
     "ewma_variance",
     "fair_value_ewma",
@@ -69,5 +78,7 @@ __all__ = [
     "mid_price",
     "ofi",
     "realized_vol",
+    "regime_classifier",
+    "regime_detector",
     "vol_gate",
 ]
