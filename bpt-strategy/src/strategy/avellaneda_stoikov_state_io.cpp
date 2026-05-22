@@ -37,7 +37,7 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     // Compute current quotes to get reservation and half-spread.
     double bid_quote = 0, ask_quote = 0;
     bool quotes_valid = false;
-    if (st.last_mid > 0 && st.ewma_ticks >= vol_warmup_ticks_) {
+    if (st.last_mid > 0 && st.ewma_var.count() >= vol_warmup_ticks_) {
         quotes_valid = compute_quotes(st, instrument_id, net_qty, st.last_mid, st.last_tick_ns, bid_quote, ask_quote);
     }
 
@@ -53,7 +53,7 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     // still defaulted from the struct, which is correct since st.book
     // wouldn't be ready during warmup anyway.
     const SuppressionState supp = compute_suppression(st, net_qty, bid_quote, ask_quote);
-    const double drift_bps = std::abs(st.ewma_drift) * 1e4;  // used in driftBps JSON field below
+    const double drift_bps = std::abs(st.ewma_drift.value()) * 1e4;  // used in driftBps JSON field below
     const double projected_fp_bid = supp.fp_bid;
     const double projected_fp_ask = supp.fp_ask;
 
@@ -89,13 +89,13 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     j["exchange"] = st.exchange;
 
     // Model parameters (live values, not config)
-    j["drift"] = st.ewma_drift;
+    j["drift"] = st.ewma_drift.value();
     j["driftBps"] = drift_bps;
     j["slowDriftBps"] = st.slow_drift_bps;
     j["slowDriftSuppressBps"] = slow_drift_suppress_bps_;
-    j["sigma2"] = st.ewma_var;
-    j["kappa"] = (st.kappa_ticks >= kappa_warmup_ticks_) ? std::max(kappa_min_, st.ewma_kappa) : kappa_;
-    j["kappaLive"] = st.kappa_ticks >= kappa_warmup_ticks_;
+    j["sigma2"] = st.ewma_var.value();
+    j["kappa"] = (st.ewma_kappa.count() >= kappa_warmup_ticks_) ? std::max(kappa_min_, st.ewma_kappa.value()) : kappa_;
+    j["kappaLive"] = st.ewma_kappa.count() >= kappa_warmup_ticks_;
 
     // Regime
     j["regime"] = st.regime.regime_name();
@@ -148,9 +148,9 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     j["askPrice"] = st.last_ask_price;
 
     // Warmup
-    j["volTicks"] = st.ewma_ticks;
+    j["volTicks"] = st.ewma_var.count();
     j["volWarmup"] = vol_warmup_ticks_;
-    j["warmedUp"] = st.ewma_ticks >= vol_warmup_ticks_;
+    j["warmedUp"] = st.ewma_var.count() >= vol_warmup_ticks_;
 
     // Queue state — actual (for resting orders) and projected (for the
     // quote the strategy would place on the next tick).
@@ -190,13 +190,14 @@ void AvellanedaStoikovStrategy::save_state(const std::string& path) {
             j["instrument_id"] = instrument_id;
             j["symbol"] = st.symbol;
             j["exchange"] = st.exchange;
-            j["ewma_var"] = st.ewma_var;
-            j["ewma_ticks"] = st.ewma_ticks;
+            j["ewma_var"] = st.ewma_var.value();
+            j["ewma_ticks"] = st.ewma_var.count();
             j["last_mid"] = st.last_mid;
             j["last_tick_ns"] = st.last_tick_ns;
-            j["ewma_drift"] = st.ewma_drift;
-            j["ewma_kappa"] = st.ewma_kappa;
-            j["kappa_ticks"] = st.kappa_ticks;
+            j["ewma_drift"] = st.ewma_drift.value();
+            j["drift_ticks"] = st.ewma_drift.count();
+            j["ewma_kappa"] = st.ewma_kappa.value();
+            j["kappa_ticks"] = st.ewma_kappa.count();
             j["last_trade_ns"] = st.last_trade_ns;
 
             const auto rs = st.regime.snapshot_state();
@@ -296,14 +297,30 @@ void AvellanedaStoikovStrategy::load_state(const std::string& path, uint64_t max
                 continue;
             }
 
-            st.ewma_var = j.value("ewma_var", 0.0);
-            st.ewma_ticks = j.value<std::size_t>("ewma_ticks", 0);
-            st.last_mid = j.value("last_mid", 0.0);
-            st.last_tick_ns = j.value<uint64_t>("last_tick_ns", 0);
-            st.ewma_drift = j.value("ewma_drift", 0.0);
-            st.ewma_kappa = j.value("ewma_kappa", 0.0);
-            st.kappa_ticks = j.value<std::size_t>("kappa_ticks", 0);
-            st.last_trade_ns = j.value<uint64_t>("last_trade_ns", 0);
+            const double last_mid = j.value("last_mid", 0.0);
+            const uint64_t last_tick_ns = j.value<uint64_t>("last_tick_ns", 0);
+            const uint64_t last_trade_ns = j.value<uint64_t>("last_trade_ns", 0);
+
+            st.ewma_var.restore({
+                .value = j.value("ewma_var", 0.0),
+                .count = j.value<std::size_t>("ewma_ticks", 0),
+                .last_mid = last_mid,
+                .last_ns = last_tick_ns,
+            });
+            st.ewma_drift.restore({
+                .value = j.value("ewma_drift", 0.0),
+                .count = j.value<std::size_t>("drift_ticks", 0),
+                .last_mid = last_mid,
+                .last_ns = last_tick_ns,
+            });
+            st.ewma_kappa.restore({
+                .value = j.value("ewma_kappa", 0.0),
+                .count = j.value<std::size_t>("kappa_ticks", 0),
+                .last_trade_ns = last_trade_ns,
+            });
+            st.last_mid = last_mid;
+            st.last_tick_ns = last_tick_ns;
+            st.last_trade_ns = last_trade_ns;
 
             if (auto r = j.find("regime"); r != j.end()) {
                 RegimeDetector::StateSnapshot snap;

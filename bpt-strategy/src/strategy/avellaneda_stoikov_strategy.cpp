@@ -246,7 +246,10 @@ void AvellanedaStoikovStrategy::on_snapshot(const refdata::InstrumentCache& cach
 
     for (const auto& r : CanonicalResolver::resolve_instruments(cache, instruments_, md_exchanges_)) {
         auto [it, inserted] = state_.emplace(r.instrument_id,
-                                             InstrumentState{.symbol = r.instrument.symbol,
+                                             InstrumentState{.ewma_var = EwmaVariance(vol_halflife_s_),
+                                                             .ewma_drift = EwmaDrift(drift_halflife_s_),
+                                                             .ewma_kappa = KappaEstimator(kappa_halflife_s_),
+                                                             .symbol = r.instrument.symbol,
                                                              .exchange = r.instrument.exchange,
                                                              .exchange_id = r.exchange_id,
                                                              .instrument_type = r.instrument.type,
@@ -291,7 +294,10 @@ void AvellanedaStoikovStrategy::on_delta(const refdata::Instrument& inst,
         const auto ex_id = refdata::to_exchange_id(inst.exchange);
 
         auto [it, inserted] = state_.emplace(inst.instrument_id,
-                                             InstrumentState{.symbol = inst.symbol,
+                                             InstrumentState{.ewma_var = EwmaVariance(vol_halflife_s_),
+                                                             .ewma_drift = EwmaDrift(drift_halflife_s_),
+                                                             .ewma_kappa = KappaEstimator(kappa_halflife_s_),
+                                                             .symbol = inst.symbol,
                                                              .exchange = inst.exchange,
                                                              .exchange_id = ex_id,
                                                              .instrument_type = inst.type,
@@ -397,18 +403,7 @@ void AvellanedaStoikovStrategy::on_trade(const bpt::messages::MdTrade& tick) {
     const OrderSide::Value aggressor = (tick.side() == TradeSide::BUY) ? OrderSide::BUY : OrderSide::SELL;
     st.queue.on_trade(aggressor, tick.price(), static_cast<double>(tick.qty()) / 1e8, ts_ns);
 
-    if (st.last_trade_ns > 0 && ts_ns > st.last_trade_ns) {
-        const double dt_s = static_cast<double>(ts_ns - st.last_trade_ns) * 1e-9;
-        if (dt_s > 0.0) {
-            // Instantaneous arrival rate for this side = 1/dt_s.
-            // Divide by 2 to split across bid and ask sides (each side gets half
-            // the total trade flow in a symmetric market).
-            const double arrival_rate = 0.5 / dt_s;
-            const double lambda = std::exp(-dt_s / kappa_halflife_s_);
-            st.ewma_kappa = lambda * st.ewma_kappa + (1.0 - lambda) * arrival_rate;
-            ++st.kappa_ticks;
-        }
-    }
+    st.ewma_kappa.update(ts_ns);
     st.last_trade_ns = ts_ns;
 }
 
@@ -500,38 +495,19 @@ void AvellanedaStoikovStrategy::on_bbo(const bpt::messages::MdMarketData& tick) 
     if (st.session_start_ns == 0)
         st.session_start_ns = ts_ns;
 
-    if (st.last_mid > 0.0 && ts_ns > st.last_tick_ns) {
-        const double dt_s = static_cast<double>(ts_ns - st.last_tick_ns) * 1e-9;
-        if (dt_s > 0.0) {
-            const double log_ret = std::log(mid / st.last_mid);
-            const double norm_ret = log_ret / std::sqrt(dt_s);  // per-sqrt-second units
-            const double norm_ret_sq = norm_ret * norm_ret;
+    st.ewma_var.update(mid, ts_ns);
+    st.ewma_drift.update(mid, ts_ns);
 
-            // λ = exp(-dt_s / halflife) — recomputed per tick so the decay rate is
-            // proportional to elapsed time, not tick count. This makes the EWMA
-            // time-consistent regardless of tick arrival rate.
-            const double lambda = std::exp(-dt_s / vol_halflife_s_);
-            st.ewma_var = lambda * st.ewma_var + (1.0 - lambda) * norm_ret_sq;
-            ++st.ewma_ticks;
-
-            // Drift (µ) — same EWMA of signed returns, separate halflife.
-            // Shorter halflife lets µ react faster to regime changes than σ².
-            const double drift_lambda = std::exp(-dt_s / drift_halflife_s_);
-            st.ewma_drift = drift_lambda * st.ewma_drift + (1.0 - drift_lambda) * norm_ret;
-            ++st.drift_ticks;
-
-            // Periodic drift diagnostic — log every 100 ticks so we can see
-            // what values µ reaches without turning on full debug logging.
-            if (st.ewma_ticks % 20 == 0) {
-                bpt::common::log::info(kLog(),
-                                       "{} drift µ={:.4f} ({:.1f}bps/√s) σ²={:.2e} ticks={}",
-                                       st.symbol,
-                                       st.ewma_drift,
-                                       std::abs(st.ewma_drift) * 1e4,
-                                       st.ewma_var,
-                                       st.ewma_ticks);
-            }
-        }
+    // Periodic drift diagnostic — log every 20 ticks so we can see
+    // what values µ reaches without turning on full debug logging.
+    if (st.ewma_var.count() > 0 && st.ewma_var.count() % 20 == 0) {
+        bpt::common::log::info(kLog(),
+                               "{} drift µ={:.4f} ({:.1f}bps/√s) σ²={:.2e} ticks={}",
+                               st.symbol,
+                               st.ewma_drift.value(),
+                               std::abs(st.ewma_drift.value()) * 1e4,
+                               st.ewma_var.value(),
+                               st.ewma_var.count());
     }
     st.last_mid = mid;
     st.last_tick_ns = ts_ns;
@@ -551,8 +527,8 @@ void AvellanedaStoikovStrategy::on_bbo(const bpt::messages::MdMarketData& tick) 
     // gate before the update. Lets one `vol_gate_sigma_mult` value
     // work across asset classes — threshold tracks the realized vol
     // instead of needing per-venue bps tuning.
-    if (vol_gate_sigma_mult_ > 0.0 && st.ewma_var > 0.0) {
-        const double sigma_bps = std::sqrt(st.ewma_var) * 1e4;
+    if (vol_gate_sigma_mult_ > 0.0 && st.ewma_var.value() > 0.0) {
+        const double sigma_bps = std::sqrt(st.ewma_var.value()) * 1e4;
         const double window_s = static_cast<double>(vol_gate_cfg_.window_ns) * 1e-9;
         const double adaptive_bps = vol_gate_sigma_mult_ * sigma_bps * std::sqrt(window_s);
         st.vol_gate.set_max_bps_per_window(std::max(vol_gate_cfg_.max_bps_per_window, adaptive_bps));
@@ -851,7 +827,7 @@ void AvellanedaStoikovStrategy::maybe_requote(uint64_t instrument_id,
         bpt::common::log::info(kLog(),
                                "{} drift suppress |µ|={:.1f}bps > {:.1f}bps — suppressing {}",
                                st.symbol,
-                               std::abs(st.ewma_drift) * 1e4,
+                               std::abs(st.ewma_drift.value()) * 1e4,
                                drift_suppress_bps_,
                                supp.drift_ask ? "asks" : "bids");
     }

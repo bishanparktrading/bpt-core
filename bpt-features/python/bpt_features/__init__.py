@@ -22,12 +22,16 @@ Usage:
 
 # Re-export the compiled classes verbatim.
 from bpt_features._core import (  # noqa: F401
+    EwmaDrift,
+    EwmaVariance,
     FairValueEstimator,
+    KappaEstimator,
     OFICalculator,
     OrderBookState,
     OrderSide,
     QueueTracker,
     RealizedVolEstimator,
+    TimeWeightedEwma,
     VolatilityGate,
 )
 
@@ -38,20 +42,27 @@ from bpt_features.fair_value import (  # noqa: F401
     microprice_size_capped,
     mid_price,
 )
+from bpt_features.ewma import ewma_drift, ewma_variance  # noqa: F401
 from bpt_features.ofi import ofi  # noqa: F401
 from bpt_features.realized_vol import realized_vol  # noqa: F401
 from bpt_features.vol_gate import vol_gate  # noqa: F401
 
 __all__ = [
     # Raw C++ classes
+    "EwmaDrift",
+    "EwmaVariance",
     "FairValueEstimator",
+    "KappaEstimator",
     "OFICalculator",
     "OrderBookState",
     "OrderSide",
     "QueueTracker",
     "RealizedVolEstimator",
+    "TimeWeightedEwma",
     "VolatilityGate",
     # Function-style wrappers
+    "ewma_drift",
+    "ewma_variance",
     "fair_value_ewma",
     "microprice",
     "microprice_size_capped",

@@ -7,6 +7,7 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 cc_library(
     name = "features",
     srcs = [
+        "src/ewma.cpp",
         "src/hurst.cpp",
         "src/ofi.cpp",
         "src/queue.cpp",
