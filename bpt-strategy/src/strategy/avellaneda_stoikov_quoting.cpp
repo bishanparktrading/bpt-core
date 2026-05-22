@@ -24,9 +24,9 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
                                                uint64_t timestamp_ns,
                                                double& out_bid,
                                                double& out_ask) const {
-    if (st.ewma_ticks < vol_warmup_ticks_)
+    if (st.ewma_var.count() < vol_warmup_ticks_)
         return false;
-    if (st.ewma_var <= 0.0)
+    if (st.ewma_var.value() <= 0.0)
         return false;
 
     // Remaining session time — clamp to [0, session_duration_s_].
@@ -34,7 +34,7 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
     const double elapsed_s = static_cast<double>(timestamp_ns - st.session_start_ns) * 1e-9;
     const double T_minus_t = std::max(0.0, session_duration_s_ - elapsed_s);
 
-    const double sigma_sq = st.ewma_var;
+    const double sigma_sq = st.ewma_var.value();
     // Regime-adjusted gamma: widen spreads in trending regimes, tighten
     // in mean-reverting regimes. The multiplier comes from the Hurst-based
     // regime detector (1.8x in trending, 0.6x in mean-reverting, 1.0x neutral).
@@ -83,7 +83,7 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
     // noisy enough to push reservation through the touch. After
     // drift_warmup_ticks_ BBO updates, the EWMA has settled enough that
     // its sqrt(T - t) projection is a meaningful directional bias.
-    double drift_skew_frac = (st.drift_ticks >= drift_warmup_ticks_) ? st.ewma_drift * std::sqrt(T_minus_t) : 0.0;
+    double drift_skew_frac = (st.ewma_drift.count() >= drift_warmup_ticks_) ? st.ewma_drift.value() * std::sqrt(T_minus_t) : 0.0;
     // Hard cap on drift skew magnitude. Without it, strong intraday
     // trends amplified by √(T-t) at session start drive reservation
     // 50+ bps from mid, putting quotes deeper than any realistic book
@@ -117,7 +117,7 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
 
     // Use live EWMA κ once warmed up; fall back to config kappa_ before then.
     // Floor at kappa_min_ to prevent ln(1 + γ/κ) → ∞ as κ → 0.
-    const double kappa = (st.kappa_ticks >= kappa_warmup_ticks_) ? std::max(kappa_min_, st.ewma_kappa) : kappa_;
+    const double kappa = (st.ewma_kappa.count() >= kappa_warmup_ticks_) ? std::max(kappa_min_, st.ewma_kappa.value()) : kappa_;
 
     const double min_half_spread = std::max((min_half_spread_bps_ / 10000.0) * mid, fee_half_spread);
     const double raw_half_spread =
@@ -143,8 +143,8 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
                                    max_half_spread_bps_,
                                    sigma_sq,
                                    kappa,
-                                   st.ewma_ticks,
-                                   (st.ewma_ticks < vol_warmup_ticks_ * 3) ? "WARMUP" : "σ-SPIKE",
+                                   st.ewma_var.count(),
+                                   (st.ewma_var.count() < vol_warmup_ticks_ * 3) ? "WARMUP" : "σ-SPIKE",
                                    clamp_count);
         }
     }
@@ -224,9 +224,9 @@ bool AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st,
         kLog(),
         "quotes σ²={:.2e} µ={:.2e} κ={:.4f} ({}) half_spread={:.4f} reservation={:.2f} drift_adj={:.4f}",
         sigma_sq,
-        st.ewma_drift,
+        st.ewma_drift.value(),
         kappa,
-        (st.kappa_ticks >= kappa_warmup_ticks_) ? "live" : "fallback",
+        (st.ewma_kappa.count() >= kappa_warmup_ticks_) ? "live" : "fallback",
         half_spread,
         reservation,
         drift_adjustment);
@@ -315,16 +315,16 @@ AvellanedaStoikovStrategy::SuppressionState AvellanedaStoikovStrategy::compute_s
     // across assets and vol regimes (see drift_suppress_sigma_mult_
     // docstring). 0 when EWMA hasn't warmed; adaptive part is then
     // a no-op (threshold stays at the fixed floor).
-    const double sigma_bps = st.ewma_var > 0.0 ? std::sqrt(st.ewma_var) * 1e4 : 0.0;
+    const double sigma_bps = st.ewma_var.value() > 0.0 ? std::sqrt(st.ewma_var.value()) * 1e4 : 0.0;
 
     // Drift (fast): suppress the adverse side when |µ| > threshold.
     // Threshold = max(fixed_floor, sigma_mult × σ_bps). With sigma_mult
     // = 3, this fires on ~3-SD-per-√s moves regardless of asset.
-    const double drift_bps = std::abs(st.ewma_drift) * 1e4;
+    const double drift_bps = std::abs(st.ewma_drift.value()) * 1e4;
     const double drift_threshold_bps = std::max(drift_suppress_bps_, drift_suppress_sigma_mult_ * sigma_bps);
     const bool drift_on = drift_threshold_bps > 0.0 && drift_bps > drift_threshold_bps;
-    s.drift_ask = drift_on && st.ewma_drift > 0.0;  // uptrend → don't sell
-    s.drift_bid = drift_on && st.ewma_drift < 0.0;  // downtrend → don't buy
+    s.drift_ask = drift_on && st.ewma_drift.value() > 0.0;  // uptrend → don't sell
+    s.drift_bid = drift_on && st.ewma_drift.value() < 0.0;  // downtrend → don't buy
 
     // Trend (slow): keyed on cumulative return over slow_drift_window_s_.
     // Expected stdev of a window-cumulative return ≈ σ × √window_s in

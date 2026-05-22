@@ -5,6 +5,7 @@
 #include "strategy/order/order_manager.h"
 #include "strategy/refdata/refdata_client.h"
 #include "strategy/strategy/canonical_resolver.h"
+#include "features/ewma.h"
 #include "features/fair_value.h"
 #include "strategy/strategy/i_strategy.h"
 #include "features/ofi.h"
@@ -30,6 +31,9 @@
 
 namespace bpt::strategy::strategy {
 
+using bpt::features::EwmaDrift;
+using bpt::features::EwmaVariance;
+using bpt::features::KappaEstimator;
 using bpt::features::OFICalculator;
 using bpt::common::book::OrderBookState;
 using bpt::features::FairValueEstimator;
@@ -104,28 +108,18 @@ private:
     static constexpr uint8_t kTagUnwindShutdown = 2;   // shutdown-drain unwind
 
     struct InstrumentState {
-        // EWMA volatility state.
-        // σ²_t = λ_t * σ²_{t-1} + (1 - λ_t) * norm_ret²
-        // λ_t  = exp(-dt_s / vol_halflife_s)  — recomputed per tick for time consistency.
-        double ewma_var{0.0};       // current EWMA per-second variance σ²
-        std::size_t ewma_ticks{0};  // BBO ticks seen (warmup guard)
+        // EWMA estimators live in bpt-features. Halflives are passed via
+        // designated init from on_snapshot/on_delta below.
+        EwmaVariance ewma_var;   // per-second variance σ²
+        EwmaDrift ewma_drift;    // per-√second drift µ
+        KappaEstimator ewma_kappa;  // per-side trade arrival rate κ
+
+        // Cached separately from the EWMAs because other AS code paths
+        // (slow drift window, suppression cooldowns, console state) read
+        // them outside the EWMA update flow.
         double last_mid{0.0};
         uint64_t last_tick_ns{0};
-
-        // EWMA drift (µ) — signed normalized return, same EWMA machinery as σ².
-        // µ_t = λ_t * µ_{t-1} + (1 - λ_t) * norm_ret
-        // Positive = uptrend, negative = downtrend. Used to shift the
-        // reservation price and suppress the adverse side in momentum regimes.
-        double ewma_drift{0.0};
-        std::size_t drift_ticks{0};  // BBO ticks seen for drift estimator (warmup guard)
-
-        // EWMA market-order arrival rate κ (trades per second, per side).
-        // Estimated from inter-trade intervals on the public trade feed.
-        // κ_t = λ_t * κ_{t-1} + (1 - λ_t) * (0.5 / dt_s)
-        // The 0.5 factor splits the total trade rate across bid and ask sides.
-        double ewma_kappa{0.0};      // current EWMA κ estimate (trades/s per side)
-        std::size_t kappa_ticks{0};  // trade ticks seen (warmup guard)
-        uint64_t last_trade_ns{0};   // timestamp of last trade (ns)
+        uint64_t last_trade_ns{0};
 
         // Two-sided quoting: one resting order per side. OM owns lifecycle;
         // CancelPending status is read from the handle (replaces the old

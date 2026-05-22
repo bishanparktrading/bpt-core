@@ -12,6 +12,7 @@
 // package `bpt_features` re-exports the bits people should use.
 
 #include "bpt_common/book/order_book_state.h"
+#include "features/ewma.h"
 #include "features/fair_value.h"
 #include "features/ofi.h"
 #include "features/queue.h"
@@ -25,10 +26,14 @@
 
 namespace py = pybind11;
 using bpt::common::book::OrderBookState;
+using bpt::features::EwmaDrift;
+using bpt::features::EwmaVariance;
 using bpt::features::FairValueEstimator;
+using bpt::features::KappaEstimator;
 using bpt::features::OFICalculator;
 using bpt::features::QueueTracker;
 using bpt::features::RealizedVolEstimator;
+using bpt::features::TimeWeightedEwma;
 using bpt::features::VolatilityGate;
 using bpt::messages::OrderSide;
 
@@ -267,4 +272,50 @@ PYBIND11_MODULE(_core, m) {
              py::arg("order_id"),
              "p = our_qty / (our_qty + queue_ahead). 0 if order_id unknown.")
         .def("size", &QueueTracker::size, "Number of tracked entries.");
+
+    // ─── EWMA estimators (extracted from AS) ──────────────────────────────
+    //
+    // Same C++ AS uses on the tick path. Streaming API: feed (mid, ts_ns)
+    // each tick, query value() and count() for warmup. KappaEstimator
+    // takes just a trade timestamp.
+
+    py::class_<TimeWeightedEwma>(m, "TimeWeightedEwma",
+                                 "Time-weighted EWMA primitive. λ = exp(-dt_s / halflife_s).")
+        .def(py::init<double>(), py::arg("halflife_s"))
+        .def("update", &TimeWeightedEwma::update, py::arg("obs"), py::arg("dt_s"))
+        .def("reset", &TimeWeightedEwma::reset)
+        .def("value", &TimeWeightedEwma::value)
+        .def("count", &TimeWeightedEwma::count)
+        .def("halflife_s", &TimeWeightedEwma::halflife_s);
+
+    py::class_<EwmaVariance>(m, "EwmaVariance",
+                             "EWMA of squared time-normalised log returns — per-second variance σ². "
+                             "Observation each tick: (log(mid/last_mid)/sqrt(dt_s))².")
+        .def(py::init<double>(), py::arg("halflife_s"))
+        .def("update", &EwmaVariance::update, py::arg("mid"), py::arg("ts_ns"))
+        .def("reset", &EwmaVariance::reset)
+        .def("value", &EwmaVariance::value)
+        .def("count", &EwmaVariance::count)
+        .def("last_mid", &EwmaVariance::last_mid)
+        .def("last_ns", &EwmaVariance::last_ns);
+
+    py::class_<EwmaDrift>(m, "EwmaDrift",
+                          "EWMA of signed time-normalised log returns — per-√second drift µ.")
+        .def(py::init<double>(), py::arg("halflife_s"))
+        .def("update", &EwmaDrift::update, py::arg("mid"), py::arg("ts_ns"))
+        .def("reset", &EwmaDrift::reset)
+        .def("value", &EwmaDrift::value)
+        .def("count", &EwmaDrift::count)
+        .def("last_mid", &EwmaDrift::last_mid)
+        .def("last_ns", &EwmaDrift::last_ns);
+
+    py::class_<KappaEstimator>(m, "KappaEstimator",
+                               "EWMA of per-side trade-arrival rate κ (trades/s). "
+                               "Observation each trade: 0.5/dt_s (splits across bid/ask).")
+        .def(py::init<double>(), py::arg("halflife_s"))
+        .def("update", &KappaEstimator::update, py::arg("trade_ts_ns"))
+        .def("reset", &KappaEstimator::reset)
+        .def("value", &KappaEstimator::value)
+        .def("count", &KappaEstimator::count)
+        .def("last_trade_ns", &KappaEstimator::last_trade_ns);
 }

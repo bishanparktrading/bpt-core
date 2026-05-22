@@ -213,5 +213,29 @@ class TestQueueTrackerSmoke(unittest.TestCase):
         self.assertEqual(qt.size(), 0)
 
 
+class TestEwmaSmoke(unittest.TestCase):
+    def test_ewma_variance_zero_on_flat_price(self):
+        v = bf.EwmaVariance(halflife_s=1.0)
+        for i in range(1, 50):
+            v.update(100.0, i * 1_000_000_000)
+        self.assertAlmostEqual(v.value(), 0.0)
+        # First update sets baseline only; 48 updates produce EWMA entries.
+        self.assertEqual(v.count(), 48)
+
+    def test_ewma_drift_positive_on_uptrend(self):
+        import math
+        d = bf.EwmaDrift(halflife_s=1.0)
+        for i in range(1, 50):
+            d.update(100.0 * math.exp(0.0001 * i), i * 1_000_000_000)
+        self.assertGreater(d.value(), 0.0)
+
+    def test_kappa_converges(self):
+        k = bf.KappaEstimator(halflife_s=1.0)
+        # 1 trade per 100ms → kappa per side = 5.0
+        for i in range(1, 200):
+            k.update(i * 100_000_000)
+        self.assertAlmostEqual(k.value(), 5.0, places=1)
+
+
 if __name__ == "__main__":
     unittest.main()
