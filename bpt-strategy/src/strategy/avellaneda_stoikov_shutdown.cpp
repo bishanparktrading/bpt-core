@@ -54,22 +54,20 @@ void AvellanedaStoikovStrategy::on_shutdown_flatten() {
     for (auto& [instrument_id, st] : state_) {
         // Cancel resting bid + ask so they don't interfere with the unwind
         // or get filled right as we're exiting.
-        if (st.bid_order_id != 0) {
+        if (st.h_bid.live()) {
             bpt::common::log::warn(kLog(),
                                    "SHUTDOWN FLATTEN {} cancelling bid order_id={}",
                                    st.symbol,
-                                   st.bid_order_id);
-            order_mgr_->send_cancel(order::CancelOrderRequest{st.bid_order_id, st.exchange_id, instrument_id});
-            st.bid_cancel_pending = true;
+                                   st.h_bid.order_id());
+            order_mgr_->send_cancel(st.h_bid);
             ++cancels;
         }
-        if (st.ask_order_id != 0) {
+        if (st.h_ask.live()) {
             bpt::common::log::warn(kLog(),
                                    "SHUTDOWN FLATTEN {} cancelling ask order_id={}",
                                    st.symbol,
-                                   st.ask_order_id);
-            order_mgr_->send_cancel(order::CancelOrderRequest{st.ask_order_id, st.exchange_id, instrument_id});
-            st.ask_cancel_pending = true;
+                                   st.h_ask.order_id());
+            order_mgr_->send_cancel(st.h_ask);
             ++cancels;
         }
 
@@ -111,12 +109,13 @@ void AvellanedaStoikovStrategy::on_shutdown_flatten() {
         // status of this unwind (rejected or partial+cancelled). Resets
         // to 0 once residual is flat or the budget is exhausted.
         st.unwind_retries_left = shutdown_max_unwind_retries_;
-        // Mark this unwind as shutdown-originated so the EXHAUSTED
-        // watchdog only fires for actual drain failures (not for the
-        // normal-path inventory-cap unwinds that flow through the same
-        // on_exec_report code path).
-        st.unwind_is_shutdown_drain = true;
-        send_unwind_order(instrument_id, st, side, st.last_mid, std::abs(net_qty));
+        // Tag flows into OrderState — on_exec_report dispatches off it so
+        // EXHAUSTED watchdog only fires for actual shutdown-drain failures
+        // (kTagUnwindNormal entries hit the same on_exec_report path but
+        // skip the warning).
+        auto h = send_unwind_order(instrument_id, st, side, st.last_mid, std::abs(net_qty), kTagUnwindShutdown);
+        if (h.valid())
+            st.h_unwind = h;
         ++unwinds;
     }
 
@@ -279,7 +278,7 @@ bool AvellanedaStoikovStrategy::has_pending_flatten() const {
     // FILLED / CANCELLED / REJECTED terminal status, so this returns
     // false once the shutdown drain has processed the acks.
     for (const auto& [_, st] : state_) {
-        if (st.bid_order_id != 0 || st.ask_order_id != 0 || st.unwind_order_id != 0)
+        if (st.h_bid.valid() || st.h_ask.valid() || st.h_unwind.valid())
             return true;
     }
     return false;
