@@ -799,27 +799,24 @@ evolves indefinitely.
   - `bpt-strategy/include/strategy/microstructure/l2_fair_value.h`
   - `bpt-strategy/include/strategy/microstructure/queue_tracker.h`
 
-### 3. Experiment tracking
+### 3. Experiment tracking — DONE 2026-05-23
 
-**Status:** open. Today `bpt-backtester` runs dump CSVs into
-`results/<run_id>/`. There's no aggregated view of "what did I try
-across N runs, sorted by metric." You discover whether a parameter
-sweep produced anything good by manually browsing directories.
+SQLite table `experiments` at `bpt-research/experiments.db`
+(gitignored), populated by `bpt-research/experiments/track.py` which
+reads `<results_dir>/summary.json` (already written by the backtester's
+results_collector). Wired into `scripts/sweep.py` — every successful
+run lands a row automatically.
 
-**Fix:** SQLite file `bpt-research/experiments.db` with one row per
-backtest run — columns: `run_id`, `strategy_name`, `config_hash`,
-`git_sha`, `start_ts`, `end_ts`, `instruments`, `total_pnl`,
-`sharpe`, `max_drawdown`, `fill_count`, `params_json`. Append on
-backtest completion (small Python hook called from
-`bpt-backtester/src/main.cpp` via subprocess, or wrapped at the
-shell level in `scripts/backtest.sh`). Then notebooks query with
-DuckDB: `SELECT * FROM experiments WHERE sharpe > 1.5 ORDER BY pnl DESC LIMIT 20`.
-~half day.
+Schema mirrors every numeric/text field summary.json exposes
+(total_pnl, sharpe_per_fill, max_drawdown_pct, fees_by_venue, etc.)
+plus a `full_json` blob for the columns I didn't lift into typed fields.
+INSERT OR REPLACE keyed by run_id, so re-runs of the same sweep cell
+update in place rather than dup-row.
 
-**Relevant code:**
-- New: `bpt-research/experiments.db` (gitignored)
-- New: `bpt-research/track.py` — appends a row given a run_id
-- `scripts/backtest.sh` — call track.py after successful run
+Notebook query: `SELECT * FROM experiments WHERE sharpe_per_fill > 1.0 ORDER BY total_pnl DESC LIMIT 20`.
+DuckDB reads SQLite natively for the analytical-query case.
+
+5 round-trip unit tests at `bpt-research/tests/test_track.py`.
 
 ### 4. Notebook templates
 

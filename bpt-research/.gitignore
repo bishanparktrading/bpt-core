@@ -1,0 +1,6 @@
+# Experiment tracking DB — local cache of backtest summaries.
+# Rebuilt on demand by re-ingesting backtest results dirs.
+experiments.db
+experiments.db-journal
+experiments.db-wal
+experiments.db-shm
