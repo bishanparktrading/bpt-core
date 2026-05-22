@@ -14,9 +14,12 @@
 #include "bpt_common/book/order_book_state.h"
 #include "features/ewma.h"
 #include "features/fair_value.h"
+#include "features/hurst.h"
 #include "features/ofi.h"
 #include "features/queue.h"
 #include "features/realized_vol.h"
+#include "features/regime_classifier.h"
+#include "features/regime_detector.h"
 #include "features/vol_gate.h"
 
 #include <messages/OrderSide.h>
@@ -26,6 +29,8 @@
 
 namespace py = pybind11;
 using bpt::common::book::OrderBookState;
+using bpt::features::compute_hurst;
+using bpt::features::compute_hurst_multi_window;
 using bpt::features::EwmaDrift;
 using bpt::features::EwmaVariance;
 using bpt::features::FairValueEstimator;
@@ -33,6 +38,8 @@ using bpt::features::KappaEstimator;
 using bpt::features::OFICalculator;
 using bpt::features::QueueTracker;
 using bpt::features::RealizedVolEstimator;
+using bpt::features::RegimeClassifier;
+using bpt::features::RegimeDetector;
 using bpt::features::TimeWeightedEwma;
 using bpt::features::VolatilityGate;
 using bpt::messages::OrderSide;
@@ -318,4 +325,79 @@ PYBIND11_MODULE(_core, m) {
         .def("value", &KappaEstimator::value)
         .def("count", &KappaEstimator::count)
         .def("last_trade_ns", &KappaEstimator::last_trade_ns);
+
+    // ─── Hurst free functions ─────────────────────────────────────────────
+    // Accept Python lists / numpy arrays via pybind11::stl auto-conversion.
+    m.def("compute_hurst",
+          [](const std::vector<double>& returns, std::size_t max_window) {
+              return compute_hurst(returns.data(), returns.size(), max_window);
+          },
+          py::arg("returns"), py::arg("max_window"),
+          "Single-window rescaled-range Hurst over the first len(returns) entries.");
+
+    m.def("compute_hurst_multi_window",
+          [](const std::vector<double>& returns, std::size_t max_window) {
+              return compute_hurst_multi_window(returns.data(), returns.size(), max_window);
+          },
+          py::arg("returns"), py::arg("max_window"),
+          "Multi-window R/S Hurst (regression slope) — more robust on short series.");
+
+    // ─── RegimeDetector (Hurst-based) ─────────────────────────────────────
+    py::class_<RegimeDetector> rd(m, "RegimeDetector",
+                                  "Rolling Hurst-based regime classifier: MEAN_REVERT / NEUTRAL / TRENDING.");
+
+    py::enum_<RegimeDetector::Regime>(rd, "Regime")
+        .value("WARMING_UP", RegimeDetector::Regime::WARMING_UP)
+        .value("MEAN_REVERT", RegimeDetector::Regime::MEAN_REVERT)
+        .value("NEUTRAL", RegimeDetector::Regime::NEUTRAL)
+        .value("TRENDING", RegimeDetector::Regime::TRENDING);
+
+    py::class_<RegimeDetector::Config>(rd, "Config")
+        .def(py::init<>())
+        .def_readwrite("mean_revert_threshold", &RegimeDetector::Config::mean_revert_threshold)
+        .def_readwrite("trend_threshold", &RegimeDetector::Config::trend_threshold)
+        .def_readwrite("hysteresis", &RegimeDetector::Config::hysteresis)
+        .def_readwrite("hurst_window", &RegimeDetector::Config::hurst_window)
+        .def_readwrite("warmup_samples", &RegimeDetector::Config::warmup_samples)
+        .def_readwrite("gamma_mult_mean_revert", &RegimeDetector::Config::gamma_mult_mean_revert)
+        .def_readwrite("gamma_mult_neutral", &RegimeDetector::Config::gamma_mult_neutral)
+        .def_readwrite("gamma_mult_trending", &RegimeDetector::Config::gamma_mult_trending)
+        .def_readwrite("eval_interval", &RegimeDetector::Config::eval_interval);
+
+    rd.def(py::init<>())
+        .def(py::init<RegimeDetector::Config>(), py::arg("config"))
+        .def("update", &RegimeDetector::update, py::arg("mid"))
+        .def("regime", &RegimeDetector::regime)
+        .def("regime_name", &RegimeDetector::regime_name)
+        .def("hurst", &RegimeDetector::hurst)
+        .def("gamma_multiplier", &RegimeDetector::gamma_multiplier)
+        .def("is_warm", &RegimeDetector::is_warm)
+        .def("tick_count", &RegimeDetector::tick_count);
+
+    // ─── RegimeClassifier (vol + trend z-score) ───────────────────────────
+    py::class_<RegimeClassifier> rc(m, "RegimeClassifier",
+                                    "Vol + trend-z-score binary regime gate: QUIET / TRENDING / CHOPPY.");
+
+    py::enum_<RegimeClassifier::Regime>(rc, "Regime")
+        .value("QUIET", RegimeClassifier::Regime::QUIET)
+        .value("TRENDING", RegimeClassifier::Regime::TRENDING)
+        .value("CHOPPY", RegimeClassifier::Regime::CHOPPY);
+
+    py::class_<RegimeClassifier::Config>(rc, "Config")
+        .def(py::init<>())
+        .def_readwrite("window_size", &RegimeClassifier::Config::window_size)
+        .def_readwrite("sample_interval_ns", &RegimeClassifier::Config::sample_interval_ns)
+        .def_readwrite("quiet_vol_bps_per_min", &RegimeClassifier::Config::quiet_vol_bps_per_min)
+        .def_readwrite("trend_threshold_z", &RegimeClassifier::Config::trend_threshold_z)
+        .def_readwrite("chop_cooldown_ns", &RegimeClassifier::Config::chop_cooldown_ns);
+
+    rc.def(py::init<>())
+        .def(py::init<RegimeClassifier::Config>(), py::arg("config"))
+        .def("update", &RegimeClassifier::update, py::arg("mid"), py::arg("ts_ns"),
+             "Feed a mid-price observation. Returns ready() after the update.")
+        .def("ready", &RegimeClassifier::ready)
+        .def("realized_vol_bps_per_min", &RegimeClassifier::realized_vol_bps_per_min)
+        .def("trend_zscore", &RegimeClassifier::trend_zscore)
+        .def("classify", &RegimeClassifier::classify, py::arg("now_ns"))
+        .def("reset", &RegimeClassifier::reset);
 }
