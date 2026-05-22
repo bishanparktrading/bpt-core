@@ -45,8 +45,13 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from sweep_lib.cell_env import CellEnvironment, allocate_cells  # noqa: E402
 from sweep_lib.walk_forward import Split, Window, make_splits  # noqa: E402
 
+# bpt-research experiments tracking — append a row to experiments.db per run.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "bpt-research"))
+from experiments.track import ingest_run_dir  # noqa: E402
+
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
+EXPERIMENTS_DB = REPO / "bpt-research" / "experiments.db"
 RESULTS_ROOT = REPO / "bpt-backtester" / "results"
 BACKTEST_SH = REPO / "scripts" / "backtest.sh"
 
@@ -378,6 +383,13 @@ def main() -> int:
             params_hash_full = hashlib.sha256(instance_tmp_path.read_bytes()).hexdigest()
             run_dir = find_run_dir_by_params_hash(params_hash_full)
             if run_dir:
+                # Persist to experiments.db before the in-memory summary is
+                # used — keeps the long-term store the authoritative log of
+                # what was tried, independent of the sweep aggregator output.
+                try:
+                    ingest_run_dir(EXPERIMENTS_DB, run_dir)
+                except Exception as e:
+                    print(f"    experiments.db ingest skipped: {e}", flush=True)
                 summary = load_summary(run_dir) or {}
                 rows.append(
                     {
