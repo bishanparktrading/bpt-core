@@ -1,9 +1,9 @@
-#include "strategy/strategy/hurst_estimator.h"
+#include "features/hurst.h"
 
 #include <algorithm>
 #include <cmath>
 
-namespace bpt::strategy::strategy {
+namespace bpt::features {
 
 double compute_hurst(const double* returns, std::size_t count, std::size_t max_window) {
     const std::size_t n = std::min(count, max_window);
@@ -113,4 +113,4 @@ double compute_hurst_multi_window(const double* returns, std::size_t count, std:
     return std::clamp(H, 0.0, 1.0);
 }
 
-}  // namespace bpt::strategy::strategy
+}  // namespace bpt::features

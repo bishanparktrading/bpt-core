@@ -1,4 +1,4 @@
-#include "strategy/strategy/regime_detector.h"
+#include "features/regime_detector.h"
 
 #include <cmath>
 #include <gtest/gtest.h>
@@ -6,7 +6,7 @@
 
 namespace {
 
-using bpt::strategy::strategy::RegimeDetector;
+using bpt::features::RegimeDetector;
 using Regime = RegimeDetector::Regime;
 
 // ---------------------------------------------------------------------------

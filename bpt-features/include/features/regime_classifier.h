@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace bpt::strategy::strategy {
+namespace bpt::features {
 
 // RegimeClassifier — binary regime gate for passive market making.
 //
@@ -169,4 +169,4 @@ inline const char* regime_name(RegimeClassifier::Regime r) {
     return "?";
 }
 
-}  // namespace bpt::strategy::strategy
+}  // namespace bpt::features

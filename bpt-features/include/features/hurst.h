@@ -17,7 +17,7 @@
 
 #include <cstddef>
 
-namespace bpt::strategy::strategy {
+namespace bpt::features {
 
 // Single-window rescaled-range Hurst estimator over the first
 // `count` entries of `returns`. The effective window is
@@ -32,4 +32,4 @@ namespace bpt::strategy::strategy {
 // compute_hurst() when fewer than 2 valid regression points exist.
 [[nodiscard]] double compute_hurst_multi_window(const double* returns, std::size_t count, std::size_t max_window);
 
-}  // namespace bpt::strategy::strategy
+}  // namespace bpt::features

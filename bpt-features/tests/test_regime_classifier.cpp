@@ -1,9 +1,9 @@
-#include "strategy/strategy/regime_classifier.h"
+#include "features/regime_classifier.h"
 
 #include <cmath>
 #include <gtest/gtest.h>
 
-using bpt::strategy::strategy::RegimeClassifier;
+using bpt::features::RegimeClassifier;
 
 namespace {
 

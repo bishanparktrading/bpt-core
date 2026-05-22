@@ -7,7 +7,7 @@
 #include "strategy/strategy/canonical_resolver.h"
 #include "strategy/strategy/i_strategy.h"
 #include "features/realized_vol.h"
-#include "strategy/strategy/regime_classifier.h"
+#include "features/regime_classifier.h"
 #include "features/vol_gate.h"
 
 #include <messages/ExchangeId.h>
@@ -27,6 +27,7 @@ namespace bpt::strategy::strategy {
 
 using bpt::features::VolatilityGate;
 using bpt::features::RealizedVolEstimator;
+using bpt::features::RegimeClassifier;
 
 // PassiveMakerStrategy — wide-spread, low-cadence market maker.
 //

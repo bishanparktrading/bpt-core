@@ -11,7 +11,7 @@
 #include "bpt_common/book/order_book_state.h"
 #include "strategy/strategy/position_tracker.h"
 #include "features/queue.h"
-#include "strategy/strategy/regime_detector.h"
+#include "features/regime_detector.h"
 #include "features/vol_gate.h"
 
 #include <messages/ExchangeId.h>
@@ -34,6 +34,7 @@ using bpt::features::OFICalculator;
 using bpt::common::book::OrderBookState;
 using bpt::features::FairValueEstimator;
 using bpt::features::QueueTracker;
+using bpt::features::RegimeDetector;
 using bpt::features::VolatilityGate;
 
 // Avellaneda-Stoikov market-making strategy.

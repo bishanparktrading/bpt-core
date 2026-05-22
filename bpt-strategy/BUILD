@@ -8,10 +8,8 @@ cc_library(
     name = "strategy_core",
     srcs = [
         "src/strategy/canonical_resolver.cpp",
-        "src/strategy/hurst_estimator.cpp",
         "src/strategy/position_tracker.cpp",
         "src/strategy/reconciler.cpp",
-        "src/strategy/regime_detector.cpp",
         "src/refdata/instrument_cache.cpp",
     ],
     hdrs = glob(["include/strategy/**/*.h"]),
@@ -35,8 +33,6 @@ cc_test(
         "tests/unit/test_reconciler.cpp",
         "tests/unit/test_refdata_stale_gate.cpp",
         "tests/unit/test_passive_maker.cpp",
-        "tests/unit/test_regime_classifier.cpp",
-        "tests/unit/test_regime_detector.cpp",
         "tests/unit/test_sim_clock.cpp",
     ],
     deps = [
