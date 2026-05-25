@@ -129,14 +129,51 @@ def ingest_run_dir(db_path: Path, run_dir: Path, run_id: Optional[str] = None) -
     return rid
 
 
+def ingest_sweep_dir(db_path: Path, sweep_root: Path,
+                     prefix: str = "run_") -> list[str]:
+    """Walk sweep_root for `prefix*` subdirs and ingest each one.
+
+    Use case: the deterministic-backtester sweep scripts dump per-cell
+    results under a parent dir as `<prefix>_<theta>_<day>/`. This batches
+    them all into experiments.db in one call.
+
+    Run IDs are namespaced as `<sweep_root.name>__<child.name>` to avoid
+    collisions across sweeps that share cell names (e.g., the OFI cancel
+    work has three sweeps — loose / ablation / tight — each with the same
+    `run_off_2026-04-25` cell). Returns the list of run_ids ingested.
+    """
+    if not sweep_root.is_dir():
+        raise NotADirectoryError(f"not a directory: {sweep_root}")
+    ingested: list[str] = []
+    for child in sorted(sweep_root.iterdir()):
+        if not child.is_dir() or not child.name.startswith(prefix):
+            continue
+        if not (child / "summary.json").exists():
+            continue
+        rid = f"{sweep_root.name}__{child.name}"
+        ingest_run_dir(db_path, child, run_id=rid)
+        ingested.append(rid)
+    return ingested
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     p = argparse.ArgumentParser(description="Ingest a backtest results dir into experiments.db")
     p.add_argument("--db", type=Path, default=Path("bpt-research/experiments.db"))
-    p.add_argument("--results-dir", type=Path, required=True,
-                   help="Directory containing summary.json")
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument("--results-dir", type=Path,
+                   help="Single results dir containing summary.json")
+    g.add_argument("--sweep-dir", type=Path,
+                   help="Parent dir with multiple run_* subdirs (batch ingest)")
     p.add_argument("--run-id", type=str, default=None,
-                   help="Override run_id (default: results dir basename)")
+                   help="Override run_id (single-dir mode only)")
+    p.add_argument("--prefix", type=str, default="run_",
+                   help="Subdirectory prefix for --sweep-dir mode (default: run_)")
     args = p.parse_args(argv)
+
+    if args.sweep_dir:
+        rids = ingest_sweep_dir(args.db, args.sweep_dir, prefix=args.prefix)
+        print(f"ingested {len(rids)} runs from {args.sweep_dir} into {args.db}")
+        return 0
 
     rid = ingest_run_dir(args.db, args.results_dir, args.run_id)
     print(f"ingested run_id={rid} into {args.db}")
