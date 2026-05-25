@@ -14,6 +14,7 @@
 #include "bpt_common/book/order_book_state.h"
 #include "features/ewma.h"
 #include "features/fair_value.h"
+#include "features/fill_prob.h"
 #include "features/hurst.h"
 #include "features/ofi.h"
 #include "features/queue.h"
@@ -400,4 +401,17 @@ PYBIND11_MODULE(_core, m) {
         .def("trend_zscore", &RegimeClassifier::trend_zscore)
         .def("classify", &RegimeClassifier::classify, py::arg("now_ns"))
         .def("reset", &RegimeClassifier::reset);
+
+    // ─── Fill probability models (free functions) ─────────────────────────
+    m.def("fill_probability_poisson",
+          &bpt::features::fill_probability_poisson,
+          py::arg("kappa"), py::arg("horizon_s"), py::arg("queue_ahead"),
+          "Poisson-arrival fill probability over horizon_s. "
+          "P ≈ 1 - exp(-kappa * horizon_s / queue_ahead). "
+          "Returns 1 when queue_ahead<=0; 0 when kappa<=0 or horizon<=0.");
+    m.def("fill_probability_geometric",
+          &bpt::features::fill_probability_geometric,
+          py::arg("our_qty"), py::arg("queue_ahead"),
+          "Ordinal queue-share fallback: our_qty / (our_qty + queue_ahead). "
+          "Not a true probability; useful as a unit-free ranking signal.");
 }

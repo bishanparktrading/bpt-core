@@ -37,6 +37,8 @@ from bpt_features._core import (  # noqa: F401
     VolatilityGate,
     compute_hurst,
     compute_hurst_multi_window,
+    fill_probability_geometric,
+    fill_probability_poisson,
 )
 
 # Function-style wrappers for the typical research idiom.
@@ -69,6 +71,8 @@ __all__ = [
     "VolatilityGate",
     "compute_hurst",
     "compute_hurst_multi_window",
+    "fill_probability_geometric",
+    "fill_probability_poisson",
     # Function-style DataFrame wrappers
     "ewma_drift",
     "ewma_variance",
