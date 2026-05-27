@@ -1,0 +1,85 @@
+# Pre-commit hooks for bpt-core. Catches the cheap stuff before CI runs.
+#
+# Install:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Run on the whole codebase once (do this in a SEPARATE commit — clang-format
+# will reformat lots of files first time):
+#   pre-commit run --all-files
+#
+# Bypass for an individual commit (use sparingly):
+#   git commit --no-verify
+#
+# Rule for what belongs here vs CI: anything that runs in <2 seconds on the
+# touched files belongs here. Anything slower (full Bazel build, tests) lives
+# in CI. Mix the two and operators learn to bypass.
+
+repos:
+  # ── Standard hygiene ──────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.patch$|\.diff$|generated/'
+      - id: end-of-file-fixer
+        exclude: 'generated/|\.svg$|\.png$|\.ipynb$'
+      - id: check-yaml
+        # Allow multi-doc YAML (Helm, k8s); .github workflows are single-doc.
+        args: ['--allow-multiple-documents']
+      - id: check-toml
+      - id: check-json
+        exclude: '\.ipynb$'  # notebooks are JSON but have their own validator
+      - id: check-added-large-files
+        args: ['--maxkb=500']  # blocks accidental binary commits
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+
+  # ── C++ formatting ────────────────────────────────────────────────────────
+  # Uses repo root .clang-format if present, otherwise the bundled LLVM style.
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v18.1.5
+    hooks:
+      - id: clang-format
+        types_or: [c++, c]
+        # Skip generated SBE headers — regenerator owns the formatting.
+        exclude: 'messages/generated/|build/|bazel-'
+
+  # ── Shell scripts ─────────────────────────────────────────────────────────
+  # deploy.sh, rollback.sh, bootstrap.sh, bpt-deploy are critical; shellcheck
+  # catches quoting / undefined-var / portability bugs cheaply.
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.10.0
+    hooks:
+      - id: shellcheck
+        args: ['-x', '--severity=warning']  # follow source statements; warn+
+
+  # ── Python ────────────────────────────────────────────────────────────────
+  # Ruff covers lint + import sort + most format concerns. Auto-fix on commit.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.0
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        # Notebooks have their own conventions; skip.
+        exclude: '\.ipynb$'
+
+  # ── Secrets ───────────────────────────────────────────────────────────────
+  # Catches AKIA*, gho_*, private-key blobs before they hit the remote.
+  # Requires a baseline file — generate with `detect-secrets scan > .secrets.baseline`
+  # after running this hook the first time.
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: '\.ipynb$|package-lock\.json$|\.lock$'
+
+# Default stages: run on git commit only (not on push/manual/etc).
+# Override per-hook via `stages: [pre-push]` if a hook is too slow for commit.
+default_stages: [pre-commit]
+
+# Don't fail if a hook reports skipping an unmodified file.
+fail_fast: false
