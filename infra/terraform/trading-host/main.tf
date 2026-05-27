@@ -130,6 +130,14 @@ resource "aws_key_pair" "operator" {
 // SMT disabled at launch (threads_per_core=1) so hot-thread pinning lands
 // on physical cores. core_count derived from the instance type — c7i.2xlarge
 // has 4 physical cores (8 vCPU at 2 threads/core, we keep 4 at 1).
+//
+// FIRST-APPLY GOTCHA (2026-05-28): account 412664885831 currently rejects
+// any instance type larger than ~2 GB RAM with a misleading "not eligible
+// for Free Tier" error. t3.{micro,small} launch fine; t3.large + c7i.2xlarge
+// + c5.2xlarge + m5.large all fail. NOT a cpu_options issue (verified by
+// removing the block — same error). NOT region-specific (reproduces in
+// both ap-southeast-1 and ap-northeast-1). Likely an undocumented new-account
+// vCPU/RAM cap. Open an AWS Support case before re-applying — see task #26.
 resource "aws_instance" "trading" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
