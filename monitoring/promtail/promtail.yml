@@ -1,0 +1,70 @@
+# Promtail config — one config file, same shape on every bpt host.
+# Tails systemd journal + ships to Loki on the monitoring host.
+#
+# Per-host customization happens via environment variables at runtime:
+#   BPT_HOST_NAME — e.g., sg1-trd-test-01
+#   BPT_HOST_ROLE — trd / rec / mon / ctl
+#   BPT_HOST_ENV  — test / qa / prod
+#   BPT_LOKI_URL  — e.g., http://100.x.y.z:3100 (Tailscale IP of monitor host)
+#
+# Install on a host via monitoring/promtail/install.sh.
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0  # disabled — local agent, no inter-promtail comms
+  log_level: warn
+
+positions:
+  filename: /var/lib/promtail/positions.yaml
+
+clients:
+  - url: ${BPT_LOKI_URL}/loki/api/v1/push
+    # Backoff so a Loki restart doesn't spam-retry. Cap at 5min between attempts.
+    backoff_config:
+      min_period: 500ms
+      max_period: 5m
+      max_retries: 10
+    # 4 KB batches — generous for journal lines (median ~200 bytes).
+    batchwait: 1s
+    batchsize: 1048576
+
+scrape_configs:
+  # ── systemd journal — all bpt-* units ────────────────────────────────────
+  - job_name: bpt-services
+    journal:
+      max_age: 12h
+      json: true
+      labels:
+        host: ${BPT_HOST_NAME}
+        role: ${BPT_HOST_ROLE}
+        env:  ${BPT_HOST_ENV}
+        source: journal
+    relabel_configs:
+      # Promote the systemd unit name to a "service" label so LogQL
+      # queries like {service="bpt-strategy"} just work.
+      - source_labels: ['__journal__systemd_unit']
+        target_label: 'service'
+      # Promote priority (syslog severity) to "level" for filtering by
+      # error / warning / info.
+      - source_labels: ['__journal_priority_keyword']
+        target_label: 'level'
+      # Keep only bpt-* units — drop noisy system services (sshd,
+      # systemd-logind, snapd, etc.). Promtail evaluates regex match;
+      # `keep` drops anything that doesn't match.
+      - source_labels: ['__journal__systemd_unit']
+        regex: 'bpt-.*\.service'
+        action: keep
+
+  # ── Promtail's own logs ──────────────────────────────────────────────────
+  # Useful for debugging the agent itself. Tagged separately so it
+  # doesn't pollute service queries.
+  - job_name: promtail-self
+    static_configs:
+      - targets: [localhost]
+        labels:
+          host: ${BPT_HOST_NAME}
+          role: ${BPT_HOST_ROLE}
+          env:  ${BPT_HOST_ENV}
+          service: promtail
+          source: agent
+          __path__: /var/log/promtail/promtail.log

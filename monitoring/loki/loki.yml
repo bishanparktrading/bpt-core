@@ -1,0 +1,66 @@
+# Loki — central log aggregation. Single-binary mode (monolithic deployment)
+# since we're at one-host scale. Filesystem storage; bump to S3 chunks if
+# disk grows past 50 GB.
+#
+# Querying: LogQL via Grafana's "Explore" tab. Datasource provisioned at
+# monitoring/provisioning/datasources/loki.yml.
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9095
+  log_level: warn  # info+ is noisy; warn is enough for ops
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory:  /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+ingester:
+  chunk_idle_period: 30m
+  max_chunk_age: 2h
+  chunk_target_size: 1572864  # 1.5 MB — good balance for journal lines
+
+schema_config:
+  configs:
+    - from: 2026-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # 7-day retention by default. Bump max_query_lookback to 30d if we
+  # later add S3 chunk storage for older logs.
+  retention_period: 168h
+  max_query_lookback: 168h
+  # Per-tenant ingestion rate. Single-tenant deployment, so this is the
+  # total ceiling. 4 MB/s = handles 3-5 services worth of journal logs
+  # with plenty of headroom; raise if ingest gets dropped.
+  ingestion_rate_mb: 4
+  ingestion_burst_size_mb: 8
+  # Keep label cardinality bounded — host/service/env labels only;
+  # order_id / fill_id etc go in JSON fields, NOT labels.
+  max_label_names_per_series: 15
+  max_streams_per_user: 10000
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 50
+  delete_request_store: filesystem
+
+# No reporting back to Grafana Labs.
+analytics:
+  reporting_enabled: false

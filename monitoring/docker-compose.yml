@@ -59,6 +59,7 @@ services:
     restart: unless-stopped
     depends_on:
       - prometheus
+      - loki
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
@@ -74,7 +75,27 @@ services:
     ports:
       - "3000:3000"
 
+  # Loki — log aggregation. Receives promtail pushes from each bpt host
+  # (trading, tape, monitor itself). Single-binary monolithic mode at
+  # this scale; filesystem storage with 7-day retention.
+  loki:
+    image: grafana/loki:3.2.0
+    container_name: bpt-loki
+    restart: unless-stopped
+    command:
+      - '-config.file=/etc/loki/loki.yml'
+    volumes:
+      - ./loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"   # HTTP — promtail push + Grafana queries
+      - "9095:9095"   # gRPC — internal
+    # Loki listens on 0.0.0.0 inside the container; external hosts reach
+    # it via the monitoring-host's Tailscale IP on port 3100. The host's
+    # security group blocks 3100 from the public internet (Tailscale-only).
+
 volumes:
   prometheus-data:
   grafana-data:
   alertmanager-data:
+  loki-data:

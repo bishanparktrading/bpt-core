@@ -1,0 +1,34 @@
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    # Container-to-container hostname; Grafana resolves to the loki
+    # service's docker-compose-internal address.
+    url: http://loki:3100
+    isDefault: false
+    editable: false
+    jsonData:
+      maxLines: 1000
+      # Derived fields surface JSON-embedded correlation IDs as
+      # clickable links in the log row. Example: clicking an order_id
+      # filters the dataframe to that order's full trace.
+      derivedFields:
+        - name: order_id
+          matcherRegex: '"order_id"\s*:\s*"?([0-9a-fA-F\-]+)"?'
+          # Internal link template — replaces the order_id in the query
+          # with the clicked value and re-runs against Loki.
+          datasourceUid: loki
+          url: '${__value.raw}'
+          urlDisplayLabel: 'trace order'
+        - name: fill_id
+          matcherRegex: '"fill_id"\s*:\s*"?([0-9a-fA-F\-]+)"?'
+          datasourceUid: loki
+          url: '${__value.raw}'
+          urlDisplayLabel: 'trace fill'
+        - name: instrument_id
+          matcherRegex: '"instrument_id"\s*:\s*"?([0-9]+)"?'
+          datasourceUid: loki
+          url: '${__value.raw}'
+          urlDisplayLabel: 'filter by instrument'
