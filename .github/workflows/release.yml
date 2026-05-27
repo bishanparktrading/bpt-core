@@ -89,24 +89,21 @@ jobs:
 
       # ── Upload to S3 ───────────────────────────────────────────────────────
       # Two auth paths supported:
-      #   1. OIDC (preferred): set BPT_CI_OIDC_ROLE_ARN in repo secrets to
-      #      an IAM role with s3:PutObject on the releases bucket. No
-      #      long-lived keys.
+      #   1. OIDC (preferred): set BPT_CI_OIDC_ROLE_ARN as a repo VARIABLE
+      #      (it's an IAM role ARN, not secret — fine in vars). The role
+      #      grants s3:PutObject on the releases bucket via a trust policy
+      #      scoped to this repo + tag refs. No long-lived keys.
       #   2. Access keys (fallback): set AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY
       #      in repo secrets. Less secure; rotate manually.
       - name: Configure AWS credentials (OIDC)
-        if: ${{ env.BPT_CI_OIDC_ROLE_ARN != '' }}
-        env:
-          BPT_CI_OIDC_ROLE_ARN: ${{ secrets.BPT_CI_OIDC_ROLE_ARN }}
+        if: ${{ vars.BPT_CI_OIDC_ROLE_ARN != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.BPT_CI_OIDC_ROLE_ARN }}
+          role-to-assume: ${{ vars.BPT_CI_OIDC_ROLE_ARN }}
           aws-region: ${{ vars.BPT_RELEASES_REGION || 'ap-southeast-1' }}
 
       - name: Configure AWS credentials (access keys fallback)
-        if: ${{ env.BPT_CI_OIDC_ROLE_ARN == '' }}
-        env:
-          BPT_CI_OIDC_ROLE_ARN: ${{ secrets.BPT_CI_OIDC_ROLE_ARN }}
+        if: ${{ vars.BPT_CI_OIDC_ROLE_ARN == '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
