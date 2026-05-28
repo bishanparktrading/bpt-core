@@ -58,6 +58,7 @@ cc_library(
         "//bpt-refdata:mapping_lib",
         "//bpt-common",
         "//messages",
+        "@nlohmann_json//:nlohmann_json",
     ],
 )
 

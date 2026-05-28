@@ -9,8 +9,14 @@
 #include <messages/ExchangeRegistry.h>
 
 #include <bpt_common/logging.h>
+#include <nlohmann/json.hpp>
+
+#include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <stdexcept>
 #include <string_view>
+#include <unordered_map>
 
 namespace bpt::backtester::harness {
 
@@ -24,6 +30,34 @@ bpt::strategy::refdata::InstrumentType map_inst_type(const std::string& t) {
     if (t == "OPTION")
         return bpt::strategy::refdata::InstrumentType::OPTION;
     return bpt::strategy::refdata::InstrumentType::SPOT;
+}
+
+// Load the HL szDecimals snapshot that sits next to the instrument-mapping
+// JSON (config/instruments/hyperliquid_meta.json). Returns coin -> szDecimals.
+// Empty map if the file is absent — caller falls back to flat defaults.
+//
+// Deterministic by design: a committed static snapshot, NOT a live /info
+// query, so a replay run is reproducible. Refresh the snapshot out-of-band
+// when the HL universe changes (rare for established coins).
+std::unordered_map<std::string, int> load_hl_sz_decimals(const std::string& mapping_path) {
+    std::unordered_map<std::string, int> out;
+    const auto meta_path =
+        std::filesystem::path(mapping_path).parent_path() / "hyperliquid_meta.json";
+    std::ifstream f(meta_path);
+    if (!f) {
+        bpt::common::log::warn(
+            "[StrategyHarness] no HL meta snapshot at {} — HL tick/lot fall back to flat defaults",
+            meta_path.string());
+        return out;
+    }
+    try {
+        const auto j = nlohmann::json::parse(f);
+        for (const auto& [coin, sz] : j.at("szDecimals").items())
+            out[coin] = sz.get<int>();
+    } catch (const std::exception& e) {
+        bpt::common::log::warn("[StrategyHarness] failed to parse HL meta snapshot: {}", e.what());
+    }
+    return out;
 }
 
 }  // namespace
@@ -51,6 +85,12 @@ void StrategyHarness::initialize() {
     // live Aeron path).
     bpt::refdata::mapping::InstrumentMappingLoader mapping;
     mapping.load(opts_.instrument_mapping_path);
+
+    // HL per-coin szDecimals — drives correct tick/lot per instrument
+    // instead of one flat default for every HL perp. Without this, XMR
+    // (lot 0.001) got the flat lot=1.0 and any sub-1-unit order_qty
+    // rounded to zero → strategy posted no orders → zero fills.
+    const auto hl_sz = load_hl_sz_decimals(opts_.instrument_mapping_path);
 
     std::vector<bpt::strategy::refdata::Instrument> seed;
     for (const auto& venue : bpt::messages::ExchangeRegistry::kEntries) {
@@ -84,13 +124,27 @@ void StrategyHarness::initialize() {
             // (cancel+replace on every BBO tick) without ever resting in
             // the book long enough to fill.
             //
-            // HL APE: pxDecimals=4 → tick=0.0001, szDecimals=0 → lot=1.
-            // Most other HL perps share these decimals at sub-$1
-            // notional; majors (BTC, ETH) have larger tick. Hardcoded
-            // here pending a real meta-snapshot loader.
+            // Derive per-coin from the committed szDecimals snapshot, same
+            // rule as the live HyperliquidRefdataDecoder:
+            //   lot  = 10^-szDecimals
+            //   tick = 10^-(6 - szDecimals)   (perp MAX_DECIMALS = 6)
+            // Falls back to the old flat default if a coin isn't in the
+            // snapshot. Note: the snapshot tick does NOT model HL's
+            // 5-significant-figure price rule (which coarsens tick at high
+            // price, e.g. BTC at $95k → ~$10 tick); for the backtest's
+            // post-touch-cap + quote-rounding purposes the decimal-places
+            // tick is an acceptable lower bound. Refine if a high-priced
+            // coin's fills look unrealistic.
             if (venue.id == bpt::messages::ExchangeId::HYPERLIQUID) {
-                inst.tick_size = 0.0001;
-                inst.lot_size = 1.0;
+                const auto it = hl_sz.find(e.info.base);
+                if (it != hl_sz.end()) {
+                    const int sz = it->second;
+                    inst.lot_size = std::pow(10.0, -sz);
+                    inst.tick_size = std::pow(10.0, -std::max(0, 6 - sz));
+                } else {
+                    inst.tick_size = 0.0001;
+                    inst.lot_size = 1.0;
+                }
             } else if (venue.id == bpt::messages::ExchangeId::OKX) {
                 // OKX V5 instrument metadata (tickSz / lotSz) varies per
                 // contract. BTC-USDT-SWAP: tick=$0.1, lot=0.01 contracts
