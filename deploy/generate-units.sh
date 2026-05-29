@@ -468,12 +468,14 @@ $(emit_limits bpt-tape)
 WantedBy=bpt-recording.target
 EOF
 
-# Daily wslog → Parquet conversion. Runs at 00:30 UTC for the
-# previous UTC day's files (matches record-stack.sh's UTC dating
-# convention). Idempotent — re-runs on the same day overwrite the
-# same Parquet rows. Scope-limited to the recording host: never
-# fires on trading-stack hosts because the recording.target on
-# them is empty.
+# Daily wslog → Parquet conversion (00:30 UTC, previous UTC day).
+# NOT auto-wired into bpt-recording.target: on a small capture VPS the
+# converter's memory balloon can OOM-kill the recorder, and a t3.micro
+# reboot→OOM loop is possible when a missed run re-fires on boot. Per the
+# capture/derive split, the capture host stays a dumb recorder and Parquet
+# is derived in a separate step. The units are still emitted for an operator
+# who explicitly wants on-host conversion (`systemctl --user start
+# bpt-recording-rotate.service`), but they never start automatically.
 ROTATE_SCRIPT_LAPTOP="$BPT_ROOT/scripts/rotate_recordings.sh"
 ROTATE_SCRIPT_DEPLOY="\$BPT_ROOT/current/scripts/rotate_recordings.sh"
 if [ -n "${BPT_DEPLOY_ROOT:-}" ]; then
@@ -490,6 +492,10 @@ Description=BPT recording rotate (yesterday's wslogs → Parquet)
 Type=oneshot
 EnvironmentFile=$ENV_FILE
 ExecStart=$rotate_exec
+# Never let the converter starve the recorder. Cap its memory and make it
+# the kernel's first OOM victim so bpt-tape survives memory pressure.
+MemoryMax=512M
+OOMScoreAdjust=900
 EOF
 
 cat > "$UNIT_DIR/bpt-recording-rotate.timer" <<EOF
@@ -499,7 +505,9 @@ PartOf=bpt-recording.target
 
 [Timer]
 OnCalendar=*-*-* 00:30:00 UTC
-Persistent=true
+# Deliberately NOT Persistent: a missed run (host was down/rebooting at
+# 00:30) must NOT fire on next boot. On a memory-tight capture host that
+# boot-time run was the trigger for a reboot→OOM→reboot death spiral.
 RandomizedDelaySec=5min
 
 [Install]
@@ -577,8 +585,11 @@ EOF
 
 cat > "$UNIT_DIR/bpt-recording.target" <<EOF
 [Unit]
-Description=BPT Recording Stack (tape + daily Parquet rotate + S3 sync + heartbeat)
-Wants=bpt-tape.service bpt-recording-rotate.timer bpt-recording-heartbeat.timer bpt-tape-sync.timer
+Description=BPT Recording Stack (tape + S3 sync + heartbeat; Parquet derive is separate)
+# bpt-recording-rotate.timer is intentionally absent: the capture host stays a
+# dumb recorder, Parquet conversion is a separate derive step (see comment at
+# the rotate unit above). Auto-wiring it here caused a t3.micro OOM loop.
+Wants=bpt-tape.service bpt-recording-heartbeat.timer bpt-tape-sync.timer
 
 [Install]
 WantedBy=default.target
