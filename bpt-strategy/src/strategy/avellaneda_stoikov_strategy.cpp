@@ -232,8 +232,6 @@ void AvellanedaStoikovStrategy::on_snapshot(const refdata::InstrumentCache& cach
     bpt::common::log::info(kLog(), "Snapshot ({} instruments), resolving universe...", cache.size());
     state_.clear();
     positions_.clear_all();
-    // PositionTracker is now at 0; the next AccountSnapshot becomes
-    // the baseline against which SPOT reconcile measures delta.
     initial_ccy_equity_e8_.clear();
     initial_ccy_equity_captured_ = false;
 
@@ -376,10 +374,6 @@ void AvellanedaStoikovStrategy::on_order_book(const bpt::messages::MdOrderBook& 
         }
     }
 
-    // Diagnostic: log maintained-ladder state periodically so we can
-    // confirm deltas are merging correctly. The raw per-frame delta
-    // counts are unhelpful (OKX sends 2-8 levels per message); what
-    // matters is that the folded ladder has real depth.
     static uint64_t ob_count = 0;
     ++ob_count;
     if (ob_count > 5 && ob_count % 500 != 0)
@@ -408,10 +402,6 @@ void AvellanedaStoikovStrategy::on_trade(const bpt::messages::MdTrade& tick) {
     InstrumentState& st = it->second;
     const uint64_t ts_ns = tick.timestampNs();
 
-    // Queue-position decrement: a trade hitting the passive side of our
-    // price level shrinks queue_ahead for any of our resting orders at
-    // that price. TradeSide carries the aggressor side — same BUY/SELL
-    // values as OrderSide.
     using bpt::messages::TradeSide;
     const OrderSide::Value aggressor = (tick.side() == TradeSide::BUY) ? OrderSide::BUY : OrderSide::SELL;
     st.queue.on_trade(aggressor, tick.price(), static_cast<double>(tick.qty()) / 1e8, ts_ns);
@@ -421,12 +411,7 @@ void AvellanedaStoikovStrategy::on_trade(const bpt::messages::MdTrade& tick) {
 }
 
 void AvellanedaStoikovStrategy::on_bbo(const bpt::messages::MdMarketData& tick) {
-    // Refdata heartbeat stale → fee_cache.get() will return nullopt and
-    // quotes would ship with zero fee buffer. Skip the entire tick path;
-    // existing cancels (issued by on_refdata_stale_changed) keep flowing
-    // through on_exec_report. EWMA estimators see a gap during the pause
-    // window — accepted; warmup re-bootstraps quickly when refdata returns.
-    if (refdata_stale_)
+    if (refdata_stale_)  // fee_cache returns nullopt when stale — skip to avoid zero-fee-buffer quotes
         return;
 
     auto it = state_.find(tick.instrumentId());
@@ -443,19 +428,10 @@ void AvellanedaStoikovStrategy::on_bbo(const bpt::messages::MdMarketData& tick) 
     const double mid = (bid_px + ask_px) * 0.5;
     const uint64_t ts_ns = tick.timestampNs();
 
-    // Cache market top-of-book for the console overlay. Done here (not
-    // just before publish) so the strategy sees the same values the
-    // console does, and works even when order_book_depth=0 leaves
-    // st.book unpopulated.
     st.last_market_bid = bid_px;
     st.last_market_ask = ask_px;
 
-    // Phase 2.1 — evaluate post-fill markout on the first BBO tick
-    // after a fill. Convention: positive markout = favorable for us
-    // (BUY → mid moved up; SELL → mid moved down). If markout breaches
-    // the threshold, suspend that side for the configured cooldown
-    // window. Cooldown timestamps are in simulation time (ts_ns) so
-    // they translate consistently between live and backtest.
+    // Post-fill markout: cooldown timestamps use ts_ns (sim time) so live and backtest honor the same window.
     if (st.pending_buy_fill_price > 0.0) {
         const double markout_bps = (mid - st.pending_buy_fill_price) / st.pending_buy_fill_price * 1e4;
         if (markout_bps < post_fill_markout_threshold_bps_) {
@@ -486,10 +462,6 @@ void AvellanedaStoikovStrategy::on_bbo(const bpt::messages::MdMarketData& tick) 
         st.pending_sell_fill_price = 0.0;
     }
 
-    // Slow-drift anchor. Seeded on first tick, advanced once per
-    // window duration. slow_drift_bps expresses cumulative return
-    // from the anchor in bps — see the trend-suppression block in
-    // compute_quotes for how it drives side cutoff.
     if (st.slow_drift_window_start_ns == 0) {
         st.slow_drift_window_start_mid = mid;
         st.slow_drift_window_start_ns = ts_ns;
@@ -504,15 +476,12 @@ void AvellanedaStoikovStrategy::on_bbo(const bpt::messages::MdMarketData& tick) 
         st.slow_drift_bps = (mid - st.slow_drift_window_start_mid) / st.slow_drift_window_start_mid * 1e4;
     }
 
-    // ── Update EWMA volatility ─────────────────────────────────────────────
     if (st.session_start_ns == 0)
         st.session_start_ns = ts_ns;
 
     st.ewma_var.update(mid, ts_ns);
     st.ewma_drift.update(mid, ts_ns);
 
-    // Periodic drift diagnostic — log every 20 ticks so we can see
-    // what values µ reaches without turning on full debug logging.
     if (st.ewma_var.count() > 0 && st.ewma_var.count() % 20 == 0) {
         bpt::common::log::info(kLog(),
                                "{} drift µ={:.4f} ({:.1f}bps/√s) σ²={:.2e} ticks={}",
@@ -525,21 +494,10 @@ void AvellanedaStoikovStrategy::on_bbo(const bpt::messages::MdMarketData& tick) 
     st.last_mid = mid;
     st.last_tick_ns = ts_ns;
 
-    // ── Regime detector ───────────────────────────────────────────────────
     st.regime.update(mid);
 
-    // ── Volatility gate ────────────────────────────────────────────────────
-    // Feed the gate on every tick so its rolling window stays current,
-    // even if we're not going to quote this tick. A trip here means a
-    // fast move just happened; we cancel live quotes (so we don't get
-    // run over on stale depth) and skip re-quoting until the halt
-    // cooldown expires.
-    //
-    // Adaptive threshold: if vol_gate_sigma_mult_ > 0 and the vol EWMA
-    // has warmed, push `max(fixed_floor, k × σ × √window_s)` into the
-    // gate before the update. Lets one `vol_gate_sigma_mult` value
-    // work across asset classes — threshold tracks the realized vol
-    // instead of needing per-venue bps tuning.
+    // Feed vol_gate on every tick — window must stay current even when not quoting; trip → cancel live orders.
+    // Adaptive threshold: max(fixed_floor, k×σ×√window_s) — one sigma_mult works across asset classes.
     if (vol_gate_sigma_mult_ > 0.0 && st.ewma_var.value() > 0.0) {
         const double sigma_bps = std::sqrt(st.ewma_var.value()) * 1e4;
         const double window_s = static_cast<double>(vol_gate_cfg_.window_ns) * 1e-9;
@@ -566,16 +524,9 @@ void AvellanedaStoikovStrategy::on_bbo(const bpt::messages::MdMarketData& tick) 
     if (now_halted)
         return;  // don't compute or place new quotes while halted
 
-    // ── Compute AS quotes ──────────────────────────────────────────────────
-    // OrderGateway encodes quantity at 1e8 fixed-point (same scale as price).
-    // Divide by 1e8 to convert raw position to base units (BTC).
     const double net_qty = static_cast<double>(positions_.net_qty(tick.instrumentId(), st.exchange_id)) / 1e8;
 
-    // AS reservation-price reference. Estimator may bias toward micro
-    // (size-weighted), L2-weighted, or EWMA — see [fair_value] config.
-    // EWMA σ², drift µ, slow-drift anchor, and st.last_mid all stay on
-    // raw mid above; only the `s` consumed by compute_quotes shifts.
-    // Fall back to mid if the estimator returns NaN (degenerate quote).
+    // FV estimator may use micro/L2/EWMA vs raw mid per [fair_value] config; fall back to mid on NaN.
     const double s_est = st.fv.estimate(bid_px, ask_px, tick.bidQty(), tick.askQty());
     const double s = std::isnan(s_est) ? mid : s_est;
 

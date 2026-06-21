@@ -97,15 +97,8 @@ void AvellanedaStoikovStrategy::on_exec_report(const bpt::messages::ExecutionRep
         positions_.on_fill(canonical_id, st.exchange_id, rpt.side(), rpt.filledQty(), rpt.price());
         st.queue.on_fill(order_id, static_cast<double>(rpt.filledQty()) / 1e8);
 
-        // Phase 2.1 — record the fill for post-fill markout evaluation
-        // on the next BBO tick. Skip when the feature is disabled
-        // (threshold == 0). Excludes unwind orders: those are
-        // intentionally aggressive and we don't want their adverse
-        // markout to trip the cooldown for the passive side.
-        // Timestamps are simulation time (st.last_tick_ns), not wall
-        // clock — backtest replays compress 11h of sim time into a few
-        // seconds of wall clock, so a wall-clock cooldown would span
-        // the whole run.
+        // Record fill price for markout evaluation on next BBO tick (passive fills only;
+        // unwind orders are intentionally aggressive — exclude so they don't trip the cooldown).
         if (post_fill_markout_threshold_bps_ < 0.0 && os->tag == kTagQuote) {
             const double fill_px = static_cast<double>(rpt.price()) / 1e8;
             if (rpt.side() == bpt::messages::TradeSide::BUY) {

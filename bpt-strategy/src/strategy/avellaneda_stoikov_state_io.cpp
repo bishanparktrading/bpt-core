@@ -23,17 +23,13 @@ quill::Logger* kLog() {
 constexpr int kWarmStartSchemaVersion = 1;
 }  // namespace
 
-// ── Strategy state for console ────────────────────────────────────────────
-
 std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
-    // Single instrument for now — take the first entry in state_.
     if (state_.empty())
         return {};
 
     const auto& [instrument_id, st] = *state_.begin();
     const double net_qty = static_cast<double>(positions_.net_qty(instrument_id, st.exchange_id)) / 1e8;
 
-    // Compute current quotes to get reservation and half-spread.
     const auto quotes =
         (st.last_mid > 0 && st.ewma_var.count() >= vol_warmup_ticks_)
             ? compute_quotes(st, BboContext{.net_qty = net_qty, .mid = st.last_mid, .ts_ns = st.last_tick_ns})
@@ -45,13 +41,7 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     const double reservation = quotes ? (bid_quote + ask_quote) / 2.0 : st.last_mid;
     const double reservation_offset_bps = st.last_mid > 0 ? (reservation - st.last_mid) / st.last_mid * 1e4 : 0.0;
 
-    // Suppression snapshot shared with maybe_requote — single source of
-    // truth so the console badge can't disagree with the actual
-    // runtime decision. Queue suppression is only meaningful when
-    // quotes_valid (pre-warmup returns fp=1); evaluate() computes it
-    // unconditionally but the projected prices below are still defaulted
-    // from the struct, which is correct since st.book wouldn't be ready
-    // during warmup anyway.
+    // Same supp_policy_ call as maybe_requote — badge can't disagree with the runtime decision.
     const SuppressionState supp =
         supp_policy_.evaluate(st, net_qty, bid_quote, ask_quote,
                               sizer_.effective_max_inventory(st.last_mid, last_equity_e8_),
@@ -60,9 +50,6 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     const double projected_fp_bid = supp.fp_bid;
     const double projected_fp_ask = supp.fp_ask;
 
-    // queue_ahead for any live resting orders — the ACTUAL tracked queue,
-    // not the projected one. Used by the console to show how buried the
-    // current resting orders are.
     double bid_queue_ahead = 0.0;
     double ask_queue_ahead = 0.0;
     double bid_fill_prob = 0.0;
@@ -84,14 +71,10 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
 
     nlohmann::json j;
     j["type"] = "strategyState";
-    // Discriminator for the console's panel registry. Every strategy
-    // that implements get_strategy_state_json() must set `kind`; the
-    // frontend picks the matching panel component (panels/index.ts).
     j["kind"] = "AS";
     j["symbol"] = st.symbol;
     j["exchange"] = st.exchange;
 
-    // Model parameters (live values, not config)
     j["drift"] = st.ewma_drift.value();
     j["driftBps"] = drift_bps;
     j["slowDriftBps"] = st.slow_drift_bps;
@@ -100,7 +83,6 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     j["kappa"] = (st.ewma_kappa.count() >= kappa_warmup_ticks_) ? std::max(kappa_min_, st.ewma_kappa.value()) : kappa_;
     j["kappaLive"] = st.ewma_kappa.count() >= kappa_warmup_ticks_;
 
-    // Regime
     j["regime"] = st.regime.regime_name();
     j["hurst"] = st.regime.hurst();
     j["gammaBase"] = gamma_;
@@ -116,47 +98,35 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
         return s;
     }();
 
-    // Quotes
     j["mid"] = st.last_mid;
     j["reservation"] = reservation;
     j["reservationOffsetBps"] = reservation_offset_bps;
     j["halfSpread"] = half_spread;
     j["halfSpreadBps"] = st.last_mid > 0 ? half_spread / st.last_mid * 1e4 : 0;
 
-    // Inventory — report the EFFECTIVE cap (adaptive when configured),
-    // not the static fallback, so the console inventoryPct gauge
-    // tracks the same threshold the strategy is actually enforcing.
+    // Effective cap (adaptive when fraction configured) so inventoryPct matches runtime enforcement.
     const double max_inv = sizer_.effective_max_inventory(st.last_mid, last_equity_e8_);
     j["inventory"] = net_qty;
     j["maxInventory"] = max_inv;
     j["inventoryPct"] = max_inv > 0 ? std::abs(net_qty) / max_inv * 100.0 : 0;
 
-    // Suppression state per side — priority ladder lives on the
-    // SuppressionState struct (vol_gate → inventory → drift → trend →
-    // tox → queue). Both the boolean and reason string come from the
-    // same struct so they can never drift.
     j["bidSuppressed"] = supp.bid_suppressed();
     j["bidSuppressReason"] = std::string(supp.bid_reason());
     j["askSuppressed"] = supp.ask_suppressed();
     j["askSuppressReason"] = std::string(supp.ask_reason());
 
-    // Vol gate
     j["volGateHalted"] = supp.vol_halted;
     j["volGateTrips"] = st.vol_gate.trips_total();
 
-    // Orders
     j["bidOrderLive"] = st.h_bid.live();
     j["askOrderLive"] = st.h_ask.live();
     j["bidPrice"] = st.last_bid_price;
     j["askPrice"] = st.last_ask_price;
 
-    // Warmup
     j["volTicks"] = st.ewma_var.count();
     j["volWarmup"] = vol_warmup_ticks_;
     j["warmedUp"] = st.ewma_var.count() >= vol_warmup_ticks_;
 
-    // Queue state — actual (for resting orders) and projected (for the
-    // quote the strategy would place on the next tick).
     j["bookBidLevels"] = st.book.n_bid_levels();
     j["bookAskLevels"] = st.book.n_ask_levels();
     j["bidQueueAhead"] = bid_queue_ahead;
@@ -167,16 +137,12 @@ std::string AvellanedaStoikovStrategy::get_strategy_state_json() {
     j["askProjectedFillProb"] = projected_fp_ask;
     j["queueSuppressMin"] = supp_policy_.config().queue_suppress_fill_prob_min;
 
-    // Market best bid/ask — cached by on_bbo. Preferred over st.book
-    // because this strategy runs with order_book_depth=0 (no L2 ladder
-    // consumption); st.book.ready() would always return false here.
+    // Cached BBO — book may not be ready when order_book_depth=0.
     j["marketBid"] = st.last_market_bid;
     j["marketAsk"] = st.last_market_ask;
 
     return j.dump();
 }
-
-// ── Warm-start state ────────────────────────────────────────────────────────
 
 void AvellanedaStoikovStrategy::save_state(const std::string& path) {
     if (path.empty())

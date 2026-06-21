@@ -21,27 +21,9 @@
 
 namespace bpt::strategy::order {
 
-// OrderManager is the single point through which all strategies place orders.
-// It centralises:
-//   - Globally unique order ID generation (previously one atomic per strategy).
-//   - Instrument validation: status must be ACTIVE, instrument must exist in cache.
-//   - Price normalisation: rounded to tick_size (BUY rounds up, SELL rounds down).
-//   - Quantity normalisation: rounded down to lot_size, clamped to minimum one lot.
-//   - Exchange symbol resolution: fetched from the refdata cache — strategies never
-//     need to carry the exchange-native symbol themselves.
-//   - Final gate to IOrderGatewayClient::send_new_order().
-//
-// Usage:
-//   uint64_t order_id = order_mgr_.place_order(instrument_id, exchange_id,
-//                                               side, type, tif, price, qty);
-//   if (order_id != 0) {
-//       // order was sent — record state
-//   }
-//
-// price and quantity are passed in natural units (e.g. 70000.0, 0.001).
-// Internal fixed-point conversion (1e8 scale) is handled here.
-//
-// Threading: single-threaded — must be called from the Aeron poll thread only.
+// Single entry point for all order submission. Validates instrument (ACTIVE + cache lookup),
+// normalises price (tick_size) and qty (lot_size), resolves exchange symbol, and issues to
+// IOrderGatewayClient. Single-threaded — Aeron poll thread only.
 class OrderManager {
 public:
     OrderManager(IOrderGatewayClient& gw, const refdata::InstrumentCache& cache);
