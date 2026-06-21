@@ -81,6 +81,19 @@ OrderHandle OrderManager::send_quote(uint64_t instrument_id,
                           tag);
 }
 
+void OrderManager::modify_quote(const OrderHandle& handle, double price, double qty) {
+    if (!handle.live()) return;
+    const OrderState* s = handle.state;
+    if (const auto inst = cache_.get(s->instrument_id); inst && inst->tick_size > 0.0)
+        price = (s->side == OrderSide::BUY) ? std::floor(price / inst->tick_size) * inst->tick_size
+                                             : std::ceil(price / inst->tick_size) * inst->tick_size;
+    gw_.send_modify(ModifyOrderRequest{
+        s->order_id, s->exchange_id, s->instrument_id,
+        static_cast<int64_t>(std::round(price * 1e8)),
+        static_cast<uint64_t>(std::round(qty * 1e8))
+    });
+}
+
 OrderHandle OrderManager::send_new_order(const NewOrderRequest& req, uint8_t tag) {
     double price = req.price;
     double quantity = req.qty;

@@ -54,38 +54,11 @@ double AvellanedaStoikovStrategy::shutdown_drain_budget_s() const {
 }
 
 std::size_t AvellanedaStoikovStrategy::on_account_snapshot(bpt::messages::AccountSnapshot& snap) {
-    // Step 1: drain the SBE positions group exactly once into a map.
-    // Cached for shutdown flatten (exchange-authoritative position
-    // source) AND re-used for the reconcile pass below — SBE group
-    // cursors can only be walked once per message.
-    //
-    // ORDER MATTERS: SBE repeating groups share a read cursor with the
-    // parent message, so positions must be drained before
-    // currencyBalances. Both helpers are non-const on snap.
-    //
-    // Rewind the cursor up front — strategy_service's log line calls
-    // snap.positions().count() before handing us the message, which
-    // advances the group cursor past the positions header. Without
-    // rewinding, extract_exchange_positions reads the currencyBalances
-    // header as if it were the positions header (silent corruption on
-    // the old code path; crash-or-garbage once we also call
-    // currencyBalances here).
+    // sbeRewind() required — strategy_service calls positions().count() before handing off, advancing cursor.
     snap.sbeRewind();
-
-    // Cache exchange-reported total equity for equity-fraction sizing
-    // (see effective_order_qty / effective_max_inventory). Captured here
-    // so every AccountSnapshot refresh updates the sizing baseline; if
-    // equity moves, next tick's quote sizes follow without operator
-    // intervention. Quoted in USD-equivalent for HL perp; SPOT venues
-    // need conversion that is out of scope for the single-instrument
-    // PERP path this is currently exercised on.
     last_equity_e8_ = snap.totalEquityE8();
 
     const auto exchange_id = snap.exchangeId();
-    // Row-level extract preserves avg entry price alongside qty so we
-    // can seed PositionTracker on a divergence (see reconciler loop
-    // below). Legacy exchange_by_symbol_raw map kept for reconcile() +
-    // the shutdown-flatten cache which only want qty.
     const auto exchange_row_by_symbol = extract_exchange_position_rows(snap);
     std::unordered_map<std::string, int64_t> exchange_by_symbol_raw;
     exchange_by_symbol_raw.reserve(exchange_row_by_symbol.size());
@@ -98,11 +71,7 @@ std::size_t AvellanedaStoikovStrategy::on_account_snapshot(bpt::messages::Accoun
     }
     last_snapshot_ns_ = snap.timestampNs();
 
-    // On the first post-refdata snapshot we capture the session-start
-    // currency baseline for SPOT reconciliation. PositionTracker was
-    // zeroed in on_snapshot() so "delta from this baseline" == "net
-    // traded according to the exchange". Subsequent snapshots use the
-    // captured baseline to compute the SPOT delta.
+    // Session-start currency baseline for SPOT reconciliation (delta from baseline = net traded).
     if (!initial_ccy_equity_captured_) {
         for (const auto& [ccy, equity] : currency_equity_e8) {
             initial_ccy_equity_e8_[{exchange_id, ccy}] = equity;
@@ -114,15 +83,7 @@ std::size_t AvellanedaStoikovStrategy::on_account_snapshot(bpt::messages::Accoun
                                bpt::messages::ExchangeId::c_str(exchange_id));
     }
 
-    // Step 2: build the map we'll hand to reconcile(). For PERP/FUTURE
-    // the exchange view is positions[symbol]. For SPOT that row is
-    // missing (or spuriously populated by quote-currency holdings), so
-    // we override with delta = current_ccy_equity - initial_ccy_equity.
     std::unordered_map<std::string, int64_t> exchange_by_symbol = exchange_by_symbol_raw;
-
-    // Step 3: build id→symbol map for our tracker-side entries on this
-    // exchange. At the same time, rewrite SPOT entries to use the
-    // delta-based exchange view computed from currency balances.
     std::unordered_map<uint64_t, std::string> symbol_map;
     symbol_map.reserve(state_.size());
     for (const auto& [id, st] : state_) {
@@ -136,13 +97,7 @@ std::size_t AvellanedaStoikovStrategy::on_account_snapshot(bpt::messages::Accoun
             if (it_cur != currency_equity_e8.end() && it_base != initial_ccy_equity_e8_.end()) {
                 exchange_by_symbol[st.symbol] = it_cur->second - it_base->second;
             } else {
-                // Missing baseline or missing current row → we can't
-                // compute a meaningful delta. Drop the symbol so the
-                // reconciler treats it as "exchange didn't report" and
-                // compares against 0 — which will fire iff tracker has
-                // moved from 0. Acceptable: we only enter this branch
-                // on the first snapshot before baseline capture, or if
-                // the exchange stops reporting the ccy entirely.
+                // No baseline or missing ccy row — drop symbol; reconciler compares to 0.
                 exchange_by_symbol.erase(st.symbol);
             }
         }
@@ -150,11 +105,7 @@ std::size_t AvellanedaStoikovStrategy::on_account_snapshot(bpt::messages::Accoun
     if (symbol_map.empty())
         return 0;  // nothing we care about on this exchange
 
-    // Threshold: 1e4 in 1e8 scale = 0.0001 of a base unit (~$10 at
-    // BTC prices, ~$0.40 at ETH prices). Smaller than the smallest
-    // order_qty we place (0.0001 BTC); bigger than floating-point
-    // rounding noise. Tune per-venue later if needed.
-    constexpr int64_t kDivergenceThresholdE8 = 10000;  // 0.0001 base units
+    constexpr int64_t kDivergenceThresholdE8 = 10000;  // 0.0001 base units — below min order_qty, above FP noise
 
     const auto divergences = reconcile(positions_, exchange_by_symbol, exchange_id, symbol_map, kDivergenceThresholdE8);
     for (const auto& d : divergences) {
@@ -167,20 +118,8 @@ std::size_t AvellanedaStoikovStrategy::on_account_snapshot(bpt::messages::Accoun
                                static_cast<double>(d.exchange_net_qty_e8) / 1e8,
                                static_cast<double>(d.diff_e8) / 1e8);
 
-        // Seed the tracker to the exchange view. The reconciler used
-        // to only log, which silently left strategies quoting against
-        // a stale inventory count across restarts — AS's inventory-
-        // skew + max_inventory guards read a tracker saying "flat"
-        // while the exchange had accumulated a real position from
-        // prior sessions. See feedback_avoid_silent_divergence note
-        // in project_prod_hardening_backlog.md.
-        //
-        // avg_entry_price is sourced from the same SBE row; for SPOT
-        // symbols we derived qty from currency-balance delta rather
-        // than a positions[] row, so there's no entry price to seed.
-        // Pass 0.0 in that case — subsequent fills blend from 0-avg,
-        // which produces wrong realized_pnl on any close of the
-        // seeded portion but avoids fabricating an entry.
+        // Seed tracker to exchange view — stale inventory from prior sessions caused wrong AS skew.
+        // SPOT symbols derived from ccy-balance delta have no entry price; pass 0.0.
         double seed_avg_px = 0.0;
         if (const auto it = exchange_row_by_symbol.find(d.exchange_symbol); it != exchange_row_by_symbol.end()) {
             seed_avg_px = it->second.avg_entry_price;

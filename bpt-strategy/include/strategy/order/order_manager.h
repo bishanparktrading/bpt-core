@@ -58,6 +58,9 @@ public:
                                          bpt::messages::OrderSide::Value side,
                                          double price, double qty, uint8_t tag = 0);
 
+    // Modify with MM rounding (same BUY-floor / SELL-ceil convention as send_quote).
+    void modify_quote(const OrderHandle& handle, double price, double qty);
+
     void send_cancel(OrderHandle& handle);
     void send_cancel(const CancelOrderRequest& req);
 

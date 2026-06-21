@@ -27,84 +27,30 @@ auto AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st, const 
     const double mid = ctx.mid;
     const uint64_t timestamp_ns = ctx.ts_ns;
 
-    // Remaining session time — clamp to [0, session_duration_s_].
-    // After the session ends we keep quoting at the minimum spread (T-t = 0).
     const double elapsed_s = static_cast<double>(timestamp_ns - st.session_start_ns) * 1e-9;
     const double T_minus_t = std::max(0.0, session_duration_s_ - elapsed_s);
 
     const double sigma_sq = st.ewma_var.value();
-    // Regime-adjusted gamma: widen spreads in trending regimes, tighten
-    // in mean-reverting regimes. The multiplier comes from the Hurst-based
-    // regime detector (1.8x in trending, 0.6x in mean-reverting, 1.0x neutral).
-    // Effective γ folds in two adaptive factors:
-    //   1. Regime detector multiplier (mean-rev / neutral / trending)
-    //   2. PnL feedback multiplier (widen on recent loss streak)
-    // Both default to 1.0 when their respective features are disabled,
-    // so static γ behavior is unchanged unless operator opts in.
     const double effective_gamma = gamma_ * st.regime.gamma_multiplier() * gamma_pnl_mult(st);
     const double gamma_sigma_sq_T = effective_gamma * sigma_sq * T_minus_t;
 
-    // Drift-adjusted reservation price (Cartea-Jaimungal extension).
-    // Classic AS: r = s - q*γ*σ²*(T-t)               (assumes µ=0)
-    // With drift: r = s + µ*(T-t) - q*γ*σ²*(T-t)     (leans into the trend)
-    //
-    // Implementation note — dimensional handling: σ² and µ here are
-    // computed from log-returns (dimensionless), not from price changes
-    // ($²). The textbook formula treats q*γ*σ²*T as a price-units
-    // displacement; with log-return σ² that product is a fraction.
-    // Multiplying by `mid` converts it back to price units. q is also
-    // normalized to [-1, 1] via max_inventory_ so γ is scale-invariant
-    // across instruments — same γ=0.05 produces ~3% max skew on APE
-    // ($0.16) and on BTC ($30k). Without the normalization the formula
-    // silently broke on cheap instruments (e.g. APE: q=100 produced a
-    // $2.74 inventory penalty against a $0.16 mid, blowing reservation
-    // negative — see commit b684b17 for the empirical trace).
-    //
-    // When µ > 0 (uptrend), reservation rises above mid → asks move up
-    // (harder to get filled short), bids move up (easier to get filled long).
-    // This counteracts the core AS weakness of accumulating adverse inventory
-    // in momentum regimes.
+    // Cartea-Jaimungal drift-adjusted reservation. σ² and µ are log-returns; multiply by mid
+    // for price units. q normalized to [-1,1] via max_inventory so γ is scale-invariant
+    // (b684b17: unnormalized on cheap instrument blew APE bid to -$2.74 vs $0.16 mid).
     const double q_normalized =
         (sizer_.max_inventory > 0.0) ? std::clamp(net_qty / sizer_.max_inventory, -1.0, 1.0) : 0.0;
     const double inventory_skew_frac = q_normalized * gamma_sigma_sq_T;
-    // Drift contribution to reservation. ewma_drift is the EWMA of
-    // log_ret/√dt — units of log-returns per √second. Integrating that
-    // over a horizon T gives a dimensionless cumulative drift of
-    // µ·√T (Itô convention for a Brownian µ·dt term with µ measured per
-    // √s). The pre-fix code used µ·T which has units log_ret·√s, off
-    // by a factor of √T from the correct dimensionless form. On HL APE
-    // with µ ≈ -7e-4 per √s and T = 3600 s, that error sent
-    // drift_skew_frac to -2.52 (-252% of mid) routinely; the b684b17
-    // sanity clamp absorbed the spikes but the distribution was still
-    // skewed. Switching to √T brings drift_skew_frac to ~-0.042 (-4.2%)
-    // for the same inputs — bounded and dimensionally honest.
-    // Suppress drift skew during warmup — early ewma_drift values are
-    // noisy enough to push reservation through the touch. After
-    // drift_warmup_ticks_ BBO updates, the EWMA has settled enough that
-    // its sqrt(T - t) projection is a meaningful directional bias.
+    // ewma_drift is per-√s (log_ret/√dt); cumulative over T gives µ·√T, not µ·T.
+    // µ·T overflows on slow-vol instruments — HL APE T=3600s gave drift_skew_frac=-2.52 pre-fix.
+    // Suppressed during warmup — early EWMA values too noisy to project.
     double drift_skew_frac =
         (st.ewma_drift.count() >= drift_warmup_ticks_) ? st.ewma_drift.value() * std::sqrt(T_minus_t) : 0.0;
-    // Hard cap on drift skew magnitude. Without it, strong intraday
-    // trends amplified by √(T-t) at session start drive reservation
-    // 50+ bps from mid, putting quotes deeper than any realistic book
-    // cross. The drift signal is still in play (suppression checks on
-    // ewma_drift remain unchanged); cap only bounds how far reservation
-    // can be moved by drift alone.
+    // Cap magnitude — √(T-t) amplification at session start pushes quotes off-book without it.
     if (max_drift_skew_bps_ > 0.0) {
         const double cap = max_drift_skew_bps_ / 10000.0;
         drift_skew_frac = std::clamp(drift_skew_frac, -cap, cap);
     }
-    // OFI skew (Cont-Kukanov-Stoikov) — additive contribution to the
-    // reservation proportional to the rolling normalized OFI signal.
-    // Sign matches drift_skew_frac: positive OFI = buy pressure, lifts
-    // reservation above mid → asks move up (harder to fill short),
-    // bids move up (easier to fill long), opposite of how AS handles
-    // accumulating inventory. ofi_weight_bps_ = 0 (default) → no-op.
     const double ofi_skew_frac = ofi_weight_bps_ * 1e-4 * st.ofi.value();
-    // Book-imbalance skew — L1 queue imbalance (bid_qty − ask_qty)/(bid_qty + ask_qty)
-    // leans the reservation toward the predicted short-horizon move. Same sign as
-    // OFI: bid-heavy (imb > 0) lifts reservation. Guard the 0/0 case (empty book,
-    // e.g. order_book_depth=0). imbalance_weight_bps_ = 0 (default) → no-op.
     double book_imbalance_skew_frac = 0.0;
     if (imbalance_weight_bps_ != 0.0) {
         const double bq = st.book.best_bid_qty();
@@ -115,21 +61,15 @@ auto AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st, const 
     }
     const double reservation =
         mid * (1.0 + drift_skew_frac + ofi_skew_frac + book_imbalance_skew_frac - inventory_skew_frac);
-    // Kept for the debug log below; same as drift_skew_frac * mid.
     const double drift_adjustment = drift_skew_frac * mid;
 
-    // Minimum half-spread: config floor + round-trip maker fee so we never
-    // quote a spread that is guaranteed to lose money to commissions.
-    // fee_half = maker_bps / 10000 * mid (one leg); both legs = 2x, so each
-    // side of the spread must cover at least 1x maker fee.
+    // fee_half = one maker leg; ensures each half-spread covers commissions.
     double fee_half_spread = 0.0;
     const auto fee_entry = refdata_.fee_cache().get(st.exchange_id, st.instrument_id, timestamp_ns);
     if (fee_entry) {
         fee_half_spread = (static_cast<double>(fee_entry->maker_bps) / 10000.0) * mid;
     }
 
-    // Use live EWMA κ once warmed up; fall back to config kappa_ before then.
-    // Floor at kappa_min_ to prevent ln(1 + γ/κ) → ∞ as κ → 0.
     const double kappa =
         (st.ewma_kappa.count() >= kappa_warmup_ticks_) ? std::max(kappa_min_, st.ewma_kappa.value()) : kappa_;
 
@@ -138,12 +78,7 @@ auto AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st, const 
         std::max(min_half_spread,
                  gamma_sigma_sq_T / 2.0 + (1.0 / effective_gamma) * std::log(1.0 + effective_gamma / kappa));
 
-    // Cold-start / pathological-σ² clamp. The AS formula can produce
-    // absurdly wide half-spreads before warmup settles or if σ² or κ
-    // estimates go haywire. max_half_spread_bps_ is the "never quote
-    // wider than this" sanity ceiling. If we hit it, warmup isn't done
-    // or something in the EWMA updater is off — log at WARN, rate-limited,
-    // so ops see it but logs don't flood.
+    // Warmup/spike safety clamp; fires when σ² blows up or κ → 0. Rate-limited WARN.
     const double max_half_spread = (max_half_spread_bps_ / 10000.0) * mid;
     double half_spread = raw_half_spread;
     if (raw_half_spread > max_half_spread) {
@@ -166,24 +101,8 @@ auto AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st, const 
     double bid = reservation - half_spread;
     double ask = reservation + half_spread;
 
-    // ── Reservation-skew cap ────────────────────────────────────────────
-    //
-    // Inventory pressure can push the reservation through the touch
-    // (when net_qty * γ * σ² * T > spread/2). Without a cap, AS posts
-    // BIDs at or above the best ask, or ASKs at or below the best bid —
-    // POST_ONLY orders that the venue rejects, GTC orders that pay
-    // taker fees. Either way: not the maker behaviour AS is designed
-    // for.
-    //
-    // Clamp each side to strictly inside the BBO by one tick. Skipped
-    // when the cached BBO isn't valid (cold start, gap, etc.) — better
-    // to let the unclamped quote through than block on missing data.
-    //
-    // Effect: AS still skews aggressively toward the inventory-unwind
-    // side (e.g. when long, the ASK tightens), but neither side is
-    // allowed to cross. Real exchanges treat at-touch quotes as
-    // contestable maker fills, so the −tick clamp is conservative;
-    // tightening to −0 (touch) would be an option later.
+    // Clamp to inside BBO — inventory skew can push reservation through the touch (POST_ONLY
+    // reject or taker fill). Return nullopt on crossed market (transient feed state).
     if (st.tick_size > 0.0 && st.last_market_bid > 0.0 && st.last_market_ask > 0.0) {
         const double bid_cap = st.last_market_ask - st.tick_size;
         const double ask_floor = st.last_market_bid + st.tick_size;
@@ -191,25 +110,11 @@ auto AvellanedaStoikovStrategy::compute_quotes(const InstrumentState& st, const 
             bid = bid_cap;
         if (ask < ask_floor)
             ask = ask_floor;
-        // Defensive: if the clamp inverts the spread (only possible on
-        // a crossed market, which shouldn't happen but might in
-        // transient feed states), treat as "don't quote this tick."
         if (bid >= ask)
             return std::nullopt;
     }
 
-    // ── Final sanity check on quote level ───────────────────────────────
-    //
-    // Even after every cap above, the formula can land on absurd quote
-    // levels — most commonly on cheap instruments where the inventory
-    // penalty (q*γ*σ²*T) is dimensionally wrong and overwhelms mid. APE
-    // at $0.16 produced bids at -$2.74 in the 2026-05-07 backtest; the
-    // OrderManager rejected 899 of them in 11h because price ≤ 0. By the
-    // time OrderMgr saw them, the strategy had already built and tracked
-    // an order. Cheaper to skip the whole tick here.
-    //
-    // Bound is symmetric around mid in bps. Fires also on cold start
-    // (last_market_bid/ask ≈ 0 makes the post-touch cap silently no-op).
+    // b684b17: cheap-instrument formula overflow — gate here is cheaper than OM rejecting 900 orders.
     if (st.last_mid > 0.0 && quote_sanity_bps_ > 0.0) {
         const double bound = st.last_mid * (quote_sanity_bps_ / 10000.0);
         const double lo = st.last_mid - bound;

@@ -23,8 +23,6 @@ quill::Logger* kLog() {
 }
 }  // namespace
 
-static constexpr double kPriceScale = 1e8;
-
 void AvellanedaStoikovStrategy::maybe_requote(InstrumentState& st, const BboContext& ctx, const QuoteTarget& quotes) {
     const double net_qty = ctx.net_qty;
     const double mid = ctx.mid;
@@ -101,121 +99,48 @@ void AvellanedaStoikovStrategy::maybe_requote(InstrumentState& st, const BboCont
                                new_ask);
     }
 
-    // Legacy variable names retained for the side-decision blocks below
-    // — match existing log-message key naming (`max_inv` vs `suppress`)
-    // so the operational log format is unchanged by the refactor.
     const bool at_max_long = supp.inventory_bid;
     const bool at_max_short = supp.inventory_ask;
     const bool final_suppress_bids = supp.bid_signal();
     const bool final_suppress_asks = supp.ask_signal();
 
-    // ── Bid side ──────────────────────────────────────────────────────────
-    if (st.h_bid.live()) {
-        // Adverse selection guard: cancel if mid has risen significantly since
-        // we placed this bid — informed flow is pushing against us.
-        const bool adverse =
-            st.bid_placed_mid > 0.0 && (mid - st.bid_placed_mid) / st.bid_placed_mid > requote_threshold_;
-        // Model drift: modify-in-place if the AS model wants a different price.
-        const bool stale =
-            st.last_bid_price > 0.0 && std::abs(new_bid - st.last_bid_price) / st.last_bid_price > requote_threshold_;
-        if (at_max_long || adverse || final_suppress_bids) {
-            // Hard cancel — don't amend. OM marks CancelPending before the
-            // gateway call so the sync backtest path can't lose the
-            // terminal status (see OrderManager::send_cancel comment).
-            if (order_mgr_) {
-                bpt::common::log::debug(kLog(),
-                                        "Cancel bid order_id={} {} @ {} reason={}",
-                                        st.h_bid.order_id(),
-                                        st.symbol,
-                                        st.exchange,
-                                        at_max_long           ? "max_inv"
-                                        : final_suppress_bids ? "suppress"
-                                                              : "adverse");
-                order_mgr_->send_cancel(st.h_bid);
+    // Manage one quote side: cancel/modify/place in priority order.
+    auto manage_side = [&](order::OrderHandle& h, double& last_px, double& placed_mid_ref,
+                            bool at_cap, bool suppressed, double new_px, bool is_bid) {
+        if (h.live()) {
+            const double adverse_move = is_bid ? (mid - placed_mid_ref) / placed_mid_ref
+                                               : (placed_mid_ref - mid) / placed_mid_ref;
+            const bool adverse = placed_mid_ref > 0.0 && adverse_move > requote_threshold_;
+            const bool stale = last_px > 0.0 && std::abs(new_px - last_px) / last_px > requote_threshold_;
+            if (at_cap || adverse || suppressed) {
+                if (order_mgr_) {
+                    bpt::common::log::debug(kLog(), "Cancel {} order_id={} {} @ {} reason={}",
+                                            is_bid ? "bid" : "ask", h.order_id(), st.symbol, st.exchange,
+                                            at_cap ? "max_inv" : suppressed ? "suppress" : "adverse");
+                    order_mgr_->send_cancel(h);
+                }
+            } else if (stale) {
+                if (order_mgr_) {
+                    bpt::common::log::debug(kLog(), "Modify {} order_id={} {} @ {} → {:.6f}",
+                                            is_bid ? "bid" : "ask", h.order_id(), st.symbol, st.exchange, new_px);
+                    order_mgr_->modify_quote(h, new_px, eff_qty);
+                }
+                last_px = new_px;
+                placed_mid_ref = mid;
             }
-        } else if (stale) {
-            if (order_mgr_) {
-                double price = new_bid;
-                if (st.tick_size > 0.0)
-                    price = std::floor(price / st.tick_size) * st.tick_size;
-                const int64_t price_fixed = static_cast<int64_t>(std::round(price * kPriceScale));
-                const uint64_t qty_fp = static_cast<uint64_t>(std::round(eff_qty * 1e8));
-                bpt::common::log::debug(kLog(),
-                                        "Modify bid order_id={} {} @ {} → {:.6f}",
-                                        st.h_bid.order_id(),
-                                        st.symbol,
-                                        st.exchange,
-                                        price);
-                order_mgr_->modify_order(order::ModifyOrderRequest{st.h_bid.order_id(),
-                                                                   st.exchange_id,
-                                                                   st.instrument_id,
-                                                                   price_fixed,
-                                                                   qty_fp});
-            }
-            st.last_bid_price = new_bid;
-            st.bid_placed_mid = mid;
         }
-    }
+        if (!h.valid() && !at_cap && !suppressed) {
+            const auto side = is_bid ? bpt::messages::OrderSide::BUY : bpt::messages::OrderSide::SELL;
+            if (auto nh = send_limit_order(st, side, new_px, eff_qty); nh.valid()) {
+                h = nh;
+                last_px = new_px;
+                placed_mid_ref = mid;
+            }
+        }
+    };
 
-    if (!st.h_bid.valid() && !at_max_long && !final_suppress_bids) {
-        auto h = send_limit_order(st, bpt::messages::OrderSide::BUY, new_bid, eff_qty);
-        if (h.valid()) {
-            st.h_bid = h;
-            st.last_bid_price = new_bid;
-            st.bid_placed_mid = mid;
-        }
-    }
-
-    // ── Ask side ──────────────────────────────────────────────────────────
-    if (st.h_ask.live()) {
-        const bool adverse =
-            st.ask_placed_mid > 0.0 && (st.ask_placed_mid - mid) / st.ask_placed_mid > requote_threshold_;
-        const bool stale =
-            st.last_ask_price > 0.0 && std::abs(new_ask - st.last_ask_price) / st.last_ask_price > requote_threshold_;
-        if (at_max_short || adverse || final_suppress_asks) {
-            if (order_mgr_) {
-                bpt::common::log::debug(kLog(),
-                                        "Cancel ask order_id={} {} @ {} reason={}",
-                                        st.h_ask.order_id(),
-                                        st.symbol,
-                                        st.exchange,
-                                        at_max_short          ? "max_inv"
-                                        : final_suppress_asks ? "suppress"
-                                                              : "adverse");
-                order_mgr_->send_cancel(st.h_ask);
-            }
-        } else if (stale) {
-            if (order_mgr_) {
-                double price = new_ask;
-                if (st.tick_size > 0.0)
-                    price = std::ceil(price / st.tick_size) * st.tick_size;
-                const int64_t price_fixed = static_cast<int64_t>(std::round(price * kPriceScale));
-                const uint64_t qty_fp = static_cast<uint64_t>(std::round(eff_qty * 1e8));
-                bpt::common::log::debug(kLog(),
-                                        "Modify ask order_id={} {} @ {} → {:.6f}",
-                                        st.h_ask.order_id(),
-                                        st.symbol,
-                                        st.exchange,
-                                        price);
-                order_mgr_->modify_order(order::ModifyOrderRequest{st.h_ask.order_id(),
-                                                                   st.exchange_id,
-                                                                   st.instrument_id,
-                                                                   price_fixed,
-                                                                   qty_fp});
-            }
-            st.last_ask_price = new_ask;
-            st.ask_placed_mid = mid;
-        }
-    }
-
-    if (!st.h_ask.valid() && !at_max_short && !final_suppress_asks) {
-        auto h = send_limit_order(st, bpt::messages::OrderSide::SELL, new_ask, eff_qty);
-        if (h.valid()) {
-            st.h_ask = h;
-            st.last_ask_price = new_ask;
-            st.ask_placed_mid = mid;
-        }
-    }
+    manage_side(st.h_bid, st.last_bid_price, st.bid_placed_mid, at_max_long, final_suppress_bids, new_bid, true);
+    manage_side(st.h_ask, st.last_ask_price, st.ask_placed_mid, at_max_short, final_suppress_asks, new_ask, false);
 
     // ── Active inventory unwind ────────────────────────────────────────────
     if (!st.h_unwind.valid()) {
