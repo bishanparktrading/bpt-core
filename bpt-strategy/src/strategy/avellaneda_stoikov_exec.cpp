@@ -41,8 +41,11 @@ void AvellanedaStoikovStrategy::on_exec_report(const bpt::messages::ExecutionRep
     const uint64_t canonical_id = os->instrument_id;
 
     auto state_it = state_.find(canonical_id);
-    if (state_it == state_.end())
+    if (state_it == state_.end()) {
+        bpt::common::log::warn(kLog(), "ExecReport order_id={} instrument_id={} not in state — dropping",
+                               order_id, canonical_id);
         return;
+    }
 
     InstrumentState& st = state_it->second;
 
