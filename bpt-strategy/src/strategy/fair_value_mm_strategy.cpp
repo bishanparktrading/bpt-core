@@ -93,7 +93,7 @@ void FairValueMmStrategy::start() {
     bpt::common::log::info(kLog(), "[FVMM:{}] started", correlation_id_);
 }
 
-void FairValueMmStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
+void FairValueMmStrategy::on_instrument_snapshot(const refdata::InstrumentCache& cache) {
     state_.clear();
     positions_.clear_all();
 
@@ -127,7 +127,7 @@ void FairValueMmStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
     }
 }
 
-void FairValueMmStrategy::on_delta(const refdata::Instrument& inst, bpt::messages::DeltaUpdateType::Value) {
+void FairValueMmStrategy::on_instrument_delta(const refdata::Instrument& inst, bpt::messages::DeltaUpdateType::Value) {
     const auto it = state_.find(inst.instrument_id);
     if (it == state_.end())
         return;

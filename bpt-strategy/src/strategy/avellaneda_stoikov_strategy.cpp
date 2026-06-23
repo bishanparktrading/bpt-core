@@ -238,7 +238,7 @@ void AvellanedaStoikovStrategy::start() {
     refdata_.subscribe(correlation_id_, CanonicalResolver::build_filters(instruments_, md_exchanges_));
 }
 
-void AvellanedaStoikovStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
+void AvellanedaStoikovStrategy::on_instrument_snapshot(const refdata::InstrumentCache& cache) {
     bpt::common::log::info(kLog(), "Snapshot ({} instruments), resolving universe...", cache.size());
     state_.clear();
     positions_.clear_all();
@@ -270,7 +270,7 @@ void AvellanedaStoikovStrategy::on_snapshot(const refdata::InstrumentCache& cach
     md_client_->subscribe(correlation_id_, subs);
 }
 
-void AvellanedaStoikovStrategy::on_delta(const refdata::Instrument& inst,
+void AvellanedaStoikovStrategy::on_instrument_delta(const refdata::Instrument& inst,
                                          bpt::messages::DeltaUpdateType::Value update_type) {
     if (update_type == bpt::messages::DeltaUpdateType::ADD) {
         if (!CanonicalResolver::matches(instruments_, md_exchanges_, inst))

@@ -47,8 +47,8 @@ public:
                      vol::IVolSurfaceClient* vol_client);
 
     void start() override;
-    void on_snapshot(const refdata::InstrumentCache& cache) override;
-    void on_delta(const refdata::Instrument& inst, bpt::messages::DeltaUpdateType::Value update_type) override;
+    void on_instrument_snapshot(const refdata::InstrumentCache& cache) override;
+    void on_instrument_delta(const refdata::Instrument& inst, bpt::messages::DeltaUpdateType::Value update_type) override;
     void on_bbo(const bpt::messages::MdMarketData& tick) override;
     void on_trade(const bpt::messages::MdTrade& tick) override;
     void on_vol_surface(bpt::messages::VolSurface& surface) override;

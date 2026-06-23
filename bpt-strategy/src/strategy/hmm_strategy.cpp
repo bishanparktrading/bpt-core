@@ -116,7 +116,7 @@ void HmmStrategy::start() {
     refdata_.subscribe(correlation_id_, CanonicalResolver::build_filters(instruments_, md_exchanges_));
 }
 
-void HmmStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
+void HmmStrategy::on_instrument_snapshot(const refdata::InstrumentCache& cache) {
     if (!state_.empty()) {
         bpt::common::log::debug(kLog(), "Ignoring duplicate snapshot ({} instruments)", cache.size());
         return;
@@ -146,7 +146,7 @@ void HmmStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
         md_client_->subscribe(correlation_id_, md::build_subscriptions(state_, order_book_depth_));
 }
 
-void HmmStrategy::on_delta(const refdata::Instrument& /*inst*/, bpt::messages::DeltaUpdateType::Value /*type*/) {}
+void HmmStrategy::on_instrument_delta(const refdata::Instrument& /*inst*/, bpt::messages::DeltaUpdateType::Value /*type*/) {}
 
 // ── Market data ──────────────────────────────────────────────────────────────
 

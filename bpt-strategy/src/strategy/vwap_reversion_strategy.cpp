@@ -70,7 +70,7 @@ void VwapReversionStrategy::start() {
     refdata_.subscribe(correlation_id_, CanonicalResolver::build_filters(instruments_, md_exchanges_));
 }
 
-void VwapReversionStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
+void VwapReversionStrategy::on_instrument_snapshot(const refdata::InstrumentCache& cache) {
     bpt::common::log::info("[VwapReversion] Snapshot ({} instruments), resolving universe...", cache.size());
     state_.clear();
     order_to_instrument_.clear();
@@ -93,7 +93,7 @@ void VwapReversionStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
     md_client_->subscribe(correlation_id_, subs);
 }
 
-void VwapReversionStrategy::on_delta(const refdata::Instrument& inst,
+void VwapReversionStrategy::on_instrument_delta(const refdata::Instrument& inst,
                                      bpt::messages::DeltaUpdateType::Value update_type) {
     if (update_type == bpt::messages::DeltaUpdateType::ADD) {
         if (!CanonicalResolver::matches(instruments_, md_exchanges_, inst))

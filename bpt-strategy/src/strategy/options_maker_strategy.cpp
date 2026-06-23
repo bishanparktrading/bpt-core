@@ -99,7 +99,7 @@ void OptionsMakerStrategy::start() {
     // Quote loop wires up in the next chunk. Today: log + idle.
 }
 
-void OptionsMakerStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
+void OptionsMakerStrategy::on_instrument_snapshot(const refdata::InstrumentCache& cache) {
     // Resolve the perp leg per underlying (delta hedger consumes our portfolio
     // snapshot to neutralise; strategy itself doesn't emit perp orders). Option
     // universe arrives dynamically via VolSurface and is resolved in
@@ -139,7 +139,7 @@ void OptionsMakerStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
     resolve_option_universe(cache);
 }
 
-void OptionsMakerStrategy::on_delta(const refdata::Instrument& /*inst*/,
+void OptionsMakerStrategy::on_instrument_delta(const refdata::Instrument& /*inst*/,
                                     bpt::messages::DeltaUpdateType::Value /*update_type*/) {
     // Option universe is rediscovered each VolSurface tick — refdata deltas
     // don't need to drive re-quote churn today. Revisit when listings update

@@ -111,7 +111,7 @@ void PassiveMakerStrategy::start() {
     refdata_.subscribe(correlation_id_, CanonicalResolver::build_filters(instruments_, md_exchanges_));
 }
 
-void PassiveMakerStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
+void PassiveMakerStrategy::on_instrument_snapshot(const refdata::InstrumentCache& cache) {
     if (!state_.empty()) {
         bpt::common::log::debug(kLog(), "Ignoring duplicate snapshot ({} instruments)", cache.size());
         return;
@@ -141,7 +141,7 @@ void PassiveMakerStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
         md_client_->subscribe(correlation_id_, md::build_subscriptions(state_, /*depth=*/1));
 }
 
-void PassiveMakerStrategy::on_delta(const refdata::Instrument& /*inst*/,
+void PassiveMakerStrategy::on_instrument_delta(const refdata::Instrument& /*inst*/,
                                     bpt::messages::DeltaUpdateType::Value /*type*/) {}
 
 void PassiveMakerStrategy::on_bbo(const bpt::messages::MdMarketData& tick) {

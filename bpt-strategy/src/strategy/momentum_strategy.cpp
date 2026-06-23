@@ -79,7 +79,7 @@ void MomentumStrategy::start() {
     refdata_.subscribe(correlation_id_, CanonicalResolver::build_filters(instruments_, md_exchanges_));
 }
 
-void MomentumStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
+void MomentumStrategy::on_instrument_snapshot(const refdata::InstrumentCache& cache) {
     bpt::common::log::info(kLog(), "Snapshot received ({} total instruments), resolving universe...", cache.size());
 
     state_.clear();
@@ -101,7 +101,7 @@ void MomentumStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
     md_client_->subscribe(correlation_id_, subs);
 }
 
-void MomentumStrategy::on_delta(const refdata::Instrument& inst, bpt::messages::DeltaUpdateType::Value update_type) {
+void MomentumStrategy::on_instrument_delta(const refdata::Instrument& inst, bpt::messages::DeltaUpdateType::Value update_type) {
     if (update_type == bpt::messages::DeltaUpdateType::ADD) {
         if (!CanonicalResolver::matches(instruments_, md_exchanges_, inst))
             return;

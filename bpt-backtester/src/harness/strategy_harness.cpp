@@ -183,11 +183,11 @@ void StrategyHarness::initialize() {
     // console publish, or watchdog logic — those are integration
     // concerns that belong on the multi-process path.
     refdata_client_->on_snapshot_complete = [this](const bpt::strategy::refdata::InstrumentCache& cache) {
-        strategy_->on_snapshot(cache);
+        strategy_->on_instrument_snapshot(cache);
     };
     refdata_client_->on_delta = [this](const bpt::strategy::refdata::Instrument& inst,
                                        bpt::messages::DeltaUpdateType::Value t) {
-        strategy_->on_delta(inst, t);
+        strategy_->on_instrument_delta(inst, t);
     };
     md_handler_.strategy = strategy_.get();
     md_client_->set_handler(&md_handler_);
@@ -222,7 +222,7 @@ void StrategyHarness::initialize() {
     // its instrument set populated and is ready to receive MD.
     strategy_->start();
 
-    // Strategy.start() ran on_snapshot synchronously, which prompted
+    // Strategy.start() ran on_instrument_snapshot synchronously (refdata client fires inline), which prompted
     // the strategy to call md_client_->subscribe() with its target
     // instrument list. Now that the subscription is in hand, copy it
     // into the HL SubscriptionMap so the venue decoder knows which

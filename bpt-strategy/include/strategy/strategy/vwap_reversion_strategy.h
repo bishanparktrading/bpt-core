@@ -49,8 +49,8 @@ public:
                           order::OrderManager* order_mgr);
 
     void start() override;
-    void on_snapshot(const refdata::InstrumentCache& cache) override;
-    void on_delta(const refdata::Instrument& inst, bpt::messages::DeltaUpdateType::Value update_type) override;
+    void on_instrument_snapshot(const refdata::InstrumentCache& cache) override;
+    void on_instrument_delta(const refdata::Instrument& inst, bpt::messages::DeltaUpdateType::Value update_type) override;
     void on_bbo(const bpt::messages::MdMarketData& tick) override;
     void on_trade(const bpt::messages::MdTrade& tick) override;
     void on_exec_report(const bpt::messages::ExecutionReport& rpt) override;

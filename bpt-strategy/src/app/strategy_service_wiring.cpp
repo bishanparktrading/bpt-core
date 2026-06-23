@@ -145,7 +145,7 @@ void StrategyService::on_refdata_error(bpt::messages::RefDataErrorType::Value er
 }
 
 void StrategyService::on_refdata_snapshot_complete(const refdata::InstrumentCache& cache) {
-    strategy_->on_snapshot(cache);
+    strategy_->on_instrument_snapshot(cache);
 
     // Warm-start load: instruments are resolved and state_ entries
     // exist, so saved EWMA / regime state has somewhere to land.
@@ -161,7 +161,7 @@ void StrategyService::on_refdata_snapshot_complete(const refdata::InstrumentCach
 
 void StrategyService::on_refdata_delta(const refdata::Instrument& inst,
                                        bpt::messages::DeltaUpdateType::Value update_type) {
-    strategy_->on_delta(inst, update_type);
+    strategy_->on_instrument_delta(inst, update_type);
 }
 
 void StrategyService::on_refdata_gap_detected() {

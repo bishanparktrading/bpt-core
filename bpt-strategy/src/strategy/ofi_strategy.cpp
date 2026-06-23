@@ -108,7 +108,7 @@ void OFIStrategy::start() {
     refdata_.subscribe(correlation_id_, CanonicalResolver::build_filters(instruments_, md_exchanges_));
 }
 
-void OFIStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
+void OFIStrategy::on_instrument_snapshot(const refdata::InstrumentCache& cache) {
     if (!state_.empty()) {
         bpt::common::log::debug(kLog(), "Ignoring duplicate snapshot ({} instruments)", cache.size());
         return;
@@ -140,7 +140,7 @@ void OFIStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
         md_client_->subscribe(correlation_id_, md::build_subscriptions(state_, order_book_depth_));
 }
 
-void OFIStrategy::on_delta(const refdata::Instrument& /*inst*/, bpt::messages::DeltaUpdateType::Value /*type*/) {}
+void OFIStrategy::on_instrument_delta(const refdata::Instrument& /*inst*/, bpt::messages::DeltaUpdateType::Value /*type*/) {}
 
 void OFIStrategy::on_trade(const bpt::messages::MdTrade& /*tick*/) {}
 

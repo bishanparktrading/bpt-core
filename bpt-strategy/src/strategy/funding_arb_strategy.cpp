@@ -115,7 +115,7 @@ void FundingArbStrategy::start() {
     refdata_.subscribe(correlation_id_, CanonicalResolver::build_filters(instruments_, md_exchanges_));
 }
 
-void FundingArbStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
+void FundingArbStrategy::on_instrument_snapshot(const refdata::InstrumentCache& cache) {
     bpt::common::log::info("[FA] Snapshot ({} instruments), resolving pairs...", cache.size());
     pairs_.clear();
     instrument_to_base_.clear();
@@ -195,7 +195,7 @@ void FundingArbStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
     md_client_->subscribe(correlation_id_, subs);
 }
 
-void FundingArbStrategy::on_delta(const refdata::Instrument& /*inst*/,
+void FundingArbStrategy::on_instrument_delta(const refdata::Instrument& /*inst*/,
                                   bpt::messages::DeltaUpdateType::Value /*update_type*/) {
     // Funding arb pairs are resolved once at snapshot time.
     // Dynamic instrument adds/removes during a session are not handled —

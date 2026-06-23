@@ -150,7 +150,7 @@ void RegimeSwitchStrategy::start() {
     refdata_.subscribe(correlation_id_, CanonicalResolver::build_filters(instruments_, md_exchanges_));
 }
 
-void RegimeSwitchStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
+void RegimeSwitchStrategy::on_instrument_snapshot(const refdata::InstrumentCache& cache) {
     // Guard against duplicate snapshots from Sindri re-broadcasts.
     if (!state_.empty()) {
         bpt::common::log::debug(kLog(), "Ignoring duplicate snapshot ({} instruments)", cache.size());
@@ -189,7 +189,7 @@ void RegimeSwitchStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
     md_client_->subscribe(correlation_id_, subs);
 }
 
-void RegimeSwitchStrategy::on_delta(const refdata::Instrument& /*inst*/,
+void RegimeSwitchStrategy::on_instrument_delta(const refdata::Instrument& /*inst*/,
                                     bpt::messages::DeltaUpdateType::Value /*update_type*/) {}
 
 void RegimeSwitchStrategy::on_trade(const bpt::messages::MdTrade& /*tick*/) {}

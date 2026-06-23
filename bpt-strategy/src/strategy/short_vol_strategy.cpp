@@ -121,7 +121,7 @@ void ShortVolStrategy::start() {
     }
 }
 
-void ShortVolStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
+void ShortVolStrategy::on_instrument_snapshot(const refdata::InstrumentCache& cache) {
     // Discover perp instruments for each underlying we want to trade.
     // Option instruments are discovered dynamically from VolSurface messages.
     const auto all = cache.get_all();
@@ -201,7 +201,7 @@ void ShortVolStrategy::on_snapshot(const refdata::InstrumentCache& cache) {
     bpt::common::log::info("[ShortVol] Snapshot processed: {} underlyings tracked", states_.size());
 }
 
-void ShortVolStrategy::on_delta(const refdata::Instrument& inst,
+void ShortVolStrategy::on_instrument_delta(const refdata::Instrument& inst,
                                 bpt::messages::DeltaUpdateType::Value /*update_type*/) {
     if (inst.type == refdata::InstrumentType::PERPETUAL || inst.type == refdata::InstrumentType::OPTION) {
         bool relevant = underlyings_.empty();

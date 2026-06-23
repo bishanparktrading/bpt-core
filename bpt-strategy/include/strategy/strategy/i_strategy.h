@@ -74,8 +74,8 @@ public:
     virtual void start() = 0;
 
     // Callbacks from RefdataClient
-    virtual void on_snapshot(const refdata::InstrumentCache& cache) = 0;
-    virtual void on_delta(const refdata::Instrument& inst, bpt::messages::DeltaUpdateType::Value update_type) = 0;
+    virtual void on_instrument_snapshot(const refdata::InstrumentCache& cache) = 0;
+    virtual void on_instrument_delta(const refdata::Instrument& inst, bpt::messages::DeltaUpdateType::Value update_type) = 0;
 
     // Callbacks from MdClient
     virtual void on_bbo(const bpt::messages::MdMarketData& tick) = 0;
@@ -107,7 +107,7 @@ public:
     // Default no-op — strategies that read fee_cache / funding_rate_cache
     // on the hot path (presently AS) should override this. Other
     // strategies survive refdata loss because they only consume snapshot
-    // data, which is cached in InstrumentState at on_snapshot() time.
+    // data, which is cached in InstrumentState at on_instrument_snapshot() time.
     virtual void on_refdata_stale_changed(bool /*stale*/) {}
 
     // Fired once per exchange at startup when the account snapshot is received.
@@ -191,7 +191,7 @@ public:
     virtual void save_state(const std::string& /*path*/) {}
 
     // Load warm-start state from `path` if it exists and is no older
-    // than `max_age_s` seconds. Called once, AFTER on_snapshot() has
+    // than `max_age_s` seconds. Called once, AFTER on_instrument_snapshot() has
     // resolved the instrument universe (so instrument_id → state
     // entries can be matched). Missing / corrupt / stale file is not
     // an error — strategies fall back to cold start silently.
